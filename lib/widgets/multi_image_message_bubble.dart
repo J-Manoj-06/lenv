@@ -208,13 +208,6 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
       decoration: BoxDecoration(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(widget.bubbleRadius),
-        boxShadow: [
-          BoxShadow(
-            color: theme.primaryColor.withOpacity(isDark ? 0.03 : 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
       ),
       padding: EdgeInsets.zero,
       child: Stack(

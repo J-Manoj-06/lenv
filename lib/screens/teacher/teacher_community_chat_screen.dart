@@ -519,7 +519,7 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
     if (_userRole == null) return AppColors.teacherColor;
     final role = _userRole!.toLowerCase();
     if (role == 'institute' || role == 'principal') {
-      return AppColors.instituteColor; // Blue for principal
+      return const Color(0xFF146D7A); // Teal for principal
     } else if (role == 'teacher') {
       return AppColors.teacherColor; // Teacher color
     } else if (role == 'student') {
@@ -2062,28 +2062,30 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                         Container(
                           padding: EdgeInsets.symmetric(
                             horizontal:
+                                // No padding for ANY media messages
                                 message.multipleMedia != null &&
-                                    message.multipleMedia!.isNotEmpty
+                                    message.multipleMedia!.isNotEmpty ||
+                                message.mediaMetadata != null
                                 ? 0
                                 : 5,
                             vertical:
                                 message.multipleMedia != null &&
-                                    message.multipleMedia!.isNotEmpty
+                                    message.multipleMedia!.isNotEmpty ||
+                                message.mediaMetadata != null
                                 ? 0
                                 : 5,
                           ),
                           decoration: BoxDecoration(
                             color:
-                                message.multipleMedia != null &&
-                                    message.multipleMedia!.isNotEmpty
+                                // Make transparent for ALL messages with media (no background color at all)
+                                (message.multipleMedia != null &&
+                                    message.multipleMedia!.isNotEmpty) ||
+                                message.mediaMetadata != null
                                 ? Colors.transparent
                                 : (isCurrentUser
                                       ? (isDark
                                             ? const Color(0xFF1A1C20)
-                                            : theme
-                                                  .colorScheme
-                                                  .surfaceContainerHighest
-                                                  .withOpacity(0.6))
+                                            : _getThemeColor().withOpacity(0.15)) // Use role-based theme color
                                       : (isDark
                                             ? const Color(0xFF14171B)
                                             : theme.cardColor)),
@@ -2097,14 +2099,7 @@ class _TeacherCommunityChatScreenState extends State<TeacherCommunityChatScreen>
                                 isCurrentUser ? 6 : 12,
                               ),
                             ),
-                            border:
-                                message.multipleMedia != null &&
-                                    message.multipleMedia!.isNotEmpty
-                                ? null
-                                : Border.all(
-                                    color: theme.dividerColor.withOpacity(0.4),
-                                    width: 0.1,
-                                  ),
+                            // Removed border AND background for media to eliminate outline
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
