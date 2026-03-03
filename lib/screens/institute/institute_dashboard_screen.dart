@@ -6,7 +6,7 @@ import './institute_announcement_target_screen.dart';
 import './principal_announcement_viewer.dart';
 import './attendance_history_screen.dart';
 import '../attendance_details_page.dart';
-import '../messages/staff_room_chat_page.dart';
+import '../messages/staff_room_group_chat_page.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
@@ -1832,7 +1832,7 @@ class _QuickActionCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => StaffRoomChatPage(
+              builder: (context) => StaffRoomGroupChatPage(
                 instituteId: instituteId,
                 instituteName: instituteName,
                 isTeacher: false, // Principal uses teal color

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
-import '../../messages/group_chat_page.dart';
+import '../../messages/teacher_group_chat_page.dart';
 
 /// Aggregated teacher messages screen
 /// Shows subjects taught by the teacher with the list of classes per subject.
@@ -472,7 +472,7 @@ class _TeacherSubjectMessagesScreenState
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => GroupChatPage(
+        builder: (_) => TeacherGroupChatPage(
           classId: classId,
           subjectId: subject.toLowerCase().replaceAll(' ', '_'),
           subjectName: subject,

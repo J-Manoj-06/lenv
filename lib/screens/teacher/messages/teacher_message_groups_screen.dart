@@ -3,9 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../../../providers/auth_provider.dart';
-import '../../messages/group_chat_page.dart';
+import '../../messages/teacher_group_chat_page.dart';
 import '../../../services/group_messaging_service.dart';
-import '../../messages/staff_room_chat_page.dart';
+import '../../messages/staff_room_group_chat_page.dart';
 import '../../../services/offline_data_service.dart';
 
 /// Models
@@ -823,7 +823,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => StaffRoomChatPage(
+                    builder: (context) => StaffRoomGroupChatPage(
                       instituteId: instituteId,
                       instituteName: instituteName,
                       isTeacher: true, // Different color for teachers
@@ -956,7 +956,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => GroupChatPage(
+        builder: (context) => TeacherGroupChatPage(
           classId: group.classId,
           subjectId: group
               .subjectId, // ✅ FIXED: Use actual subjectId instead of groupId

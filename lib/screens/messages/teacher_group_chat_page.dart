@@ -44,7 +44,7 @@ import '../messages/offline_message_search_page.dart';
 import 'mindmap_viewer_page.dart';
 import 'mindmap_create_page.dart';
 
-class GroupChatPage extends StatefulWidget {
+class TeacherGroupChatPage extends StatefulWidget {
   final String classId;
   final String subjectId;
   final String subjectName;
@@ -54,7 +54,7 @@ class GroupChatPage extends StatefulWidget {
   final String? section;
   final bool isParentGroup; // Flag to indicate if this group includes parents
 
-  const GroupChatPage({
+  const TeacherGroupChatPage({
     super.key,
     required this.classId,
     required this.subjectId,
@@ -67,10 +67,10 @@ class GroupChatPage extends StatefulWidget {
   });
 
   @override
-  State<GroupChatPage> createState() => _GroupChatPageState();
+  State<TeacherGroupChatPage> createState() => _TeacherGroupChatPageState();
 }
 
-class _GroupChatPageState extends State<GroupChatPage>
+class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     with MessageScrollAndHighlightMixin {
   Color _getAccentColor(UserRole? role) {
     switch (role) {

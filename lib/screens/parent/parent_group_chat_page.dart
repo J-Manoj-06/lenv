@@ -40,7 +40,7 @@ import '../../services/firebase_message_sync_service.dart';
 import '../messages/offline_message_search_page.dart';
 import '../../models/local_message.dart';
 
-class ParentSectionGroupChatScreen extends StatefulWidget {
+class ParentGroupChatPage extends StatefulWidget {
   final String groupId;
   final String groupName;
   final String? className;
@@ -50,7 +50,7 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
   final String? schoolCode;
   final String senderRole;
 
-  const ParentSectionGroupChatScreen({
+  const ParentGroupChatPage({
     super.key,
     required this.groupId,
     required this.groupName,
@@ -63,12 +63,12 @@ class ParentSectionGroupChatScreen extends StatefulWidget {
   });
 
   @override
-  State<ParentSectionGroupChatScreen> createState() =>
-      _ParentSectionGroupChatScreenState();
+  State<ParentGroupChatPage> createState() =>
+      _ParentGroupChatPageState();
 }
 
-class _ParentSectionGroupChatScreenState
-    extends State<ParentSectionGroupChatScreen>
+class _ParentGroupChatPageState
+    extends State<ParentGroupChatPage>
     with AutomaticKeepAliveClientMixin, MessageScrollAndHighlightMixin {
   // ✅ NEW THEME COLORS - Modern dark design
   static const Color primaryBackground = Color(0xFF0F1113);

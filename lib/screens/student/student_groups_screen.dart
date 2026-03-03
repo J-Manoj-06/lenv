@@ -6,7 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../utils/chat_type_config.dart';
 import '../../widgets/unread_badge_widget.dart';
-import '../messages/group_chat_page.dart';
+import '../messages/teacher_group_chat_page.dart';
 
 class StudentGroupsScreen extends StatefulWidget {
   const StudentGroupsScreen({super.key});
@@ -579,7 +579,7 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
             await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => GroupChatPage(
+                builder: (context) => TeacherGroupChatPage(
                   classId: classId,
                   subjectId: subject.toLowerCase().replaceAll(' ', '_'),
                   subjectName: subject,

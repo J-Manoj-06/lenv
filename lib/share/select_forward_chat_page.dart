@@ -9,7 +9,7 @@ import '../services/cloudflare_r2_service.dart';
 import '../config/cloudflare_config.dart';
 import '../services/media_upload_service.dart';
 import '../services/local_cache_service.dart';
-import '../screens/messages/staff_room_chat_page.dart';
+import '../screens/messages/staff_room_group_chat_page.dart';
 
 /// Page for selecting a chat to forward shared content to
 class SelectForwardChatPage extends StatefulWidget {
@@ -265,7 +265,7 @@ class _SelectForwardChatPageState extends State<SelectForwardChatPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => StaffRoomChatPage(
+              builder: (context) => StaffRoomGroupChatPage(
                 instituteId: destination.instituteId,
                 instituteName: currentUser.name,
                 isTeacher: false,

@@ -31,12 +31,12 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:uuid/uuid.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
-class StaffRoomChatPage extends StatefulWidget {
+class StaffRoomGroupChatPage extends StatefulWidget {
   final String instituteId;
   final String instituteName;
   final bool isTeacher; // True if accessed by teacher
 
-  const StaffRoomChatPage({
+  const StaffRoomGroupChatPage({
     super.key,
     required this.instituteId,
     required this.instituteName,
@@ -44,10 +44,10 @@ class StaffRoomChatPage extends StatefulWidget {
   });
 
   @override
-  State<StaffRoomChatPage> createState() => _StaffRoomChatPageState();
+  State<StaffRoomGroupChatPage> createState() => _StaffRoomGroupChatPageState();
 }
 
-class _StaffRoomChatPageState extends State<StaffRoomChatPage>
+class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     with MessageScrollAndHighlightMixin, WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
   late final MediaUploadService _mediaUploadService;

@@ -8,7 +8,7 @@ import '../../widgets/unread_badge_widget.dart';
 import '../../models/group_subject.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/offline_data_service.dart';
-import 'group_chat_page.dart';
+import 'teacher_group_chat_page.dart';
 import '../../providers/auth_provider.dart';
 
 class GroupsListPage extends StatefulWidget {
@@ -515,7 +515,7 @@ class _GroupsListPageState extends State<GroupsListPage>
                   await Navigator.push(
                     navContext,
                     MaterialPageRoute(
-                      builder: (context) => GroupChatPage(
+                      builder: (context) => TeacherGroupChatPage(
                         classId: _classId!,
                         subjectId: subject.id,
                         subjectName: subject.name,
