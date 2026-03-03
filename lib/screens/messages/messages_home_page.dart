@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'groups_list_page.dart';
-import '../student/communities_screen.dart';
+import '../student/student_community_screen.dart';
 
 class MessagesHomePage extends StatefulWidget {
   final String studentId;
@@ -83,7 +83,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
               controller: _tabController,
               children: [
                 GroupsListPage(studentId: widget.studentId),
-                const CommunitiesScreen(),
+                const StudentCommunityScreen(),
               ],
             ),
           ),

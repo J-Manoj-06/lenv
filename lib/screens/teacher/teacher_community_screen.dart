@@ -6,15 +6,14 @@ import '../../services/community_service.dart';
 import 'teacher_community_explore_screen.dart';
 import '../messages/community_chat_page.dart';
 
-class TeacherCommunitiesScreen extends StatefulWidget {
-  const TeacherCommunitiesScreen({super.key});
+class TeacherCommunityScreen extends StatefulWidget {
+  const TeacherCommunityScreen({super.key});
 
   @override
-  State<TeacherCommunitiesScreen> createState() =>
-      _TeacherCommunitiesScreenState();
+  State<TeacherCommunityScreen> createState() => _TeacherCommunityScreenState();
 }
 
-class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
+class _TeacherCommunityScreenState extends State<TeacherCommunityScreen>
     with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   bool _isLoading = true;

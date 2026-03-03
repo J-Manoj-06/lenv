@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'teacher_message_groups_screen.dart';
-import '../teacher_communities_screen.dart';
+import '../teacher_community_screen.dart';
 
 class TeacherMessagesHomePage extends StatefulWidget {
   const TeacherMessagesHomePage({super.key});
@@ -91,7 +91,7 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
               controller: _tabController,
               children: const [
                 TeacherMessageGroupsScreen(),
-                TeacherCommunitiesScreen(),
+                TeacherCommunityScreen(),
               ],
             ),
           ),

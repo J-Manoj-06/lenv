@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import '../screens/institute/institute_dashboard_screen.dart';
 import '../screens/institute/institute_staff_screen.dart';
-import '../screens/institute/institute_messages_screen.dart';
+import '../screens/institute/institute_community_screen.dart';
 import '../screens/institute/institute_insights_screen.dart';
 import '../screens/institute/institute_profile_screen.dart';
 import '../utils/share_handler_mixin.dart';
@@ -34,7 +34,7 @@ class _InstituteMainNavigationState extends State<InstituteMainNavigation>
     _screens = [
       const InstituteDashboardScreen(),
       const InstituteStaffScreen(),
-      const InstituteMessagesScreen(),
+      const InstituteCommunityScreen(),
       const InstituteInsightsScreen(),
       const InstituteProfileScreen(),
     ];

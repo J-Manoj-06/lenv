@@ -11,15 +11,17 @@ import '../../services/offline_data_service.dart';
 import 'community_explore_screen.dart';
 import '../messages/community_chat_page.dart';
 
-class CommunitiesScreen extends StatefulWidget {
-  const CommunitiesScreen({super.key});
+class StudentCommunityScreen extends StatefulWidget {
+  const StudentCommunityScreen({super.key});
 
   @override
-  State<CommunitiesScreen> createState() => _CommunitiesScreenState();
+  State<StudentCommunityScreen> createState() => _StudentCommunityScreenState();
 }
 
-class _CommunitiesScreenState extends State<CommunitiesScreen>
-    with UnreadCountMixin<CommunitiesScreen>, AutomaticKeepAliveClientMixin {
+class _StudentCommunityScreenState extends State<StudentCommunityScreen>
+    with
+        UnreadCountMixin<StudentCommunityScreen>,
+        AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   final OfflineDataService _offlineService = OfflineDataService();
   bool _isLoading = true;

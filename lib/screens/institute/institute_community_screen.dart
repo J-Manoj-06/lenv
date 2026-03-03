@@ -7,15 +7,15 @@ import '../messages/community_chat_page.dart';
 import './institute_community_explore_screen.dart';
 import '../../services/offline_data_service.dart';
 
-class InstituteMessagesScreen extends StatefulWidget {
-  const InstituteMessagesScreen({super.key});
+class InstituteCommunityScreen extends StatefulWidget {
+  const InstituteCommunityScreen({super.key});
 
   @override
-  State<InstituteMessagesScreen> createState() =>
-      _InstituteMessagesScreenState();
+  State<InstituteCommunityScreen> createState() =>
+      _InstituteCommunityScreenState();
 }
 
-class _InstituteMessagesScreenState extends State<InstituteMessagesScreen>
+class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
     with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   final OfflineDataService _offlineService = OfflineDataService();
