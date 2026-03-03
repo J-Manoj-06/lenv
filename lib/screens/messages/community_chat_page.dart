@@ -3221,7 +3221,7 @@ class _MessageBubble extends StatelessWidget {
 
     // Use teal for principal, orange for others
     final themeColor = isPrincipal
-        ? const Color(0xFF00A884)
+      ? const Color(0xFF0F6B6B)
         : const Color(0xFFFF8800);
     final bubbleColor = isMe ? themeColor : const Color(0xFF2A2A2A);
     final textColor = Colors.white;
