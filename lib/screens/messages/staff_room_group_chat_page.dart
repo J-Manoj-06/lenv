@@ -18,6 +18,7 @@ import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
+import '../../core/constants/app_colors.dart';
 import '../../models/poll_model.dart';
 import 'message_search_page.dart';
 import '../../utils/message_scroll_highlight_mixin.dart';
@@ -1815,8 +1816,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
   void _showAttachmentPicker() {
     final primaryColor = widget.isTeacher
-        ? const Color(0xFFF97316)
-        : const Color(0xFF146D7A);
+        ? AppColors.teacherColor
+        : AppColors.instituteColor;
 
     showModalBottomSheet(
       context: context,
@@ -2106,10 +2107,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // Use orange for teachers, teal for principals
+    // Use role-specific colors
     final primaryColor = widget.isTeacher
-        ? const Color(0xFFF97316) // Orange
-        : const Color(0xFF146D7A); // Teal
+        ? AppColors.teacherColor
+        : AppColors.instituteColor;
 
     final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
@@ -3462,8 +3463,8 @@ class _MessageBubbleState extends State<_MessageBubble>
     timeStr = DateFormat('HH:mm').format(date);
 
     final roleColor = senderRole == 'principal'
-        ? widget.primaryColor
-        : const Color(0xFFF97316); // Orange for teachers
+        ? AppColors.instituteColor
+        : AppColors.teacherColor;
 
     final hasAttachment = attachmentUrl != null && attachmentUrl.isNotEmpty;
     final hasMultipleMedia = multipleMedia != null && multipleMedia.isNotEmpty;
