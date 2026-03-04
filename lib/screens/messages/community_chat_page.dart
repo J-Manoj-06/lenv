@@ -3294,6 +3294,10 @@ class _MessageBubble extends StatelessWidget {
                     uploadProgress: message.multipleMedia!
                         .map((m) => pendingUploadProgress[m.messageId])
                         .toList(),
+                    userRole: Provider.of<AuthProvider>(
+                      context,
+                      listen: false,
+                    ).currentUser?.role.toString().split('.').last,
                     onImageTap: (index, cachedPaths) {
                       // Update media list with cached paths
                       final updatedMediaList = <MediaMetadata>[];

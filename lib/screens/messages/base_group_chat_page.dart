@@ -1,36 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
-import 'package:flutter_linkify/flutter_linkify.dart';
-import 'package:url_launcher/url_launcher.dart';
-import '../../utils/link_utils.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../services/background_upload_service.dart';
-import '../../widgets/media_preview_card.dart';
-import '../../widgets/multi_image_message_bubble.dart';
-import '../../widgets/modern_attachment_sheet.dart';
 import '../create_poll_screen.dart';
-import '../../widgets/poll_message_widget.dart';
-import '../../models/poll_model.dart';
 import '../../utils/message_scroll_highlight_mixin.dart';
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
 import 'offline_message_search_page.dart';
-import '../../models/media_metadata.dart';
 import '../../core/constants/app_colors.dart';
 
 /// Configuration for attachment options based on user role

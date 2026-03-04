@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/media_availability_service.dart';
 import '../services/background_download_service.dart';
+import '../core/constants/app_colors.dart';
 
 /// WhatsApp-style multi-image message bubble with centralized download.
 /// Features:
@@ -12,6 +13,7 @@ import '../services/background_download_service.dart';
 /// - In-place downloading (stays on chat page)
 /// - Shows download progress overlay
 /// - Only allows viewing after download completes
+/// - Role-specific border colors for image grid
 class MultiImageMessageBubble extends StatefulWidget {
   final List<String> imageUrls;
   final bool isMe;
@@ -60,6 +62,23 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
   int _totalToDownload = 0;
 
   bool _allCached = false;
+
+  /// Get border color based on user role
+  Color _getBorderColor() {
+    switch (widget.userRole?.toLowerCase()) {
+      case 'teacher':
+        return AppColors.teacherColor;
+      case 'student':
+        return AppColors.studentColor;
+      case 'parent':
+        return AppColors.parentColor;
+      case 'principal':
+      case 'institute':
+        return AppColors.instituteColor;
+      default:
+        return const Color(0xFF9E9E9E); // Grey fallback
+    }
+  }
 
   @override
   void initState() {
@@ -177,7 +196,6 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final maxBubbleWidth = screenWidth * 0.7; // 70% of screen
 
@@ -258,14 +276,14 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
               ),
             ),
 
-          // Download overlay (blur background)
+          // Download overlay (minimal blur to preserve border visibility)
           if (!_allCached && !isUploading && !_isDownloading)
             Positioned.fill(
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(widget.bubbleRadius),
                 child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(color: Colors.black.withOpacity(0.3)),
+                  filter: ImageFilter.blur(sigmaX: 0.5, sigmaY: 0.5),
+                  child: Container(color: Colors.black.withOpacity(0.25)),
                 ),
               ),
             ),
@@ -417,6 +435,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
           isCached: _cachedStatus[0] ?? false,
           cachedPath: _cachedPaths[0],
           showBlur: !_allCached,
+          borderColor: _getBorderColor(),
         ),
       );
     }
@@ -441,10 +460,11 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                   isCached: _cachedStatus[0] ?? false,
                   cachedPath: _cachedPaths[0],
                   showBlur: !_allCached,
+                  borderColor: _getBorderColor(),
+                  margin: EdgeInsets.only(right: widget.gap / 2),
                 ),
               ),
             ),
-            SizedBox(width: widget.gap),
             Expanded(
               child: AspectRatio(
                 aspectRatio: 1,
@@ -459,6 +479,8 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                   isCached: _cachedStatus[1] ?? false,
                   cachedPath: _cachedPaths[1],
                   showBlur: !_allCached,
+                  borderColor: _getBorderColor(),
+                  margin: EdgeInsets.only(left: widget.gap / 2),
                 ),
               ),
             ),
@@ -480,6 +502,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
         cachedStatus: _cachedStatus,
         cachedPaths: _cachedPaths,
         showBlur: !_allCached,
+        borderColor: _getBorderColor(),
       );
     }
 
@@ -516,10 +539,14 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                                 isCached: _cachedStatus[0] ?? false,
                                 cachedPath: _cachedPaths[0],
                                 showBlur: !_allCached,
+                                borderColor: _getBorderColor(),
+                                margin: EdgeInsets.only(
+                                  right: widget.gap / 2,
+                                  bottom: widget.gap / 2,
+                                ),
                               ),
                             ),
                           ),
-                          SizedBox(width: widget.gap),
                           Expanded(
                             child: AspectRatio(
                               aspectRatio: 1,
@@ -535,13 +562,17 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                                 isCached: _cachedStatus[1] ?? false,
                                 cachedPath: _cachedPaths[1],
                                 showBlur: !_allCached,
+                                borderColor: _getBorderColor(),
+                                margin: EdgeInsets.only(
+                                  left: widget.gap / 2,
+                                  bottom: widget.gap / 2,
+                                ),
                               ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(height: widget.gap),
                     IntrinsicHeight(
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -561,10 +592,14 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                                 isCached: _cachedStatus[2] ?? false,
                                 cachedPath: _cachedPaths[2],
                                 showBlur: !_allCached,
+                                borderColor: _getBorderColor(),
+                                margin: EdgeInsets.only(
+                                  right: widget.gap / 2,
+                                  top: widget.gap / 2,
+                                ),
                               ),
                             ),
                           ),
-                          SizedBox(width: widget.gap),
                           Expanded(
                             child: AspectRatio(
                               aspectRatio: 1,
@@ -580,6 +615,11 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                                 isCached: _cachedStatus[3] ?? false,
                                 cachedPath: _cachedPaths[3],
                                 showBlur: !_allCached,
+                                borderColor: _getBorderColor(),
+                                margin: EdgeInsets.only(
+                                  left: widget.gap / 2,
+                                  top: widget.gap / 2,
+                                ),
                               ),
                             ),
                           ),
@@ -644,6 +684,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                 isCached: _cachedStatus[index] ?? false,
                 cachedPath: _cachedPaths[index],
                 showBlur: !_allCached,
+                borderColor: _getBorderColor(),
               );
             },
           )
@@ -682,12 +723,14 @@ class _ThreeImageLayout extends StatelessWidget {
   final Map<int, bool> cachedStatus;
   final Map<int, String> cachedPaths;
   final bool showBlur;
+  final Color borderColor;
 
   const _ThreeImageLayout({
     required this.imageUrls,
     required this.gap,
     required this.tileRadius,
     required this.onTap,
+    required this.borderColor,
     this.uploadProgress,
     required this.cachedStatus,
     required this.cachedPaths,
@@ -716,10 +759,11 @@ class _ThreeImageLayout extends StatelessWidget {
                       isCached: cachedStatus[0] ?? false,
                       cachedPath: cachedPaths[0],
                       showBlur: showBlur,
+                      borderColor: borderColor,
+                      margin: EdgeInsets.only(right: gap / 2, bottom: gap / 2),
                     ),
                   ),
                 ),
-                SizedBox(width: gap),
                 Expanded(
                   child: AspectRatio(
                     aspectRatio: 1,
@@ -732,13 +776,14 @@ class _ThreeImageLayout extends StatelessWidget {
                       isCached: cachedStatus[1] ?? false,
                       cachedPath: cachedPaths[1],
                       showBlur: showBlur,
+                      borderColor: borderColor,
+                      margin: EdgeInsets.only(left: gap / 2, bottom: gap / 2),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          SizedBox(height: gap),
           AspectRatio(
             aspectRatio: 16 / 9,
             child: _ImageTile(
@@ -750,6 +795,8 @@ class _ThreeImageLayout extends StatelessWidget {
               isCached: cachedStatus[2] ?? false,
               cachedPath: cachedPaths[2],
               showBlur: showBlur,
+              borderColor: borderColor,
+              margin: EdgeInsets.only(top: gap / 2),
             ),
           ),
         ],
@@ -770,12 +817,15 @@ class _ImageTile extends StatefulWidget {
   final bool isCached;
   final String? cachedPath;
   final bool showBlur;
+  final Color borderColor; // Border color based on user role
+  final EdgeInsets? margin; // Margin for spacing in grids
 
   const _ImageTile({
     required this.url,
     required this.index,
     required this.radius,
     required this.onTap,
+    required this.borderColor,
     this.showOverlay = false,
     this.overlayCount = 0,
     this.uploadProgress,
@@ -783,6 +833,7 @@ class _ImageTile extends StatefulWidget {
     this.isCached = false,
     this.cachedPath,
     this.showBlur = false,
+    this.margin,
   });
 
   @override
@@ -800,53 +851,61 @@ class _ImageTileState extends State<_ImageTile>
   Widget build(BuildContext context) {
     super.build(context); // Must call super for AutomaticKeepAliveClientMixin
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(widget.radius),
-      child: GestureDetector(
-        onTap: () => widget.onTap(widget.index),
-        child: Stack(
-          fit: widget.fit == BoxFit.contain
-              ? StackFit.passthrough
-              : StackFit.expand,
-          children: [
-            // Skeleton placeholder
-            AnimatedOpacity(
-              opacity: _loaded ? 0.0 : 1.0,
-              duration: const Duration(milliseconds: 250),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-                ),
-                child: const Center(
-                  child: SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+
+    return Container(
+      margin: widget.margin,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(widget.radius),
+        border: Border.all(color: widget.borderColor, width: 3.0),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(widget.radius),
+        child: GestureDetector(
+          onTap: () => widget.onTap(widget.index),
+          child: Stack(
+            fit: widget.fit == BoxFit.contain
+                ? StackFit.passthrough
+                : StackFit.expand,
+            children: [
+              // Skeleton placeholder
+              AnimatedOpacity(
+                opacity: _loaded ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 250),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                   ),
-                ),
-              ),
-            ),
-
-            // Image (network or file)
-            _buildImage(widget.url),
-
-            // "+N" overlay on 4th tile when total > 4
-            // (Individual progress overlays removed - use unified overlay at bubble level)
-            if (widget.showOverlay)
-              Container(
-                color: Colors.black.withOpacity(0.55),
-                child: Center(
-                  child: Text(
-                    '+${widget.overlayCount}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
                 ),
               ),
-          ],
+
+              // Image (network or file)
+              _buildImage(widget.url),
+
+              // "+N" overlay on 4th tile when total > 4
+              // (Individual progress overlays removed - use unified overlay at bubble level)
+              if (widget.showOverlay)
+                Container(
+                  color: Colors.black.withOpacity(0.55),
+                  child: Center(
+                    child: Text(
+                      '+${widget.overlayCount}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -1728,6 +1728,21 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                   .toList(),
                                                               isMe:
                                                                   isCurrentUser,
+                                                              userRole:
+                                                                  Provider.of<
+                                                                        AuthProvider
+                                                                      >(
+                                                                        context,
+                                                                        listen:
+                                                                            false,
+                                                                      )
+                                                                      .currentUser
+                                                                      ?.role
+                                                                      .toString()
+                                                                      .split(
+                                                                        '.',
+                                                                      )
+                                                                      .last,
                                                               // ✅ Show upload progress for pending images
                                                               uploadProgress:
                                                                   isPending

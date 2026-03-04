@@ -3619,6 +3619,10 @@ class _MessageBubbleState extends State<_MessageBubble>
                                 }
                               }).toList(),
                               isMe: widget.isMe,
+                              userRole: Provider.of<AuthProvider>(
+                                context,
+                                listen: false,
+                              ).currentUser?.role.toString().split('.').last,
                               onImageTap: (index, cachedPaths) {
                                 // Merge cached paths into mediaList
                                 final updatedMediaList =
