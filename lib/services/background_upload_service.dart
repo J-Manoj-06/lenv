@@ -247,13 +247,18 @@ class BackgroundUploadService extends ChangeNotifier {
           final r2Key = _extractR2Key(mediaMessage.r2Url);
 
           // Store thumbnail URL directly (MediaPreviewCard now handles both base64 and URLs)
-          final thumbnailStr = mediaMessage.thumbnailUrl ?? '';
+          // CRITICAL FIX: Never allow empty string! Use R2 public URL as fallback if thumbnail is missing
+          final thumbnailStr =
+              (mediaMessage.thumbnailUrl != null &&
+                  mediaMessage.thumbnailUrl!.isNotEmpty)
+              ? mediaMessage.thumbnailUrl!
+              : mediaMessage.r2Url; // Fallback to the R2 public URL itself
 
           final metadata = MediaMetadata(
             messageId: upload.id, // Use the pending messageId for proper dedup
             r2Key: r2Key,
             publicUrl: mediaMessage.r2Url,
-            thumbnail: thumbnailStr, // This is a URL string, not base64
+            thumbnail: thumbnailStr, // This is a URL string, never empty
             expiresAt: DateTime.now().add(const Duration(days: 365)),
             uploadedAt: DateTime.now(),
             fileSize: mediaMessage.fileSize,

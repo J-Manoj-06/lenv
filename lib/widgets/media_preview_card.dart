@@ -4,6 +4,7 @@ import '../services/media_availability_service.dart';
 import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -718,57 +719,45 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               }
             },
       onLongPress: null, // Let parent GestureDetector handle selection
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: widget.themeColor ?? const Color(0xFF9E9E9E),
-            width: 3.0,
-          ),
-        ),
+      child: SizedBox(
+        width: 250,
+        height: 250,
         child: Container(
-          width: 250,
-          height: 250,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: Colors.grey[800],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: widget.themeColor ?? const Color(0xFF9E9E9E),
+              width: 3.0,
+            ),
           ),
-          clipBehavior: Clip.hardEdge,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Show downloaded image or thumbnail
-              if (_isDownloaded && _localPath != null && _localPath!.isNotEmpty)
-                () {
-                  print('🖼️ Rendering downloaded image from: $_localPath');
-                  // Double-check the file is actually an image before loading
-                  final filePath = _localPath!.toLowerCase();
-                  final isImageFile =
-                      filePath.endsWith('.jpg') ||
-                      filePath.endsWith('.jpeg') ||
-                      filePath.endsWith('.png') ||
-                      filePath.endsWith('.gif') ||
-                      filePath.endsWith('.webp');
+          child: Container(
+            width: 250,
+            height: 250,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: Colors.grey[800],
+            ),
+            clipBehavior: Clip.hardEdge,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Show downloaded image or thumbnail
+                if (_isDownloaded &&
+                    _localPath != null &&
+                    _localPath!.isNotEmpty)
+                  () {
+                    print('🖼️ Rendering downloaded image from: $_localPath');
+                    // Double-check the file is actually an image before loading
+                    final filePath = _localPath!.toLowerCase();
+                    final isImageFile =
+                        filePath.endsWith('.jpg') ||
+                        filePath.endsWith('.jpeg') ||
+                        filePath.endsWith('.png') ||
+                        filePath.endsWith('.gif') ||
+                        filePath.endsWith('.webp');
 
-                  if (!isImageFile) {
-                    print('❌ File is not a valid image format: $filePath');
-                    return Container(
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.broken_image,
-                        size: 64,
-                        color: Colors.white54,
-                      ),
-                    );
-                  }
-
-                  print('✅ Loading Image.file with BoxFit.cover');
-                  return Image.file(
-                    File(_localPath!),
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                    errorBuilder: (context, error, stackTrace) {
-                      print('❌ Error loading image: $error');
+                    if (!isImageFile) {
+                      print('❌ File is not a valid image format: $filePath');
                       return Container(
                         color: Colors.grey[800],
                         child: const Icon(
@@ -777,51 +766,37 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                           color: Colors.white54,
                         ),
                       );
-                    },
-                  );
-                }()
-              else if (widget.thumbnailBase64 != null &&
-                  widget.thumbnailBase64!.isNotEmpty)
-                () {
-                  print('🖼️ Rendering thumbnail');
-                  // Check if it's a file path, URL, or base64 data
-                  if (widget.thumbnailBase64!.startsWith('/') &&
-                      widget.thumbnailBase64!.length > 1) {
-                    print('   - Loading from file path');
-                    // It's a file path, use Image.file (NO BLUR for better UX)
+                    }
+
+                    print('✅ Loading Image.file with BoxFit.cover');
                     return Image.file(
-                      File(widget.thumbnailBase64!),
+                      File(_localPath!),
                       fit: BoxFit.cover,
                       filterQuality: FilterQuality.high,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.grey[800],
-                        child: const Icon(
-                          Icons.image,
-                          size: 64,
-                          color: Colors.white54,
-                        ),
-                      ),
+                      errorBuilder: (context, error, stackTrace) {
+                        print('❌ Error loading image: $error');
+                        return Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 64,
+                            color: Colors.white54,
+                          ),
+                        );
+                      },
                     );
-                  } else if (widget.thumbnailBase64!.startsWith('http')) {
-                    print(
-                      '   - Network URL detected, showing placeholder instead of auto-downloading',
-                    );
-                    // DO NOT auto-download from network! Show placeholder icon instead.
-                    // User must explicitly tap the download button to download the image.
-                    return Container(
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.image,
-                        size: 64,
-                        color: Colors.white54,
-                      ),
-                    );
-                  } else {
-                    print('   - Loading from base64 data');
-                    // It's base64 data (NO BLUR for better UX)
-                    try {
-                      return Image.memory(
-                        base64Decode(widget.thumbnailBase64!),
+                  }()
+                else if (widget.thumbnailBase64 != null &&
+                    widget.thumbnailBase64!.isNotEmpty)
+                  () {
+                    print('🖼️ Rendering thumbnail');
+                    // Check if it's a file path, URL, or base64 data
+                    if (widget.thumbnailBase64!.startsWith('/') &&
+                        widget.thumbnailBase64!.length > 1) {
+                      print('   - Loading from file path');
+                      // It's a file path, use Image.file (NO BLUR for better UX)
+                      return Image.file(
+                        File(widget.thumbnailBase64!),
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.high,
                         errorBuilder: (_, __, ___) => Container(
@@ -833,221 +808,218 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                           ),
                         ),
                       );
-                    } catch (e) {
-                      print('❌ Error decoding base64: $e');
-                      // Invalid base64, show error icon
-                      return Container(
-                        color: Colors.grey[800],
-                        child: const Icon(
-                          Icons.broken_image,
-                          size: 64,
-                          color: Colors.white54,
+                    } else if (widget.thumbnailBase64!.startsWith('http')) {
+                      print(
+                        '   - Network URL detected, loading with CachedNetworkImage',
+                      );
+                      // Load from R2 URL using CachedNetworkImage
+                      return CachedNetworkImage(
+                        imageUrl: widget.thumbnailBase64!,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.image,
+                            size: 64,
+                            color: Colors.white54,
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 64,
+                            color: Colors.white54,
+                          ),
                         ),
                       );
+                    } else {
+                      print('   - Loading from base64 data');
+                      // It's base64 data (NO BLUR for better UX)
+                      try {
+                        return Image.memory(
+                          base64Decode(widget.thumbnailBase64!),
+                          fit: BoxFit.cover,
+                          filterQuality: FilterQuality.high,
+                          errorBuilder: (_, __, ___) => Container(
+                            color: Colors.grey[800],
+                            child: const Icon(
+                              Icons.image,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        print('❌ Error decoding base64: $e');
+                        // Invalid base64, show error icon
+                        return Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 64,
+                            color: Colors.white54,
+                          ),
+                        );
+                      }
                     }
-                  }
-                }()
-              else
-                () {
-                  print('⚠️ No image data available, showing placeholder');
-                  return Container(
-                    color: Colors.grey[800],
-                    child: const Icon(
-                      Icons.image,
-                      size: 64,
-                      color: Colors.white54,
-                    ),
-                  );
-                }(),
+                  }()
+                else if (widget.localPath != null &&
+                    widget.localPath!.isNotEmpty &&
+                    !_isDownloaded)
+                  () {
+                    print(
+                      '🖼️ Showing placeholder, local file will be visible after download',
+                    );
+                    return Container(
+                      color: Colors.grey[800],
+                      child: const Icon(
+                        Icons.image,
+                        size: 64,
+                        color: Colors.white54,
+                      ),
+                    );
+                  }()
+                else
+                  () {
+                    print('⚠️ No image data available, showing placeholder');
+                    return Container(
+                      color: Colors.grey[800],
+                      child: const Icon(
+                        Icons.image,
+                        size: 64,
+                        color: Colors.white54,
+                      ),
+                    );
+                  }(),
 
-              // Download overlay only for receivers; sender auto-fetches silently
-              // Don't show if uploading or if already downloaded
-              if (!_isDownloaded &&
-                  !_isDownloading &&
-                  !widget.uploading &&
-                  !widget.isMe)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.35),
+                // Download overlay only for receivers; sender auto-fetches silently
+                // Don't show if uploading or if already downloaded
+                if (!_isDownloaded &&
+                    !_isDownloading &&
+                    !widget.uploading &&
+                    !widget.isMe)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.25),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.download,
+                                color: Colors.black,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Download to view',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.25),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
+                  ),
+
+                // Uploading overlay centered inside the image (for sender pending)
+                // Only show if actually uploading (pending message with progress)
+                if (widget.uploading)
+                  Positioned.fill(
+                    child: AbsorbPointer(
+                      absorbing: true,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          color: Colors.black.withOpacity(0.65),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 70,
+                                  height: 70,
+                                  child: CircularProgressIndicator(
+                                    value: widget.uploadProgress,
+                                    strokeWidth: 5,
+                                    valueColor:
+                                        const AlwaysStoppedAnimation<Color>(
+                                          Color(0xFFFFA929),
+                                        ),
+                                    backgroundColor: Colors.white24,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  widget.uploadProgress == null
+                                      ? 'Sending...'
+                                      : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.download,
-                              color: Colors.black,
-                              size: 28,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          const Text(
-                            'Download to view',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Uploading overlay centered inside the image (for sender pending)
-              // Only show if actually uploading (pending message with progress)
-              if (widget.uploading)
-                Positioned.fill(
-                  child: AbsorbPointer(
-                    absorbing: true,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        color: Colors.black.withOpacity(0.65),
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              SizedBox(
-                                width: 70,
-                                height: 70,
-                                child: CircularProgressIndicator(
-                                  value: widget.uploadProgress,
-                                  strokeWidth: 5,
-                                  valueColor:
-                                      const AlwaysStoppedAnimation<Color>(
-                                        Color(0xFFFFA929),
-                                      ),
-                                  backgroundColor: Colors.white24,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                widget.uploadProgress == null
-                                    ? 'Sending...'
-                                    : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ],
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
 
-              // Download progress overlay - only show when explicitly downloading
-              if (_isDownloading && !widget.uploading)
-                Positioned.fill(
-                  child: Container(
-                    color: Colors.black.withOpacity(0.7),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(
-                            value: _downloadProgress,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${(_downloadProgress * 100).toInt()}%',
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ],
+                // Download progress overlay - only show when explicitly downloading
+                if (_isDownloading && !widget.uploading)
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withOpacity(0.7),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              value: _downloadProgress,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${(_downloadProgress * 100).toInt()}%',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildThumbnailFallback() {
-    final thumb = widget.thumbnailBase64;
-    if (thumb == null || thumb.isEmpty) {
-      return _thumbnailPlaceholder();
-    }
-
-    // Check if it's a local file path (pending upload)
-    if ((thumb.startsWith('/') || thumb.contains(':\\')) && thumb.length > 1) {
-      final file = File(thumb);
-      if (file.existsSync()) {
-        return Image.file(
-          file,
-          height: 260,
-          width: 260,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return _thumbnailPlaceholder();
-          },
-        );
-      } else {
-        return _thumbnailPlaceholder();
-      }
-    }
-
-    // Check if it's actually a URL (starts with http/https) instead of base64
-    if (thumb.startsWith('http://') || thumb.startsWith('https://')) {
-      return Image.network(
-        thumb,
-        height: 260,
-        width: 260,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _thumbnailPlaceholder();
-        },
-      );
-    }
-
-    try {
-      final bytes = base64Decode(thumb);
-      return Image.memory(
-        bytes,
-        height: 260,
-        width: 260,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _thumbnailPlaceholder();
-        },
-      );
-    } catch (e) {
-      // Guard against invalid/non-base64 thumbnails (e.g., URL accidentally stored)
-      return _thumbnailPlaceholder();
-    }
-  }
-
-  Widget _thumbnailPlaceholder() {
-    return Container(
-      height: 260,
-      width: 260,
-      color: Colors.grey[800],
-      child: const Icon(Icons.image, size: 64, color: Colors.white54),
     );
   }
 }
