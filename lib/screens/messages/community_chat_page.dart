@@ -28,6 +28,7 @@ import '../../models/media_metadata.dart';
 import '../../services/background_upload_service.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
+import '../../core/constants/app_colors.dart';
 import '../../models/poll_model.dart';
 import '../../utils/message_scroll_highlight_mixin.dart';
 // OFFLINE-FIRST IMPORTS
@@ -3221,12 +3222,9 @@ class _MessageBubble extends StatelessWidget {
     // Get user role to determine theme color
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userRole = authProvider.currentUser?.role;
-    final isPrincipal = userRole == UserRole.institute;
 
-    // Use teal for principal, orange for others
-    final themeColor = isPrincipal
-        ? const Color(0xFF0F6B6B)
-        : const Color(0xFFFF8800);
+    // Use role-specific color from AppColors
+    final themeColor = _getRoleThemeColor(userRole);
     final bubbleColor = isMe ? themeColor : const Color(0xFF2A2A2A);
     final textColor = Colors.white;
 
@@ -3442,6 +3440,21 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
+  Color _getRoleThemeColor(UserRole? role) {
+    switch (role) {
+      case UserRole.teacher:
+        return AppColors.teacherColor;
+      case UserRole.student:
+        return AppColors.studentColor;
+      case UserRole.parent:
+        return AppColors.parentColor;
+      case UserRole.institute:
+        return AppColors.instituteColor;
+      default:
+        return AppColors.teacherColor;
+    }
+  }
+
   Widget _buildLinkifiedText(Color textColor) {
     return Linkify(
       onOpen: (link) async {
@@ -3470,10 +3483,7 @@ class _MessageBubble extends StatelessWidget {
     final uploadProgressVal = pendingUploadProgress[metadata.messageId];
 
     // Get theme color from context
-    final isPrincipal = userRole == UserRole.institute;
-    final themeColor = isPrincipal
-        ? const Color(0xFF0F6B6B)
-        : const Color(0xFFFF8800);
+    final themeColor = _getRoleThemeColor(userRole);
 
     return MediaPreviewCard(
       r2Key: metadata.r2Key,
@@ -3499,10 +3509,7 @@ class _MessageBubble extends StatelessWidget {
     final mimeType = _guessMimeType(fileName);
 
     // Get theme color from context
-    final isPrincipal = userRole == UserRole.institute;
-    final themeColor = isPrincipal
-        ? const Color(0xFF0F6B6B)
-        : const Color(0xFFFF8800);
+    final themeColor = _getRoleThemeColor(userRole);
 
     return MediaPreviewCard(
       r2Key: r2Key,
