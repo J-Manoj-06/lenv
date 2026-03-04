@@ -1021,28 +1021,6 @@ class _ImageTileState extends State<_ImageTile>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.cloud_download_outlined,
-              color: isDark ? Colors.white54 : Colors.grey.shade600,
-              size: 32,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Tap to download',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
