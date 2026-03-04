@@ -508,131 +508,114 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
 
     // Four images: 2x2 grid
     if (count == 4) {
-      final tileSize = (screenWidth * 0.7 - widget.gap) / 2;
-      final gridHeight = !_allCached
-          ? 250.0 // Compact height when showing download button
-          : (tileSize * 2) + widget.gap; // Full height when cached
-
-      // Use ClipRect to prevent overflow when not cached
-      return ClipRect(
-        child: _allCached
-            ? IntrinsicHeight(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IntrinsicHeight(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: _ImageTile(
-                                url: widget.imageUrls[0],
-                                index: 0,
-                                radius: widget.tileRadius,
-                                onTap: _allCached
-                                    ? (index) =>
-                                          widget.onImageTap(index, _cachedPaths)
-                                    : (_) {},
-                                uploadProgress: widget.uploadProgress?[0],
-                                isCached: _cachedStatus[0] ?? false,
-                                cachedPath: _cachedPaths[0],
-                                showBlur: !_allCached,
-                                borderColor: _getBorderColor(),
-                                margin: EdgeInsets.only(
-                                  right: widget.gap / 2,
-                                  bottom: widget.gap / 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: _ImageTile(
-                                url: widget.imageUrls[1],
-                                index: 1,
-                                radius: widget.tileRadius,
-                                onTap: _allCached
-                                    ? (index) =>
-                                          widget.onImageTap(index, _cachedPaths)
-                                    : (_) {},
-                                uploadProgress: widget.uploadProgress?[1],
-                                isCached: _cachedStatus[1] ?? false,
-                                cachedPath: _cachedPaths[1],
-                                showBlur: !_allCached,
-                                borderColor: _getBorderColor(),
-                                margin: EdgeInsets.only(
-                                  left: widget.gap / 2,
-                                  bottom: widget.gap / 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+      return IntrinsicHeight(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IntrinsicHeight(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: _ImageTile(
+                        url: widget.imageUrls[0],
+                        index: 0,
+                        radius: widget.tileRadius,
+                        onTap: _allCached
+                            ? (index) => widget.onImageTap(index, _cachedPaths)
+                            : (_) {},
+                        uploadProgress: widget.uploadProgress?[0],
+                        isCached: _cachedStatus[0] ?? false,
+                        cachedPath: _cachedPaths[0],
+                        showBlur: !_allCached,
+                        borderColor: _getBorderColor(),
+                        margin: EdgeInsets.only(
+                          right: widget.gap / 2,
+                          bottom: widget.gap / 2,
+                        ),
                       ),
                     ),
-                    IntrinsicHeight(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: _ImageTile(
-                                url: widget.imageUrls[2],
-                                index: 2,
-                                radius: widget.tileRadius,
-                                onTap: _allCached
-                                    ? (index) =>
-                                          widget.onImageTap(index, _cachedPaths)
-                                    : (_) {},
-                                uploadProgress: widget.uploadProgress?[2],
-                                isCached: _cachedStatus[2] ?? false,
-                                cachedPath: _cachedPaths[2],
-                                showBlur: !_allCached,
-                                borderColor: _getBorderColor(),
-                                margin: EdgeInsets.only(
-                                  right: widget.gap / 2,
-                                  top: widget.gap / 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: _ImageTile(
-                                url: widget.imageUrls[3],
-                                index: 3,
-                                radius: widget.tileRadius,
-                                onTap: _allCached
-                                    ? (index) =>
-                                          widget.onImageTap(index, _cachedPaths)
-                                    : (_) {},
-                                uploadProgress: widget.uploadProgress?[3],
-                                isCached: _cachedStatus[3] ?? false,
-                                cachedPath: _cachedPaths[3],
-                                showBlur: !_allCached,
-                                borderColor: _getBorderColor(),
-                                margin: EdgeInsets.only(
-                                  left: widget.gap / 2,
-                                  top: widget.gap / 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                  ),
+                  Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: _ImageTile(
+                        url: widget.imageUrls[1],
+                        index: 1,
+                        radius: widget.tileRadius,
+                        onTap: _allCached
+                            ? (index) => widget.onImageTap(index, _cachedPaths)
+                            : (_) {},
+                        uploadProgress: widget.uploadProgress?[1],
+                        isCached: _cachedStatus[1] ?? false,
+                        cachedPath: _cachedPaths[1],
+                        showBlur: !_allCached,
+                        borderColor: _getBorderColor(),
+                        margin: EdgeInsets.only(
+                          left: widget.gap / 2,
+                          bottom: widget.gap / 2,
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              )
-            : SizedBox(
-                height: gridHeight,
-                child: Container(color: Colors.grey.shade900),
+                  ),
+                ],
               ),
+            ),
+            IntrinsicHeight(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: _ImageTile(
+                        url: widget.imageUrls[2],
+                        index: 2,
+                        radius: widget.tileRadius,
+                        onTap: _allCached
+                            ? (index) => widget.onImageTap(index, _cachedPaths)
+                            : (_) {},
+                        uploadProgress: widget.uploadProgress?[2],
+                        isCached: _cachedStatus[2] ?? false,
+                        cachedPath: _cachedPaths[2],
+                        showBlur: !_allCached,
+                        borderColor: _getBorderColor(),
+                        margin: EdgeInsets.only(
+                          right: widget.gap / 2,
+                          top: widget.gap / 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: _ImageTile(
+                        url: widget.imageUrls[3],
+                        index: 3,
+                        radius: widget.tileRadius,
+                        onTap: _allCached
+                            ? (index) => widget.onImageTap(index, _cachedPaths)
+                            : (_) {},
+                        uploadProgress: widget.uploadProgress?[3],
+                        isCached: _cachedStatus[3] ?? false,
+                        cachedPath: _cachedPaths[3],
+                        showBlur: !_allCached,
+                        borderColor: _getBorderColor(),
+                        margin: EdgeInsets.only(
+                          left: widget.gap / 2,
+                          top: widget.gap / 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -643,74 +626,47 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     // Calculate rows needed (show max 4 images: 2x2 grid)
     final displayCount = count > 4 ? 4 : count;
     final rows = (displayCount / 2).ceil();
+    final gridHeight = (tileSize * rows) + (widget.gap * (rows - 1));
 
-    // Use compact height if not cached (for download button overlay)
-    final gridHeight = !_allCached
-        ? 250.0 // Compact height when showing download button
-        : (tileSize * rows) +
-              (widget.gap * (rows - 1)); // Full height when cached
-
-    final grid = _allCached
-        ? GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: widget.gap,
-              mainAxisSpacing: widget.gap,
-              childAspectRatio: 1,
-            ),
-            itemCount: displayCount,
-            itemBuilder: (context, index) {
-              final url = widget.imageUrls[index];
-              final showOverlay = (index == 3) && (count > 4);
-              final overlayCount = showOverlay ? (count - 4) : 0;
-
-              return _ImageTile(
-                url: url,
-                index: index,
-                radius: widget.tileRadius,
-                onTap: _allCached
-                    ? (index) => widget.onImageTap(index, _cachedPaths)
-                    : (_) {},
-                showOverlay: showOverlay,
-                overlayCount: overlayCount,
-                uploadProgress:
-                    widget.uploadProgress != null &&
-                        index < widget.uploadProgress!.length
-                    ? widget.uploadProgress![index]
-                    : null,
-                isCached: _cachedStatus[index] ?? false,
-                cachedPath: _cachedPaths[index],
-                showBlur: !_allCached,
-                borderColor: _getBorderColor(),
-              );
-            },
-          )
-        : GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: widget.gap,
-              mainAxisSpacing: widget.gap,
-              childAspectRatio: 1,
-            ),
-            itemCount: displayCount,
-            itemBuilder: (context, index) {
-              return Container(color: Colors.grey.shade900);
-            },
-          );
-
-    return ClipRect(
-      child: SizedBox(
-        width: gridWidth,
-        height: gridHeight,
-        child: Stack(children: [grid]),
+    final grid = GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: widget.gap,
+        mainAxisSpacing: widget.gap,
+        childAspectRatio: 1,
       ),
+      itemCount: displayCount,
+      itemBuilder: (context, index) {
+        final url = widget.imageUrls[index];
+        final showOverlay = (index == 3) && (count > 4);
+        final overlayCount = showOverlay ? (count - 4) : 0;
+
+        return _ImageTile(
+          url: url,
+          index: index,
+          radius: widget.tileRadius,
+          onTap: _allCached
+              ? (index) => widget.onImageTap(index, _cachedPaths)
+              : (_) {},
+          showOverlay: showOverlay,
+          overlayCount: overlayCount,
+          uploadProgress:
+              widget.uploadProgress != null &&
+                  index < widget.uploadProgress!.length
+              ? widget.uploadProgress![index]
+              : null,
+          isCached: _cachedStatus[index] ?? false,
+          cachedPath: _cachedPaths[index],
+          showBlur: !_allCached,
+          borderColor: _getBorderColor(),
+        );
+      },
     );
+
+    return SizedBox(width: gridWidth, height: gridHeight, child: grid);
   }
 }
 
