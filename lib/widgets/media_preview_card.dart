@@ -720,7 +720,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: widget.themeColor ?? const Color(0xFF9E9E9E),
-                width: 3.0,
+                width: 1.5,
               ),
             ),
             child: ClipRRect(
