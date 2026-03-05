@@ -712,19 +712,26 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       return GestureDetector(
         onTap: widget.selectionMode ? null : onTap,
         onLongPress: null,
-        child: SizedBox(
+        child: Container(
           width: 260,
           height: 260,
+          decoration: BoxDecoration(
+            color: widget.themeColor ?? const Color(0xFF9E9E9E),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(
+            3,
+          ), // Creates visible gap like multi-image
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: widget.themeColor ?? const Color(0xFF9E9E9E),
                 width: 1.5,
               ),
+              borderRadius: BorderRadius.circular(9),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(7.5),
               child: content,
             ),
           ),
