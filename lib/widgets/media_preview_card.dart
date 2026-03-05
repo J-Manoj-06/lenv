@@ -868,9 +868,11 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                       },
                     );
                   }()
-                // PRIORITY 3: Show thumbnail while waiting for download
-                // This provides visual feedback and loads quickly from R2
-                else if (widget.thumbnailBase64 != null &&
+                // PRIORITY 3: Show thumbnail ONLY for sender while uploading
+                // For receivers who haven't downloaded, skip thumbnail so the
+                // "Tap to download" overlay shows on a clean dark background
+                else if ((widget.isMe || widget.uploading) &&
+                    widget.thumbnailBase64 != null &&
                     widget.thumbnailBase64!.isNotEmpty)
                   () {
                     print('🖼️ Rendering thumbnail');
@@ -978,22 +980,22 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     !widget.isMe)
                   Positioned.fill(
                     child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                      ),
+                      // Fully opaque black — thumbnail is hidden for receivers,
+                      // so there is nothing to bleed through underneath.
+                      color: Colors.black,
                       child: Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              width: 64,
-                              height: 64,
+                              width: 80,
+                              height: 80,
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.25),
+                                    color: Colors.black.withOpacity(0.5),
                                     blurRadius: 12,
                                     offset: const Offset(0, 6),
                                   ),
@@ -1002,16 +1004,17 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                               child: const Icon(
                                 Icons.download,
                                 color: Colors.black,
-                                size: 28,
+                                size: 36,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                             const Text(
-                              'Download to view',
+                              'Tap to download',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
                               ),
                             ),
                           ],
