@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,6 +37,8 @@ class NotificationService {
       _notificationTapController.stream;
 
   bool _isInitialized = false;
+  static const int _communityUploadNotificationId = 700001;
+  int? _lastCommunityUploadPercent;
 
   /// Initialize the notification service
   Future<void> initialize() async {
@@ -375,6 +378,100 @@ class NotificationService {
       debugPrint('All notifications cleared');
     } catch (e) {
       debugPrint('Error clearing notifications: $e');
+    }
+  }
+
+  /// Show/update Android status bar notification for upload progress.
+  /// Uses throttling so progress updates don't spam the notification manager.
+  Future<void> showUploadProgressNotification({
+    required double progress,
+    required int activeUploads,
+  }) async {
+    if (!Platform.isAndroid) return;
+
+    try {
+      if (!_isInitialized) {
+        await initialize();
+      }
+
+      final percent = (progress.clamp(0.0, 1.0) * 100).round();
+      final previous = _lastCommunityUploadPercent;
+      if (previous != null && percent < 100 && (percent - previous).abs() < 5) {
+        return;
+      }
+      _lastCommunityUploadPercent = percent;
+
+      final subtitle = activeUploads > 1
+          ? '$activeUploads uploads • $percent%'
+          : '$percent%';
+
+      final androidDetails = AndroidNotificationDetails(
+        'lenv_upload_channel',
+        'Upload Status',
+        channelDescription: 'Shows media upload progress and completion status',
+        importance: Importance.low,
+        priority: Priority.low,
+        showProgress: true,
+        maxProgress: 100,
+        progress: percent,
+        ongoing: percent < 100,
+        onlyAlertOnce: true,
+      );
+
+      final details = NotificationDetails(android: androidDetails);
+
+      await _localNotifications.show(
+        _communityUploadNotificationId,
+        'Uploading media',
+        subtitle,
+        details,
+      );
+    } catch (e) {
+      debugPrint('Error showing upload progress notification: $e');
+    }
+  }
+
+  /// Show upload completion notification.
+  Future<void> showUploadCompletedNotification() async {
+    if (!Platform.isAndroid) return;
+
+    try {
+      if (!_isInitialized) {
+        await initialize();
+      }
+
+      _lastCommunityUploadPercent = null;
+
+      const androidDetails = AndroidNotificationDetails(
+        'lenv_upload_channel',
+        'Upload Status',
+        channelDescription: 'Shows media upload progress and completion status',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+        ongoing: false,
+      );
+
+      const details = NotificationDetails(android: androidDetails);
+
+      await _localNotifications.show(
+        _communityUploadNotificationId,
+        'Upload completed',
+        'Media upload completed',
+        details,
+      );
+    } catch (e) {
+      debugPrint('Error showing upload completed notification: $e');
+    }
+  }
+
+  /// Clear upload notification (used on failure/cancel cleanup).
+  Future<void> clearUploadNotification() async {
+    if (!Platform.isAndroid) return;
+    try {
+      _lastCommunityUploadPercent = null;
+      await _localNotifications.cancel(_communityUploadNotificationId);
+    } catch (e) {
+      debugPrint('Error clearing upload notification: $e');
     }
   }
 

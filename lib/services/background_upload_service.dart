@@ -8,6 +8,7 @@ import 'cloudflare_r2_service.dart';
 import 'local_cache_service.dart';
 import 'group_messaging_service.dart';
 import 'community_service.dart';
+import 'notification_service.dart';
 import '../models/group_chat_message.dart';
 import '../models/media_metadata.dart';
 import '../models/downloaded_media.dart';
@@ -101,6 +102,7 @@ class BackgroundUploadService extends ChangeNotifier {
   final ChatService _chatService = ChatService();
   final GroupMessagingService _groupService = GroupMessagingService();
   final CommunityService _communityService = CommunityService();
+  final NotificationService _notificationService = NotificationService();
   final List<PendingUpload> _uploads = [];
   Timer? _processingTimer;
   bool _isProcessing = false;
@@ -117,6 +119,14 @@ class BackgroundUploadService extends ChangeNotifier {
   Function(String groupId)? onGroupComplete;
 
   List<PendingUpload> get uploads => _uploads;
+
+  int _activeCommunityUploadCount() {
+    return _uploads.where((u) {
+      if (u.chatType != 'community') return false;
+      return u.status == UploadStatus.pending ||
+          u.status == UploadStatus.uploading;
+    }).length;
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -209,6 +219,10 @@ class BackgroundUploadService extends ChangeNotifier {
         if (!File(upload.filePath).existsSync()) {
           upload.status = UploadStatus.failed;
           upload.error = 'File not found: ${upload.filePath}';
+          if (upload.chatType == 'community' &&
+              _activeCommunityUploadCount() == 0) {
+            unawaited(_notificationService.clearUploadNotification());
+          }
           notifyListeners();
           continue;
         }
@@ -217,6 +231,14 @@ class BackgroundUploadService extends ChangeNotifier {
           upload.status = UploadStatus.uploading;
           notifyListeners();
           onUploadProgress?.call(upload.id, true, 0.0);
+          if (upload.chatType == 'community') {
+            unawaited(
+              _notificationService.showUploadProgressNotification(
+                progress: 0.0,
+                activeUploads: _activeCommunityUploadCount(),
+              ),
+            );
+          }
 
           final file = File(upload.filePath);
 
@@ -235,6 +257,14 @@ class BackgroundUploadService extends ChangeNotifier {
               upload.progress = normalized;
               notifyListeners();
               onUploadProgress?.call(upload.id, true, normalized);
+              if (upload.chatType == 'community') {
+                unawaited(
+                  _notificationService.showUploadProgressNotification(
+                    progress: normalized,
+                    activeUploads: _activeCommunityUploadCount(),
+                  ),
+                );
+              }
             },
           );
 
@@ -387,6 +417,12 @@ class BackgroundUploadService extends ChangeNotifier {
               for (final groupUpload in groupUploads) {
                 onUploadProgress?.call(groupUpload.id, false, 1.0);
               }
+
+              if (_activeCommunityUploadCount() == 0) {
+                unawaited(
+                  _notificationService.showUploadCompletedNotification(),
+                );
+              }
             } else {
               // This individual upload is complete, but group isn't done yet
               // Keep showing progress overlay at 100% until all complete
@@ -465,11 +501,19 @@ class BackgroundUploadService extends ChangeNotifier {
 
           // Notify UI that upload is complete (remove pending message)
           onUploadProgress?.call(upload.id, false, 1.0);
+          if (upload.chatType == 'community' &&
+              _activeCommunityUploadCount() == 0) {
+            unawaited(_notificationService.showUploadCompletedNotification());
+          }
         } catch (e) {
           upload.status = UploadStatus.failed;
           upload.error = e.toString();
           // Notify UI that upload failed
           onUploadProgress?.call(upload.id, false, 0.0);
+          if (upload.chatType == 'community' &&
+              _activeCommunityUploadCount() == 0) {
+            unawaited(_notificationService.clearUploadNotification());
+          }
         }
 
         notifyListeners();
@@ -500,6 +544,9 @@ class BackgroundUploadService extends ChangeNotifier {
     );
 
     upload.status = UploadStatus.cancelled;
+    if (upload.chatType == 'community' && _activeCommunityUploadCount() == 0) {
+      unawaited(_notificationService.clearUploadNotification());
+    }
     notifyListeners();
   }
 
