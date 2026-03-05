@@ -777,6 +777,30 @@ class CommunityService {
         messageType = 'image';
       } else if (fileUrl != null && fileUrl.isNotEmpty) {
         messageType = mediaType ?? 'file'; // Use specific type if provided
+      } else if (multipleMedia != null && multipleMedia.isNotEmpty) {
+        final firstMime = (multipleMedia.first.mimeType ?? '')
+            .toLowerCase()
+            .trim();
+        if (firstMime.startsWith('image/')) {
+          messageType = 'image';
+        } else if (firstMime.startsWith('audio/')) {
+          messageType = 'audio';
+        } else if (firstMime.contains('pdf')) {
+          messageType = 'pdf';
+        } else {
+          messageType = mediaType ?? 'file';
+        }
+      } else if (mediaMetadata != null) {
+        final mediaMime = (mediaMetadata.mimeType ?? '').toLowerCase().trim();
+        if (mediaMime.startsWith('image/')) {
+          messageType = 'image';
+        } else if (mediaMime.startsWith('audio/')) {
+          messageType = 'audio';
+        } else if (mediaMime.contains('pdf')) {
+          messageType = 'pdf';
+        } else {
+          messageType = mediaType ?? 'file';
+        }
       }
 
       final messageData = {

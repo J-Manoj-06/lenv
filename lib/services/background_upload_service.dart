@@ -10,7 +10,9 @@ import 'group_messaging_service.dart';
 import 'community_service.dart';
 import '../models/group_chat_message.dart';
 import '../models/media_metadata.dart';
+import '../models/downloaded_media.dart';
 import '../config/cloudflare_config.dart';
+import 'media_storage_helper.dart';
 
 class PendingUpload {
   final String id;
@@ -265,6 +267,27 @@ class BackgroundUploadService extends ChangeNotifier {
             mimeType: mediaMessage.fileType,
             originalFileName: mediaMessage.fileName,
           );
+
+          // CRITICAL FIX: Register uploaded file in local cache so sender never needs to re-download
+          // This ensures the uploaded image is immediately available after navigation
+          try {
+            await MediaStorageHelper().saveMediaMetadata(
+              DownloadedMedia(
+                key: r2Key,
+                localPath: upload.filePath, // The original file on device
+                fileName: upload.fileName,
+                mimeType: upload.mimeType,
+                fileSize: mediaMessage.fileSize,
+                downloadedAt: DateTime.now(),
+                thumbnailBase64: thumbnailStr,
+              ),
+            );
+            debugPrint(
+              '✅ Registered uploaded file in local cache: $r2Key -> ${upload.filePath}',
+            );
+          } catch (e) {
+            debugPrint('⚠️ Failed to register upload in cache: $e');
+          }
 
           // Creating and sending metadata to Firestore
 

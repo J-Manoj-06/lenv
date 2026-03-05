@@ -3403,10 +3403,7 @@ class _MessageBubble extends StatelessWidget {
                               if (message.message.isNotEmpty)
                                 const SizedBox(height: 8),
                             ] else if (message.imageUrl != null) ...[
-                              _buildLegacyAttachment(
-                                context,
-                                message.imageUrl!,
-                              ),
+                              _buildLegacyAttachment(context, message),
                               if (message.message.isNotEmpty)
                                 const SizedBox(height: 8),
                             ],
@@ -3501,12 +3498,25 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildLegacyAttachment(BuildContext context, String url) {
+  Widget _buildLegacyAttachment(BuildContext context, GroupChatMessage msg) {
+    final url = msg.imageUrl;
+    if (url == null || url.isEmpty) return const SizedBox();
+
     final uri = Uri.tryParse(url);
     if (uri == null) return const SizedBox();
     final r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
     final fileName = _fileNameFromUrl(url);
-    final mimeType = _guessMimeType(fileName);
+    final guessedMimeType = _guessMimeType(fileName);
+    final msgType = (msg.type ?? '').toLowerCase().trim();
+    final mimeType = guessedMimeType != 'application/octet-stream'
+        ? guessedMimeType
+        : (msgType == 'image'
+              ? 'image/jpeg'
+              : msgType == 'audio'
+              ? 'audio/aac'
+              : msgType == 'pdf'
+              ? 'application/pdf'
+              : guessedMimeType);
 
     // Get theme color from context
     final themeColor = _getRoleThemeColor(userRole);

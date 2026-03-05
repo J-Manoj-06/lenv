@@ -5,6 +5,7 @@ import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -704,7 +705,24 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       onTap: widget.selectionMode
           ? null
           : () {
-              if (_isDownloaded && _localPath != null) {
+              // For sender's own images, open from localPath immediately
+              if (widget.isMe &&
+                  widget.localPath != null &&
+                  widget.localPath!.isNotEmpty &&
+                  File(widget.localPath!).existsSync()) {
+                print('📂 Sender: Opening from localPath: ${widget.localPath}');
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _FullImageViewer(
+                      imagePath: widget.localPath!,
+                      fileName: widget.fileName,
+                    ),
+                  ),
+                );
+              }
+              // For receivers, open if downloaded
+              else if (_isDownloaded && _localPath != null) {
+                print('📂 Receiver: Opening from downloaded path: $_localPath');
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => _FullImageViewer(
@@ -715,6 +733,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 );
               } else {
                 // Block viewing until download; start download instead
+                print('⬇️ Need to download before viewing');
                 _download();
               }
             },
@@ -741,13 +760,76 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Show downloaded image or thumbnail
-                if (_isDownloaded &&
+                // PRIORITY 1: For sender, use localPath immediately (just uploaded)
+                // This ensures sender's own images don't re-download
+                if (widget.isMe &&
+                    widget.localPath != null &&
+                    widget.localPath!.isNotEmpty)
+                  () {
+                    print(
+                      '🖼️ Sender: Rendering from localPath: ${widget.localPath}',
+                    );
+                    final file = File(widget.localPath!);
+                    if (file.existsSync()) {
+                      final filePath = widget.localPath!.toLowerCase();
+                      final isImageFile =
+                          filePath.endsWith('.jpg') ||
+                          filePath.endsWith('.jpeg') ||
+                          filePath.endsWith('.png') ||
+                          filePath.endsWith('.gif') ||
+                          filePath.endsWith('.webp');
+
+                      if (!isImageFile) {
+                        print('❌ File is not a valid image format: $filePath');
+                        return Container(
+                          color: Colors.grey[800],
+                          child: const Icon(
+                            Icons.broken_image,
+                            size: 64,
+                            color: Colors.white54,
+                          ),
+                        );
+                      }
+
+                      print('✅ Sender: Loading Image.file immediately');
+                      return Image.file(
+                        file,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                        errorBuilder: (context, error, stackTrace) {
+                          print('❌ Error loading sender image: $error');
+                          return Container(
+                            color: Colors.grey[800],
+                            child: const Icon(
+                              Icons.broken_image,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
+                          );
+                        },
+                      );
+                    } else {
+                      print(
+                        '⚠️ Sender localPath file does not exist: ${widget.localPath}',
+                      );
+                      return Container(
+                        color: Colors.grey[800],
+                        child: const Icon(
+                          Icons.image,
+                          size: 64,
+                          color: Colors.white54,
+                        ),
+                      );
+                    }
+                  }()
+                // PRIORITY 2: If already downloaded locally
+                else if (_isDownloaded &&
                     _localPath != null &&
                     _localPath!.isNotEmpty)
                   () {
-                    print('🖼️ Rendering downloaded image from: $_localPath');
-                    // Double-check the file is actually an image before loading
+                    print(
+                      '🖼️ Receiver: Rendering downloaded image from: $_localPath',
+                    );
                     final filePath = _localPath!.toLowerCase();
                     final isImageFile =
                         filePath.endsWith('.jpg') ||
@@ -786,6 +868,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                       },
                     );
                   }()
+                // PRIORITY 3: Show thumbnail while waiting for download
+                // This provides visual feedback and loads quickly from R2
                 else if (widget.thumbnailBase64 != null &&
                     widget.thumbnailBase64!.isNotEmpty)
                   () {
@@ -794,7 +878,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     if (widget.thumbnailBase64!.startsWith('/') &&
                         widget.thumbnailBase64!.length > 1) {
                       print('   - Loading from file path');
-                      // It's a file path, use Image.file (NO BLUR for better UX)
                       return Image.file(
                         File(widget.thumbnailBase64!),
                         fit: BoxFit.cover,
@@ -813,10 +896,20 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                         '   - Network URL detected, loading with CachedNetworkImage',
                       );
                       // Load from R2 URL using CachedNetworkImage
+                      // Show placeholder while loading from network
                       return CachedNetworkImage(
                         imageUrl: widget.thumbnailBase64!,
                         fit: BoxFit.cover,
                         filterQuality: FilterQuality.high,
+                        memCacheHeight: 600,
+                        memCacheWidth: 600,
+                        cacheManager: CacheManager(
+                          Config(
+                            'thumbnail_cache',
+                            stalePeriod: const Duration(days: 30),
+                            maxNrOfCacheObjects: 100,
+                          ),
+                        ),
                         placeholder: (context, url) => Container(
                           color: Colors.grey[800],
                           child: const Icon(
@@ -836,7 +929,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                       );
                     } else {
                       print('   - Loading from base64 data');
-                      // It's base64 data (NO BLUR for better UX)
                       try {
                         return Image.memory(
                           base64Decode(widget.thumbnailBase64!),
@@ -853,7 +945,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                         );
                       } catch (e) {
                         print('❌ Error decoding base64: $e');
-                        // Invalid base64, show error icon
                         return Container(
                           color: Colors.grey[800],
                           child: const Icon(
@@ -865,22 +956,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                       }
                     }
                   }()
-                else if (widget.localPath != null &&
-                    widget.localPath!.isNotEmpty &&
-                    !_isDownloaded)
-                  () {
-                    print(
-                      '🖼️ Showing placeholder, local file will be visible after download',
-                    );
-                    return Container(
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.image,
-                        size: 64,
-                        color: Colors.white54,
-                      ),
-                    );
-                  }()
+                // PRIORITY 4: Placeholder when nothing available
                 else
                   () {
                     print('⚠️ No image data available, showing placeholder');
