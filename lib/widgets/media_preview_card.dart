@@ -713,8 +713,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         onTap: widget.selectionMode ? null : onTap,
         onLongPress: null,
         child: SizedBox(
-          width: 250,
-          height: 250,
+          width: 260,
+          height: 260,
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
@@ -819,7 +819,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                       ],
                     ),
                     child: const Icon(
-                      Icons.download,
+                      Icons.cloud_download,
                       color: Colors.black,
                       size: 36,
                     ),

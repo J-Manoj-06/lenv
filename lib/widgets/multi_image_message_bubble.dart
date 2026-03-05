@@ -195,9 +195,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final screenWidth = MediaQuery.of(context).size.width;
-    final maxBubbleWidth = screenWidth * 0.7; // 70% of screen
+    const maxBubbleWidth = 260.0; // Fixed width for consistency
 
     // Check if any image is still uploading
     bool isUploading = false;
@@ -298,14 +296,16 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Container(
+                        width: 80,
+                        height: 80,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              color: Colors.black.withOpacity(0.5),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
                             ),
                           ],
                         ),
@@ -314,34 +314,22 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                           child: InkWell(
                             onTap: _downloadAllImages,
                             customBorder: const CircleBorder(),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Icon(
-                                Icons.cloud_download,
-                                size: 40,
-                                color: theme.primaryColor,
-                              ),
+                            child: const Icon(
+                              Icons.cloud_download,
+                              size: 36,
+                              color: Colors.black,
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Tap to download',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      const Text(
+                        'Tap to download',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
                         ),
                       ),
                     ],
@@ -414,11 +402,11 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
 
   Widget _buildContent(BuildContext context) {
     final count = widget.imageUrls.length;
-    final screenWidth = MediaQuery.of(context).size.width;
+    const fixedBubbleWidth = 260.0;
 
     // Single image - display with same width as multi-image grid
     if (count == 1) {
-      final tileSize = (screenWidth * 0.7 - widget.gap) / 2;
+      final tileSize = (fixedBubbleWidth - widget.gap) / 2;
       final gridSize = (tileSize * 2) + widget.gap;
       return SizedBox(
         width: gridSize,
@@ -620,7 +608,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     }
 
     // 5+ images: grid (limited to 4 visible, rest shown via overlay)
-    final tileSize = (screenWidth * 0.7 - (widget.gap * 3)) / 2;
+    final tileSize = (fixedBubbleWidth - widget.gap) / 2;
     final gridWidth = (tileSize * 2) + widget.gap;
 
     // Calculate rows needed (show max 4 images: 2x2 grid)
