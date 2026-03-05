@@ -4,9 +4,6 @@ import '../services/media_availability_service.dart';
 import '../screens/audio_player_screen.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'dart:convert';
 import 'dart:io';
 
 /// Generic media preview card for chat messages
@@ -102,6 +99,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     final availability = await _availabilityService.checkMediaAvailability(
       widget.r2Key,
     );
+    print(
+      '🔍 _checkDownloadStatus r2Key=${widget.r2Key} → '
+      'isCached=${availability.isCached}',
+    );
 
     if (mounted) {
       setState(() {
@@ -109,6 +110,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         if (_isDownloaded) {
           // Get the cached local path
           _availabilityService.getCachedFilePath(widget.r2Key).then((path) {
+            print('🔍 getCachedFilePath for ${widget.r2Key} → $path');
             if (mounted && path != null) {
               setState(() {
                 _localPath = path;
@@ -228,6 +230,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   /// Open PDF/Document/Audio - checks if downloaded first, otherwise downloads
+  // ignore: unused_element
   Future<void> _openFromR2() async {
     if (!_isDocument && !_isAudio) return;
 
@@ -693,414 +696,305 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
   /// Build WhatsApp-style image preview
   Widget _buildImagePreview() {
-    print('🖼️ _buildImagePreview() called');
-    print('   - isImage: $_isImage');
-    print('   - isDownloaded: $_isDownloaded');
-    print('   - localPath: $_localPath');
-    print(
-      '   - thumbnailBase64: ${widget.thumbnailBase64?.substring(0, 50)}...',
-    );
+    // ══════════════════════════════════════════════════════════════════════
+    // DEBUG — remove once issue is confirmed fixed
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('🖼️  _buildImagePreview() r2Key=${widget.r2Key}');
+    print('   isMe=${widget.isMe}  uploading=${widget.uploading}');
+    print('   _isDownloaded=$_isDownloaded  _isDownloading=$_isDownloading');
+    print('   widget.localPath=${widget.localPath}');
+    print('   _localPath=$_localPath');
+    print('   thumbnailBase64 length=${widget.thumbnailBase64?.length}');
+    // ══════════════════════════════════════════════════════════════════════
 
-    return GestureDetector(
-      onTap: widget.selectionMode
-          ? null
-          : () {
-              // For sender's own images, open from localPath immediately
-              if (widget.isMe &&
-                  widget.localPath != null &&
-                  widget.localPath!.isNotEmpty &&
-                  File(widget.localPath!).existsSync()) {
-                print('📂 Sender: Opening from localPath: ${widget.localPath}');
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => _FullImageViewer(
-                      imagePath: widget.localPath!,
-                      fileName: widget.fileName,
-                    ),
-                  ),
-                );
-              }
-              // For receivers, open if downloaded
-              else if (_isDownloaded && _localPath != null) {
-                print('📂 Receiver: Opening from downloaded path: $_localPath');
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => _FullImageViewer(
-                      imagePath: _localPath!,
-                      fileName: widget.fileName,
-                    ),
-                  ),
-                );
-              } else {
-                // Block viewing until download; start download instead
-                print('⬇️ Need to download before viewing');
-                _download();
-              }
-            },
-      onLongPress: null, // Let parent GestureDetector handle selection
-      child: SizedBox(
-        width: 250,
-        height: 250,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: widget.themeColor ?? const Color(0xFF9E9E9E),
-              width: 3.0,
-            ),
-          ),
+    // ── Shared shell: border + clip + gesture ──────────────────────────────
+    Widget shell(Widget content, {VoidCallback? onTap}) {
+      return GestureDetector(
+        onTap: widget.selectionMode ? null : onTap,
+        onLongPress: null,
+        child: SizedBox(
+          width: 250,
+          height: 250,
           child: Container(
-            width: 250,
-            height: 250,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: widget.themeColor ?? const Color(0xFF9E9E9E),
+                width: 3.0,
+              ),
             ),
-            clipBehavior: Clip.hardEdge,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // PRIORITY 1: For sender, use localPath immediately (just uploaded)
-                // This ensures sender's own images don't re-download
-                if (widget.isMe &&
-                    widget.localPath != null &&
-                    widget.localPath!.isNotEmpty)
-                  () {
-                    print(
-                      '🖼️ Sender: Rendering from localPath: ${widget.localPath}',
-                    );
-                    final file = File(widget.localPath!);
-                    if (file.existsSync()) {
-                      final filePath = widget.localPath!.toLowerCase();
-                      final isImageFile =
-                          filePath.endsWith('.jpg') ||
-                          filePath.endsWith('.jpeg') ||
-                          filePath.endsWith('.png') ||
-                          filePath.endsWith('.gif') ||
-                          filePath.endsWith('.webp');
-
-                      if (!isImageFile) {
-                        print('❌ File is not a valid image format: $filePath');
-                        return Container(
-                          color: Colors.grey[800],
-                          child: const Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        );
-                      }
-
-                      print('✅ Sender: Loading Image.file immediately');
-                      return Image.file(
-                        file,
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.high,
-                        errorBuilder: (context, error, stackTrace) {
-                          print('❌ Error loading sender image: $error');
-                          return Container(
-                            color: Colors.grey[800],
-                            child: const Icon(
-                              Icons.broken_image,
-                              size: 64,
-                              color: Colors.white54,
-                            ),
-                          );
-                        },
-                      );
-                    } else {
-                      print(
-                        '⚠️ Sender localPath file does not exist: ${widget.localPath}',
-                      );
-                      return Container(
-                        color: Colors.grey[800],
-                        child: const Icon(
-                          Icons.image,
-                          size: 64,
-                          color: Colors.white54,
-                        ),
-                      );
-                    }
-                  }()
-                // PRIORITY 2: If already downloaded locally
-                else if (_isDownloaded &&
-                    _localPath != null &&
-                    _localPath!.isNotEmpty)
-                  () {
-                    print(
-                      '🖼️ Receiver: Rendering downloaded image from: $_localPath',
-                    );
-                    final filePath = _localPath!.toLowerCase();
-                    final isImageFile =
-                        filePath.endsWith('.jpg') ||
-                        filePath.endsWith('.jpeg') ||
-                        filePath.endsWith('.png') ||
-                        filePath.endsWith('.gif') ||
-                        filePath.endsWith('.webp');
-
-                    if (!isImageFile) {
-                      print('❌ File is not a valid image format: $filePath');
-                      return Container(
-                        color: Colors.grey[800],
-                        child: const Icon(
-                          Icons.broken_image,
-                          size: 64,
-                          color: Colors.white54,
-                        ),
-                      );
-                    }
-
-                    print('✅ Loading Image.file with BoxFit.cover');
-                    return Image.file(
-                      File(_localPath!),
-                      fit: BoxFit.cover,
-                      filterQuality: FilterQuality.high,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('❌ Error loading image: $error');
-                        return Container(
-                          color: Colors.grey[800],
-                          child: const Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        );
-                      },
-                    );
-                  }()
-                // PRIORITY 3: Show thumbnail ONLY for sender while uploading
-                // For receivers who haven't downloaded, skip thumbnail so the
-                // "Tap to download" overlay shows on a clean dark background
-                else if ((widget.isMe || widget.uploading) &&
-                    widget.thumbnailBase64 != null &&
-                    widget.thumbnailBase64!.isNotEmpty)
-                  () {
-                    print('🖼️ Rendering thumbnail');
-                    // Check if it's a file path, URL, or base64 data
-                    if (widget.thumbnailBase64!.startsWith('/') &&
-                        widget.thumbnailBase64!.length > 1) {
-                      print('   - Loading from file path');
-                      return Image.file(
-                        File(widget.thumbnailBase64!),
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.high,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: Colors.grey[800],
-                          child: const Icon(
-                            Icons.image,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    } else if (widget.thumbnailBase64!.startsWith('http')) {
-                      print(
-                        '   - Network URL detected, loading with CachedNetworkImage',
-                      );
-                      // Load from R2 URL using CachedNetworkImage
-                      // Show placeholder while loading from network
-                      return CachedNetworkImage(
-                        imageUrl: widget.thumbnailBase64!,
-                        fit: BoxFit.cover,
-                        filterQuality: FilterQuality.high,
-                        memCacheHeight: 600,
-                        memCacheWidth: 600,
-                        cacheManager: CacheManager(
-                          Config(
-                            'thumbnail_cache',
-                            stalePeriod: const Duration(days: 30),
-                            maxNrOfCacheObjects: 100,
-                          ),
-                        ),
-                        placeholder: (context, url) => Container(
-                          color: Colors.grey[800],
-                          child: const Icon(
-                            Icons.image,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey[800],
-                          child: const Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      );
-                    } else {
-                      print('   - Loading from base64 data');
-                      try {
-                        return Image.memory(
-                          base64Decode(widget.thumbnailBase64!),
-                          fit: BoxFit.cover,
-                          filterQuality: FilterQuality.high,
-                          errorBuilder: (_, __, ___) => Container(
-                            color: Colors.grey[800],
-                            child: const Icon(
-                              Icons.image,
-                              size: 64,
-                              color: Colors.white54,
-                            ),
-                          ),
-                        );
-                      } catch (e) {
-                        print('❌ Error decoding base64: $e');
-                        return Container(
-                          color: Colors.grey[800],
-                          child: const Icon(
-                            Icons.broken_image,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        );
-                      }
-                    }
-                  }()
-                // PRIORITY 4: Placeholder when nothing available
-                else
-                  () {
-                    print('⚠️ No image data available, showing placeholder');
-                    return Container(
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.image,
-                        size: 64,
-                        color: Colors.white54,
-                      ),
-                    );
-                  }(),
-
-                // Download overlay only for receivers; sender auto-fetches silently
-                // Don't show if uploading or if already downloaded
-                if (!_isDownloaded &&
-                    !_isDownloading &&
-                    !widget.uploading &&
-                    !widget.isMe)
-                  Positioned.fill(
-                    child: Container(
-                      // Fully opaque black — thumbnail is hidden for receivers,
-                      // so there is nothing to bleed through underneath.
-                      color: Colors.black,
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.5),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.download,
-                                color: Colors.black,
-                                size: 36,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Tap to download',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Uploading overlay centered inside the image (for sender pending)
-                // Only show if actually uploading (pending message with progress)
-                if (widget.uploading)
-                  Positioned.fill(
-                    child: AbsorbPointer(
-                      absorbing: true,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          color: Colors.black.withOpacity(0.65),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SizedBox(
-                                  width: 70,
-                                  height: 70,
-                                  child: CircularProgressIndicator(
-                                    value: widget.uploadProgress,
-                                    strokeWidth: 5,
-                                    valueColor:
-                                        const AlwaysStoppedAnimation<Color>(
-                                          Color(0xFFFFA929),
-                                        ),
-                                    backgroundColor: Colors.white24,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  widget.uploadProgress == null
-                                      ? 'Sending...'
-                                      : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Download progress overlay - only show when explicitly downloading
-                if (_isDownloading && !widget.uploading)
-                  Positioned.fill(
-                    child: Container(
-                      color: Colors.black.withOpacity(0.7),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(
-                              value: _downloadProgress,
-                              color: Colors.white,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${(_downloadProgress * 100).toInt()}%',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: content,
             ),
           ),
         ),
-      ),
+      );
+    }
+
+    // ── RECEIVER PATH ──────────────────────────────────────────────────────
+    // For non-senders, OR for senders whose local file is gone and image not
+    // yet cached — require explicit download (no grey placeholder).
+    final senderFileAvailable =
+        widget.isMe &&
+        !widget.uploading &&
+        (widget.localPath != null && widget.localPath!.isNotEmpty
+            ? File(widget.localPath!).existsSync()
+            : (_isDownloaded && _localPath != null));
+
+    if ((!widget.isMe && !widget.uploading) ||
+        (widget.isMe &&
+            !widget.uploading &&
+            !senderFileAvailable &&
+            !_isDownloaded)) {
+      print(
+        '   🔵 RECEIVER path entered (isMe=${widget.isMe}, senderFileAvailable=$senderFileAvailable)',
+      );
+      // 1. Currently downloading — show progress
+      if (_isDownloading) {
+        print(
+          '   🔵 RECEIVER branch-1: IS DOWNLOADING (progress=$_downloadProgress)',
+        );
+        return shell(
+          Container(
+            color: Colors.black,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: CircularProgressIndicator(
+                      value: _downloadProgress > 0 ? _downloadProgress : null,
+                      strokeWidth: 5,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Colors.white,
+                      ),
+                      backgroundColor: Colors.white24,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _downloadProgress > 0
+                        ? '${(_downloadProgress * 100).toInt()}%'
+                        : 'Downloading...',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      // 2. Not yet downloaded — solid black "Tap to download"
+      if (!_isDownloaded) {
+        print(
+          '   🔵 RECEIVER branch-2: NOT DOWNLOADED → showing Tap to download',
+        );
+        return shell(
+          Container(
+            color: Colors.black,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.download,
+                      color: Colors.black,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Tap to download',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          onTap: _download,
+        );
+      }
+
+      // 3. Already downloaded — show local image
+      print(
+        '   🔵 RECEIVER branch-3/4: _isDownloaded=true, _localPath=$_localPath',
+      );
+      if (_localPath != null) {
+        print('   🔵 RECEIVER branch-3: showing local image at $_localPath');
+        return shell(
+          Image.file(
+            File(_localPath!),
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (_, __, ___) => Container(
+              color: Colors.grey[800],
+              child: const Icon(
+                Icons.broken_image,
+                size: 64,
+                color: Colors.white54,
+              ),
+            ),
+          ),
+          onTap: _open,
+        );
+      }
+
+      // 4. Fallback — localPath unexpectedly null after download flag set
+      print(
+        '   🔵 RECEIVER branch-4: FALLBACK — _isDownloaded=true but _localPath is null! (r2Key=${widget.r2Key})',
+      );
+      return shell(
+        Container(
+          color: Colors.grey[800],
+          child: const Icon(Icons.image, size: 64, color: Colors.white54),
+        ),
+        onTap: _download,
+      );
+    }
+
+    // ── SENDER PATH ────────────────────────────────────────────────────────
+    // Show the local file the sender just captured/picked, plus upload progress.
+    print('   🟠 SENDER path entered (isMe=true or uploading=true)');
+    final senderFilePath = widget.localPath ?? _localPath;
+    print('   🟠 senderFilePath=$senderFilePath');
+    Widget senderImage;
+
+    if (senderFilePath != null && senderFilePath.isNotEmpty) {
+      final file = File(senderFilePath);
+      print('   🟠 senderFile.existsSync()=${file.existsSync()}');
+      if (file.existsSync()) {
+        final p = senderFilePath.toLowerCase();
+        final isValidImage =
+            p.endsWith('.jpg') ||
+            p.endsWith('.jpeg') ||
+            p.endsWith('.png') ||
+            p.endsWith('.gif') ||
+            p.endsWith('.webp');
+        senderImage = isValidImage
+            ? Image.file(
+                file,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey[800],
+                  child: const Icon(
+                    Icons.broken_image,
+                    size: 64,
+                    color: Colors.white54,
+                  ),
+                ),
+              )
+            : Container(
+                color: Colors.grey[800],
+                child: const Icon(Icons.image, size: 64, color: Colors.white54),
+              );
+      } else {
+        print('   🟠 SENDER: file does not exist at path');
+        senderImage = Container(
+          color: Colors.grey[800],
+          child: const Icon(Icons.image, size: 64, color: Colors.white54),
+        );
+      }
+    } else {
+      print('   🟠 SENDER: senderFilePath is null/empty → grey placeholder');
+      senderImage = Container(
+        color: Colors.grey[800],
+        child: const Icon(Icons.image, size: 64, color: Colors.white54),
+      );
+    }
+
+    final senderContent = widget.uploading
+        ? Stack(
+            fit: StackFit.expand,
+            children: [
+              senderImage,
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.5),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 64,
+                          height: 64,
+                          child: CircularProgressIndicator(
+                            value: widget.uploadProgress,
+                            strokeWidth: 5,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFFFFA929),
+                            ),
+                            backgroundColor: Colors.white24,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          widget.uploadProgress == null
+                              ? 'Sending...'
+                              : '${((widget.uploadProgress ?? 0.0) * 100).toInt()}%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          )
+        : senderImage;
+
+    return shell(
+      senderContent,
+      onTap: widget.uploading
+          ? null
+          : () {
+              final p = widget.localPath ?? _localPath;
+              if (p != null && File(p).existsSync()) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => _FullImageViewer(
+                      imagePath: p,
+                      fileName: widget.fileName,
+                    ),
+                  ),
+                );
+              }
+            },
     );
   }
+
+  // (old _buildImagePreview replaced — no archived code needed)
 }
 
 /// Full screen image viewer for local images
@@ -1221,6 +1115,7 @@ class _ThumbnailViewer extends StatelessWidget {
 */
 
 /// Cache entry for download status to prevent redundant file checks
+// ignore: unused_element
 class _CachedStatus {
   final bool isDownloaded;
   final String? localPath;
