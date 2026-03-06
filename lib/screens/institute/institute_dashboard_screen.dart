@@ -95,7 +95,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     print('🔍 DEBUG: Current User = ${currentUser?.name}');
     print('🔍 DEBUG: User Role = ${currentUser?.role}');
     print('🔍 DEBUG: User instituteId = ${currentUser?.instituteId}');
-    final code = currentUser?.instituteId ?? '';
+    final code = (currentUser?.instituteId?.isNotEmpty == true)
+        ? (currentUser!.instituteId ?? '')
+        : (_cacheManager.getLastPrincipalSchoolCode() ?? '');
     print('🔍 DEBUG: School Code set to: "$code" (isEmpty: ${code.isEmpty})');
     if (mounted && code.isNotEmpty) {
       setState(() {
@@ -219,10 +221,11 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
     // If offline, return cached value
     if (!_isOnline && _cachedStats != null) {
-      final attendance =
-          _cachedStats!['attendance'] as Map<String, dynamic>? ??
-          {'present': 0, 'total': 0, 'percent': 0.0};
-      return Stream.value(Map<String, dynamic>.from(attendance));
+      final attendanceRaw = _cachedStats!['attendance'];
+      final attendance = attendanceRaw is Map
+          ? Map<String, dynamic>.from(attendanceRaw)
+          : <String, dynamic>{'present': 0, 'total': 0, 'percent': 0.0};
+      return Stream.value(attendance);
     }
 
     // Get today's date in format: yyyy-MM-dd
@@ -599,6 +602,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                             tealColor: tealColor,
                             iconBgColor: progressBgColor,
                             borderColor: borderColor,
+                            schoolCode: _schoolCode,
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -1811,6 +1815,7 @@ class _QuickActionCard extends StatelessWidget {
     required this.tealColor,
     required this.iconBgColor,
     required this.borderColor,
+    required this.schoolCode,
   });
 
   final Color cardColor;
@@ -1819,13 +1824,16 @@ class _QuickActionCard extends StatelessWidget {
   final Color tealColor;
   final Color iconBgColor;
   final Color borderColor;
+  final String schoolCode;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
         final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final instituteId = authProvider.currentUser?.instituteId ?? '';
+        final instituteId = schoolCode.isNotEmpty
+            ? schoolCode
+            : (authProvider.currentUser?.instituteId ?? '');
         final instituteName = authProvider.currentUser?.name ?? 'Institute';
 
         if (instituteId.isNotEmpty) {

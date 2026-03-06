@@ -6,6 +6,7 @@ import '../../services/community_service.dart';
 import '../messages/community_chat_page.dart';
 import './institute_community_explore_screen.dart';
 import '../../services/offline_data_service.dart';
+import '../../services/offline_cache_manager.dart';
 
 class InstituteCommunityScreen extends StatefulWidget {
   const InstituteCommunityScreen({super.key});
@@ -19,9 +20,9 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
     with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   final OfflineDataService _offlineService = OfflineDataService();
+  final OfflineCacheManager _cacheManager = OfflineCacheManager();
   bool _isLoading = false;
   List<CommunityModel> _joined = [];
-  bool _hasAttemptedLoad = false;
   bool _dataLoaded = false;
 
   @override
@@ -52,26 +53,29 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
-    final schoolCode = user?.instituteId ?? '';
-
-    // If user data isn't ready yet, don't mark as attempted
-    if (user == null || schoolCode.isEmpty) {
-      if (mounted && _hasAttemptedLoad) {
-        setState(() => _isLoading = false);
-      }
-      return;
-    }
-
-    _hasAttemptedLoad = true;
+    final userId = user?.uid ?? '';
+    final String schoolCode = (user?.instituteId?.isNotEmpty == true)
+        ? (user!.instituteId ?? '')
+        : (_cacheManager.getLastPrincipalSchoolCode() ?? '');
 
     // ✅ Try loading from cache first for instant display
-    final cachedCommunities = _offlineService.getCachedInstituteCommunities(
-      user.uid,
-    );
+    List<Map<String, dynamic>>? cachedCommunities;
+    if (userId.isNotEmpty) {
+      cachedCommunities = _offlineService.getCachedInstituteCommunities(userId);
+    }
+
+    if ((cachedCommunities == null || cachedCommunities.isEmpty) &&
+        schoolCode.isNotEmpty) {
+      cachedCommunities = _cacheManager.getCachedInstituteCommunities(
+        schoolCode,
+      );
+    }
+
     if (cachedCommunities != null && cachedCommunities.isNotEmpty) {
+      final cachedList = cachedCommunities;
       if (mounted) {
         setState(() {
-          _joined = cachedCommunities
+          _joined = cachedList
               .map((data) => CommunityModel.fromJson(data))
               .toList();
           _isLoading = false;
@@ -85,10 +89,21 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
       setState(() => _isLoading = true);
     }
 
+    // If auth user is unavailable (offline cold start), keep cached UI and skip network.
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _dataLoaded = _joined.isNotEmpty;
+        });
+      }
+      return;
+    }
+
     try {
       // 🌐 Add 8-second timeout for network fetch - fallback to cache if timeout
       final joinedRaw = await _communityService
-          .getMyComm(user.uid)
+          .getMyComm(userId)
           .timeout(
             const Duration(seconds: 8),
             onTimeout: () {
@@ -106,9 +121,15 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
       if (joined.isNotEmpty) {
         final communitiesData = joined.map((c) => c.toJson()).toList();
         await _offlineService.cacheInstituteCommunities(
-          instituteId: user.uid,
+          instituteId: userId,
           communities: communitiesData,
         );
+        if (schoolCode.isNotEmpty) {
+          await _cacheManager.cacheInstituteCommunities(
+            schoolCode: schoolCode,
+            communities: communitiesData,
+          );
+        }
 
         if (mounted) {
           setState(() {
@@ -136,12 +157,22 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
       debugPrint('Error loading communities from network: $e');
       // ✅ If network fails but we have cached data, keep showing it
       if (mounted && _joined.isEmpty) {
-        final cachedCommunities = _offlineService.getCachedInstituteCommunities(
-          user.uid,
-        );
+        List<Map<String, dynamic>>? cachedCommunities;
+        if (userId.isNotEmpty) {
+          cachedCommunities = _offlineService.getCachedInstituteCommunities(
+            userId,
+          );
+        }
+        if ((cachedCommunities == null || cachedCommunities.isEmpty) &&
+            schoolCode.isNotEmpty) {
+          cachedCommunities = _cacheManager.getCachedInstituteCommunities(
+            schoolCode,
+          );
+        }
         if (cachedCommunities != null && cachedCommunities.isNotEmpty) {
+          final fallbackList = cachedCommunities;
           setState(() {
-            _joined = cachedCommunities
+            _joined = fallbackList
                 .map((data) => CommunityModel.fromJson(data))
                 .toList();
             _dataLoaded = true;

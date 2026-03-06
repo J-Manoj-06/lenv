@@ -31,6 +31,18 @@ class OfflineDataService {
 
   bool _initialized = false;
 
+  List<Map<String, dynamic>>? _asMapList(dynamic rawList) {
+    if (rawList is! List) return null;
+
+    final result = <Map<String, dynamic>>[];
+    for (final item in rawList) {
+      if (item is Map) {
+        result.add(Map<String, dynamic>.from(item));
+      }
+    }
+    return result;
+  }
+
   Future<void> initialize() async {
     if (_initialized) return;
 
@@ -536,10 +548,7 @@ class OfflineDataService {
       final cached = _instituteCommunitiesCache.get('communities_$instituteId');
       if (cached == null) return null;
 
-      final communities = cached['communities'] as List?;
-      if (communities == null) return null;
-
-      return List<Map<String, dynamic>>.from(communities);
+      return _asMapList(cached['communities']);
     } catch (e) {
       debugPrint('Error reading cached institute communities: $e');
       return null;

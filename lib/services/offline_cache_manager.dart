@@ -32,6 +32,23 @@ class OfflineCacheManager {
 
   bool _initialized = false;
 
+  List<Map<String, dynamic>>? _asMapList(dynamic rawList) {
+    if (rawList is! List) return null;
+
+    final result = <Map<String, dynamic>>[];
+    for (final item in rawList) {
+      if (item is Map) {
+        result.add(Map<String, dynamic>.from(item));
+      }
+    }
+    return result;
+  }
+
+  Map<String, dynamic>? _asMap(dynamic rawMap) {
+    if (rawMap is! Map) return null;
+    return Map<String, dynamic>.from(rawMap);
+  }
+
   factory OfflineCacheManager() {
     return _instance;
   }
@@ -428,10 +445,51 @@ class OfflineCacheManager {
       final cached = _dashboardBox.get('principal_stats_$schoolCode');
       if (cached == null) return null;
 
-      final stats = cached['stats'] as Map?;
-      return stats != null ? Map<String, dynamic>.from(stats) : null;
+      return _asMap(cached['stats']);
     } catch (e) {
       debugPrint('Error retrieving cached principal stats: $e');
+      return null;
+    }
+  }
+
+  /// Get the most recently cached principal school code
+  /// Useful for offline cold starts when auth profile is not hydrated yet
+  String? getLastPrincipalSchoolCode() {
+    try {
+      String? latestSchoolCode;
+      DateTime? latestCachedAt;
+
+      for (final key in _dashboardBox.keys) {
+        final keyStr = key.toString();
+        if (!keyStr.startsWith('principal_stats_')) continue;
+
+        final cached = _dashboardBox.get(keyStr);
+        if (cached == null) continue;
+
+        final cachedAtStr = cached['cachedAt'] as String?;
+        final schoolCode = cached['schoolCode'] as String?;
+        if (schoolCode == null || schoolCode.isEmpty) continue;
+
+        DateTime? cachedAt;
+        if (cachedAtStr != null && cachedAtStr.isNotEmpty) {
+          cachedAt = DateTime.tryParse(cachedAtStr);
+        }
+
+        if (latestCachedAt == null) {
+          latestCachedAt = cachedAt;
+          latestSchoolCode = schoolCode;
+          continue;
+        }
+
+        if (cachedAt != null && cachedAt.isAfter(latestCachedAt)) {
+          latestCachedAt = cachedAt;
+          latestSchoolCode = schoolCode;
+        }
+      }
+
+      return latestSchoolCode;
+    } catch (e) {
+      debugPrint('Error retrieving last principal school code: $e');
       return null;
     }
   }
@@ -459,10 +517,7 @@ class OfflineCacheManager {
       final cached = _groupsBox.get('staff_room_$instituteId');
       if (cached == null) return null;
 
-      final messages = cached['messages'] as List?;
-      return messages != null
-          ? List<Map<String, dynamic>>.from(messages)
-          : null;
+      return _asMapList(cached['messages']);
     } catch (e) {
       debugPrint('Error retrieving cached staff room messages: $e');
       return null;
@@ -492,10 +547,7 @@ class OfflineCacheManager {
       final cached = _communitiesBox.get('institute_communities_$schoolCode');
       if (cached == null) return null;
 
-      final communities = cached['communities'] as List?;
-      return communities != null
-          ? List<Map<String, dynamic>>.from(communities)
-          : null;
+      return _asMapList(cached['communities']);
     } catch (e) {
       debugPrint('Error retrieving cached institute communities: $e');
       return null;
