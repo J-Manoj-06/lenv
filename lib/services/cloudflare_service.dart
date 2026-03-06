@@ -76,8 +76,8 @@ class CloudflareService {
           'title': title,
           'message': message,
           'targetAudience': targetAudience,
-          if (standard != null) 'standard': standard,
-          if (fileUrl != null) 'fileUrl': fileUrl,
+          'standard': ?standard,
+          'fileUrl': ?fileUrl,
         },
         options: Options(
           headers: {
@@ -106,7 +106,7 @@ class CloudflareService {
           'groupId': groupId,
           'senderId': senderId,
           'messageText': messageText,
-          if (fileUrl != null) 'fileUrl': fileUrl,
+          'fileUrl': ?fileUrl,
         },
         options: Options(
           headers: {

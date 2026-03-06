@@ -604,7 +604,7 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
                         child: Image.network(
                           profileImage,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
+                          errorBuilder: (_, _, _) =>
                               Icon(Icons.person, color: Colors.white, size: 28),
                         ),
                       )

@@ -137,7 +137,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
               child: ListView.separated(
                 padding: const EdgeInsets.all(16),
                 itemCount: _myCommunities.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   final community = _myCommunities[index];
                   return _buildCommunityCard(community);

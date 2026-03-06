@@ -472,7 +472,7 @@ class ParentProvider with ChangeNotifier {
       await db.collection('reward_requests').doc(requestId).update({
         'status': 'approved',
         'purchase_mode': approvalMethod,
-        if (manualPrice != null) 'manual_price': manualPrice,
+        'manual_price': ?manualPrice,
         'approved_on': FieldValue.serverTimestamp(),
         'audit': FieldValue.arrayUnion([
           {
@@ -481,7 +481,7 @@ class ParentProvider with ChangeNotifier {
             'timestamp': DateTime.now().toIso8601String(),
             'metadata': {
               'approval_method': approvalMethod,
-              if (manualPrice != null) 'manual_price': manualPrice,
+              'manual_price': ?manualPrice,
             },
           },
         ]),

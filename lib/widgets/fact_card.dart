@@ -216,7 +216,7 @@ class _FactCardState extends State<FactCard>
                 ),
               ),
             ),
-            if (swipeOverlay != null) swipeOverlay,
+            ?swipeOverlay,
           ],
         ),
       ),

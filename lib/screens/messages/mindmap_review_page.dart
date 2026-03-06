@@ -837,7 +837,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
                     bottom: 16,
                     child: AnimatedBuilder(
                       animation: _transformController,
-                      builder: (_, __) {
+                      builder: (_, _) {
                         final miniTx = _miniMapTransform();
                         return _MiniMapPanel(
                           size: _miniMapSize,

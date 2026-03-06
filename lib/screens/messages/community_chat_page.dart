@@ -3722,7 +3722,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
           cacheWidth: 1200,
-          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          errorBuilder: (_, _, _) => _buildFallbackImage(metadata),
         ),
       );
     } else if (hasNetwork) {
@@ -3760,7 +3760,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
           File(metadata.thumbnail),
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
-          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          errorBuilder: (_, _, _) => _buildFallbackImage(metadata),
         );
       } else {
         try {
@@ -3769,7 +3769,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
             bytes,
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
-            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+            errorBuilder: (_, _, _) => _buildFallbackImage(metadata),
           );
         } catch (e) {
           imageWidget = _buildFallbackImage(metadata);

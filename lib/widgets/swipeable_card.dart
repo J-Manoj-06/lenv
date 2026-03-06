@@ -286,7 +286,7 @@ class _SwipeableCardState extends State<SwipeableCard>
                 ),
               ),
             ),
-            if (swipeIndicator != null) swipeIndicator,
+            ?swipeIndicator,
           ],
         ),
       ),

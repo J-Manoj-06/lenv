@@ -776,7 +776,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
                   itemCount: announcements.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 16),
+                  separatorBuilder: (_, _) => const SizedBox(width: 16),
                   itemBuilder: (context, index) {
                     final announcement = announcements[index];
                     return _buildAnnouncementAvatar(isDark, announcement);

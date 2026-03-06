@@ -1839,7 +1839,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                   >(
                                                                     valueListenable:
                                                                         progressNotifier,
-                                                                    builder: (_, value, __) {
+                                                                    builder: (_, value, _) {
                                                                       final progress =
                                                                           ((value / 100).clamp(
                                                                             0.0,
@@ -3851,13 +3851,13 @@ class _ParentGroupMessageSearchScreenState
                       ? Image.file(
                           File(localPath),
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) =>
+                          errorBuilder: (_, _, _) =>
                               Image.network(publicUrl, fit: BoxFit.contain),
                         )
                       : Image.network(
                           publicUrl,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Center(
+                          errorBuilder: (_, _, _) => const Center(
                             child: Text(
                               'Failed to load image',
                               style: TextStyle(color: Colors.white),
@@ -4487,7 +4487,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
           cacheWidth: 1200, // Cache optimization
-          errorBuilder: (_, __, ___) => _buildFallbackImage(),
+          errorBuilder: (_, _, _) => _buildFallbackImage(),
         ),
       );
     } else if (hasNetwork) {

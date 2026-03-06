@@ -511,7 +511,7 @@ class _HistoryCardState extends State<HistoryCard>
                 ),
               ),
             ),
-            if (swipeOverlay != null) swipeOverlay,
+            ?swipeOverlay,
           ],
         ),
       ),

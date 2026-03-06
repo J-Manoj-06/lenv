@@ -267,7 +267,7 @@ class MessagingService {
         'studentId': studentId,
         'studentName': studentName,
         'parentName': parentName,
-        if (parentPhotoUrl != null) 'parentPhotoUrl': parentPhotoUrl,
+        'parentPhotoUrl': ?parentPhotoUrl,
         'lastMessage': '',
         'lastSenderId': '',
         'lastTimestamp': FieldValue.serverTimestamp(),

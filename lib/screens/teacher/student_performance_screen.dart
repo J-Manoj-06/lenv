@@ -1606,7 +1606,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             ? Image.network(
                 img,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _initialsCenter(initials),
+                errorBuilder: (_, _, _) => _initialsCenter(initials),
               )
             : _initialsCenter(initials),
       ),

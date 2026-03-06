@@ -289,7 +289,7 @@ class _InstituteCommunityExploreScreenState
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
                 itemCount: _categories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final category = _categories[index];
                   final isSelected = category == _selectedCategory;

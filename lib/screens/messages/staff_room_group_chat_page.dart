@@ -4014,7 +4014,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
           cacheWidth: 1200,
-          errorBuilder: (_, __, ___) => _buildFallbackImage(),
+          errorBuilder: (_, _, _) => _buildFallbackImage(),
         ),
       );
     } else if (hasNetwork) {

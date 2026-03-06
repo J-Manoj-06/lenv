@@ -131,7 +131,7 @@ class StaffDetailsPage extends StatelessWidget {
                   ? Image.network(
                       staff.imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildAvatarPlaceholder(),
+                      errorBuilder: (_, _, _) => _buildAvatarPlaceholder(),
                     )
                   : _buildAvatarPlaceholder(),
             ),

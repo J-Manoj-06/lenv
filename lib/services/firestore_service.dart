@@ -1176,7 +1176,7 @@ class FirestoreService {
                 : 0, // mirror for backward compatibility
             if (result.violationReason != null)
               'violationReason': result.violationReason,
-            if (schoolCode != null) 'schoolCode': schoolCode,
+            'schoolCode': ?schoolCode,
           };
 
           await assignmentDoc.reference.update(updateData);

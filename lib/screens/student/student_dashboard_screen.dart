@@ -653,7 +653,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             padding: const EdgeInsets.only(bottom: 8),
             scrollDirection: Axis.horizontal,
             itemCount: creatorGroups.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
+            separatorBuilder: (_, _) => const SizedBox(width: 16),
             itemBuilder: (context, index) {
               final creatorAnnouncements = creatorGroups[index];
               final latest = creatorAnnouncements.first;

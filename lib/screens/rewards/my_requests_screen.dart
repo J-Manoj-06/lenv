@@ -61,7 +61,7 @@ class _MyRewardRequestsScreenState extends State<MyRewardRequestsScreen> {
           }
           return ListView.separated(
             padding: const EdgeInsets.all(16),
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemCount: items.length,
             itemBuilder: (context, i) {
               final r = items[i];

@@ -659,7 +659,7 @@ class _SubjectGroupCard extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: Consumer<UnreadCountProvider>(
-                  builder: (_, provider, __) {
+                  builder: (_, provider, _) {
                     final count = provider.getUnreadCount(chatId);
                     return UnreadBadge(count: count);
                   },

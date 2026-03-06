@@ -443,7 +443,7 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
             bottom: 20,
             child: AnimatedBuilder(
               animation: _transformController,
-              builder: (_, __) {
+              builder: (_, _) {
                 final tx = _miniMapTransform();
                 return _MiniMapPanel(
                   size: _miniMapSize,

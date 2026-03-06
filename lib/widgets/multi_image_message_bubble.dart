@@ -877,7 +877,7 @@ class _ImageTileState extends State<_ImageTile>
             fit: widget.fit ?? BoxFit.cover,
             filterQuality: FilterQuality.high,
             cacheWidth: 800, // Cache optimization
-            errorBuilder: (_, __, ___) => _errorFallback(),
+            errorBuilder: (_, _, _) => _errorFallback(),
           ),
         );
       } else {
@@ -906,7 +906,7 @@ class _ImageTileState extends State<_ImageTile>
             fit: widget.fit ?? BoxFit.cover,
             filterQuality: FilterQuality.high,
             cacheWidth: 800,
-            errorBuilder: (_, __, ___) => _errorFallback(),
+            errorBuilder: (_, _, _) => _errorFallback(),
           ),
         );
 

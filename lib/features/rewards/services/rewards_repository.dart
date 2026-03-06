@@ -661,7 +661,7 @@ class RewardsRepository {
           timestamp: DateTime.now(),
           metadata: {
             'approval_method': approvalMethod,
-            if (manualPrice != null) 'manual_price': manualPrice,
+            'manual_price': ?manualPrice,
           },
         );
 
@@ -669,7 +669,7 @@ class RewardsRepository {
         transaction.update(requestRef, {
           'status': RewardRequestStatus.approvedPurchaseInProgress.value,
           'purchase_mode': approvalMethod,
-          if (manualPrice != null) 'manual_price': manualPrice,
+          'manual_price': ?manualPrice,
           'audit': [...request.audit.map((e) => e.toMap()), auditEntry.toMap()],
         });
       });

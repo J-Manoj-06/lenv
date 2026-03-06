@@ -306,7 +306,7 @@ class _AllTestsTabState extends State<_AllTestsTab> {
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemBuilder: (ctx, i) => _TestCard(item: items[i]),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemCount: items.length,
             );
           },
@@ -402,7 +402,7 @@ class _UpcomingTab extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               itemBuilder: (ctx, i) =>
                   _TestCard(item: _TestListItem.pending(test: upcoming[i])),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemCount: upcoming.length,
             );
           },
@@ -536,7 +536,7 @@ class _CompletedTab extends StatelessWidget {
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemBuilder: (ctx, i) => _TestCard(item: items[i]),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemCount: items.length,
             );
           },

@@ -398,7 +398,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: students.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) =>
           _buildStudentCard(theme, students[index]),
     );
@@ -521,7 +521,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
           width: 48,
           height: 48,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _initialsBlock(initials),
+          errorBuilder: (_, _, _) => _initialsBlock(initials),
         ),
       );
     }

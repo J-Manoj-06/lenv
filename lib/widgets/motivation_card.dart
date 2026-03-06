@@ -293,7 +293,7 @@ class _MotivationCardState extends State<MotivationCard>
                 ),
               ),
             ),
-            if (swipeOverlay != null) swipeOverlay,
+            ?swipeOverlay,
           ],
         ),
       ),

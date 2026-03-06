@@ -243,7 +243,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
                 itemCount: _categories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final category = _categories[index];
                   final isSelected = category == _selectedCategory;
@@ -319,7 +319,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen>
                   : ListView.separated(
                       padding: const EdgeInsets.all(16),
                       itemCount: _filteredCommunities.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final community = _filteredCommunities[index];
                         final isJoining = _joiningCommunities.contains(

@@ -1208,8 +1208,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,
                   itemCount: 5,
-                  itemBuilder: (_, __) => _buildShimmerCircle(theme),
-                  separatorBuilder: (_, __) => const SizedBox(width: 16),
+                  itemBuilder: (_, _) => _buildShimmerCircle(theme),
+                  separatorBuilder: (_, _) => const SizedBox(width: 16),
                 );
               }
 
@@ -1335,7 +1335,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 scrollDirection: Axis.horizontal,
                 itemCount: 1 + others.length, // 1 for "My Announcement"
-                separatorBuilder: (_, __) => const SizedBox(width: 16),
+                separatorBuilder: (_, _) => const SizedBox(width: 16),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     // My Announcement (always first)

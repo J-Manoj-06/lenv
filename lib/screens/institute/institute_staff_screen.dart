@@ -736,7 +736,7 @@ class _StaffCard extends StatelessWidget {
                         width: 56,
                         height: 56,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, _, _) => Container(
                           width: 56,
                           height: 56,
                           color: const Color(0xFF1E3A5F),

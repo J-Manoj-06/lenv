@@ -695,8 +695,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           scrollDirection: Axis.horizontal,
           itemCount: 5,
-          itemBuilder: (_, __) => _buildShimmerCircle(),
-          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (_, _) => _buildShimmerCircle(),
+          separatorBuilder: (_, _) => const SizedBox(width: 12),
         ),
       );
     }
@@ -715,8 +715,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               scrollDirection: Axis.horizontal,
               itemCount: 5,
-              itemBuilder: (_, __) => _buildShimmerCircle(),
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, _) => _buildShimmerCircle(),
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
             );
           }
 
@@ -794,7 +794,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             physics: const ClampingScrollPhysics(),
             itemCount: 2 + otherPrincipals.length,
             addRepaintBoundaries: true,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               if (index == 0) {
                 // My Announcement (always first)
@@ -1245,7 +1245,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                           fit: BoxFit.cover,
                           cacheWidth: 200,
                           cacheHeight: 200,
-                          errorBuilder: (_, __, ___) => _buildPrincipalInitial(
+                          errorBuilder: (_, _, _) => _buildPrincipalInitial(
                             latestAnnouncement.principalName,
                           ),
                         )

@@ -3913,13 +3913,13 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
                       ? Image.file(
                           File(localPath),
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) =>
+                          errorBuilder: (_, _, _) =>
                               Image.network(publicUrl, fit: BoxFit.contain),
                         )
                       : Image.network(
                           publicUrl,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Center(
+                          errorBuilder: (_, _, _) => const Center(
                             child: Text(
                               'Failed to load image',
                               style: TextStyle(color: Colors.white),
@@ -4657,7 +4657,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
           cacheWidth: 1200,
-          errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+          errorBuilder: (_, _, _) => _buildFallbackImage(metadata),
         ),
       );
     } else if (hasNetwork) {
@@ -4699,7 +4699,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
             cacheWidth: 1200,
-            errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+            errorBuilder: (_, _, _) => _buildFallbackImage(metadata),
           ),
         );
       } else {
@@ -4711,7 +4711,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
               bytes,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
-              errorBuilder: (_, __, ___) => _buildFallbackImage(metadata),
+              errorBuilder: (_, _, _) => _buildFallbackImage(metadata),
             ),
           );
         } catch (e) {

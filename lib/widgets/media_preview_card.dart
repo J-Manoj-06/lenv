@@ -860,7 +860,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             File(_localPath!),
             fit: BoxFit.cover,
             filterQuality: FilterQuality.high,
-            errorBuilder: (_, __, ___) => Container(
+            errorBuilder: (_, _, _) => Container(
               color: Colors.grey[800],
               child: const Icon(
                 Icons.broken_image,
@@ -909,7 +909,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 file,
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.high,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   color: Colors.grey[800],
                   child: const Icon(
                     Icons.broken_image,

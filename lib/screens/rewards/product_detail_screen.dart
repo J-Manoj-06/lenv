@@ -32,7 +32,7 @@ class ProductDetailScreen extends StatelessWidget {
               child: Image.network(
                 product.imageUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
+                errorBuilder: (_, _, _) => Container(
                   color: const Color(0xFFF2F4F8),
                   child: const Center(child: Icon(Icons.broken_image)),
                 ),

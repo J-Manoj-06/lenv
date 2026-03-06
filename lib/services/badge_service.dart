@@ -25,7 +25,7 @@ class BadgeService {
     final entry = {
       'id': badgeId,
       'earnedOn': DateTime.now().millisecondsSinceEpoch,
-      if (testId != null) 'testId': testId,
+      'testId': ?testId,
     };
 
     // Write to dedicated badges document (create if missing)
