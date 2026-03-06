@@ -58,7 +58,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final GroupMessagingService _messagingService = GroupMessagingService();
   final CommunityService _communityService = CommunityService();
   final TextEditingController _messageController = TextEditingController();
-  late Stream<Timestamp?> _lastReadAtStream;
+  Stream<Timestamp?> _lastReadAtStream = Stream.value(
+    Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
+  );
   final bool _showUnreadDivider = true;
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
@@ -590,11 +592,21 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     }
   }
 
+  Timestamp _defaultLastReadAt() {
+    return Timestamp.fromDate(
+      DateTime.now().subtract(const Duration(days: 30)),
+    );
+  }
+
   void _setupLastReadStream() {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      if (currentUser == null) return;
+
+      if (currentUser == null) {
+        _lastReadAtStream = Stream.value(_defaultLastReadAt());
+        return;
+      }
 
       _lastReadAtStream = FirebaseFirestore.instance
           .collection('users')
@@ -603,17 +615,15 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           .doc(widget.communityId)
           .snapshots()
           .map((doc) {
-            if (doc.exists && doc.data() != null && doc['lastReadAt'] != null) {
-              return doc['lastReadAt'] as Timestamp?;
+            final data = doc.data();
+            if (doc.exists && data != null && data['lastReadAt'] != null) {
+              return data['lastReadAt'] as Timestamp?;
             }
-            return Timestamp.fromDate(
-              DateTime.now().subtract(const Duration(days: 30)),
-            );
-          });
+            return _defaultLastReadAt();
+          })
+          .handleError((_) => _defaultLastReadAt());
     } catch (e) {
-      _lastReadAtStream = Stream.value(
-        Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
-      );
+      _lastReadAtStream = Stream.value(_defaultLastReadAt());
     }
   }
 
