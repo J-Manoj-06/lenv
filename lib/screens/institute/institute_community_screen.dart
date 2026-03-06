@@ -80,7 +80,8 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
       }
     }
 
-    if (mounted) {
+    // Only show loading if we don't already have cached data
+    if (mounted && _joined.isEmpty) {
       setState(() => _isLoading = true);
     }
 
@@ -91,7 +92,9 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
           .timeout(
             const Duration(seconds: 8),
             onTimeout: () {
-              debugPrint('⏱️ Network timeout loading communities - using cache');
+              debugPrint(
+                '⏱️ Network timeout loading communities - using cache',
+              );
               return [];
             },
           );
@@ -239,7 +242,7 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
                 subtitleColor: subtitleColor,
               ),
               Expanded(
-                child: _isLoading
+                child: _isLoading && _joined.isEmpty
                     ? _LoadingList(
                         cardColor: cardColor,
                         borderColor: borderColor,

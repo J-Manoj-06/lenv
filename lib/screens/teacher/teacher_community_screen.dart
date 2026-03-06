@@ -18,7 +18,7 @@ class _TeacherCommunityScreenState extends State<TeacherCommunityScreen>
     with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
   final OfflineDataService _offlineService = OfflineDataService();
-  bool _isLoading = true;
+  bool _isLoading = false;
   List<CommunityModel> _myCommunities = [];
   bool _hasLoadedOnce = false;
 
@@ -83,7 +83,9 @@ class _TeacherCommunityScreenState extends State<TeacherCommunityScreen>
       if (communities.isNotEmpty) {
         await _offlineService.cacheTeacherCommunities(
           teacherId: currentUser.uid,
-          communities: communities.map((community) => community.toJson()).toList(),
+          communities: communities
+              .map((community) => community.toJson())
+              .toList(),
         );
 
         setState(() {
@@ -125,7 +127,7 @@ class _TeacherCommunityScreenState extends State<TeacherCommunityScreen>
     final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
     return Scaffold(
       backgroundColor: bgColor,
-      body: _isLoading
+      body: _isLoading && _myCommunities.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : _myCommunities.isEmpty
           ? _buildEmptyState()
