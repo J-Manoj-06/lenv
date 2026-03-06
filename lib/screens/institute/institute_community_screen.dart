@@ -85,7 +85,16 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
     }
 
     try {
-      final joinedRaw = await _communityService.getMyComm(user.uid);
+      // 🌐 Add 8-second timeout for network fetch - fallback to cache if timeout
+      final joinedRaw = await _communityService
+          .getMyComm(user.uid)
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () {
+              debugPrint('⏱️ Network timeout loading communities - using cache');
+              return [];
+            },
+          );
       final joined = joinedRaw
           .where((c) => _isEligible(c, schoolCode))
           .toList();
@@ -97,16 +106,31 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
           instituteId: user.uid,
           communities: communitiesData,
         );
-      }
 
-      if (mounted) {
-        setState(() {
-          _joined = joined;
-          _isLoading = false;
-          _dataLoaded = true; // Mark as successfully loaded
-        });
+        if (mounted) {
+          setState(() {
+            _joined = joined;
+            _isLoading = false;
+            _dataLoaded = true; // Mark as successfully loaded
+          });
+        }
+      } else if (_joined.isEmpty) {
+        // Network returned empty AND no cached data - show empty state
+        if (mounted) {
+          setState(() {
+            _joined = [];
+            _isLoading = false;
+            _dataLoaded = true;
+          });
+        }
+      } else {
+        // Network returned empty but we have cached data - keep showing it
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     } catch (e) {
+      debugPrint('Error loading communities from network: $e');
       // ✅ If network fails but we have cached data, keep showing it
       if (mounted && _joined.isEmpty) {
         final cachedCommunities = _offlineService.getCachedInstituteCommunities(
@@ -118,6 +142,9 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
                 .map((data) => CommunityModel.fromJson(data))
                 .toList();
             _dataLoaded = true;
+            debugPrint(
+              '✅ Fallback: Loaded ${_joined.length} communities from cache due to network error',
+            );
           });
         }
       }

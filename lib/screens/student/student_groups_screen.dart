@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
+import '../../services/offline_data_service.dart';
 import '../../utils/chat_type_config.dart';
 import '../../widgets/unread_badge_widget.dart';
 import '../messages/teacher_group_chat_page.dart';
@@ -17,10 +18,53 @@ class StudentGroupsScreen extends StatefulWidget {
 
 class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final OfflineDataService _offlineService = OfflineDataService();
   Map<String, dynamic>? _classData;
   bool _isLoading = true;
   String? _errorMessage;
   StreamSubscription<DocumentSnapshot>? _classStreamSubscription;
+
+  dynamic _encodeCacheValue(dynamic value) {
+    if (value is Timestamp) {
+      return {'__ts__': value.millisecondsSinceEpoch};
+    }
+    if (value is Map) {
+      return value.map(
+        (key, item) => MapEntry(key.toString(), _encodeCacheValue(item)),
+      );
+    }
+    if (value is List) {
+      return value.map(_encodeCacheValue).toList();
+    }
+    return value;
+  }
+
+  dynamic _decodeCacheValue(dynamic value) {
+    if (value is Map && value.containsKey('__ts__')) {
+      return Timestamp.fromMillisecondsSinceEpoch(
+        (value['__ts__'] as num).toInt(),
+      );
+    }
+    if (value is Map) {
+      return value.map(
+        (key, item) => MapEntry(key.toString(), _decodeCacheValue(item)),
+      );
+    }
+    if (value is List) {
+      return value.map(_decodeCacheValue).toList();
+    }
+    return value;
+  }
+
+  Map<String, dynamic> _serializeClassDataForCache(Map<String, dynamic> data) {
+    return Map<String, dynamic>.from(_encodeCacheValue(data) as Map);
+  }
+
+  Map<String, dynamic>? _loadCachedClassData(String studentId) {
+    final cached = _offlineService.getCachedStudentClassGroups(studentId);
+    if (cached == null || cached.isEmpty) return null;
+    return Map<String, dynamic>.from(_decodeCacheValue(cached) as Map);
+  }
 
   @override
   void initState() {
@@ -55,6 +99,17 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       // ✅ CRITICAL: Wait for auth to initialize on app start
       await authProvider.ensureInitialized();
 
+      final currentUser = authProvider.currentUser;
+      if (currentUser != null) {
+        final cachedClassData = _loadCachedClassData(currentUser.uid);
+        if (cachedClassData != null && mounted) {
+          setState(() {
+            _classData = cachedClassData;
+            _isLoading = false;
+          });
+        }
+      }
+
       // Now load class data after auth is ready
       await _setupClassStream();
     } catch (e) {
@@ -85,7 +140,11 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       final studentDoc = await _firestore
           .collection('students')
           .doc(currentUser.uid)
-          .get();
+          .get()
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => throw TimeoutException('Student fetch timeout'),
+          );
 
       if (!studentDoc.exists) {
         setState(() {
@@ -115,7 +174,11 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
           .where('section', isEqualTo: section)
           .where('schoolCode', isEqualTo: schoolCode)
           .limit(1)
-          .get();
+          .get()
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => throw TimeoutException('Class query timeout'),
+          );
 
       if (classQuery.docs.isEmpty) {
         setState(() {
@@ -160,22 +223,47 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
                   _isLoading = false;
                 });
               }
+
+              await _offlineService.cacheStudentClassGroups(
+                studentId: currentUser.uid,
+                classData: _serializeClassDataForCache(classData),
+              );
             },
             onError: (error) {
               if (mounted) {
-                setState(() {
-                  _errorMessage = 'Error loading class: $error';
-                  _isLoading = false;
-                });
+                final cachedClassData = _loadCachedClassData(currentUser.uid);
+                if (cachedClassData != null) {
+                  setState(() {
+                    _classData = cachedClassData;
+                    _isLoading = false;
+                  });
+                } else {
+                  setState(() {
+                    _errorMessage = 'Error loading class: $error';
+                    _isLoading = false;
+                  });
+                }
               }
             },
           );
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _errorMessage = 'Error setting up stream: $e';
-          _isLoading = false;
-        });
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final currentUser = authProvider.currentUser;
+        final cachedClassData = currentUser != null
+            ? _loadCachedClassData(currentUser.uid)
+            : null;
+        if (cachedClassData != null) {
+          setState(() {
+            _classData = cachedClassData;
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'Error setting up stream: $e';
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -184,7 +272,7 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
     if (!mounted) return;
 
     setState(() {
-      _isLoading = true;
+      _isLoading = _classData == null;
       _errorMessage = null;
     });
 
@@ -210,7 +298,11 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
       final studentDoc = await _firestore
           .collection('students')
           .doc(currentUser.uid)
-          .get();
+          .get()
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => throw TimeoutException('Student fetch timeout'),
+          );
 
       if (!studentDoc.exists) {
         setState(() {
@@ -240,7 +332,11 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
           .where('section', isEqualTo: section)
           .where('schoolCode', isEqualTo: schoolCode)
           .limit(1)
-          .get();
+          .get()
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => throw TimeoutException('Class query timeout'),
+          );
 
       if (classQuery.docs.isEmpty) {
         setState(() {
@@ -264,9 +360,25 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
         _classData = classData;
         _isLoading = false;
       });
+
+      await _offlineService.cacheStudentClassGroups(
+        studentId: currentUser.uid,
+        classData: _serializeClassDataForCache(classData),
+      );
     } catch (e) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      final cachedClassData = currentUser != null
+          ? _loadCachedClassData(currentUser.uid)
+          : null;
+
       setState(() {
-        _errorMessage = 'Error loading class data: $e';
+        if (cachedClassData != null) {
+          _classData = cachedClassData;
+          _errorMessage = null;
+        } else {
+          _errorMessage = 'Error loading class data: $e';
+        }
         _isLoading = false;
       });
     }
@@ -405,8 +517,16 @@ class _StudentGroupsScreenState extends State<StudentGroupsScreen> {
 
         // Both are timestamps - sort descending (most recent first)
         try {
-          final dateA = (timeA as Timestamp).toDate();
-          final dateB = (timeB as Timestamp).toDate();
+          final dateA = timeA is Timestamp
+              ? timeA.toDate()
+              : timeA is int
+              ? DateTime.fromMillisecondsSinceEpoch(timeA)
+              : DateTime.fromMillisecondsSinceEpoch(0);
+          final dateB = timeB is Timestamp
+              ? timeB.toDate()
+              : timeB is int
+              ? DateTime.fromMillisecondsSinceEpoch(timeB)
+              : DateTime.fromMillisecondsSinceEpoch(0);
           return dateB.compareTo(dateA); // Descending
         } catch (e) {
           return 0;

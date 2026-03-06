@@ -203,7 +203,7 @@ class RewardDetailsScreen extends ConsumerWidget {
                       child: Image.network(
                         imageUrl,
                         fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) =>
+                        errorBuilder: (_, _, _) =>
                             _buildImagePlaceholder(isDark),
                       ),
                     )

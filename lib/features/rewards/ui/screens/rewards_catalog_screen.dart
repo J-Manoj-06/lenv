@@ -274,7 +274,7 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: chips.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final (label, value, icon) = chips[index];
           final isSelected = _sortBy == value;

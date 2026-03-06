@@ -152,7 +152,16 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
     } catch (_) {}
 
     try {
-      final communities = await _communityService.getMyComm(student.uid);
+      // 🌐 Add 8-second timeout for network fetch - fallback to cache if timeout
+      final communities = await _communityService
+          .getMyComm(student.uid)
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () {
+              debugPrint('⏱️ Network timeout loading communities - using cache');
+              return [];
+            },
+          );
 
       // ✅ Only cache if we actually got communities from the network
       // Don't overwrite good cached data with empty results
@@ -162,34 +171,32 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
           studentId: student.uid,
           communities: communitiesData,
         );
-      }
 
-      // Fetch latest message timestamp for each community
-      for (final c in communities) {
-        try {
-          final snap = await FirebaseFirestore.instance
-              .collection('communities')
-              .doc(c.id)
-              .collection('messages')
-              .orderBy('createdAt', descending: true)
-              .limit(1)
-              .get();
-          if (snap.docs.isNotEmpty) {
-            final ts =
-                (snap.docs.first.data()['createdAt'] as Timestamp?)
-                    ?.millisecondsSinceEpoch ??
-                0;
-            _lastMessageTs[c.id] = ts;
-          } else {
+        // Fetch latest message timestamp for each community
+        for (final c in communities) {
+          try {
+            final snap = await FirebaseFirestore.instance
+                .collection('communities')
+                .doc(c.id)
+                .collection('messages')
+                .orderBy('createdAt', descending: true)
+                .limit(1)
+                .get();
+            if (snap.docs.isNotEmpty) {
+              final ts =
+                  (snap.docs.first.data()['createdAt'] as Timestamp?)
+                      ?.millisecondsSinceEpoch ??
+                  0;
+              _lastMessageTs[c.id] = ts;
+            } else {
+              _lastMessageTs[c.id] = 0;
+            }
+          } catch (_) {
             _lastMessageTs[c.id] = 0;
           }
-        } catch (_) {
-          _lastMessageTs[c.id] = 0;
         }
-      }
 
-      // ✅ Only update UI if we got valid data from network
-      if (communities.isNotEmpty) {
+        // ✅ Update UI with fresh network data
         setState(() {
           _myCommunities = communities;
           // Sort by latest message
@@ -200,35 +207,36 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
           });
           _isLoading = false;
         });
+
+        // Load unread counts for all joined communities
+        final chatIds = communities.map((c) => c.id).toList();
+        final chatTypes = {
+          for (final c in communities) c.id: ChatTypeConfig.communityChat,
+        };
+        await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
+
+        // Cancel old listeners before setting up new ones
+        for (final listener in _messageListeners.values) {
+          listener?.cancel?.call();
+        }
+        _messageListeners.clear();
+
+        // Set up real-time listeners for all communities to resort on new messages
+        for (final c in communities) {
+          _listenForCommunityMessageUpdates(c.id);
+        }
       } else if (_myCommunities.isEmpty) {
-        // No network data AND no cached data - show empty state
+        // Network returned empty AND no cached data - show empty state
         setState(() {
           _myCommunities = [];
           _isLoading = false;
         });
       } else {
         // Network returned empty but we have cached data - keep showing it
+        // Just hide loading indicator
         setState(() {
           _isLoading = false;
         });
-      }
-
-      // Load unread counts for all joined communities
-      final chatIds = communities.map((c) => c.id).toList();
-      final chatTypes = {
-        for (final c in communities) c.id: ChatTypeConfig.communityChat,
-      };
-      await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
-
-      // Cancel old listeners before setting up new ones
-      for (final listener in _messageListeners.values) {
-        listener?.cancel?.call();
-      }
-      _messageListeners.clear();
-
-      // Set up real-time listeners for all communities to resort on new messages
-      for (final c in communities) {
-        _listenForCommunityMessageUpdates(c.id);
       }
     } catch (e) {
       if (!mounted) return;
@@ -244,6 +252,9 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
             _myCommunities = cachedData
                 .map((data) => CommunityModel.fromJson(data))
                 .toList();
+            debugPrint(
+              '✅ Fallback: Loaded ${_myCommunities.length} communities from cache due to network error',
+            );
           }
         }
         _isLoading = false;

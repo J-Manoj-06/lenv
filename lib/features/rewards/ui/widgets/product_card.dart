@@ -112,7 +112,7 @@ class _ProductCardState extends State<ProductCard> {
                     width: 110,
                     height: 110,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _imageFallback(),
+                    errorBuilder: (_, _, _) => _imageFallback(),
                     loadingBuilder: (context, child, progress) {
                       if (progress == null) return child;
                       return const Center(

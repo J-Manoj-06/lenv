@@ -453,7 +453,13 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
 
     // ✅ Now fetch fresh data from network
     try {
-      final groups = await _service.getTeacherMessageGroups(teacherId);
+      final groups = await _service.getTeacherMessageGroups(teacherId).timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {
+          debugPrint('⏱️ Network timeout loading teacher message groups');
+          return <MessageGroup>[];
+        },
+      );
 
       // ✅ Cache the groups for offline access
       if (groups.isNotEmpty) {
@@ -483,27 +489,31 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
 
       if (mounted) {
         setState(() {
-          _groups = groups;
-          // Reapply search filter if active
-          if (_isSearching) {
-            final query = _searchController.text.toLowerCase();
-            _filteredGroups = groups.where((group) {
-              return group.subjectName.toLowerCase().contains(query) ||
-                  group.className.toLowerCase().contains(query) ||
-                  group.sectionName.toLowerCase().contains(query) ||
-                  group.displayName.toLowerCase().contains(query);
-            }).toList();
-          } else {
-            _filteredGroups = groups;
+          if (groups.isNotEmpty) {
+            _groups = groups;
+            if (_isSearching) {
+              final query = _searchController.text.toLowerCase();
+              _filteredGroups = groups.where((group) {
+                return group.subjectName.toLowerCase().contains(query) ||
+                    group.className.toLowerCase().contains(query) ||
+                    group.sectionName.toLowerCase().contains(query) ||
+                    group.displayName.toLowerCase().contains(query);
+              }).toList();
+            } else {
+              _filteredGroups = groups;
+            }
           }
           _isLoading = false;
         });
       }
     } catch (e) {
       // ✅ If network fails but we have cached data, keep showing it
-      if (mounted && _groups.isEmpty) {
+      if (mounted) {
         setState(() {
-          _errorMessage = 'Error loading groups: $e';
+          if (_groups.isEmpty) {
+            _errorMessage = 'Error loading groups: $e';
+          }
+          _isLoading = false;
         });
       }
     }

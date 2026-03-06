@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/community_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
+import '../../services/offline_data_service.dart';
 import 'teacher_community_explore_screen.dart';
 import '../messages/community_chat_page.dart';
 
@@ -17,6 +18,7 @@ class TeacherCommunitiesScreen extends StatefulWidget {
 class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
     with AutomaticKeepAliveClientMixin {
   final CommunityService _communityService = CommunityService();
+  final OfflineDataService _offlineService = OfflineDataService();
   bool _isLoading = true;
   List<CommunityModel> _myCommunities = [];
   bool _hasLoadedOnce = false;
@@ -52,14 +54,68 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
 
     if (currentUser == null) return;
 
-    setState(() => _isLoading = true);
+    final cachedData = _offlineService.getCachedTeacherCommunities(
+      currentUser.uid,
+    );
+    if (cachedData != null && cachedData.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _myCommunities = cachedData
+              .map((data) => CommunityModel.fromJson(data))
+              .toList();
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() => _isLoading = true);
+    }
 
-    final communities = await _communityService.getMyComm(currentUser.uid);
+    try {
+      final communities = await _communityService
+          .getMyComm(currentUser.uid)
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () {
+              debugPrint('⏱️ Network timeout loading communities');
+              return [];
+            },
+          );
 
-    setState(() {
-      _myCommunities = communities;
-      _isLoading = false;
-    });
+      if (communities.isNotEmpty) {
+        await _offlineService.cacheTeacherCommunities(
+          teacherId: currentUser.uid,
+          communities: communities.map((community) => community.toJson()).toList(),
+        );
+
+        setState(() {
+          _myCommunities = communities;
+          _isLoading = false;
+        });
+      } else if (_myCommunities.isEmpty) {
+        setState(() {
+          _myCommunities = [];
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      debugPrint('Error loading communities: $e');
+      if (!mounted) return;
+      setState(() {
+        if (_myCommunities.isEmpty) {
+          final fallbackCache = _offlineService.getCachedTeacherCommunities(
+            currentUser.uid,
+          );
+          if (fallbackCache != null && fallbackCache.isNotEmpty) {
+            _myCommunities = fallbackCache
+                .map((data) => CommunityModel.fromJson(data))
+                .toList();
+          }
+        }
+        _isLoading = false;
+      });
+    }
   }
 
   @override

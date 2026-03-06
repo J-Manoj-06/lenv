@@ -162,10 +162,17 @@ class CommunityService {
   Future<List<CommunityModel>> getMyComm(String userId) async {
     try {
       // ✅ OPTIMIZATION: Read from user_communities index with server read
-      final indexDoc = await _firestore
-          .collection('user_communities')
-          .doc(userId)
-          .get(const GetOptions(source: Source.server));
+      // and fallback to local/default source on slow or unstable networks.
+      DocumentSnapshot<Map<String, dynamic>> indexDoc;
+      try {
+        indexDoc = await _firestore
+            .collection('user_communities')
+            .doc(userId)
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 6));
+      } catch (_) {
+        indexDoc = await _firestore.collection('user_communities').doc(userId).get();
+      }
 
       if (!indexDoc.exists || indexDoc.data() == null) {
         return _getMyCommFallback(userId);
@@ -178,18 +185,24 @@ class CommunityService {
               .toList() ??
           [];
 
-      // 🔎 Self-healing: also scan membership to catch any missing IDs
-      // This is a single collectionGroup query and only runs once per load.
-      final memberQuery = await _firestore
-          .collectionGroup('members')
-          .where('userId', isEqualTo: userId)
-          .where('status', isEqualTo: 'active')
-          .get();
+      // 🔎 Self-healing: also scan membership to catch any missing IDs.
+      // If this fails on low network, we still proceed with index data.
+      List<String> fromMembership = [];
+      try {
+        final memberQuery = await _firestore
+            .collectionGroup('members')
+            .where('userId', isEqualTo: userId)
+            .where('status', isEqualTo: 'active')
+            .get()
+            .timeout(const Duration(seconds: 6));
 
-      final fromMembership = memberQuery.docs
-          .map((doc) => doc.reference.parent.parent!.id)
-          .toSet()
-          .toList();
+        fromMembership = memberQuery.docs
+            .map((doc) => doc.reference.parent.parent!.id)
+            .toSet()
+            .toList();
+      } catch (_) {
+        fromMembership = [];
+      }
 
       // Union of IDs from index and membership (deduped)
       final communityIds = <String>{...fromIndex, ...fromMembership}.toList();
@@ -214,14 +227,29 @@ class CommunityService {
       // Fetch community details (N reads where N = number of joined communities)
       final communities = <CommunityModel>[];
       for (final id in communityIds) {
-        // Force server read to avoid stale cache
-        final doc = await _firestore
-            .collection('communities')
-            .doc(id)
-            .get(const GetOptions(source: Source.server));
-        if (doc.exists) {
+        DocumentSnapshot<Map<String, dynamic>>? doc;
+        try {
+          // Force server read first for freshness
+          doc = await _firestore
+              .collection('communities')
+              .doc(id)
+              .get(const GetOptions(source: Source.server))
+              .timeout(const Duration(seconds: 4));
+        } catch (_) {
+          try {
+            // Fallback to default source (cache/server)
+            doc = await _firestore.collection('communities').doc(id).get();
+          } catch (_) {
+            doc = null;
+          }
+        }
+        if (doc != null && doc.exists) {
           communities.add(CommunityModel.fromFirestore(doc));
         }
+      }
+
+      if (communities.isEmpty && communityIds.isNotEmpty) {
+        return _getMyCommFallback(userId);
       }
 
       // Sort by last message time (most recent first)
@@ -233,7 +261,7 @@ class CommunityService {
 
       return communities;
     } catch (e) {
-      return [];
+      return _getMyCommFallback(userId);
     }
   }
 

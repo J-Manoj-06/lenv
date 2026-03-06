@@ -370,6 +370,108 @@ class OfflineDataService {
     }
   }
 
+  /// Cache teacher's assigned groups list (teacher_groups_screen)
+  Future<void> cacheTeacherAssignedGroups({
+    required String teacherId,
+    required List<Map<String, dynamic>> groups,
+  }) async {
+    try {
+      await _teacherGroupsCache.put('assigned_groups_$teacherId', {
+        'groups': groups,
+        'cachedAt': DateTime.now().toIso8601String(),
+        'count': groups.length,
+      });
+      debugPrint(
+        '✅ Cached ${groups.length} assigned teacher groups for $teacherId',
+      );
+    } catch (e) {
+      debugPrint('Error caching assigned teacher groups: $e');
+    }
+  }
+
+  /// Get cached teacher assigned groups list (teacher_groups_screen)
+  List<Map<String, dynamic>>? getCachedTeacherAssignedGroups(String teacherId) {
+    try {
+      final cached = _teacherGroupsCache.get('assigned_groups_$teacherId');
+      if (cached == null) return null;
+
+      final groups = cached['groups'] as List?;
+      if (groups == null) return null;
+
+      return List<Map<String, dynamic>>.from(groups);
+    } catch (e) {
+      debugPrint('Error reading cached assigned teacher groups: $e');
+      return null;
+    }
+  }
+
+  /// Cache teacher communities (for teacher role offline support)
+  Future<void> cacheTeacherCommunities({
+    required String teacherId,
+    required List<Map<String, dynamic>> communities,
+  }) async {
+    try {
+      await _communitiesCache.put('teacher_communities_$teacherId', {
+        'communities': communities,
+        'cachedAt': DateTime.now().toIso8601String(),
+        'count': communities.length,
+      });
+      debugPrint(
+        '✅ Cached ${communities.length} teacher communities for $teacherId',
+      );
+    } catch (e) {
+      debugPrint('Error caching teacher communities: $e');
+    }
+  }
+
+  /// Get cached teacher communities
+  List<Map<String, dynamic>>? getCachedTeacherCommunities(String teacherId) {
+    try {
+      final cached = _communitiesCache.get('teacher_communities_$teacherId');
+      if (cached == null) return null;
+
+      final communities = cached['communities'] as List?;
+      if (communities == null) return null;
+
+      return List<Map<String, dynamic>>.from(communities);
+    } catch (e) {
+      debugPrint('Error reading cached teacher communities: $e');
+      return null;
+    }
+  }
+
+  /// Cache student class groups payload (student_groups_screen)
+  Future<void> cacheStudentClassGroups({
+    required String studentId,
+    required Map<String, dynamic> classData,
+  }) async {
+    try {
+      await _groupSubjectsCache.put('student_groups_$studentId', {
+        'classData': classData,
+        'cachedAt': DateTime.now().toIso8601String(),
+      });
+      debugPrint('✅ Cached student class groups for $studentId');
+    } catch (e) {
+      debugPrint('Error caching student class groups: $e');
+    }
+  }
+
+  /// Get cached student class groups payload (student_groups_screen)
+  Map<String, dynamic>? getCachedStudentClassGroups(String studentId) {
+    try {
+      final cached = _groupSubjectsCache.get('student_groups_$studentId');
+      if (cached == null) return null;
+
+      final classData = cached['classData'] as Map?;
+      if (classData == null) return null;
+
+      return Map<String, dynamic>.from(classData);
+    } catch (e) {
+      debugPrint('Error reading cached student class groups: $e');
+      return null;
+    }
+  }
+
   // ==================== PARENT TEACHERS ====================
 
   /// Cache parent's teachers list

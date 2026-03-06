@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
+import '../../services/offline_data_service.dart';
 import '../../widgets/unread_badge_widget.dart';
 import '../messages/teacher_group_chat_page.dart';
 
@@ -15,6 +17,7 @@ class TeacherGroupsScreen extends StatefulWidget {
 
 class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final OfflineDataService _offlineService = OfflineDataService();
   List<Map<String, dynamic>> _teacherGroups = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -27,11 +30,6 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
   }
 
   Future<void> _loadTeacherGroups() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
@@ -46,8 +44,30 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
 
       _teacherId = currentUser.uid;
 
+      final cachedGroups = _offlineService.getCachedTeacherAssignedGroups(
+        currentUser.uid,
+      );
+      if (cachedGroups != null && cachedGroups.isNotEmpty) {
+        setState(() {
+          _teacherGroups = cachedGroups;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      } else {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
+
       // Query all classes where this teacher teaches any subject
-      final classesSnapshot = await _firestore.collection('classes').get();
+      final classesSnapshot = await _firestore
+          .collection('classes')
+          .get()
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => throw TimeoutException('Classes fetch timeout'),
+          );
 
       List<Map<String, dynamic>> groups = [];
 
@@ -86,13 +106,34 @@ class _TeacherGroupsScreenState extends State<TeacherGroupsScreen> {
         return a['subject'].compareTo(b['subject']);
       });
 
-      setState(() {
-        _teacherGroups = groups;
-        _isLoading = false;
-      });
+      if (groups.isNotEmpty) {
+        await _offlineService.cacheTeacherAssignedGroups(
+          teacherId: currentUser.uid,
+          groups: groups,
+        );
+
+        setState(() {
+          _teacherGroups = groups;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      } else if (_teacherGroups.isEmpty) {
+        setState(() {
+          _teacherGroups = [];
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error loading groups: $e';
+        if (_teacherGroups.isEmpty) {
+          _errorMessage = 'Error loading groups: $e';
+        }
         _isLoading = false;
       });
     }
