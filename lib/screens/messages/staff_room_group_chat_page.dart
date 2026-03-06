@@ -3692,89 +3692,191 @@ class _MessageBubbleState extends State<_MessageBubble>
                         )
                       // Single attachment or text message
                       else
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: hasAttachment && text.isEmpty ? 4 : 16,
-                            vertical: hasAttachment && text.isEmpty ? 4 : 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: widget.isMe
-                                ? widget.primaryColor
-                                : theme.colorScheme.surfaceContainerHighest
-                                      .withOpacity(0.7),
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(widget.isMe ? 16 : 4),
-                              bottomRight: Radius.circular(
-                                widget.isMe ? 4 : 16,
-                              ),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (isForwarded) ...[
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.forward,
-                                      size: 14,
+                        // For document-only attachments, show time outside the border
+                        hasAttachment && text.isEmpty
+                            ? Column(
+                                crossAxisAlignment: widget.isMe
+                                    ? CrossAxisAlignment.end
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
                                       color: widget.isMe
-                                          ? Colors.white70
-                                          : Colors.black54,
+                                          ? widget.primaryColor
+                                          : theme
+                                                .colorScheme
+                                                .surfaceContainerHighest
+                                                .withOpacity(0.7),
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: const Radius.circular(16),
+                                        topRight: const Radius.circular(16),
+                                        bottomLeft: Radius.circular(
+                                          widget.isMe ? 16 : 4,
+                                        ),
+                                        bottomRight: Radius.circular(
+                                          widget.isMe ? 4 : 16,
+                                        ),
+                                      ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'Forwarded',
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (isForwarded) ...[
+                                          Padding(
+                                            padding: const EdgeInsets.all(8),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.forward,
+                                                  size: 14,
+                                                  color: widget.isMe
+                                                      ? Colors.white70
+                                                      : Colors.black54,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Forwarded',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontStyle: FontStyle.italic,
+                                                    color: widget.isMe
+                                                        ? Colors.white70
+                                                        : Colors.black54,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 6),
+                                        ],
+                                        _buildAttachmentWidget(
+                                          attachmentUrl,
+                                          attachmentType ??
+                                              'application/octet-stream',
+                                          attachmentName,
+                                          attachmentSize ?? 0,
+                                          thumbnailUrl,
+                                          isPending,
+                                          messageId,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                      left: 12,
+                                      right: 12,
+                                    ),
+                                    child: Text(
+                                      timeStr,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        fontStyle: FontStyle.italic,
+                                        color: theme.textTheme.bodyMedium?.color
+                                            ?.withOpacity(0.5),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: hasAttachment && text.isEmpty
+                                      ? 4
+                                      : 16,
+                                  vertical: hasAttachment && text.isEmpty
+                                      ? 4
+                                      : 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: widget.isMe
+                                      ? widget.primaryColor
+                                      : theme
+                                            .colorScheme
+                                            .surfaceContainerHighest
+                                            .withOpacity(0.7),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(16),
+                                    topRight: const Radius.circular(16),
+                                    bottomLeft: Radius.circular(
+                                      widget.isMe ? 16 : 4,
+                                    ),
+                                    bottomRight: Radius.circular(
+                                      widget.isMe ? 4 : 16,
+                                    ),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (isForwarded) ...[
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.forward,
+                                            size: 14,
+                                            color: widget.isMe
+                                                ? Colors.white70
+                                                : Colors.black54,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Forwarded',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontStyle: FontStyle.italic,
+                                              color: widget.isMe
+                                                  ? Colors.white70
+                                                  : Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                    ],
+                                    if (hasAttachment) ...[
+                                      _buildAttachmentWidget(
+                                        attachmentUrl,
+                                        attachmentType ??
+                                            'application/octet-stream',
+                                        attachmentName,
+                                        attachmentSize ?? 0,
+                                        thumbnailUrl,
+                                        isPending,
+                                        messageId,
+                                      ),
+                                      if (text.isNotEmpty)
+                                        const SizedBox(height: 8),
+                                    ],
+                                    if (text.isNotEmpty)
+                                      Text(
+                                        text,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          color: widget.isMe
+                                              ? Colors.white
+                                              : theme
+                                                    .textTheme
+                                                    .bodyLarge
+                                                    ?.color,
+                                        ),
+                                      ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      timeStr,
+                                      style: TextStyle(
+                                        fontSize: 11,
                                         color: widget.isMe
-                                            ? Colors.white70
-                                            : Colors.black54,
+                                            ? Colors.white.withOpacity(0.7)
+                                            : theme.textTheme.bodyMedium?.color
+                                                  ?.withOpacity(0.5),
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 6),
-                              ],
-                              if (hasAttachment) ...[
-                                _buildAttachmentWidget(
-                                  attachmentUrl,
-                                  attachmentType ?? 'application/octet-stream',
-                                  attachmentName,
-                                  attachmentSize ?? 0,
-                                  thumbnailUrl,
-                                  isPending,
-                                  messageId,
-                                ),
-                                if (text.isNotEmpty) const SizedBox(height: 8),
-                              ],
-                              if (text.isNotEmpty)
-                                Text(
-                                  text,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: widget.isMe
-                                        ? Colors.white
-                                        : theme.textTheme.bodyLarge?.color,
-                                  ),
-                                ),
-                              const SizedBox(height: 4),
-                              Text(
-                                timeStr,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: widget.isMe
-                                      ? Colors.white.withOpacity(0.7)
-                                      : theme.textTheme.bodyMedium?.color
-                                            ?.withOpacity(0.5),
-                                ),
                               ),
-                            ],
-                          ),
-                        ),
                     ],
                   ),
                 ),
