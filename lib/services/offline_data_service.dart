@@ -197,7 +197,14 @@ class OfflineDataService {
       final messages = cached['messages'] as List?;
       if (messages == null) return null;
 
-      return List<Map<String, dynamic>>.from(messages);
+      // ✅ FIX: Safely convert each Map<dynamic, dynamic> to Map<String, dynamic>
+      final result = <Map<String, dynamic>>[];
+      for (final item in messages) {
+        if (item is Map) {
+          result.add(Map<String, dynamic>.from(item));
+        }
+      }
+      return result;
     } catch (e) {
       debugPrint('Error reading cached group messages: $e');
       return null;
@@ -261,7 +268,14 @@ class OfflineDataService {
       final communities = cached['communities'] as List?;
       if (communities == null) return null;
 
-      return List<Map<String, dynamic>>.from(communities);
+      // ✅ FIX: Safely convert each Map<dynamic, dynamic> to Map<String, dynamic>
+      final result = <Map<String, dynamic>>[];
+      for (final item in communities) {
+        if (item is Map) {
+          result.add(Map<String, dynamic>.from(item));
+        }
+      }
+      return result;
     } catch (e) {
       debugPrint('Error reading cached communities: $e');
       return null;
@@ -294,7 +308,14 @@ class OfflineDataService {
       final posts = cached['posts'] as List?;
       if (posts == null) return null;
 
-      return List<Map<String, dynamic>>.from(posts);
+      // ✅ FIX: Safely convert each Map<dynamic, dynamic> to Map<String, dynamic>
+      final result = <Map<String, dynamic>>[];
+      for (final item in posts) {
+        if (item is Map) {
+          result.add(Map<String, dynamic>.from(item));
+        }
+      }
+      return result;
     } catch (e) {
       debugPrint('Error reading cached community posts: $e');
       return null;
@@ -369,15 +390,41 @@ class OfflineDataService {
   /// Get cached teacher groups
   List<Map<String, dynamic>>? getCachedTeacherGroups(String teacherId) {
     try {
+      debugPrint('🔍 [CACHE] Looking for cached groups: groups_$teacherId');
       final cached = _teacherGroupsCache.get('groups_$teacherId');
-      if (cached == null) return null;
+      debugPrint(
+        '🔍 [CACHE] Raw cached data: ${cached != null ? "EXISTS" : "NULL"}',
+      );
+
+      if (cached == null) {
+        debugPrint('⚠️ [CACHE] No cached entry found for groups_$teacherId');
+        return null;
+      }
 
       final groups = cached['groups'] as List?;
-      if (groups == null) return null;
+      debugPrint('🔍 [CACHE] Groups list: ${groups?.length ?? 0} items');
 
-      return List<Map<String, dynamic>>.from(groups);
+      if (groups == null) {
+        debugPrint('⚠️ [CACHE] Groups list is null inside cached entry');
+        return null;
+      }
+
+      // ✅ FIX: Safely convert each Map<dynamic, dynamic> to Map<String, dynamic>
+      final result = <Map<String, dynamic>>[];
+      for (final item in groups) {
+        if (item is Map) {
+          final converted = <String, dynamic>{};
+          for (final entry in item.entries) {
+            converted[entry.key.toString()] = entry.value;
+          }
+          result.add(converted);
+        }
+      }
+
+      debugPrint('✅ [CACHE] Returning ${result.length} cached teacher groups');
+      return result;
     } catch (e) {
-      debugPrint('Error reading cached teacher groups: $e');
+      debugPrint('❌ [CACHE] Error reading cached teacher groups: $e');
       return null;
     }
   }
@@ -410,7 +457,14 @@ class OfflineDataService {
       final groups = cached['groups'] as List?;
       if (groups == null) return null;
 
-      return List<Map<String, dynamic>>.from(groups);
+      // ✅ FIX: Safely convert each Map<dynamic, dynamic> to Map<String, dynamic>
+      final result = <Map<String, dynamic>>[];
+      for (final item in groups) {
+        if (item is Map) {
+          result.add(Map<String, dynamic>.from(item));
+        }
+      }
+      return result;
     } catch (e) {
       debugPrint('Error reading cached assigned teacher groups: $e');
       return null;
@@ -445,7 +499,14 @@ class OfflineDataService {
       final communities = cached['communities'] as List?;
       if (communities == null) return null;
 
-      return List<Map<String, dynamic>>.from(communities);
+      // ✅ FIX: Safely convert each Map<dynamic, dynamic> to Map<String, dynamic>
+      final result = <Map<String, dynamic>>[];
+      for (final item in communities) {
+        if (item is Map) {
+          result.add(Map<String, dynamic>.from(item));
+        }
+      }
+      return result;
     } catch (e) {
       debugPrint('Error reading cached teacher communities: $e');
       return null;
@@ -512,7 +573,14 @@ class OfflineDataService {
       final teachers = cached['teachers'] as List?;
       if (teachers == null) return null;
 
-      return List<Map<String, dynamic>>.from(teachers);
+      // ✅ FIX: Safely convert each Map<dynamic, dynamic> to Map<String, dynamic>
+      final result = <Map<String, dynamic>>[];
+      for (final item in teachers) {
+        if (item is Map) {
+          result.add(Map<String, dynamic>.from(item));
+        }
+      }
+      return result;
     } catch (e) {
       debugPrint('Error reading cached parent teachers: $e');
       return null;

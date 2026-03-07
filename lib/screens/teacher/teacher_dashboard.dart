@@ -1,9 +1,7 @@
 import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../config/cloudflare_config.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +18,8 @@ import '../../models/parent_teacher_group.dart';
 import 'attendance_screen.dart';
 import '../common/announcement_pageview_screen.dart';
 import '../../services/media_repository.dart';
+import '../../services/network_service.dart';
+import '../../services/offline_cache_manager.dart';
 import 'teacher_announcement_target_screen.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
@@ -52,9 +52,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   // Cache for instant viewed status display (both teacher and principal)
   final Map<String, bool> _viewedCache = {};
   final MediaRepository _mediaRepository = MediaRepository();
+  final NetworkService _networkService = NetworkService();
+  final OfflineCacheManager _cacheManager = OfflineCacheManager();
 
   // Offline cache flag
   bool _isOfflineMode = false;
+  bool _isOnline = true;
 
   // Highlights: best-effort cleanup on load
   Future<void> _cleanupExpiredHighlights() async {
@@ -153,6 +156,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Check connectivity first
+    _checkConnectivity();
     // ✅ NEW: Ensure auth is initialized before loading data
     _initializeAndLoad();
     // Defer non-critical cleanup to after page loads
@@ -163,6 +168,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _autoPublishTests();
       }
     });
+  }
+
+  /// Check network connectivity
+  Future<void> _checkConnectivity() async {
+    final isOnline = await _networkService.isConnected();
+    if (mounted) {
+      setState(() {
+        _isOnline = isOnline;
+      });
+    }
   }
 
   /// Preload all viewed statuses at startup for instant display
@@ -276,23 +291,40 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           final cachedData = await _loadFromOfflineCache();
 
           if (cachedData != null && mounted) {
+            _debugCachePayloadShape(cachedData, source: 'auth-null fallback');
+            final safeTeacherData = _safeMapFromCache(
+              cachedData['teacherData'],
+              fieldName: 'teacherData',
+              source: 'auth-null fallback',
+            );
+            final safeClasses = _safeStringListFromCache(
+              cachedData['classes'],
+              fieldName: 'classes',
+              source: 'auth-null fallback',
+            );
+            final safeStudents = _safeMapListFromCache(
+              cachedData['students'],
+              fieldName: 'students',
+              source: 'auth-null fallback',
+            );
+
             // Show cached data in offline mode
             setState(() {
-              _teacherData = cachedData['teacherData'];
-              _classes = List<String>.from(cachedData['classes'] ?? []);
-              _students = List<Map<String, dynamic>>.from(
-                cachedData['students'] ?? [],
-              );
+              _teacherData = safeTeacherData;
+              _classes = safeClasses;
+              _students = safeStudents;
               _isOfflineMode = true;
               _isLoading = false;
             });
             return;
           }
 
-          // No cached data and no user - redirect to login
+          // No cached data and no user - show error but stay on page
+          // Don't redirect to login when offline - user might come back online
           if (mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.pushReplacementNamed(context, '/teacher-login');
+            setState(() {
+              _error = 'Unable to load data. Please check your connection.';
+              _isLoading = false;
             });
           }
           return;
@@ -301,42 +333,95 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
       final user = authProvider.currentUser!;
 
-      // Fetch teacher data and students in parallel for faster loading
-      final results = await Future.wait([
-        _teacherService.getTeacherByEmail(user.email),
-        // We'll fetch students after we have teacher data
-        Future.value(null),
-      ]);
+      // Try to fetch from network if online, otherwise use cache immediately
+      Map<String, dynamic>? teacherData;
 
-      final teacherData = results[0];
+      if (_isOnline) {
+        try {
+          teacherData = await _teacherService.getTeacherByEmail(user.email);
+          // Cache the fresh data
+          if (teacherData != null) {
+            final classes = _teacherService.getTeacherClasses(
+              teacherData['classesHandled'],
+              teacherData['sections'] ?? teacherData['section'],
+              classAssignments: teacherData['classAssignments'],
+            );
+            await _saveToOfflineCache(teacherData, classes, []);
+          }
+        } catch (e) {
+          debugPrint('⚠️ Failed to fetch teacher data from network: $e');
+          // Fall through to cache
+        }
+      }
+
+      // If offline or network fetch failed, try cache
+      if (teacherData == null) {
+        final cachedData = await _loadFromOfflineCache();
+        if (cachedData != null && mounted) {
+          _debugCachePayloadShape(cachedData, source: 'network-fallback');
+          final safeTeacherData = _safeMapFromCache(
+            cachedData['teacherData'],
+            fieldName: 'teacherData',
+            source: 'network-fallback',
+          );
+          final safeClasses = _safeStringListFromCache(
+            cachedData['classes'],
+            fieldName: 'classes',
+            source: 'network-fallback',
+          );
+          final safeStudents = _safeMapListFromCache(
+            cachedData['students'],
+            fieldName: 'students',
+            source: 'network-fallback',
+          );
+
+          setState(() {
+            _teacherData = safeTeacherData;
+            _classes = safeClasses;
+            _students = safeStudents;
+            _isOfflineMode = true;
+            _isLoading = false;
+          });
+
+          // Build subject mapping from cached teacherData
+          if (_teacherData != null && _classes.isNotEmpty) {
+            _buildSubjectMapping(_teacherData!, _classes);
+          }
+
+          return;
+        }
+      }
 
       if (teacherData == null) {
         setState(() {
-          _error = 'Teacher data not found';
+          _error = 'Unable to load teacher data. Please check your connection.';
           _isLoading = false;
         });
         return;
       }
 
+      // teacherData is now guaranteed non-null
+      final Map<String, dynamic> safeTeacherData = teacherData;
+
       // Determine sections field (supports 'sections' array or 'section' string)
       final dynamic sections =
-          teacherData['sections'] ?? teacherData['section'];
+          safeTeacherData['sections'] ?? safeTeacherData['section'];
 
       // Format classes for dropdown using sections
       final classes = _teacherService.getTeacherClasses(
-        teacherData['classesHandled'],
+        safeTeacherData['classesHandled'],
         sections,
-        classAssignments: teacherData['classAssignments'], // Fallback
+        classAssignments: safeTeacherData['classAssignments'], // Fallback
       );
 
       // Show UI immediately with classes, then fetch students in background
       setState(() {
-        _teacherData = teacherData;
+        _teacherData = safeTeacherData;
         _classes = classes;
         _isLoading = false;
 
         // Build subject mapping from classAssignments
-        _buildSubjectMapping(teacherData, classes);
+        _buildSubjectMapping(safeTeacherData, classes);
 
         // Set initial selected class
         if (classes.isNotEmpty) {
@@ -355,21 +440,37 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       await _preloadViewedStatus();
 
       // Save to offline cache for future offline access
-      _saveToOfflineCache(teacherData, classes, []);
+      _saveToOfflineCache(safeTeacherData, classes, []);
 
       // Fetch students in background after UI is shown
-      _fetchStudentsInBackground(user, teacherData, sections, classes);
+      _fetchStudentsInBackground(user, safeTeacherData, sections, classes);
     } catch (e) {
+      debugPrint('❌ _loadTeacherData error: $e');
       // Try to load from offline cache on error
       final cachedData = await _loadFromOfflineCache();
 
       if (cachedData != null && mounted) {
+        _debugCachePayloadShape(cachedData, source: 'exception-fallback');
+        final safeTeacherData = _safeMapFromCache(
+          cachedData['teacherData'],
+          fieldName: 'teacherData',
+          source: 'exception-fallback',
+        );
+        final safeClasses = _safeStringListFromCache(
+          cachedData['classes'],
+          fieldName: 'classes',
+          source: 'exception-fallback',
+        );
+        final safeStudents = _safeMapListFromCache(
+          cachedData['students'],
+          fieldName: 'students',
+          source: 'exception-fallback',
+        );
+
         setState(() {
-          _teacherData = cachedData['teacherData'];
-          _classes = List<String>.from(cachedData['classes'] ?? []);
-          _students = List<Map<String, dynamic>>.from(
-            cachedData['students'] ?? [],
-          );
+          _teacherData = safeTeacherData;
+          _classes = safeClasses;
+          _students = safeStudents;
           _isOfflineMode = true;
           _isLoading = false;
         });
@@ -383,48 +484,265 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     }
   }
 
-  /// Save teacher data to offline cache
+  /// Save teacher data to offline cache using Hive
+  /// Converts Timestamps to strings before caching (Hive limitation)
   Future<void> _saveToOfflineCache(
     Map<String, dynamic> teacherData,
     List<String> classes,
     List<Map<String, dynamic>> students,
   ) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final cacheData = {
-        'teacherData': teacherData,
-        'classes': classes,
-        'students': students,
-        'cachedAt': DateTime.now().toIso8601String(),
-      };
-      await prefs.setString('teacher_dashboard_cache', jsonEncode(cacheData));
+      // Ensure cache manager is initialized
+      await _cacheManager.initialize();
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.uid;
+      if (userId == null || userId.isEmpty) return;
+
+      // Convert Timestamps to strings for Hive compatibility
+      final sanitizedTeacherData = _sanitizeForHive(teacherData);
+
+      await _cacheManager.cacheDashboard(
+        userId: userId,
+        role: 'teacher',
+        dashboardData: {
+          'teacherData': sanitizedTeacherData,
+          'classes': classes,
+          'students': students,
+          'cachedAt': DateTime.now().toIso8601String(),
+        },
+      );
+
+      debugPrint('✅ Cached teacher dashboard for offline access');
     } catch (e) {
       debugPrint('Error saving offline cache: $e');
     }
   }
 
-  /// Load teacher data from offline cache
+  /// Recursively convert Firestore Timestamp objects to ISO8601 strings
+  /// Required because Hive cannot serialize Timestamp objects
+  Map<String, dynamic> _sanitizeForHive(Map<String, dynamic> data) {
+    final result = <String, dynamic>{};
+
+    for (final entry in data.entries) {
+      if (entry.value == null) {
+        result[entry.key] = null;
+      } else if (entry.value is Timestamp) {
+        // Convert Firestore Timestamp to ISO8601 string
+        result[entry.key] = (entry.value as Timestamp)
+            .toDate()
+            .toIso8601String();
+      } else if (entry.value is DateTime) {
+        result[entry.key] = entry.value.toIso8601String();
+      } else if (entry.value is Map) {
+        result[entry.key] = _sanitizeForHive(
+          Map<String, dynamic>.from(entry.value),
+        );
+      } else if (entry.value is List) {
+        result[entry.key] = _sanitizeListForHive(entry.value);
+      } else {
+        result[entry.key] = entry.value;
+      }
+    }
+
+    return result;
+  }
+
+  /// Recursively sanitize lists for Hive
+  List<dynamic> _sanitizeListForHive(List<dynamic> list) {
+    return list.map((item) {
+      if (item == null) {
+        return null;
+      } else if (item is Timestamp) {
+        return item.toDate().toIso8601String();
+      } else if (item is DateTime) {
+        return item.toIso8601String();
+      } else if (item is Map) {
+        return _sanitizeForHive(Map<String, dynamic>.from(item));
+      } else if (item is List) {
+        return _sanitizeListForHive(item);
+      } else {
+        return item;
+      }
+    }).toList();
+  }
+
+  /// Load teacher data from offline cache using Hive
   Future<Map<String, dynamic>?> _loadFromOfflineCache() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final cacheString = prefs.getString('teacher_dashboard_cache');
+      // Ensure cache manager is initialized
+      await _cacheManager.initialize();
 
-      if (cacheString == null) return null;
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.currentUser?.uid;
 
-      final cacheData = jsonDecode(cacheString) as Map<String, dynamic>;
-      final cachedAt = DateTime.parse(cacheData['cachedAt'] as String);
+      // First try: Load with userId if available
+      if (userId != null && userId.isNotEmpty) {
+        final cached = _cacheManager.getCachedDashboard(
+          userId: userId,
+          role: 'teacher',
+        );
 
-      // Cache valid for 7 days
-      if (DateTime.now().difference(cachedAt).inDays > 7) {
-        await prefs.remove('teacher_dashboard_cache');
-        return null;
+        if (cached != null) {
+          // Safely cast dynamic map to Map<String, dynamic>
+          final safeCache = _castDynamicMapToStringMap(cached);
+          final cachedAt = DateTime.tryParse(
+            safeCache?['cachedAt'] as String? ?? '',
+          );
+
+          // Cache valid for 30 days (more generous for offline mode)
+          if (cachedAt != null &&
+              DateTime.now().difference(cachedAt).inDays > 30) {
+            return null;
+          }
+
+          debugPrint('✅ Loaded cached teacher dashboard for userId: $userId');
+          return safeCache;
+        }
       }
 
-      return cacheData;
+      // Fallback: Get most recent cached teacher dashboard (for offline restarts)
+      final latestCache = _cacheManager.getLastCachedTeacherDashboard();
+      if (latestCache != null) {
+        // Safely cast dynamic map to Map<String, dynamic>
+        final safeCache = _castDynamicMapToStringMap(latestCache);
+        final cachedAt = DateTime.tryParse(
+          safeCache?['cachedAt'] as String? ?? '',
+        );
+
+        // Cache valid for 30 days
+        if (cachedAt == null ||
+            DateTime.now().difference(cachedAt).inDays <= 30) {
+          debugPrint('✅ Loaded last cached teacher dashboard from Hive');
+          return safeCache;
+        }
+      }
+
+      debugPrint('⚠️ No valid offline cache found for teacher dashboard');
+      return null;
     } catch (e) {
       debugPrint('Error loading offline cache: $e');
       return null;
     }
+  }
+
+  /// Safely cast a dynamic map to Map<String, dynamic>
+  /// Handles Hive's Map<dynamic, dynamic> return type
+  Map<String, dynamic>? _castDynamicMapToStringMap(dynamic data) {
+    if (data is! Map) return null;
+
+    final result = <String, dynamic>{};
+    for (final entry in data.entries) {
+      result[entry.key.toString()] = entry.value;
+    }
+    return result;
+  }
+
+  void _debugCachePayloadShape(
+    Map<String, dynamic> cachedData, {
+    required String source,
+  }) {
+    final teacherRaw = cachedData['teacherData'];
+    final classesRaw = cachedData['classes'];
+    final studentsRaw = cachedData['students'];
+
+    debugPrint(
+      '🧩 Cache shape [$source] teacherData=${teacherRaw.runtimeType}, '
+      'classes=${classesRaw.runtimeType}, students=${studentsRaw.runtimeType}',
+    );
+
+    if (studentsRaw is List && studentsRaw.isNotEmpty) {
+      debugPrint(
+        '🧩 Cache shape [$source] students[0]=${studentsRaw.first.runtimeType}',
+      );
+    }
+  }
+
+  Map<String, dynamic>? _safeMapFromCache(
+    dynamic value, {
+    required String fieldName,
+    required String source,
+  }) {
+    if (value == null) return null;
+
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+
+    if (value is Map) {
+      final converted = <String, dynamic>{};
+      for (final entry in value.entries) {
+        converted[entry.key.toString()] = entry.value;
+      }
+      debugPrint(
+        '🔄 Converted map field [$source.$fieldName] '
+        '${value.runtimeType} -> Map<String, dynamic>',
+      );
+      return converted;
+    }
+
+    debugPrint(
+      '❌ Invalid map field [$source.$fieldName]: ${value.runtimeType}',
+    );
+    return null;
+  }
+
+  List<String> _safeStringListFromCache(
+    dynamic value, {
+    required String fieldName,
+    required String source,
+  }) {
+    if (value == null) return <String>[];
+    if (value is! List) {
+      debugPrint(
+        '❌ Invalid list field [$source.$fieldName]: ${value.runtimeType}',
+      );
+      return <String>[];
+    }
+
+    final result = <String>[];
+    for (int index = 0; index < value.length; index++) {
+      final item = value[index];
+      if (item == null) continue;
+      if (item is String) {
+        result.add(item);
+      } else {
+        debugPrint(
+          '⚠️ Coercing [$source.$fieldName][$index] '
+          'from ${item.runtimeType} to String',
+        );
+        result.add(item.toString());
+      }
+    }
+    return result;
+  }
+
+  List<Map<String, dynamic>> _safeMapListFromCache(
+    dynamic value, {
+    required String fieldName,
+    required String source,
+  }) {
+    if (value == null) return <Map<String, dynamic>>[];
+    if (value is! List) {
+      debugPrint(
+        '❌ Invalid list field [$source.$fieldName]: ${value.runtimeType}',
+      );
+      return <Map<String, dynamic>>[];
+    }
+
+    final result = <Map<String, dynamic>>[];
+    for (int index = 0; index < value.length; index++) {
+      final item = value[index];
+      final mapped = _safeMapFromCache(
+        item,
+        fieldName: '$fieldName[$index]',
+        source: source,
+      );
+      if (mapped != null) {
+        result.add(mapped);
+      }
+    }
+    return result;
   }
 
   void _buildSubjectMapping(
@@ -1020,12 +1338,16 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     });
 
     try {
+      debugPrint(
+        '🔍 Loading section group for ${parsed['className']}-${parsed['section']}',
+      );
       final group = await _ptGroupService.ensureGroupForClassSection(
         schoolCode: schoolCode,
         className: parsed['className'] ?? '',
         section: parsed['section'] ?? '',
       );
       if (!mounted) return;
+      debugPrint('✅ Section group loaded: ${group.id}');
       setState(() {
         _sectionGroup = group;
       });
@@ -1033,6 +1355,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       // Load unread count for this group
       _loadSectionGroupUnreadCount();
     } catch (e) {
+      debugPrint('❌ Failed to load section group: $e');
       if (!mounted) return;
       setState(() {
         _sectionGroupError = 'Failed to load section group: $e';
@@ -2194,13 +2517,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       if (item.type == 'teacher') {
         final status = item.data as StatusModel;
         if (status.teacherId != currentUserId) {
-
           return;
         }
       } else if (item.type == 'principal') {
         final principal = item.data as InstituteAnnouncementModel;
         if (principal.principalId != currentUserId) {
-
           return;
         }
       }
@@ -2289,15 +2610,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         } else {}
 
         if (mounted) {
-
           // Close the viewer
           if (Navigator.of(context).canPop()) {
             Navigator.pop(context);
           }
         }
-      } catch (e) {
-        
-      }
+      } catch (e) {}
     } catch (e) {}
   }
 

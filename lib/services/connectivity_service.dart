@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Service to track network connectivity state globally
 /// Provides a stream of connectivity changes and synchronous checks
@@ -6,8 +7,10 @@ class ConnectivityService {
   static final ConnectivityService _instance = ConnectivityService._internal();
 
   final Connectivity _connectivity = Connectivity();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _isOnline = true;
   bool _initialized = false;
+  bool? _lastAppliedFirestoreOnline;
 
   factory ConnectivityService() {
     return _instance;
@@ -28,16 +31,39 @@ class ConnectivityService {
             ConnectivityResult.wifi, // Assume online if check times out
       );
       _isOnline = result != ConnectivityResult.none;
+      await _applyFirestoreNetworkState(_isOnline);
       _initialized = true;
 
       // Listen for connectivity changes
-      _connectivity.onConnectivityChanged.listen((result) {
-        _isOnline = result != ConnectivityResult.none;
+      _connectivity.onConnectivityChanged.listen((result) async {
+        final nextIsOnline = result != ConnectivityResult.none;
+        if (_isOnline == nextIsOnline &&
+            _lastAppliedFirestoreOnline == nextIsOnline) {
+          return;
+        }
+
+        _isOnline = nextIsOnline;
+        await _applyFirestoreNetworkState(_isOnline);
       });
     } catch (e) {
       // If we can't determine state, assume online (safer default)
       _isOnline = true;
       _initialized = true;
+    }
+  }
+
+  Future<void> _applyFirestoreNetworkState(bool isOnline) async {
+    if (_lastAppliedFirestoreOnline == isOnline) return;
+
+    try {
+      if (isOnline) {
+        await _firestore.enableNetwork();
+      } else {
+        await _firestore.disableNetwork();
+      }
+      _lastAppliedFirestoreOnline = isOnline;
+    } catch (_) {
+      // Best effort only; avoid crashing app due to network toggle errors
     }
   }
 

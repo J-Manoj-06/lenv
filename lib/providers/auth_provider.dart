@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 
@@ -37,10 +38,39 @@ class AuthProvider with ChangeNotifier {
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser != null) {
         // User is already logged in, load their data
-        _currentUser = await _authService.getUserData(firebaseUser.uid);
+        try {
+          _currentUser = await _authService.getUserData(firebaseUser.uid);
+
+          // Cache user data for offline access
+          if (_currentUser != null) {
+            await _cacheUserData(_currentUser!);
+          }
+        } catch (e) {
+          // Firestore fetch failed (likely offline), try loading from cache
+          debugPrint('⚠️ Failed to fetch user data from Firestore: $e');
+          debugPrint('🔄 Attempting to load from cache...');
+          _currentUser = await _loadCachedUserData();
+
+          if (_currentUser != null) {
+            debugPrint('✅ Loaded user from cache: ${_currentUser!.name}');
+          } else {
+            debugPrint('❌ No cached user data found');
+          }
+        }
+      } else {
+        // Firebase auth state may not be restored yet (or device is offline).
+        // Try cached user data so app can continue in offline mode.
+        _currentUser = await _loadCachedUserData();
+
+        if (_currentUser != null) {
+          debugPrint(
+            '✅ Loaded cached user while Firebase user is unavailable: ${_currentUser!.name}',
+          );
+        }
       }
     } catch (e) {
       _errorMessage = e.toString();
+      debugPrint('❌ Error initializing auth: $e');
     } finally {
       _initialized = true;
       _isLoading = false;
@@ -62,6 +92,71 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Cache user data to SharedPreferences for offline access
+  Future<void> _cacheUserData(UserModel user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userData = {
+        'uid': user.uid,
+        'email': user.email,
+        'name': user.name,
+        'role': user.role.toString(),
+        'phone': user.phone,
+        'profileImage': user.profileImage,
+        'instituteId': user.instituteId,
+        'createdAt': user.createdAt.toIso8601String(),
+        'isActive': user.isActive,
+      };
+      await prefs.setString('cached_user_data', jsonEncode(userData));
+    } catch (e) {
+      debugPrint('⚠️ Failed to cache user data: $e');
+    }
+  }
+
+  /// Load cached user data from SharedPreferences
+  Future<UserModel?> _loadCachedUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedData = prefs.getString('cached_user_data');
+
+      if (cachedData == null || cachedData.isEmpty) {
+        return null;
+      }
+
+      final Map<String, dynamic> userData = jsonDecode(cachedData);
+
+      // Parse role enum
+      UserRole role;
+      final roleStr = userData['role'].toString();
+      if (roleStr.contains('teacher')) {
+        role = UserRole.teacher;
+      } else if (roleStr.contains('student')) {
+        role = UserRole.student;
+      } else if (roleStr.contains('parent')) {
+        role = UserRole.parent;
+      } else if (roleStr.contains('institute')) {
+        role = UserRole.institute;
+      } else {
+        role = UserRole.student; // Default fallback
+      }
+
+      return UserModel(
+        uid: userData['uid'],
+        email: userData['email'],
+        name: userData['name'],
+        role: role,
+        phone: userData['phone'],
+        profileImage: userData['profileImage'],
+        instituteId: userData['instituteId'],
+        createdAt: DateTime.parse(userData['createdAt']),
+        isActive: userData['isActive'] ?? true,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to load cached user data: $e');
+      return null;
+    }
+  }
+
   // Sign in
   Future<bool> signIn(String email, String password) async {
     _isLoading = true;
@@ -73,6 +168,12 @@ class AuthProvider with ChangeNotifier {
         email,
         password,
       );
+
+      // Cache user data for offline access
+      if (_currentUser != null) {
+        await _cacheUserData(_currentUser!);
+      }
+
       _isLoading = false;
       notifyListeners();
       return _currentUser != null;

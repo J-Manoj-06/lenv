@@ -36,6 +36,7 @@ import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
 import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
+import '../../services/network_service.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -57,6 +58,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     with MessageScrollAndHighlightMixin, WidgetsBindingObserver {
   final GroupMessagingService _messagingService = GroupMessagingService();
   final CommunityService _communityService = CommunityService();
+  final NetworkService _networkService = NetworkService();
   final TextEditingController _messageController = TextEditingController();
   Stream<Timestamp?> _lastReadAtStream = Stream.value(
     Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
@@ -598,12 +600,20 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     );
   }
 
-  void _setupLastReadStream() {
+  void _setupLastReadStream() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
 
       if (currentUser == null) {
+        _lastReadAtStream = Stream.value(_defaultLastReadAt());
+        return;
+      }
+
+      // Check network connectivity before subscribing to Firestore
+      final isOnline = await _networkService.isConnected();
+      if (!isOnline) {
+        // Offline: Use default stream to avoid Firestore connection attempts
         _lastReadAtStream = Stream.value(_defaultLastReadAt());
         return;
       }

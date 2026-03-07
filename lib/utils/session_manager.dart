@@ -1,5 +1,4 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class SessionManager {
   static SharedPreferences? _prefsCache;
@@ -32,10 +31,15 @@ class SessionManager {
     final userId = prefs.getString('userId');
     final userRole = prefs.getString('userRole');
     final schoolId = prefs.getString('schoolId');
-    final user = FirebaseAuth.instance.currentUser;
-    // ignore: avoid_print
+
+    // Do not require FirebaseAuth.currentUser here.
+    // On cold start (especially offline), Firebase user restoration can be delayed
+    // and would incorrectly force navigation to login.
+    final hasLocalSession =
+        isLoggedIn && userId != null && userId.isNotEmpty && userRole != null;
+
     return {
-      'isLoggedIn': isLoggedIn && user != null,
+      'isLoggedIn': hasLocalSession,
       'userId': userId,
       'userRole': userRole,
       'schoolId': schoolId,

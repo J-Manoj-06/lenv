@@ -80,12 +80,15 @@ void main() async {
 /// Initialize services asynchronously to avoid blocking startup
 Future<void> _initializeServicesAsync() async {
   try {
+    // Initialize connectivity first so Firestore network state is applied
+    // before any other services start Firestore reads/writes.
+    await ConnectivityService().initialize();
+
     // Run all service initializations in parallel
     await Future.wait([
       LocalCacheService().initialize(),
       OfflineCacheManager().initialize(),
       OfflineDataService().initialize(), // ✅ Added new offline service
-      ConnectivityService().initialize(),
       ShareReceiverService().initialize(),
       NotificationService().initialize(), // ✅ Initialize notification service
       BackgroundDownloadService()
@@ -93,7 +96,7 @@ Future<void> _initializeServicesAsync() async {
     ], eagerError: false); // Continue even if one fails
   } catch (e) {
     // Services failed to initialize, but app can still run
-    print('⚠️ Service initialization error: $e');
+    debugPrint('⚠️ Service initialization error: $e');
   }
 }
 

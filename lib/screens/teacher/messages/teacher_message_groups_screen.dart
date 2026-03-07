@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../../../providers/auth_provider.dart';
+import '../../../utils/session_manager.dart';
 import '../../messages/teacher_group_chat_page.dart';
 import '../../../services/group_messaging_service.dart';
 import '../../messages/staff_room_group_chat_page.dart';
@@ -68,18 +69,10 @@ class MessageGroupsService {
 
   // ✅ NEW: Cache for message groups (5 minute TTL)
   final Map<String, MessageGroup> _groupCache = {};
-  DateTime? _cacheTimestamp;
-
-  // ✅ NEW: Cache check method
-  bool _isCacheValid() {
-    if (_cacheTimestamp == null || _groupCache.isEmpty) return false;
-    return DateTime.now().difference(_cacheTimestamp!).inMinutes < 5;
-  }
 
   // ✅ NEW: Clear cache on demand (when teacher sends message)
   void clearCache() {
     _groupCache.clear();
-    _cacheTimestamp = null;
   }
 
   // ✅ NEW: Mark specific group as read (clear unread badge)
@@ -358,9 +351,25 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       await authProvider.ensureInitialized();
 
       // Now set up stream listener after auth is ready
-      final currentUser = authProvider.currentUser;
-      if (currentUser != null) {
-        _setupTeacherGroupsStream(currentUser.uid);
+      String? userId = authProvider.currentUser?.uid;
+
+      // ✅ OFFLINE FALLBACK: Get userId from SharedPreferences if auth user is null
+      if (userId == null || userId.isEmpty) {
+        final session = await SessionManager.getLoginSession();
+        userId = session['userId'] as String?;
+        debugPrint('🔄 Groups: using cached userId from session: $userId');
+      }
+
+      if (userId != null && userId.isNotEmpty) {
+        _setupTeacherGroupsStream(userId);
+      } else {
+        // No userId available at all - stop loading
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Unable to load groups. Please reconnect.';
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -419,14 +428,26 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   Future<void> _loadGroupsFromFirestore(String teacherId) async {
+    // ✅ Ensure offline service is initialized
+    try {
+      await _offlineService.initialize();
+    } catch (e) {
+      debugPrint('⚠️ Failed to initialize offline service: $e');
+    }
+
     // ✅ Try loading from cache first for instant display
+    debugPrint('🔍 Attempting to load cached teacher groups for: $teacherId');
     final cachedGroups = _offlineService.getCachedTeacherGroups(teacherId);
+    debugPrint('🔍 Got cached groups: ${cachedGroups?.length ?? 0} groups');
+
     if (cachedGroups != null && cachedGroups.isNotEmpty) {
-      if (mounted) {
-        setState(() {
-          _groups = cachedGroups
-              .map(
-                (data) => MessageGroup(
+      debugPrint('✅ Loading ${cachedGroups.length} groups from cache');
+      try {
+        if (mounted) {
+          setState(() {
+            _groups = cachedGroups.map((data) {
+              try {
+                return MessageGroup(
                   groupId: data['groupId'] ?? '',
                   subjectId: data['subjectId'] ?? '',
                   subjectName: data['subjectName'] ?? '',
@@ -442,24 +463,44 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                       : null,
                   unreadCount: data['unreadCount'] ?? 0,
                   classId: data['classId'] ?? '',
-                ),
-              )
-              .toList();
-          _filteredGroups = _groups;
-          _isLoading = false;
-        });
+                );
+              } catch (e) {
+                debugPrint('❌ Error creating MessageGroup from cache: $e');
+                debugPrint('   Data: $data');
+                rethrow;
+              }
+            }).toList();
+            _filteredGroups = _groups;
+            _isLoading = false;
+            debugPrint(
+              '✅ UI updated with ${_groups.length} groups, _isLoading=$_isLoading',
+            );
+          });
+        }
+      } catch (e) {
+        debugPrint('❌ Fatal error loading cached groups: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Error loading cached groups: $e';
+          });
+        }
       }
+    } else {
+      debugPrint('⚠️ No cached groups found for teacherId: $teacherId');
     }
 
     // ✅ Now fetch fresh data from network
     try {
-      final groups = await _service.getTeacherMessageGroups(teacherId).timeout(
-        const Duration(seconds: 8),
-        onTimeout: () {
-          debugPrint('⏱️ Network timeout loading teacher message groups');
-          return <MessageGroup>[];
-        },
-      );
+      final groups = await _service
+          .getTeacherMessageGroups(teacherId)
+          .timeout(
+            const Duration(seconds: 8),
+            onTimeout: () {
+              debugPrint('⏱️ Network timeout loading teacher message groups');
+              return <MessageGroup>[];
+            },
+          );
 
       // ✅ Cache the groups for offline access
       if (groups.isNotEmpty) {

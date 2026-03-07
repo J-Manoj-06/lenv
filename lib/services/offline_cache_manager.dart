@@ -277,6 +277,51 @@ class OfflineCacheManager {
     }
   }
 
+  /// Get the most recently cached teacher dashboard
+  /// Useful for offline cold starts when auth profile is not hydrated yet
+  Map<String, dynamic>? getLastCachedTeacherDashboard() {
+    try {
+      Map<String, dynamic>? latestDashboard;
+      DateTime? latestCachedAt;
+
+      for (final key in _dashboardBox.keys) {
+        final keyStr = key.toString();
+        if (!keyStr.startsWith('teacher_dashboard_')) continue;
+
+        final cached = _dashboardBox.get(keyStr);
+        if (cached == null) continue;
+
+        final cachedAtStr = cached['data']?['cachedAt'] as String?;
+        DateTime? cachedAt;
+        if (cachedAtStr != null && cachedAtStr.isNotEmpty) {
+          cachedAt = DateTime.tryParse(cachedAtStr);
+        }
+
+        if (latestCachedAt == null) {
+          latestCachedAt = cachedAt;
+          final data = cached['data'] as Map?;
+          latestDashboard = data != null
+              ? Map<String, dynamic>.from(data)
+              : null;
+          continue;
+        }
+
+        if (cachedAt != null && cachedAt.isAfter(latestCachedAt)) {
+          latestCachedAt = cachedAt;
+          final data = cached['data'] as Map?;
+          latestDashboard = data != null
+              ? Map<String, dynamic>.from(data)
+              : null;
+        }
+      }
+
+      return latestDashboard;
+    } catch (e) {
+      debugPrint('Error retrieving last cached teacher dashboard: $e');
+      return null;
+    }
+  }
+
   /// ==================== PROFILES ====================
 
   /// Cache user profile data

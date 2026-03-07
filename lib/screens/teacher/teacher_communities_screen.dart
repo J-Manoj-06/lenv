@@ -4,6 +4,7 @@ import '../../models/community_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
 import '../../services/offline_data_service.dart';
+import '../../utils/session_manager.dart';
 import 'teacher_community_explore_screen.dart';
 import '../messages/community_chat_page.dart';
 
@@ -52,11 +53,17 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
 
-    if (currentUser == null) return;
+    // ✅ OFFLINE FALLBACK: Get userId from SharedPreferences if auth user is null
+    String userId = currentUser?.uid ?? '';
+    if (userId.isEmpty) {
+      final session = await SessionManager.getLoginSession();
+      userId = session['userId'] as String? ?? '';
+      debugPrint('🔄 Communities: using cached userId from session: $userId');
+    }
 
-    final cachedData = _offlineService.getCachedTeacherCommunities(
-      currentUser.uid,
-    );
+    if (userId.isEmpty) return;
+
+    final cachedData = _offlineService.getCachedTeacherCommunities(userId);
     if (cachedData != null && cachedData.isNotEmpty) {
       if (mounted) {
         setState(() {
@@ -71,8 +78,9 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
     }
 
     try {
+      final networkUserId = currentUser?.uid ?? userId;
       final communities = await _communityService
-          .getMyComm(currentUser.uid)
+          .getMyComm(networkUserId)
           .timeout(
             const Duration(seconds: 8),
             onTimeout: () {
@@ -83,7 +91,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
 
       if (communities.isNotEmpty) {
         await _offlineService.cacheTeacherCommunities(
-          teacherId: currentUser.uid,
+          teacherId: networkUserId,
           communities: communities
               .map((community) => community.toJson())
               .toList(),
@@ -107,7 +115,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
       setState(() {
         if (_myCommunities.isEmpty) {
           final fallbackCache = _offlineService.getCachedTeacherCommunities(
-            currentUser.uid,
+            userId,
           );
           if (fallbackCache != null && fallbackCache.isNotEmpty) {
             _myCommunities = fallbackCache

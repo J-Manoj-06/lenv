@@ -140,9 +140,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
       return Stream.value(0);
     }
 
-    // If offline, return cached value
-    if (!_isOnline && _cachedStats != null) {
-      final count = _cachedStats!['students'] as int? ?? 0;
+    // If offline, return cached value without Firestore subscription
+    if (!_isOnline) {
+      final count = _cachedStats?['students'] as int? ?? 0;
       return Stream.value(count);
     }
 
@@ -179,9 +179,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
       return Stream.value(0);
     }
 
-    // If offline, return cached value
-    if (!_isOnline && _cachedStats != null) {
-      final count = _cachedStats!['staff'] as int? ?? 0;
+    // If offline, return cached value without Firestore subscription
+    if (!_isOnline) {
+      final count = _cachedStats?['staff'] as int? ?? 0;
       return Stream.value(count);
     }
 
@@ -219,9 +219,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
       return Stream.value({'present': 0, 'total': 0, 'percent': 0.0});
     }
 
-    // If offline, return cached value
-    if (!_isOnline && _cachedStats != null) {
-      final attendanceRaw = _cachedStats!['attendance'];
+    // If offline, return cached value without Firestore subscription
+    if (!_isOnline) {
+      final attendanceRaw = _cachedStats?['attendance'];
       final attendance = attendanceRaw is Map
           ? Map<String, dynamic>.from(attendanceRaw)
           : <String, dynamic>{'present': 0, 'total': 0, 'percent': 0.0};
@@ -708,10 +708,12 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     return SizedBox(
       height: 110,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('institute_announcements')
-            .where('instituteId', isEqualTo: instituteId)
-            .snapshots(),
+        stream: _isOnline
+            ? FirebaseFirestore.instance
+                  .collection('institute_announcements')
+                  .where('instituteId', isEqualTo: instituteId)
+                  .snapshots()
+            : const Stream.empty(),
         builder: (context, snapshot) {
           // Loading state
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -987,10 +989,12 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     const blueColor = Color(0xFF355872);
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('class_highlights')
-          .where('instituteId', isEqualTo: instituteId)
-          .snapshots(),
+      stream: _isOnline
+          ? FirebaseFirestore.instance
+                .collection('class_highlights')
+                .where('instituteId', isEqualTo: instituteId)
+                .snapshots()
+          : const Stream.empty(),
       builder: (context, snapshot) {
         var statuses = <StatusModel>[];
 
