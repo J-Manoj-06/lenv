@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/community_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/community_service.dart';
@@ -49,6 +51,44 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
     }
   }
 
+  // ── SharedPreferences helpers ──────────────────────────────────────────────
+  static String _communitiesPrefKey(String userId) =>
+      'teacher_communities_cache_$userId';
+
+  Future<List<CommunityModel>?> _loadPrefsCache(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_communitiesPrefKey(userId));
+      if (raw == null || raw.isEmpty) return null;
+      final list = jsonDecode(raw) as List<dynamic>;
+      return list
+          .map(
+            (e) => CommunityModel.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('⚠️ Communities prefs read error: $e');
+      return null;
+    }
+  }
+
+  Future<void> _savePrefsCache(
+    String userId,
+    List<CommunityModel> communities,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(communities.map((c) => c.toJson()).toList());
+      await prefs.setString(_communitiesPrefKey(userId), encoded);
+      debugPrint(
+        '💾 [COMMUNITIES] Saved ${communities.length} communities to prefs for $userId',
+      );
+    } catch (e) {
+      debugPrint('⚠️ Communities prefs write error: $e');
+    }
+  }
+  // ── end helpers ─────────────────────────────────────────────────────────────
+
   Future<void> _loadMyCommunities() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
@@ -66,24 +106,38 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
     // Ensure Hive boxes are open before reading
     await _offlineService.initialize();
 
-    debugPrint('🔍 [COMMUNITIES] Looking up cache for userId: $userId');
-    final cachedData = _offlineService.getCachedTeacherCommunities(userId);
+    // ── 1. Try Hive cache ──────────────────────────────────────────────────
+    debugPrint('🔍 [COMMUNITIES] Looking up Hive cache for userId: $userId');
+    final hiveCached = _offlineService.getCachedTeacherCommunities(userId);
     debugPrint(
-      '🔍 [COMMUNITIES] Cache result: ${cachedData == null ? 'NULL' : '${cachedData.length} items'}',
+      '🔍 [COMMUNITIES] Hive result: ${hiveCached == null ? 'NULL' : '${hiveCached.length} items'}',
     );
-    if (cachedData != null && cachedData.isNotEmpty) {
+
+    // ── 2. Try SharedPreferences cache (always reliable) ──────────────────
+    List<CommunityModel>? prefsCached;
+    if (hiveCached == null || hiveCached.isEmpty) {
+      prefsCached = await _loadPrefsCache(userId);
+      debugPrint(
+        '🔍 [COMMUNITIES] Prefs result: ${prefsCached == null ? 'NULL' : '${prefsCached.length} items'}',
+      );
+    }
+
+    final cachedCommunities = (hiveCached != null && hiveCached.isNotEmpty)
+        ? hiveCached.map((d) => CommunityModel.fromJson(d)).toList()
+        : prefsCached;
+
+    if (cachedCommunities != null && cachedCommunities.isNotEmpty) {
       if (mounted) {
         setState(() {
-          _myCommunities = cachedData
-              .map((data) => CommunityModel.fromJson(data))
-              .toList();
+          _myCommunities = cachedCommunities;
           _isLoading = false;
         });
       }
     } else {
-      setState(() => _isLoading = true);
+      if (mounted) setState(() => _isLoading = true);
     }
 
+    // ── 3. Network fetch ───────────────────────────────────────────────────
     try {
       final networkUserId = currentUser?.uid ?? userId;
       final communities = await _communityService
@@ -96,42 +150,53 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
             },
           );
 
+      debugPrint(
+        '🌐 [COMMUNITIES] Network returned ${communities.length} items',
+      );
+
       if (communities.isNotEmpty) {
+        // ── Write to both caches ──────────────────────────────────────────
         await _offlineService.cacheTeacherCommunities(
           teacherId: networkUserId,
-          communities: communities
-              .map((community) => community.toJson())
-              .toList(),
+          communities: communities.map((c) => c.toJson()).toList(),
         );
+        await _savePrefsCache(networkUserId, communities);
 
-        setState(() {
-          _myCommunities = communities;
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _myCommunities = communities;
+            _isLoading = false;
+          });
+        }
       } else if (_myCommunities.isEmpty) {
-        setState(() {
-          _myCommunities = [];
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _myCommunities = [];
+            _isLoading = false;
+          });
+        }
       } else {
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
       debugPrint('Error loading communities: $e');
       if (!mounted) return;
-      setState(() {
-        if (_myCommunities.isEmpty) {
-          final fallbackCache = _offlineService.getCachedTeacherCommunities(
-            userId,
-          );
-          if (fallbackCache != null && fallbackCache.isNotEmpty) {
-            _myCommunities = fallbackCache
-                .map((data) => CommunityModel.fromJson(data))
-                .toList();
-          }
+      // If nothing in memory yet, try both caches as last resort
+      if (_myCommunities.isEmpty) {
+        final hiveRetry = _offlineService.getCachedTeacherCommunities(userId);
+        final prefsRetry = await _loadPrefsCache(userId);
+        final fallback = (hiveRetry != null && hiveRetry.isNotEmpty)
+            ? hiveRetry.map((d) => CommunityModel.fromJson(d)).toList()
+            : prefsRetry;
+        if (mounted) {
+          setState(() {
+            _myCommunities = fallback ?? [];
+            _isLoading = false;
+          });
         }
-        _isLoading = false;
-      });
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
   }
 

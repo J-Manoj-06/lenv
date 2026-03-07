@@ -20,7 +20,9 @@ import '../common/announcement_pageview_screen.dart';
 import '../../services/media_repository.dart';
 import '../../services/network_service.dart';
 import '../../services/offline_cache_manager.dart';
+import '../../utils/session_manager.dart';
 import 'teacher_announcement_target_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class TeacherDashboardScreen extends StatefulWidget {
   const TeacherDashboardScreen({super.key});
@@ -316,6 +318,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               _isOfflineMode = true;
               _isLoading = false;
             });
+            // ✅ Set selectedClass so the Connect-with-Parents card is tappable offline
+            if (safeTeacherData != null && safeClasses.isNotEmpty) {
+              _buildSubjectMapping(safeTeacherData, safeClasses);
+              final firstClass = safeClasses.first;
+              final subjects = _classSubjectMap[firstClass] ?? const <String>[];
+              setState(() {
+                selectedClass = subjects.isNotEmpty
+                    ? '$firstClass::${subjects.first}'
+                    : firstClass;
+              });
+              await _loadSectionGroupForSelection();
+            }
             return;
           }
 
@@ -386,6 +400,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           // Build subject mapping from cached teacherData
           if (_teacherData != null && _classes.isNotEmpty) {
             _buildSubjectMapping(_teacherData!, _classes);
+            // ✅ Set selectedClass so the Connect-with-Parents card is tappable offline
+            final firstClass = _classes.first;
+            final subjects = _classSubjectMap[firstClass] ?? const <String>[];
+            setState(() {
+              selectedClass = subjects.isNotEmpty
+                  ? '$firstClass::${subjects.first}'
+                  : firstClass;
+            });
+            await _loadSectionGroupForSelection();
           }
 
           return;
@@ -474,6 +497,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           _isOfflineMode = true;
           _isLoading = false;
         });
+        // ✅ Set selectedClass so the Connect-with-Parents card is tappable offline
+        if (safeTeacherData != null && safeClasses.isNotEmpty) {
+          _buildSubjectMapping(safeTeacherData, safeClasses);
+          final firstClass = safeClasses.first;
+          final subjects = _classSubjectMap[firstClass] ?? const <String>[];
+          setState(() {
+            selectedClass = subjects.isNotEmpty
+                ? '$firstClass::${subjects.first}'
+                : firstClass;
+          });
+          await _loadSectionGroupForSelection();
+        }
       } else {
         setState(() {
           _error =
@@ -1315,6 +1350,50 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     return {'className': cls, 'section': sec};
   }
 
+  /// Cache key for the last loaded section group
+  String _sectionGroupCacheKey(
+    String className,
+    String section,
+    String schoolCode,
+  ) => 'section_group_${schoolCode}_${className}_$section';
+
+  /// Save section group to SharedPreferences for offline use
+  Future<void> _cacheSectionGroup(ParentTeacherGroup group) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _sectionGroupCacheKey(group.className, group.section, group.schoolCode),
+        '${group.id}|${group.name}|${group.className}|${group.section}|${group.schoolCode}',
+      );
+    } catch (_) {}
+  }
+
+  /// Load section group from SharedPreferences (offline fallback)
+  Future<ParentTeacherGroup?> _loadCachedSectionGroup(
+    String className,
+    String section,
+    String schoolCode,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(
+        _sectionGroupCacheKey(className, section, schoolCode),
+      );
+      if (raw == null) return null;
+      final parts = raw.split('|');
+      if (parts.length < 5) return null;
+      return ParentTeacherGroup.empty(
+        id: parts[0],
+        name: parts[1],
+        className: parts[2],
+        section: parts[3],
+        schoolCode: parts[4],
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _loadSectionGroupForSelection() async {
     final parsed = _parseClassSection(selectedClass);
     if (parsed == null) return;
@@ -1325,6 +1404,26 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _teacherData?['schoolCode'] ??
         '';
     if (schoolCode.isEmpty) {
+      // ✅ OFFLINE FALLBACK: try loading from cached session
+      final session = await SessionManager.getLoginSession();
+      final cachedSchoolCode = session['schoolId'] as String? ?? '';
+      if (cachedSchoolCode.isNotEmpty) {
+        final cached = await _loadCachedSectionGroup(
+          parsed['className'] ?? '',
+          parsed['section'] ?? '',
+          cachedSchoolCode,
+        );
+        if (cached != null && mounted) {
+          debugPrint(
+            '🔄 Section group loaded from cache (offline): ${cached.id}',
+          );
+          setState(() {
+            _sectionGroup = cached;
+            _isLoadingSectionGroup = false;
+          });
+          return;
+        }
+      }
       setState(() {
         _sectionGroup = null;
         _sectionGroupError = 'Missing school code';
@@ -1332,10 +1431,24 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       return;
     }
 
-    setState(() {
-      _isLoadingSectionGroup = true;
-      _sectionGroupError = null;
-    });
+    // ✅ Try loading from cache immediately for offline-first UX
+    final cachedGroup = await _loadCachedSectionGroup(
+      parsed['className'] ?? '',
+      parsed['section'] ?? '',
+      schoolCode,
+    );
+    if (cachedGroup != null && mounted) {
+      debugPrint('🔄 Section group pre-loaded from cache: ${cachedGroup.id}');
+      setState(() {
+        _sectionGroup = cachedGroup;
+        _isLoadingSectionGroup = false;
+      });
+    } else {
+      setState(() {
+        _isLoadingSectionGroup = true;
+        _sectionGroupError = null;
+      });
+    }
 
     try {
       debugPrint(
@@ -1348,6 +1461,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       );
       if (!mounted) return;
       debugPrint('✅ Section group loaded: ${group.id}');
+      // ✅ Cache for offline use
+      await _cacheSectionGroup(group);
       setState(() {
         _sectionGroup = group;
       });
@@ -1357,9 +1472,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     } catch (e) {
       debugPrint('❌ Failed to load section group: $e');
       if (!mounted) return;
-      setState(() {
-        _sectionGroupError = 'Failed to load section group: $e';
-      });
+      // Only show error if we have no cached group
+      if (_sectionGroup == null) {
+        setState(() {
+          _sectionGroupError = 'Failed to load section group: $e';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {

@@ -304,6 +304,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   bool _isSearching = false;
   StreamSubscription<DocumentSnapshot>? _groupsStreamSubscription;
   Timer? _refreshTimer;
+  String _instituteId = ''; // ✅ Cached offline: used by Staff Room card onTap
 
   @override
   bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
@@ -358,6 +359,21 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         final session = await SessionManager.getLoginSession();
         userId = session['userId'] as String?;
         debugPrint('🔄 Groups: using cached userId from session: $userId');
+      }
+
+      // ✅ Cache instituteId for Staff Room card (works offline)
+      final authInstituteId = authProvider.currentUser?.instituteId ?? '';
+      if (authInstituteId.isNotEmpty) {
+        setState(() => _instituteId = authInstituteId);
+      } else {
+        final session = await SessionManager.getLoginSession();
+        final sessionSchoolId = session['schoolId'] as String? ?? '';
+        if (sessionSchoolId.isNotEmpty && mounted) {
+          setState(() => _instituteId = sessionSchoolId);
+          debugPrint(
+            '🔄 Groups: using cached schoolId for staff room: $sessionSchoolId',
+          );
+        }
       }
 
       if (userId != null && userId.isNotEmpty) {
@@ -867,7 +883,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                 context,
                 listen: false,
               );
-              final instituteId = authProvider.currentUser?.instituteId ?? '';
+              // ✅ Use cached _instituteId so this works offline too
+              final instituteId =
+                  authProvider.currentUser?.instituteId ?? _instituteId;
               final instituteName = 'Institute'; // Generic name for teachers
 
               if (instituteId.isNotEmpty) {

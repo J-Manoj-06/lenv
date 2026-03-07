@@ -288,32 +288,34 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
 
-    if (currentUser != null) {
-      print('🔍 [DEBUG-INIT] Current user: ${currentUser.uid}');
-      print('🔍 [DEBUG-INIT] Institute ID: ${widget.instituteId}');
+    // ✅ OFFLINE FALLBACK: Load cached messages regardless of auth state
+    // SQLite cache is auth-independent; only sync/write operations need auth
+    print('🔍 [DEBUG-INIT] Institute ID: ${widget.instituteId}');
 
+    if (currentUser != null) {
       // Load pending messages from cache (survive navigation during upload)
       print('🔍 [DEBUG-INIT] Loading pending messages from cache...');
       await _loadPendingMessages();
       print(
         '✅ [DEBUG-INIT] Pending messages load complete. Current pending: ${_pendingMessages.length}',
       );
+    }
 
-      // Load from cache first (works offline)
-      final cachedMessages = await _localRepo.getMessagesForChat(
-        widget.instituteId,
-        limit: 50, // Initial load: 50 messages
-      );
+    // Load from cache first (works offline even without auth)
+    final cachedMessages = await _localRepo.getMessagesForChat(
+      widget.instituteId,
+      limit: 50,
+    );
+    print('🔍 [DEBUG-INIT] Cached messages: ${cachedMessages.length}');
 
-      print('🔍 [DEBUG-INIT] Cached messages: ${cachedMessages.length}');
-
+    if (currentUser != null) {
       if (cachedMessages.isEmpty) {
         // No cache: fetch initial batch from Firebase
         print('🔍 [DEBUG-INIT] No cache, fetching from Firebase...');
         await _syncService.initialSyncForChat(
           chatId: widget.instituteId,
           chatType: 'staff_room',
-          limit: 50, // Fetch last 50 messages initially
+          limit: 50,
         );
       } else {
         // Sync new messages in background (if online)
@@ -339,7 +341,13 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         print('✅ [DEBUG-INIT] ✓ Initialization complete');
       }
     } else {
-      print('❌ [DEBUG-INIT] No current user');
+      // Offline: mark ready so UI can show cached messages
+      print(
+        '🔄 [DEBUG-INIT] No auth user - showing ${cachedMessages.length} cached messages offline',
+      );
+      if (mounted) {
+        _isInitialized = true;
+      }
     }
   }
 

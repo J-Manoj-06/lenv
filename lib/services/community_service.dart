@@ -171,7 +171,18 @@ class CommunityService {
             .get(const GetOptions(source: Source.server))
             .timeout(const Duration(seconds: 6));
       } catch (_) {
-        indexDoc = await _firestore.collection('user_communities').doc(userId).get();
+        // Try Firestore local cache first (works offline)
+        try {
+          indexDoc = await _firestore
+              .collection('user_communities')
+              .doc(userId)
+              .get(const GetOptions(source: Source.cache));
+        } catch (_) {
+          indexDoc = await _firestore
+              .collection('user_communities')
+              .doc(userId)
+              .get();
+        }
       }
 
       if (!indexDoc.exists || indexDoc.data() == null) {
@@ -237,10 +248,18 @@ class CommunityService {
               .timeout(const Duration(seconds: 4));
         } catch (_) {
           try {
-            // Fallback to default source (cache/server)
-            doc = await _firestore.collection('communities').doc(id).get();
+            // Try Firestore local cache (works offline)
+            doc = await _firestore
+                .collection('communities')
+                .doc(id)
+                .get(const GetOptions(source: Source.cache));
           } catch (_) {
-            doc = null;
+            try {
+              // Last resort: default source
+              doc = await _firestore.collection('communities').doc(id).get();
+            } catch (_) {
+              doc = null;
+            }
           }
         }
         if (doc != null && doc.exists) {
@@ -269,11 +288,25 @@ class CommunityService {
   Future<List<CommunityModel>> _getMyCommFallback(String userId) async {
     try {
       // Query members subcollection across all communities
-      final memberQuery = await _firestore
-          .collectionGroup('members')
-          .where('userId', isEqualTo: userId)
-          .where('status', isEqualTo: 'active')
-          .get();
+      // Try server first, fall back to Firestore local cache for offline support.
+      QuerySnapshot<Map<String, dynamic>> memberQuery;
+      try {
+        memberQuery = await _firestore
+            .collectionGroup('members')
+            .where('userId', isEqualTo: userId)
+            .where('status', isEqualTo: 'active')
+            .get();
+      } catch (_) {
+        try {
+          memberQuery = await _firestore
+              .collectionGroup('members')
+              .where('userId', isEqualTo: userId)
+              .where('status', isEqualTo: 'active')
+              .get(const GetOptions(source: Source.cache));
+        } catch (_) {
+          return [];
+        }
+      }
 
       if (memberQuery.docs.isEmpty) {
         return [];
@@ -288,8 +321,20 @@ class CommunityService {
       // Fetch community details
       final communities = <CommunityModel>[];
       for (final id in communityIds) {
-        final doc = await _firestore.collection('communities').doc(id).get();
-        if (doc.exists) {
+        DocumentSnapshot<Map<String, dynamic>>? doc;
+        try {
+          doc = await _firestore.collection('communities').doc(id).get();
+        } catch (_) {
+          try {
+            doc = await _firestore
+                .collection('communities')
+                .doc(id)
+                .get(const GetOptions(source: Source.cache));
+          } catch (_) {
+            doc = null;
+          }
+        }
+        if (doc != null && doc.exists) {
           communities.add(CommunityModel.fromFirestore(doc));
         }
       }
