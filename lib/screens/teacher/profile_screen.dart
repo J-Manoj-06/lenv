@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/session_manager.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/offline_cache_manager.dart';
 import '../../services/teacher_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -51,23 +52,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.initializeAuth();
-      final user = authProvider.currentUser;
-      // ignore: avoid_print
-
-      if (user == null) {
-        setState(() {
-          _error = 'No user logged in';
-          _isLoading = false;
-        });
-        return;
-      }
+      var user = authProvider.currentUser;
 
       // Fetch teacher document by email
       final teacherService = TeacherService();
-      final teacherData = await teacherService.getTeacherByEmail(user.email);
+      Map<String, dynamic>? teacherData;
+
+      if (user != null) {
+        teacherData = await teacherService.getTeacherByEmail(user.email);
+      }
+
+      // Fallback to offline Hive cache when network is unavailable or user is null
+      if (teacherData == null) {
+        teacherData = await _loadTeacherDataFromHiveCache(user?.uid ?? '');
+      }
+
       if (teacherData == null) {
         setState(() {
-          _error = 'Teacher profile not found';
+          _error = user == null
+              ? 'No user logged in'
+              : 'Teacher profile not found';
           _isLoading = false;
         });
         return;
@@ -85,7 +89,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         _teacherData = teacherData;
         _classesManaged = classesManaged;
-        _currentUserId = user.uid;
+        _currentUserId = user?.uid ?? (teacherData!['uid'])?.toString() ?? '';
         _isLoading = false;
       });
     } catch (e) {
@@ -95,6 +99,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// Load teacher data from the Hive cache populated by the dashboard
+  Future<Map<String, dynamic>?> _loadTeacherDataFromHiveCache(
+    String userId,
+  ) async {
+    try {
+      final cacheManager = OfflineCacheManager();
+      await cacheManager.initialize();
+      Map<String, dynamic>? cached;
+      if (userId.isNotEmpty) {
+        cached = cacheManager.getCachedDashboard(
+          userId: userId,
+          role: 'teacher',
+        );
+      }
+      cached ??= cacheManager.getLastCachedTeacherDashboard();
+      if (cached != null) {
+        final rawTeacherData = cached['teacherData'];
+        if (rawTeacherData is Map) {
+          return Map<String, dynamic>.from(rawTeacherData);
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override
@@ -858,7 +887,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await SessionManager.clearLoginSession();
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/role-selection');
-
       }
     } catch (e) {
       if (mounted) {

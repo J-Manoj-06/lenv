@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/offline_cache_manager.dart';
 import '../../services/teacher_service.dart';
 import 'export_attendance_page.dart';
 
@@ -35,30 +36,35 @@ class _ClassesScreenState extends State<ClassesScreen> {
   Future<void> _loadTeacherData() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
+      var currentUser = authProvider.currentUser;
 
+      // If user is null, retry auth initialization once
       if (currentUser == null) {
-        // If auth still not ready show loading instead of error
-        if (!authProvider.isInitialized) {
-          setState(() {
-            _error = null;
-          });
-          return;
-        }
-        setState(() {
-          _error = 'No user logged in';
-        });
-        return;
+        await authProvider.initializeAuth();
+        currentUser = authProvider.currentUser;
       }
 
-      // Fetch teacher data
-      final teacherData = await _teacherService.getTeacherByEmail(
-        currentUser.email,
-      );
+      // Try Hive cache first when offline (user may be null or teacher fetch may fail)
+      Map<String, dynamic>? teacherData;
+
+      if (currentUser != null) {
+        teacherData = await _teacherService.getTeacherByEmail(
+          currentUser.email,
+        );
+      }
+
+      // Fallback to offline Hive cache when network is unavailable or user is null
+      if (teacherData == null) {
+        teacherData = await _loadTeacherDataFromHiveCache(
+          currentUser?.uid ?? '',
+        );
+      }
 
       if (teacherData == null) {
         setState(() {
-          _error = 'Teacher data not found';
+          _error = currentUser == null
+              ? 'No user logged in'
+              : 'Teacher data not found';
         });
         return;
       }
@@ -84,6 +90,31 @@ class _ClassesScreenState extends State<ClassesScreen> {
         _error = 'Failed to load teacher data: $e';
       });
     }
+  }
+
+  /// Load teacher data from the Hive cache populated by the dashboard
+  Future<Map<String, dynamic>?> _loadTeacherDataFromHiveCache(
+    String userId,
+  ) async {
+    try {
+      final cacheManager = OfflineCacheManager();
+      await cacheManager.initialize();
+      Map<String, dynamic>? cached;
+      if (userId.isNotEmpty) {
+        cached = cacheManager.getCachedDashboard(
+          userId: userId,
+          role: 'teacher',
+        );
+      }
+      cached ??= cacheManager.getLastCachedTeacherDashboard();
+      if (cached != null) {
+        final rawTeacherData = cached['teacherData'];
+        if (rawTeacherData is Map) {
+          return Map<String, dynamic>.from(rawTeacherData);
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   // Get gradient colors based on section
