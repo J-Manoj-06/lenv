@@ -157,6 +157,26 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Force re-fetch the current user, bypassing the _initialized guard.
+  /// Useful when the user object is null despite a valid Firebase session.
+  Future<void> forceRefreshUser() async {
+    try {
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser != null) {
+        try {
+          _currentUser = await _authService.getUserData(firebaseUser.uid);
+          if (_currentUser != null) await _cacheUserData(_currentUser!);
+        } catch (_) {
+          _currentUser ??= await _loadCachedUserData();
+        }
+      } else {
+        _currentUser ??= await _loadCachedUserData();
+      }
+      _initialized = true;
+      _safeNotifyListeners();
+    } catch (_) {}
+  }
+
   // Sign in
   Future<bool> signIn(String email, String password) async {
     _isLoading = true;

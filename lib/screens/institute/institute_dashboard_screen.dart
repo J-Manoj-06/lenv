@@ -17,6 +17,7 @@ import '../../services/attendance_service.dart';
 import '../../services/institute_announcement_cleanup_service.dart';
 import '../../services/network_service.dart';
 import '../../services/offline_cache_manager.dart';
+import '../../services/pending_announcement_service.dart';
 import '../../widgets/attendance_speedometer_gauge.dart';
 
 class InstituteDashboardScreen extends StatefulWidget {
@@ -43,6 +44,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Flush any announcements queued while offline
+    PendingAnnouncementService().startProcessing();
     _loadViewedAnnouncements();
     _initSchoolCode();
     _checkConnectivity();

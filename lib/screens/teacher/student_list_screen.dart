@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../utils/session_manager.dart';
 
 class StudentListScreen extends StatefulWidget {
   final String className;
@@ -64,20 +67,43 @@ class _StudentListScreenState extends State<StudentListScreen> {
       });
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
+      var currentUser = authProvider.currentUser;
+      // Retry auth init if user is null (offline)
       if (currentUser == null) {
+        await authProvider.initializeAuth();
+        currentUser = authProvider.currentUser;
+      }
+
+      String? schoolId = currentUser?.instituteId;
+
+      // Try network fetch first
+      List<Map<String, dynamic>>? students;
+      if (currentUser != null) {
+        try {
+          students = await _teacherService.getStudentsByTeacher(
+            schoolId ?? '',
+            [_classNameForQuery],
+            _sectionForQuery,
+          );
+        } catch (_) {
+          students = null;
+        }
+      }
+
+      // Fallback: try leaderboard prefs cache filtered by class/section
+      if (students == null || students.isEmpty) {
+        students = await _loadStudentsFromCache();
+      }
+
+      if (students == null) {
         setState(() {
-          _error = 'No user logged in';
+          _error = currentUser == null
+              ? 'No user logged in'
+              : 'Failed to load students';
           _isLoading = false;
         });
         return;
       }
-
-      // We only need school id and to pass a single class (e.g., ["Grade 4"]) and a single section (e.g., "A")
-      final schoolId = currentUser.instituteId ?? '';
-      final students = await _teacherService.getStudentsByTeacher(schoolId, [
-        _classNameForQuery,
-      ], _sectionForQuery);
 
       // Drop any records without a usable name/id to avoid blank tiles in the list
       final sanitized = students.where((s) {
@@ -107,12 +133,43 @@ class _StudentListScreenState extends State<StudentListScreen> {
       });
 
       // Calculate attendance for each student in the background
-      _calculateAttendanceForStudents(schoolId);
+      _calculateAttendanceForStudents(schoolId ?? '');
     } catch (e) {
       setState(() {
         _error = 'Failed to load students: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  /// Load students from leaderboard prefs cache, filtered by class/section
+  Future<List<Map<String, dynamic>>?> _loadStudentsFromCache() async {
+    try {
+      final session = await SessionManager.getLoginSession();
+      final userId = session['userId'] as String? ?? '';
+      if (userId.isEmpty) return null;
+
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('leaderboard_data_$userId');
+      if (raw == null || raw.isEmpty) return null;
+
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final allStudents = (data['students'] as List<dynamic>? ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      // Filter to only students in this class/section
+      final filtered = allStudents.where((s) {
+        final cn = (s['className'] ?? '').toString();
+        final sec = (s['section'] ?? '').toString().trim().toUpperCase();
+        return cn == _classNameForQuery &&
+            sec == _sectionForQuery.trim().toUpperCase();
+      }).toList();
+
+      // If no exact match, return all (teacher might only teach one class)
+      return filtered.isNotEmpty ? filtered : allStudents;
+    } catch (_) {
+      return null;
     }
   }
 

@@ -80,10 +80,9 @@ class TeacherService {
     dynamic sections, {
     List<dynamic>? classAssignments,
   }) async {
+    // Create cache key from parameters
+    final cacheKey = '$schoolId-$classesHandled-$sections-$classAssignments';
     try {
-      // Create cache key from parameters
-      final cacheKey = '$schoolId-$classesHandled-$sections-$classAssignments';
-
       // Check cache first
       final now = DateTime.now();
       if (_studentsCache.containsKey(cacheKey) &&
@@ -179,6 +178,9 @@ class TeacherService {
 
       return allStudents;
     } catch (e) {
+      // Return in-memory cache on network error
+      if (_studentsCache.containsKey(cacheKey))
+        return _studentsCache[cacheKey]!;
       return [];
     }
   }
@@ -505,6 +507,11 @@ class TeacherService {
             return allStudents;
           });
     } catch (e) {
+      // Return cached students as a one-shot stream on network error
+      final cacheKey = '$schoolId-$classesHandled-$sections-$classAssignments';
+      if (_studentsCache.containsKey(cacheKey)) {
+        return Stream.value(_studentsCache[cacheKey]!);
+      }
       return Stream.value([]);
     }
   }

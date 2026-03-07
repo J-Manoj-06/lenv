@@ -1,11 +1,12 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart' as prov;
 import '../../providers/auth_provider.dart' as auth;
 import '../../models/institute_announcement_model.dart';
 import '../../services/cloudflare_r2_service.dart';
+import '../../services/connectivity_service.dart';
+import '../../services/pending_announcement_service.dart';
 import '../../config/cloudflare_config.dart';
 
 const _bg = Color(0xFF0F1416);
@@ -80,6 +81,8 @@ class _InstituteAnnouncementComposeScreenState
     });
   }
 
+  /// WhatsApp-style: upload images (if any), queue to local storage,
+  /// navigate away immediately, then flush in background.
   Future<void> _postAnnouncement() async {
     if (_posting) return;
 
@@ -94,55 +97,58 @@ class _InstituteAnnouncementComposeScreenState
     setState(() => _posting = true);
 
     try {
+      // ── 1. Resolve current user ──────────────────────────────────────────
       final authProvider = prov.Provider.of<auth.AuthProvider>(
         context,
         listen: false,
       );
+      await authProvider.forceRefreshUser();
       final currentUser = authProvider.currentUser;
-      if (currentUser == null) throw 'User not logged in';
+      if (currentUser == null) throw 'Unable to get user. Please try again.';
 
-      // Initialize Cloudflare R2 Service
-      final r2Service = CloudflareR2Service(
-        accountId: CloudflareConfig.accountId,
-        bucketName: CloudflareConfig.bucketName,
-        accessKeyId: CloudflareConfig.accessKeyId,
-        secretAccessKey: CloudflareConfig.secretAccessKey,
-        r2Domain: CloudflareConfig.r2Domain,
-      );
-
-      // Upload all images and collect their URLs with captions
+      // ── 2. Upload images if online ────────────────────────────────────────
       List<Map<String, String>> imageCaptions = [];
 
-      for (int i = 0; i < _imageItems.length; i++) {
-        final item = _imageItems[i];
-        final imageBytes = item['imageBytes'] as Uint8List;
-        final captionController =
-            item['captionController'] as TextEditingController;
-        final caption = captionController.text.trim();
-
-        final fileName =
-            'announcement_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-
-        // Generate signed URL
-        final signedData = await r2Service.generateSignedUploadUrl(
-          fileName: 'announcements/$fileName',
-          fileType: 'image/jpeg',
+      if (_imageItems.isNotEmpty && ConnectivityService().isOnline) {
+        final r2Service = CloudflareR2Service(
+          accountId: CloudflareConfig.accountId,
+          bucketName: CloudflareConfig.bucketName,
+          accessKeyId: CloudflareConfig.accessKeyId,
+          secretAccessKey: CloudflareConfig.secretAccessKey,
+          r2Domain: CloudflareConfig.r2Domain,
         );
 
-        // Upload file
-        final imageUrl = await r2Service.uploadFileWithSignedUrl(
-          fileBytes: imageBytes,
-          signedUrl: signedData['url'],
-          contentType: 'image/jpeg',
-        );
+        for (int i = 0; i < _imageItems.length; i++) {
+          final item = _imageItems[i];
+          final imageBytes = item['imageBytes'] as Uint8List;
+          final caption = (item['captionController'] as TextEditingController)
+              .text
+              .trim();
 
-        imageCaptions.add({'url': imageUrl, 'caption': caption});
+          final fileName =
+              'announcement_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+
+          final signedData = await r2Service.generateSignedUploadUrl(
+            fileName: 'announcements/$fileName',
+            fileType: 'image/jpeg',
+          );
+
+          final imageUrl = await r2Service.uploadFileWithSignedUrl(
+            fileBytes: imageBytes,
+            signedUrl: signedData['url'],
+            contentType: 'image/jpeg',
+          );
+
+          imageCaptions.add({'url': imageUrl, 'caption': caption});
+        }
       }
 
+      // ── 3. Build payload ──────────────────────────────────────────────────
       final now = DateTime.now();
       final expiresAt = now.add(const Duration(hours: 24));
 
-      final announcement = InstituteAnnouncementModel(
+      // Build from model to get consistent field names, then patch for queue.
+      final model = InstituteAnnouncementModel(
         id: '',
         principalId: currentUser.uid,
         principalName: currentUser.name,
@@ -156,56 +162,39 @@ class _InstituteAnnouncementComposeScreenState
         standards: widget.standards,
       );
 
-      // Add document to Firestore
-      final docRef = await FirebaseFirestore.instance
-          .collection('institute_announcements')
-          .add(announcement.toFirestore());
+      final data = model.toFirestore();
+      // Replace Timestamp with ISO string (SharedPrefs can't store Timestamps)
+      data['expiresAt'] = expiresAt.toIso8601String();
+      data.remove('createdAt'); // will be set to serverTimestamp on flush
+      data['_collection'] = 'institute_announcements';
+      data['_createViewsPlaceholder'] = true;
 
-      // Initialize empty views subcollection (will be populated when users view)
-      await docRef.collection('views').doc('_placeholder').set({
-        'placeholder': true,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      // Delete the placeholder immediately
-      await docRef.collection('views').doc('_placeholder').delete();
+      // ── 4. Queue locally ─────────────────────────────────────────────────
+      await PendingAnnouncementService().enqueue(data);
 
+      // ── 5. Navigate away immediately (WhatsApp-style) ────────────────────
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Announcement posted successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        String errorMsg = 'Error posting announcement';
-        if (e.toString().contains('object-not-found') ||
-            e.toString().contains('404')) {
-          errorMsg =
-              'Storage bucket not initialized. Please enable Firebase Storage in console.';
-        } else if (e.toString().contains('permission-denied') ||
-            e.toString().contains('403')) {
-          errorMsg =
-              'Permission denied. Check Storage rules in Firebase Console.';
-        } else if (e.toString().contains('unauthorized')) {
-          errorMsg =
-              'User not authorized. Please check your account permissions.';
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$errorMsg\n\nDetails: $e'),
-            duration: const Duration(seconds: 8),
-            action: SnackBarAction(
-              label: 'Copy Error',
-              onPressed: () {
-                // Copy error to clipboard for debugging
-              },
-            ),
+          const SnackBar(
+            content: Text('Sending announcement…'),
+            duration: Duration(seconds: 2),
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _posting = false);
+
+      // ── 6. Flush in background ────────────────────────────────────────────
+      PendingAnnouncementService().startProcessing();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _posting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error posting announcement: $e'),
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     }
   }
 
@@ -595,52 +584,6 @@ class _AddMoreImagesButton extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.imageBytes, required this.onRemove});
-
-  final Uint8List imageBytes;
-  final VoidCallback onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _muted.withOpacity(0.4)),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white70),
-            onPressed: onRemove,
-          ),
-          const SizedBox(height: 8),
-          Container(
-            height: 200,
-            decoration: BoxDecoration(
-              color: _bg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            alignment: Alignment.center,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.memory(
-                imageBytes,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

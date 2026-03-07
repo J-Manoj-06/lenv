@@ -197,27 +197,12 @@ class _ClassesScreenState extends State<ClassesScreen> {
                 classAssignments: _teacherData?['classAssignments'],
               ),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(height: 16),
-                        Text('Error: ${snapshot.error}'),
-                      ],
-                    ),
-                  );
-                }
-
+                // On error, show cached data silently instead of showing error UI
                 final allStudents = snapshot.data ?? [];
                 final classes = _buildClassItems(allStudents);
 

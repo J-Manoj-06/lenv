@@ -1,10 +1,11 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
+import '../../services/connectivity_service.dart';
+import '../../services/pending_announcement_service.dart';
 import '../../config/cloudflare_config.dart';
 
 const _bg = Color(0xFF120F23);
@@ -95,12 +96,13 @@ class _TeacherAnnouncementComposeScreenState
     });
   }
 
+  /// WhatsApp-style: upload images (if any), queue to local storage,
+  /// navigate away immediately, then flush in background.
   Future<void> _postAnnouncement() async {
     if (_posting) return;
 
     final messageText = _controller.text.trim();
 
-    // Validate text length
     if (messageText.length > 1000) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -121,96 +123,95 @@ class _TeacherAnnouncementComposeScreenState
     setState(() => _posting = true);
 
     try {
+      // ── 1. Resolve current user ──────────────────────────────────────────
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.forceRefreshUser();
       final currentUser = authProvider.currentUser;
-      if (currentUser == null) throw 'User not logged in';
+      if (currentUser == null) throw 'Unable to get user. Please try again.';
 
-      // Initialize Cloudflare R2 Service
-      final r2Service = CloudflareR2Service(
-        accountId: CloudflareConfig.accountId,
-        bucketName: CloudflareConfig.bucketName,
-        accessKeyId: CloudflareConfig.accessKeyId,
-        secretAccessKey: CloudflareConfig.secretAccessKey,
-        r2Domain: CloudflareConfig.r2Domain,
-      );
-
-      // Upload all images with captions
+      // ── 2. Upload images now if we are online ────────────────────────────
+      //      If offline, we skip images (announce text-only in queue).
       List<Map<String, String>> imageCaptions = [];
 
-      for (int i = 0; i < _imageItems.length; i++) {
-        final item = _imageItems[i];
-        final imageBytes = item['imageBytes'] as Uint8List;
-        final captionController =
-            item['captionController'] as TextEditingController;
-        final caption = captionController.text.trim();
-
-        final fileName =
-            'highlight_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-
-        // Generate signed URL
-        final signedData = await r2Service.generateSignedUploadUrl(
-          fileName: 'class_highlights/$fileName',
-          fileType: 'image/jpeg',
+      if (_imageItems.isNotEmpty && ConnectivityService().isOnline) {
+        final r2Service = CloudflareR2Service(
+          accountId: CloudflareConfig.accountId,
+          bucketName: CloudflareConfig.bucketName,
+          accessKeyId: CloudflareConfig.accessKeyId,
+          secretAccessKey: CloudflareConfig.secretAccessKey,
+          r2Domain: CloudflareConfig.r2Domain,
         );
 
-        // Upload file
-        final imageUrl = await r2Service.uploadFileWithSignedUrl(
-          fileBytes: imageBytes,
-          signedUrl: signedData['url'],
-          contentType: 'image/jpeg',
-        );
+        for (int i = 0; i < _imageItems.length; i++) {
+          final item = _imageItems[i];
+          final imageBytes = item['imageBytes'] as Uint8List;
+          final caption = (item['captionController'] as TextEditingController)
+              .text
+              .trim();
 
-        imageCaptions.add({'url': imageUrl, 'caption': caption});
+          final fileName =
+              'highlight_${currentUser.uid}_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+
+          final signedData = await r2Service.generateSignedUploadUrl(
+            fileName: 'class_highlights/$fileName',
+            fileType: 'image/jpeg',
+          );
+
+          final imageUrl = await r2Service.uploadFileWithSignedUrl(
+            fileBytes: imageBytes,
+            signedUrl: signedData['url'],
+            contentType: 'image/jpeg',
+          );
+
+          imageCaptions.add({'url': imageUrl, 'caption': caption});
+        }
       }
 
+      // ── 3. Build Firestore payload ────────────────────────────────────────
       final now = DateTime.now();
       final expiresAt = now.add(const Duration(hours: 24));
       final instituteId =
           currentUser.instituteId ?? widget.teacherData?['schoolCode'] ?? '';
 
       final data = <String, dynamic>{
+        '_collection': 'class_highlights',
         'teacherId': currentUser.uid,
         'teacherName':
             widget.teacherData?['teacherName'] ?? currentUser.name ?? 'Teacher',
         'teacherEmail': currentUser.email,
         'instituteId': instituteId,
-        'className': 'School-wide', // Can be more specific if needed
+        'className': 'School-wide',
         'text': messageText,
-        'imageUrl': imageCaptions.isNotEmpty
-            ? imageCaptions[0]['url']
-            : '', // Legacy support
-        'imageCaptions': imageCaptions, // New multi-image support
-        'createdAt': FieldValue.serverTimestamp(),
-        'expiresAt': Timestamp.fromDate(expiresAt),
-        // Audience targeting
+        'imageUrl': imageCaptions.isNotEmpty ? imageCaptions[0]['url'] : '',
+        'imageCaptions': imageCaptions,
+        // createdAt is set by PendingAnnouncementService to FieldValue.serverTimestamp()
+        'expiresAt': expiresAt.toIso8601String(),
         'audienceType': widget.audienceType,
         'standards': widget.standards,
         'sections': widget.sections,
-        // Viewing tracking
-        'viewedBy': [], // Initialize empty array
+        'viewedBy': [],
       };
 
-      // Debug: Check what's being stored
-      print('📝 Posting announcement:');
-      print('   Text length: ${messageText.length}');
-      print(
-        '   Text content: ${messageText.substring(0, messageText.length > 50 ? 50 : messageText.length)}...',
-      );
+      // ── 4. Queue locally ─────────────────────────────────────────────────
+      await PendingAnnouncementService().enqueue(data);
 
-      await FirebaseFirestore.instance.collection('class_highlights').add(data);
-
+      // ── 5. Navigate away immediately (WhatsApp-style) ────────────────────
       if (mounted) {
-        Navigator.pop(context); // Close compose screen
-        Navigator.pop(context); // Close target screen
+        Navigator.pop(context);
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Announcement posted for 24 hours.'),
-            backgroundColor: Colors.green,
+            content: Text('Sending announcement…'),
+            duration: Duration(seconds: 2),
           ),
         );
       }
+
+      // ── 6. Flush in background ────────────────────────────────────────────
+      PendingAnnouncementService().startProcessing();
     } catch (e) {
       if (mounted) {
+        setState(() => _posting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error posting announcement: $e'),
@@ -218,8 +219,6 @@ class _TeacherAnnouncementComposeScreenState
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _posting = false);
     }
   }
 

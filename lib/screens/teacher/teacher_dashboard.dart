@@ -20,6 +20,7 @@ import '../common/announcement_pageview_screen.dart';
 import '../../services/media_repository.dart';
 import '../../services/network_service.dart';
 import '../../services/offline_cache_manager.dart';
+import '../../services/pending_announcement_service.dart';
 import '../../utils/session_manager.dart';
 import 'teacher_announcement_target_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -158,6 +159,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Flush any announcements queued while offline
+    PendingAnnouncementService().startProcessing();
     // Check connectivity first
     _checkConnectivity();
     // ✅ NEW: Ensure auth is initialized before loading data
