@@ -772,7 +772,13 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      if (currentUser == null) return;
+      if (currentUser == null) {
+        // ✅ OFFLINE FALLBACK: assign a static stream so the late field is always initialized
+        _lastReadAtStream = Stream.value(
+          Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
+        );
+        return;
+      }
       final chatId = '${widget.classId}|${widget.subjectId}';
 
       _lastReadAtStream = FirebaseFirestore.instance

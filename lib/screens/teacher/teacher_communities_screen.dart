@@ -63,7 +63,14 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
 
     if (userId.isEmpty) return;
 
+    // Ensure Hive boxes are open before reading
+    await _offlineService.initialize();
+
+    debugPrint('🔍 [COMMUNITIES] Looking up cache for userId: $userId');
     final cachedData = _offlineService.getCachedTeacherCommunities(userId);
+    debugPrint(
+      '🔍 [COMMUNITIES] Cache result: ${cachedData == null ? 'NULL' : '${cachedData.length} items'}',
+    );
     if (cachedData != null && cachedData.isNotEmpty) {
       if (mounted) {
         setState(() {
