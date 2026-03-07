@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
+import '../../utils/session_manager.dart';
 
 class TestsScreen extends StatefulWidget {
   const TestsScreen({super.key});
@@ -18,6 +19,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   int _selectedTabIndex = 0;
   String _selectedClassFilter = 'All Classes';
   bool _initialLoadDone = false; // ensure we wait for auth user
+  bool _offlineFallbackDone = false; // prevent double offline load
   // Migration flag removed (website now writes correct studentId values).
   Timer? _ticker; // drives live countdown and status transitions
   Timer? _tabSwitchDebounce; // debounce rapid tab switching
@@ -32,16 +34,35 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Attempt loading once auth provider has a user
     final auth = Provider.of<AuthProvider>(context);
     final user = auth.currentUser;
+
     if (!_initialLoadDone && user != null) {
       _initialLoadDone = true;
+      _offlineFallbackDone = true; // cancel any pending offline attempt
       Provider.of<TestProvider>(
         context,
         listen: false,
       ).loadTestsByTeacher(user.uid);
+      return;
     }
+
+    // ✅ OFFLINE FALLBACK: user is null (auth not yet resolved) → load from prefs cache
+    if (!_offlineFallbackDone && !_initialLoadDone && auth.isInitialized) {
+      _offlineFallbackDone = true;
+      _loadTestsFromCacheOffline();
+    }
+  }
+
+  Future<void> _loadTestsFromCacheOffline() async {
+    final session = await SessionManager.getLoginSession();
+    final userId = session['userId'] as String? ?? '';
+    if (userId.isEmpty) return;
+    debugPrint('🔄 [TESTS] Offline: loading from prefs cache for $userId');
+    await Provider.of<TestProvider>(
+      context,
+      listen: false,
+    ).loadTestsFromCache(userId);
   }
 
   @override

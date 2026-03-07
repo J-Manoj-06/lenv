@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../utils/session_manager.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/rewards/services/rewards_repository.dart';
 
@@ -28,6 +31,67 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     _initAndLoad();
   }
 
+  // ── Prefs cache helpers ─────────────────────────────────────────────────────────
+  static String _prefKey(String userId) => 'leaderboard_data_$userId';
+
+  Future<bool> _loadFromCache(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_prefKey(userId));
+      if (raw == null || raw.isEmpty) return false;
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final classes = List<String>.from(data['classes'] ?? []);
+      final students = (data['students'] as List<dynamic>)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      if (classes.isEmpty && students.isEmpty) return false;
+      if (mounted) {
+        setState(() {
+          _classes = classes;
+          _students = students;
+          _selectedClass = classes.isNotEmpty ? classes[0] : null;
+          _isLoading = false;
+          _error = null;
+        });
+      }
+      debugPrint(
+        '💾 [LEADERBOARD] Loaded ${students.length} students from cache',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('⚠️ [LEADERBOARD] Cache read error: $e');
+      return false;
+    }
+  }
+
+  Future<void> _saveToCache(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Students may contain non-serialisable values; keep only safe keys
+      final safeStudents = _students.map((s) {
+        return Map<String, dynamic>.from(s)..removeWhere(
+          (k, v) =>
+              v != null &&
+              v is! String &&
+              v is! num &&
+              v is! bool &&
+              v is! List<dynamic> &&
+              v is! Map<String, dynamic>,
+        );
+      }).toList();
+      await prefs.setString(
+        _prefKey(userId),
+        jsonEncode({'classes': _classes, 'students': safeStudents}),
+      );
+      debugPrint(
+        '💾 [LEADERBOARD] Saved ${_students.length} students to cache',
+      );
+    } catch (e) {
+      debugPrint('⚠️ [LEADERBOARD] Cache write error: $e');
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   Future<void> _initAndLoad() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     await authProvider.ensureInitialized();
@@ -43,21 +107,23 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
-      final email = currentUser?.email;
+      String? email = currentUser?.email;
 
       if (email == null) {
-        // Avoid showing error until auth fully initialized
-        if (!authProvider.isInitialized) {
-          setState(() {
-            _isLoading = true;
-            _error = null;
-          });
-          return;
+        // ✅ OFFLINE FALLBACK: load from prefs cache using cached userId
+        final session = await SessionManager.getLoginSession();
+        final userId = session['userId'] as String? ?? '';
+        if (userId.isNotEmpty) {
+          final loaded = await _loadFromCache(userId);
+          if (loaded) return;
         }
-        setState(() {
-          _error = 'No user logged in';
-          _isLoading = false;
-        });
+        // Cache miss or no session — show empty
+        if (mounted) {
+          setState(() {
+            _error = authProvider.isInitialized ? null : null; // silently empty
+            _isLoading = false;
+          });
+        }
         return;
       }
 
@@ -161,6 +227,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         _selectedClass = classes.isNotEmpty ? classes[0] : null;
         _isLoading = false;
       });
+
+      // ✅ Persist to prefs cache for offline access
+      final userId = currentUser?.uid ?? '';
+      if (userId.isNotEmpty) {
+        await _saveToCache(userId);
+      }
     } catch (e) {
       setState(() {
         _error = 'Failed to load data: $e';

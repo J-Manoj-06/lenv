@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/test_model.dart';
 import '../services/firestore_service.dart';
 
@@ -139,6 +141,101 @@ class TestProvider with ChangeNotifier {
     }
   }
 
+  // ── Offline cache helpers ─────────────────────────────────────────────────────────────────
+  static String _testsPrefKey(String teacherId) => 'teacher_tests_$teacherId';
+
+  /// Convert a TestModel to a JSON-safe map (ISO strings instead of Timestamps)
+  static Map<String, dynamic> _testToCacheJson(TestModel t) => {
+    'id': t.id,
+    'title': t.title,
+    'description': t.description,
+    'teacherId': t.teacherId,
+    'teacherName': t.teacherName,
+    'instituteId': t.instituteId,
+    'subject': t.subject,
+    'className': t.className,
+    'section': t.section,
+    'questions': t.questions.map((q) => q.toJson()).toList(),
+    'totalPoints': t.totalPoints,
+    'duration': t.duration,
+    'startDate': t.startDate.toIso8601String(),
+    'endDate': t.endDate.toIso8601String(),
+    'status': t.status.toString().split('.').last,
+    'assignedStudentIds': t.assignedStudentIds,
+    'createdAt': t.createdAt.toIso8601String(),
+    'updatedAt': t.updatedAt?.toIso8601String(),
+    'resultsPublished': t.resultsPublished,
+    'publishedAt': t.publishedAt?.toIso8601String(),
+  };
+
+  /// Restore a TestModel from a JSON-safe cache map
+  static TestModel _testFromCacheJson(Map<String, dynamic> j) => TestModel(
+    id: j['id'] ?? '',
+    title: j['title'] ?? '',
+    description: j['description'] ?? '',
+    teacherId: j['teacherId'] ?? '',
+    teacherName: j['teacherName'] ?? '',
+    instituteId: j['instituteId'] ?? '',
+    subject: j['subject'] ?? '',
+    className: j['className'],
+    section: j['section'],
+    questions: j['questions'] != null
+        ? (j['questions'] as List).map((q) {
+            final qMap = Map<String, dynamic>.from(q as Map);
+            // questions stored with Timestamps from stream - re-wrap safely
+            return Question.fromJson(qMap);
+          }).toList()
+        : [],
+    totalPoints: j['totalPoints'] ?? 0,
+    duration: j['duration'] ?? 60,
+    startDate: DateTime.parse(j['startDate']),
+    endDate: DateTime.parse(j['endDate']),
+    status: TestStatus.values.firstWhere(
+      (e) => e.toString().split('.').last == j['status'],
+      orElse: () => TestStatus.draft,
+    ),
+    assignedStudentIds: j['assignedStudentIds'] != null
+        ? List<String>.from(j['assignedStudentIds'])
+        : [],
+    createdAt: DateTime.parse(j['createdAt']),
+    updatedAt: j['updatedAt'] != null ? DateTime.parse(j['updatedAt']) : null,
+    resultsPublished: j['resultsPublished'] ?? false,
+    publishedAt: j['publishedAt'] != null
+        ? DateTime.parse(j['publishedAt'])
+        : null,
+  );
+
+  /// Save tests to SharedPreferences (fire-and-forget)
+  static void _cacheTests(String teacherId, List<TestModel> tests) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(tests.map(_testToCacheJson).toList());
+      await prefs.setString(_testsPrefKey(teacherId), encoded);
+    } catch (_) {}
+  }
+
+  /// Load tests from SharedPreferences cache into provider state
+  Future<void> loadTestsFromCache(String teacherId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_testsPrefKey(teacherId));
+      if (raw == null || raw.isEmpty) return;
+      final list = jsonDecode(raw) as List<dynamic>;
+      final tests = list
+          .map((e) => _testFromCacheJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      _currentTeacherId = teacherId;
+      _teacherTests[teacherId] = tests;
+      _loadingStates['teacher_$teacherId'] = false;
+      _errorStates['teacher_$teacherId'] = null;
+      _safeNotifyListeners();
+      debugPrint('💾 [TESTS] Loaded ${tests.length} tests from prefs cache');
+    } catch (e) {
+      debugPrint('⚠️ [TESTS] Cache read error: $e');
+    }
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   // Load tests by teacher (initial + any subsequent reloads)
   void loadTestsByTeacher(String teacherId) {
     final subKey = teacherId;
@@ -157,6 +254,8 @@ class TestProvider with ChangeNotifier {
             _teacherTests[teacherId] = tests;
             _loadingStates['teacher_$teacherId'] = false;
             _errorStates['teacher_$teacherId'] = null;
+            // ✅ Persist to prefs cache on every live update
+            _cacheTests(teacherId, tests);
             _safeNotifyListeners();
           },
           onError: (error) {

@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 import '../../services/messaging_service.dart';
+import '../../utils/session_manager.dart';
 import 'package:intl/intl.dart';
 import '../../services/whatsapp_chat_service.dart';
 
@@ -27,12 +30,61 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool _isSaving = false;
   bool _isSubmitted = false;
   bool _isEditing = false;
+  bool _isOfflineMode = false; // true when showing cached data offline
+  String _offlineUserId = ''; // cached when in offline mode
 
   @override
   void initState() {
     super.initState();
     _loadTeacherData();
   }
+
+  // ── Prefs cache helpers ────────────────────────────────────────────────────
+  static String _classesKey(String userId) => 'attendance_classes_$userId';
+  static String _studentsKey(String userId, String cls) =>
+      'attendance_students_${userId}_${cls.replaceAll(' ', '_')}';
+
+  Future<void> _saveClasses(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_classesKey(userId), jsonEncode(_classes));
+    } catch (_) {}
+  }
+
+  Future<List<String>?> _loadCachedClasses(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_classesKey(userId));
+      if (raw == null) return null;
+      return List<String>.from(jsonDecode(raw) as List);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _saveStudents(String userId, String cls) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_studentsKey(userId, cls), jsonEncode(_students));
+    } catch (_) {}
+  }
+
+  Future<List<Map<String, dynamic>>?> _loadCachedStudents(
+    String userId,
+    String cls,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_studentsKey(userId, cls));
+      if (raw == null) return null;
+      return (jsonDecode(raw) as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _loadTeacherData() async {
     setState(() => _isLoading = true);
@@ -42,7 +94,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final currentUser = authProvider.currentUser;
 
       if (currentUser == null) {
-        setState(() => _isLoading = false);
+        // ✅ OFFLINE FALLBACK: load cached class list from prefs
+        final session = await SessionManager.getLoginSession();
+        final userId = session['userId'] as String? ?? '';
+        if (userId.isNotEmpty) {
+          final cachedClasses = await _loadCachedClasses(userId);
+          if (cachedClasses != null && cachedClasses.isNotEmpty) {
+            if (mounted) {
+              setState(() {
+                _classes = cachedClasses..sort();
+                _selectedClass = _classes.isNotEmpty ? _classes[0] : null;
+                _isLoading = false;
+                _isEditing = false;
+                _isOfflineMode = true;
+                _offlineUserId = userId;
+              });
+            }
+            if (_selectedClass != null)
+              await _loadStudents(offlineUserId: userId);
+            return;
+          }
+        }
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
@@ -67,7 +140,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _selectedClass = _classes.isNotEmpty ? _classes[0] : null;
         _isLoading = false;
         _isEditing = false;
+        _isOfflineMode = false;
       });
+
+      // ✅ Save classes to prefs for offline access
+      await _saveClasses(currentUser.uid);
 
       if (_selectedClass != null) {
         await _loadStudents();
@@ -77,7 +154,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
-  Future<void> _loadStudents() async {
+  Future<void> _loadStudents({String? offlineUserId}) async {
     if (_selectedClass == null) return;
 
     setState(() => _isLoading = true);
@@ -90,28 +167,48 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-      final selectedStandard = parts[0].trim();
-      final selectedSection = parts[1].trim();
-
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       final schoolCode = currentUser?.instituteId ?? '';
+      final userId = currentUser?.uid ?? offlineUserId ?? '';
 
       if (schoolCode.isEmpty) {
-        setState(() => _isLoading = false);
+        // ✅ OFFLINE FALLBACK: load cached students from prefs
+        if (userId.isNotEmpty) {
+          final cachedStudents = await _loadCachedStudents(
+            userId,
+            _selectedClass!,
+          );
+          if (cachedStudents != null && cachedStudents.isNotEmpty) {
+            final attendanceMap = <String, AttendanceStatus>{};
+            for (final s in cachedStudents) {
+              attendanceMap[s['id']] = AttendanceStatus.present;
+            }
+            if (mounted) {
+              setState(() {
+                _students = cachedStudents;
+                _attendanceMap = attendanceMap;
+                _isLoading = false;
+                _isOfflineMode = true;
+              });
+            }
+            return;
+          }
+        }
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 
       // Fetch students from 'students' collection
+      final selectedStandard = parts[0].trim();
+      final selectedSection = parts[1].trim();
+
       final snapshot = await FirebaseFirestore.instance
           .collection('students')
           .where('schoolCode', isEqualTo: schoolCode)
           .where('className', isEqualTo: 'Grade $selectedStandard')
           .where('section', isEqualTo: selectedSection)
           .get();
-
-      if (snapshot.docs.isNotEmpty) {
-      } else {}
 
       final List<Map<String, dynamic>> students = [];
       for (final doc in snapshot.docs) {
@@ -158,7 +255,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _isLoading = false;
         _isSubmitted = false; // reset lock before checking existing
         _isEditing = false;
+        _isOfflineMode = false;
       });
+
+      // ✅ Save students to prefs cache for offline access
+      if (userId.isNotEmpty) {
+        await _saveStudents(userId, _selectedClass!);
+      }
 
       // After loading students, hydrate any existing attendance and lock if already submitted
       await _fetchExistingAttendance();
@@ -407,7 +510,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         _isEditing = false;
       });
       // Reload students and attendance for the new date
-      await _loadStudents();
+      await _loadStudents(
+        offlineUserId: _isOfflineMode ? _offlineUserId : null,
+      );
     }
   }
 
@@ -430,6 +535,21 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           child: Column(
             children: [
               _buildAppBar(),
+              if (_isOfflineMode)
+                Container(
+                  width: double.infinity,
+                  color: Colors.orange.shade700,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: const Text(
+                    '📶 Offline — showing cached student list',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               _buildDateSelector(),
               _buildFilters(),
               Expanded(child: _buildStudentList()),
@@ -571,7 +691,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   _selectedClass = value;
                   _isEditing = false;
                 });
-                await _loadStudents();
+                await _loadStudents(
+                  offlineUserId: _isOfflineMode ? _offlineUserId : null,
+                );
               }
             },
           ),
@@ -752,6 +874,39 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Widget _buildSaveButton() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Disable save entirely when offline
+    if (_isOfflineMode) {
+      return Container(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 12,
+          bottom: MediaQuery.of(context).padding.bottom + 12,
+        ),
+        color: isDark ? const Color(0xFF1A1A1A) : const Color(0xFFF6F5F8),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey.shade400,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text(
+              'Offline — Cannot Save Attendance',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Container(
       padding: EdgeInsets.only(
