@@ -1790,6 +1790,25 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             ],
           ),
           const SizedBox(height: 12),
+          // Start date
+          Row(
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                color: isDark ? Colors.white70 : Colors.grey.shade600,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Starts: ${_formatDateTime(test.startDate)}',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white70 : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           // Due date
           Row(
             children: [
@@ -1800,7 +1819,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               ),
               const SizedBox(width: 6),
               Text(
-                'Due Today, ${_formatTime(test.endDate)}',
+                isDueToday
+                    ? 'Due Today, ${_formatTime(test.endDate)}'
+                    : 'Due: ${_formatDateTime(test.endDate)}',
                 style: TextStyle(
                   fontSize: 13,
                   color: isDark ? Colors.white70 : Colors.grey.shade600,
@@ -1862,6 +1883,26 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     final period = date.hour >= 12 ? 'PM' : 'AM';
     final minute = date.minute.toString().padLeft(2, '0');
     return '$hour:$minute $period';
+  }
+
+  String _formatDateTime(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final day = date.day;
+    final month = months[date.month - 1];
+    return '$day $month, ${_formatTime(date)}';
   }
 
   // Performance Section

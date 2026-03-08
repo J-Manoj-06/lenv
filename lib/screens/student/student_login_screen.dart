@@ -7,6 +7,7 @@ import '../../services/school_service.dart';
 import '../../models/school_model.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
+import '../../utils/lenv_snackbar.dart';
 import '../auth/forgot_password_screen.dart';
 
 class StudentLoginScreen extends StatefulWidget {
@@ -156,7 +157,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    // Use the universal, role-themed snackbar
+    if (!mounted) return;
+    showLenvLoginError(context, message);
   }
 
   void _handleForgotPassword() async {

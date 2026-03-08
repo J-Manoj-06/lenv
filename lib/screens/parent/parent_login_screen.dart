@@ -5,6 +5,7 @@ import '../../providers/unread_count_provider.dart';
 import '../../models/user_model.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
+import '../../utils/lenv_snackbar.dart';
 import '../auth/forgot_password_screen.dart';
 
 class ParentLoginScreen extends StatefulWidget {
@@ -94,8 +95,8 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    // Use the universal, role-themed snackbar
-
+    if (!mounted) return;
+    showLenvLoginError(context, message);
   }
 
   void _handleForgotPassword() async {

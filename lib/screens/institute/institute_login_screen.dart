@@ -7,6 +7,7 @@ import '../../services/school_service.dart';
 import '../../models/school_model.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
+import '../../utils/lenv_snackbar.dart';
 import '../../services/announcement_cleanup_service.dart';
 import '../auth/forgot_password_screen.dart';
 
@@ -161,7 +162,8 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-
+    if (!mounted) return;
+    showLenvLoginError(context, message);
   }
 
   void _handleForgotPassword() async {
