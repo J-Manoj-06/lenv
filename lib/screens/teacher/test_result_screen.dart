@@ -52,33 +52,45 @@ class _TestResultScreenState extends State<TestResultScreen> {
           .where('testId', isEqualTo: widget.testId)
           .get();
 
-      _totalAssigned = assignmentsSnapshot.docs.length;
-
-      // Separate completed and pending
+      // Separate completed and pending, deduplicating by studentId
+      // (prefer 'completed' entry over 'assigned' for the same student)
       final completed = <TestResultModel>[];
-      final allAssignments = <Map<String, dynamic>>[];
+      final seenStudentIds = <String>{};
+      final allAssignmentsByStudent = <String, Map<String, dynamic>>{};
 
       for (var doc in assignmentsSnapshot.docs) {
         final data = doc.data();
-        allAssignments.add({
-          'id': doc.id,
-          'studentName': data['studentName'] ?? '',
-          'studentId': data['studentId'] ?? '',
-          'status': data['status'] ?? 'assigned',
-          'score': (data['score'] ?? 0).toDouble(),
-          'totalQuestions': (data['totalQuestions'] ?? 0) as int,
-          'correctAnswers': (data['correctAnswers'] ?? 0) as int,
-          'totalMarks': (data['totalMarks'] ?? 0) as int,
-          'violationDetected': (data['violationDetected'] ?? false) as bool,
-        });
+        final studentId = (data['studentId'] ?? doc.id) as String;
+        final status = data['status'] ?? 'assigned';
+        final existing = allAssignmentsByStudent[studentId];
 
-        if (data['status'] == 'completed') {
+        // Keep completed over assigned; if both completed keep first seen
+        if (existing == null ||
+            (existing['status'] != 'completed' && status == 'completed')) {
+          allAssignmentsByStudent[studentId] = {
+            'id': doc.id,
+            'studentName': data['studentName'] ?? '',
+            'studentId': studentId,
+            'status': status,
+            'score': (data['score'] ?? 0).toDouble(),
+            'totalQuestions': (data['totalQuestions'] ?? 0) as int,
+            'correctAnswers': (data['correctAnswers'] ?? 0) as int,
+            'totalMarks': (data['totalMarks'] ?? 0) as int,
+            'violationDetected': (data['violationDetected'] ?? false) as bool,
+          };
+        }
+
+        if (status == 'completed' && !seenStudentIds.contains(studentId)) {
+          seenStudentIds.add(studentId);
           try {
             final result = TestResultModel.fromFirestore(doc);
             completed.add(result);
           } catch (e) {}
         }
       }
+
+      final allAssignments = allAssignmentsByStudent.values.toList();
+      _totalAssigned = allAssignments.length;
 
       // Get test details for total questions
       final testDoc = await firestore

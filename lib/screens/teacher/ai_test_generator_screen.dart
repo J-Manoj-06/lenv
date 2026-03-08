@@ -963,7 +963,6 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
   }
 
   Widget _buildGeneratedQuestions() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -974,32 +973,6 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildMetaChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: Colors.white70),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Colors.white70,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
