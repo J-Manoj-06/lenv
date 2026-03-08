@@ -12,6 +12,7 @@ import 'providers/test_provider.dart';
 import 'providers/reward_provider.dart';
 import 'providers/student_provider.dart';
 import 'providers/daily_challenge_provider.dart';
+import 'providers/test_assignment_lock_provider.dart';
 import 'providers/parent_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/unread_count_provider.dart';
@@ -129,6 +130,7 @@ class MyApp extends StatelessWidget {
           ),
           ChangeNotifierProvider(create: (_) => RoleProvider()),
           ChangeNotifierProvider(create: (_) => TestProvider()),
+          ChangeNotifierProvider(create: (_) => TestAssignmentLockProvider()),
           ChangeNotifierProvider(create: (_) => RewardProvider()),
           ChangeNotifierProvider(create: (_) => StudentProvider()),
           ChangeNotifierProvider(create: (_) => ParentProvider()),

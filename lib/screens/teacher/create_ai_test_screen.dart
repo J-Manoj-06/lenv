@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../services/ai_test_service.dart';
 import '../../services/firestore_service.dart';
@@ -10,7 +11,9 @@ import '../../exceptions/ai_exceptions.dart';
 import '../../models/test_model.dart' as tm;
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart' as auth_provider;
+import '../../providers/test_assignment_lock_provider.dart';
 import '../../providers/test_provider.dart';
+import '../../widgets/test_assignment_lock_banner.dart';
 import '../../widgets/test_schedule_picker.dart';
 
 /// Screen for generating tests using AI
@@ -198,9 +201,45 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
             : null;
         _isLoadingTeacherData = false;
       });
+      // Start real-time lock watch once initial class + subject are known.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _watchLockIfReady());
     } catch (e) {
       setState(() => _isLoadingTeacherData = false);
     }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Lock helpers
+  // ──────────────────────────────────────────────────────────────────────────
+
+  void _watchLockIfReady() {
+    final cls = _selectedClass?.trim();
+    final sec = (_selectedSection ?? '').trim();
+    if (cls == null || cls.isEmpty || sec.isEmpty) return;
+
+    final auth = Provider.of<auth_provider.AuthProvider>(
+      context,
+      listen: false,
+    );
+    final instituteId = auth.currentUser?.instituteId ?? '';
+    final lockProv = Provider.of<TestAssignmentLockProvider>(
+      context,
+      listen: false,
+    );
+    lockProv.watchLock(
+      instituteId: instituteId,
+      classId: 'Grade $cls',
+      sectionId: sec,
+    );
+  }
+
+  String _formatLockTime(DateTime dt) {
+    final now = DateTime.now();
+    final isToday =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    return isToday
+        ? DateFormat('h:mm a').format(dt)
+        : DateFormat('d MMM, h:mm a').format(dt);
   }
 
   @override
@@ -240,6 +279,20 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 ),
               ),
             ),
+          ),
+          // Lock banner – shown when another teacher has assigned a test
+          Consumer<TestAssignmentLockProvider>(
+            builder: (context, lockProv, _) {
+              final auth = Provider.of<auth_provider.AuthProvider>(
+                context,
+                listen: false,
+              );
+              final uid = auth.currentUser?.uid ?? '';
+              return TestAssignmentLockBanner(
+                lock: lockProv.currentLock,
+                currentTeacherId: uid,
+              );
+            },
           ),
           Expanded(
             child: _generatedQuestions == null
@@ -348,6 +401,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                           _selectedSubject = null;
                         }
                       });
+                      _watchLockIfReady();
                     },
               validator: (value) =>
                   value == null ? 'Please select a class' : null,
@@ -391,6 +445,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                               : null;
                         }
                       });
+                      _watchLockIfReady();
                     },
               validator: (value) =>
                   value == null ? 'Please select a section' : null,
@@ -433,7 +488,10 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                     }).toList(),
               onChanged: _subjects.isEmpty
                   ? null
-                  : (value) => setState(() => _selectedSubject = value),
+                  : (value) {
+                      setState(() => _selectedSubject = value);
+                      _watchLockIfReady();
+                    },
               validator: (value) =>
                   value == null ? 'Please select a subject' : null,
             ),
@@ -688,56 +746,81 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
   /// Fixed bottom section with Generate button
   Widget _buildBottomSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1E1E1E)
-            : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _isGenerating ? null : _generateTest,
-              icon: _isGenerating
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Icon(Icons.auto_awesome),
-              label: Text(
-                _isGenerating ? 'Generating...' : 'Generate Test with AI',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+    return Consumer<TestAssignmentLockProvider>(
+      builder: (context, lockProv, _) {
+        final uid =
+            Provider.of<auth_provider.AuthProvider>(
+              context,
+              listen: false,
+            ).currentUser?.uid ??
+            '';
+        final locked = lockProv.isLockedForOther(uid);
+        final canGenerate = !_isGenerating && !locked;
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1E1E1E)
+                : Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
               ),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: const Color(0xFF355872),
-                foregroundColor: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: LockedButtonWrapper(
+                  isDisabled: locked,
+                  child: ElevatedButton.icon(
+                    onPressed: canGenerate ? _generateTest : null,
+                    icon: _isGenerating
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            locked ? Icons.lock_rounded : Icons.auto_awesome,
+                          ),
+                    label: Text(
+                      _isGenerating
+                          ? 'Generating...'
+                          : locked
+                          ? 'Assignment Locked'
+                          : 'Generate Test with AI',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: locked
+                          ? Colors.grey.shade400
+                          : const Color(0xFF355872),
+                      foregroundColor: Colors.white,
+                      elevation: locked ? 0 : 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1515,6 +1598,38 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         updatedAt: DateTime.now(),
       );
 
+      // === Acquire assignment lock before saving ===
+      final lockProv = Provider.of<TestAssignmentLockProvider>(
+        context,
+        listen: false,
+      );
+      final gradeClassId = 'Grade ${_selectedClass!.trim()}';
+      final lockAcquired = await lockProv.acquireLock(
+        instituteId: user.instituteId ?? '',
+        classId: gradeClassId,
+        sectionId: normalizedSection,
+        subjectName: _selectedSubject!,
+        teacherId: user.uid,
+        teacherName: user.name,
+        nextAvailableTimestamp: endDate,
+      );
+
+      if (!lockAcquired) {
+        if (mounted) Navigator.of(context).pop(); // close loading dialog
+        final existingLock = lockProv.currentLock;
+        final who = existingLock?.assignedByTeacherName ?? 'Another teacher';
+        final when = existingLock != null
+            ? _formatLockTime(existingLock.nextAvailableTimestamp)
+            : 'a later time';
+        _showErrorDialog(
+          'Test Already Assigned',
+          '$who has already assigned a test for this class.\n\n'
+              'You can assign the next test after $when or choose a later time.',
+        );
+        return;
+      }
+      // === End lock acquisition ===
+
       // Save as scheduled test to assign to students
       final ok = await testProv.createScheduledTest(
         test,
@@ -1543,6 +1658,13 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
           Navigator.of(context).pop();
         }
       } else {
+        // Release lock since save failed
+        await lockProv.releaseLock(
+          instituteId: user.instituteId ?? '',
+          classId: gradeClassId,
+          sectionId: normalizedSection,
+          teacherId: user.uid,
+        );
         _showErrorDialog(
           'Save Failed',
           'Failed to save test: ${testProv.errorMessage ?? 'Unknown error'}',

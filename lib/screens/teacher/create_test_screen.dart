@@ -4,7 +4,10 @@ import '../../models/test_model.dart' as tm;
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
+import 'package:intl/intl.dart';
+import '../../providers/test_assignment_lock_provider.dart';
 import '../../services/teacher_service.dart';
+import '../../widgets/test_assignment_lock_banner.dart';
 import '../../widgets/test_schedule_picker.dart';
 import 'tests_screen.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // no longer needed: assignment computed server-side
@@ -176,6 +179,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
         selectedSubject = subjects.isNotEmpty ? subjects.first : null;
         _loadingMeta = false;
       });
+      // Start real-time lock watch once initial class + subject are known.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _watchLockIfReady());
     } catch (e) {
       setState(() => _loadingMeta = false);
     }
@@ -205,6 +210,42 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     }
     // No subjects found for this exact class+section combination
     return [];
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Lock helpers
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /// Subscribes to real-time lock updates for the current class + section.
+  void _watchLockIfReady() {
+    final cls = selectedClass?.trim();
+    if (cls == null || cls.isEmpty) return;
+    final rawSection = selectedSection ?? '';
+    final sec = rawSection
+        .replaceAll(RegExp(r'^Section\s+', caseSensitive: false), '')
+        .trim();
+    if (sec.isEmpty) return;
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final instituteId = auth.currentUser?.instituteId ?? '';
+    final lockProv = Provider.of<TestAssignmentLockProvider>(
+      context,
+      listen: false,
+    );
+    lockProv.watchLock(
+      instituteId: instituteId,
+      classId: 'Grade $cls',
+      sectionId: sec,
+    );
+  }
+
+  String _formatLockTime(DateTime dt) {
+    final now = DateTime.now();
+    final isToday =
+        dt.year == now.year && dt.month == now.month && dt.day == now.day;
+    return isToday
+        ? DateFormat('h:mm a').format(dt)
+        : DateFormat('d MMM, h:mm a').format(dt);
   }
 
   @override
@@ -243,6 +284,17 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                 ),
               ),
             ),
+          ),
+          // Lock banner – shown when another teacher has already assigned a test
+          Consumer<TestAssignmentLockProvider>(
+            builder: (context, lockProv, _) {
+              final auth = Provider.of<AuthProvider>(context, listen: false);
+              final uid = auth.currentUser?.uid ?? '';
+              return TestAssignmentLockBanner(
+                lock: lockProv.currentLock,
+                currentTeacherId: uid,
+              );
+            },
           ),
           Expanded(
             child: _loadingMeta
@@ -305,6 +357,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                           : null;
                                     }
                                   });
+                                  _watchLockIfReady();
                                 },
                         ),
                         const SizedBox(height: 16),
@@ -339,6 +392,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                                       }
                                     }
                                   });
+                                  _watchLockIfReady();
                                 },
                         ),
                         const SizedBox(height: 16),
@@ -371,8 +425,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                           }).toList(),
                           onChanged: subjects.isEmpty
                               ? null
-                              : (value) =>
-                                    setState(() => selectedSubject = value),
+                              : (value) {
+                                  setState(() => selectedSubject = value);
+                                  _watchLockIfReady();
+                                },
                         ),
                         const SizedBox(height: 16),
 
@@ -1035,46 +1091,65 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   }
 
   Widget _buildBottomSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFF1E1E1E)
-            : Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                _showScheduleDialog();
-              },
-              icon: const Icon(Icons.check_circle),
-              label: const Text(
-                'Schedule Test',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    return Consumer<TestAssignmentLockProvider>(
+      builder: (context, lockProv, _) {
+        final uid =
+            Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            ).currentUser?.uid ??
+            '';
+        final locked = lockProv.isLockedForOther(uid);
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF1E1E1E)
+                : Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
               ),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: const Color(0xFF355872),
-                foregroundColor: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            ],
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: LockedButtonWrapper(
+                  isDisabled: locked,
+                  child: ElevatedButton.icon(
+                    onPressed: locked ? null : _showScheduleDialog,
+                    icon: Icon(
+                      locked ? Icons.lock_rounded : Icons.check_circle,
+                    ),
+                    label: Text(
+                      locked ? 'Assignment Locked' : 'Schedule Test',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: locked
+                          ? Colors.grey.shade400
+                          : const Color(0xFF355872),
+                      foregroundColor: Colors.white,
+                      elevation: locked ? 0 : 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1342,6 +1417,50 @@ extension on _CreateTestScreenState {
       updatedAt: now,
     );
 
+    // ── Acquire assignment lock before saving ──────────────────────────────
+    final lockProv = Provider.of<TestAssignmentLockProvider>(
+      context,
+      listen: false,
+    );
+    final gradeClassId = 'Grade ${selectedClass!.trim()}';
+    final lockAcquired = await lockProv.acquireLock(
+      instituteId: user.instituteId ?? '',
+      classId: gradeClassId,
+      sectionId: normalizedSection,
+      subjectName: selectedSubject!,
+      teacherId: user.uid,
+      teacherName: user.name,
+      nextAvailableTimestamp: endDate,
+    );
+
+    if (!lockAcquired) {
+      if (mounted) {
+        final existingLock = lockProv.currentLock;
+        final when = existingLock != null
+            ? _formatLockTime(existingLock.nextAvailableTimestamp)
+            : 'a later time';
+        final who = existingLock?.assignedByTeacherName ?? 'Another teacher';
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Test Already Assigned'),
+            content: Text(
+              '$who has already assigned a test for this class.\n\n'
+              'You can assign the next test after $when or choose a later time.',
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+      return false;
+    }
+    // ── End lock acquisition ────────────────────────────────────────────────
+
     // If scheduled, we need to also store the schedule info in scheduledTests collection
     if (schedule && scheduledDate != null && scheduledTime != null) {
       final ok = await testProv.createScheduledTest(
@@ -1349,9 +1468,26 @@ extension on _CreateTestScreenState {
         scheduledDate: scheduledDate!,
         scheduledTime: scheduledTime!,
       );
+      if (!ok) {
+        // Release lock if test creation failed
+        await lockProv.releaseLock(
+          instituteId: user.instituteId ?? '',
+          classId: gradeClassId,
+          sectionId: normalizedSection,
+          teacherId: user.uid,
+        );
+      }
       return ok;
     } else {
       final ok = await testProv.createTest(test);
+      if (!ok) {
+        await lockProv.releaseLock(
+          instituteId: user.instituteId ?? '',
+          classId: gradeClassId,
+          sectionId: normalizedSection,
+          teacherId: user.uid,
+        );
+      }
       return ok;
     }
   }
@@ -1735,7 +1871,7 @@ class _ScheduleTestDialogState extends State<ScheduleTestDialog>
               borderRadius: BorderRadius.circular(28),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF6A4FF7).withOpacity(0.25),
+                  color: const Color(0xFF355872).withOpacity(0.25),
                   blurRadius: 40,
                   offset: const Offset(0, 10),
                 ),
@@ -1758,14 +1894,14 @@ class _ScheduleTestDialogState extends State<ScheduleTestDialog>
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                            colors: [Color(0xFF355872), Color(0xFF4A7A9B)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF6A4FF7).withOpacity(0.4),
+                              color: const Color(0xFF355872).withOpacity(0.4),
                               blurRadius: 16,
                               offset: const Offset(0, 6),
                             ),
@@ -1824,10 +1960,10 @@ class _ScheduleTestDialogState extends State<ScheduleTestDialog>
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF6A4FF7).withOpacity(0.08),
+                      color: const Color(0xFF355872).withOpacity(0.08),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: const Color(0xFF6A4FF7).withOpacity(0.2),
+                        color: const Color(0xFF355872).withOpacity(0.2),
                         width: 1,
                       ),
                     ),
@@ -1835,7 +1971,7 @@ class _ScheduleTestDialogState extends State<ScheduleTestDialog>
                       children: [
                         Icon(
                           Icons.info_outline_rounded,
-                          color: const Color(0xFF8F66FF).withOpacity(0.8),
+                          color: const Color(0xFF4A7A9B).withOpacity(0.8),
                           size: 20,
                         ),
                         const SizedBox(width: 12),
@@ -1894,7 +2030,7 @@ class _ScheduleTestDialogState extends State<ScheduleTestDialog>
         color: const Color(0xFF2A2A3E).withOpacity(0.5),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: const Color(0xFF6A4FF7).withOpacity(0.15),
+          color: const Color(0xFF355872).withOpacity(0.15),
           width: 1,
         ),
       ),
@@ -1903,10 +2039,10 @@ class _ScheduleTestDialogState extends State<ScheduleTestDialog>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF6A4FF7).withOpacity(0.15),
+              color: const Color(0xFF355872).withOpacity(0.15),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: const Color(0xFF8F66FF), size: 22),
+            child: Icon(icon, color: const Color(0xFF4A7A9B), size: 22),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -1978,7 +2114,7 @@ class _ScheduleButtonState extends State<_ScheduleButton> {
           decoration: BoxDecoration(
             gradient: widget.isPrimary
                 ? const LinearGradient(
-                    colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                    colors: [Color(0xFF355872), Color(0xFF4A7A9B)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   )
@@ -1990,13 +2126,13 @@ class _ScheduleButtonState extends State<_ScheduleButton> {
             border: Border.all(
               color: widget.isPrimary
                   ? Colors.transparent
-                  : const Color(0xFF6A4FF7).withOpacity(0.2),
+                  : const Color(0xFF355872).withOpacity(0.2),
               width: 1.5,
             ),
             boxShadow: widget.isPrimary
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF6A4FF7).withOpacity(0.4),
+                      color: const Color(0xFF355872).withOpacity(0.4),
                       blurRadius: 16,
                       offset: const Offset(0, 6),
                     ),
