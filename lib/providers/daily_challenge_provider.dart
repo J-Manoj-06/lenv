@@ -4,8 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../services/daily_challenge_service.dart';
-import '../services/badge_service.dart';
-import '../services/badge_rules.dart';
 
 /// Provider for managing daily challenge state with caching
 /// Prevents unnecessary Firestore reads and maintains state across navigation
@@ -13,8 +11,6 @@ import '../services/badge_rules.dart';
 class DailyChallengeProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final DailyChallengeService _challengeService = DailyChallengeService();
-  final BadgeService _badgeService = BadgeService();
-  late final BadgeRules _badgeRules = BadgeRules(_badgeService);
 
   // Cache management - per student
   final Map<String, Map<String, dynamic>?> _cachedChallenges = {};
@@ -327,23 +323,6 @@ class DailyChallengeProvider with ChangeNotifier {
         await _firestore.collection('users').doc(studentId).set({
           'rewardPoints': FieldValue.increment(5),
         }, SetOptions(merge: true));
-
-        // Award badges for daily challenge
-        try {
-          final studentDoc = await _firestore
-              .collection('users')
-              .doc(studentId)
-              .get();
-          final streakDays =
-              (studentDoc.data()?['dailyChallengeStreak'] as int?) ?? 1;
-
-          await _badgeRules.onDailyChallenge(
-            studentId: studentId,
-            streakDays: streakDays,
-            fast: false, // Could track answer time in future
-            accuracyPercent: 100, // Daily challenge is single question
-          );
-        } catch (e) {}
       }
 
       // Update THIS student's state

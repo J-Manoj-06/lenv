@@ -1,8 +1,6 @@
-import 'package:flutter/material.dart' hide Badge;
+import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../services/badge_service.dart';
-import '../../badges/badge_model.dart';
 import 'package:provider/provider.dart';
 import '../../models/performance_model.dart';
 import '../../services/firestore_service.dart';
@@ -38,7 +36,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   static const Color brandPrimaryLight = Color(0xFF4A7A99);
 
   final _firestoreService = FirestoreService();
-  final BadgeService _badgeService = BadgeService();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -46,8 +43,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   // Extras
   double? _attendancePct;
   int _totalPoints = 0;
-  int _badgesCount = 0;
-  List<String> _badges = [];
   Map<String, dynamic>? _studentDetails;
   bool _loadingExtras = true;
   bool _parentChatLoading = false;
@@ -85,7 +80,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       await Future.wait([
         _fetchStudentDetails(),
         _fetchAttendancePercentage(),
-        _fetchBadgesAndPoints(),
+        _fetchPoints(),
       ]);
     } finally {
       if (mounted) setState(() => _loadingExtras = false);
@@ -163,33 +158,27 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     } catch (e) {}
   }
 
-  Future<void> _fetchBadgesAndPoints() async {
+  Future<void> _fetchPoints() async {
     try {
       final authUid = _resolvedAuthUid ?? widget.studentId;
-
-      // Fetch from users collection for totalPoints
       try {
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(authUid)
             .get();
-
         if (userDoc.exists) {
           final userData = userDoc.data();
           _totalPoints =
               (userData?['totalPoints'] ?? userData?['rewardPoints'] ?? 0)
                   as int;
-        } else {}
+        }
       } catch (e) {}
-
-      // If still 0, try students collection
       if (_totalPoints == 0) {
         try {
           final studentDoc = await FirebaseFirestore.instance
               .collection('students')
               .doc(widget.studentId)
               .get();
-
           if (studentDoc.exists) {
             final studentData = studentDoc.data();
             _totalPoints =
@@ -200,62 +189,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           }
         } catch (e) {}
       }
-
-      // Fetch badges using the same source as student dashboard
-      final Set<String> badgeSet = {};
-
-      try {
-        final List<Badge> earnedBadges = await _badgeService.fetchEarnedBadges(
-          authUid,
-        );
-        for (final badge in earnedBadges) {
-          // Keep emoji + title for parity with student dashboard tiles
-          final label = '${badge.emoji} ${badge.title}'.trim();
-          badgeSet.add(label);
-        }
-      } catch (e) {}
-
-      // Fallback: derive from testResults (legacy behavior) to avoid missing badges
-      try {
-        final q = await FirebaseFirestore.instance
-            .collection('testResults')
-            .where('studentId', isEqualTo: authUid)
-            .where('status', isEqualTo: 'completed')
-            .limit(100)
-            .get();
-
-        for (final doc in q.docs) {
-          final data = doc.data();
-
-          // Get badges
-          final badges = data['badges'];
-          if (badges is List) {
-            for (final b in badges) {
-              if (b != null) badgeSet.add(b.toString());
-            }
-          }
-
-          // Award badges based on performance if not already set
-          final correctAnswers = (data['correctAnswers'] ?? 0) as int;
-          final totalQuestions = (data['totalQuestions'] ?? 1) as int;
-          final percentage = totalQuestions > 0
-              ? (correctAnswers / totalQuestions) * 100
-              : 0.0;
-
-          if (percentage == 100) {
-            badgeSet.add('Perfect Score');
-          } else if (percentage >= 90) {
-            badgeSet.add('Excellence');
-          } else if (percentage >= 75) {
-            badgeSet.add('Top Performer');
-          }
-        }
-      } catch (e) {}
-
-      _badges = badgeSet.toList()..sort();
-      _badgesCount = _badges.length;
-
-      // Force UI update
       if (mounted) setState(() {});
     } catch (e) {}
   }
@@ -330,8 +263,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                               _buildPerformanceTrend(theme, perf),
                               const SizedBox(height: 24),
                               _buildRecentTests(theme, perf),
-                              const SizedBox(height: 24),
-                              _buildBadgesSection(theme),
                               const SizedBox(height: 24),
                               _buildPersonalDetails(theme),
                               const SizedBox(height: 48),
@@ -860,14 +791,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             children: [
               _statCard(
                 theme,
-                'Badges',
-                _badgesCount.toString(),
-                Icons.emoji_events,
-                brandPrimary,
-              ),
-              const SizedBox(width: 12),
-              _statCard(
-                theme,
                 'Latest',
                 latestScoreDisplay,
                 Icons.trending_up,
@@ -937,198 +860,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildBadgesSection(ThemeData theme) {
-    final isDark = theme.brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1A1B24) : theme.cardColor;
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? const Color(0xFF2A2D3A) : theme.dividerColor,
-        ),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [brandPrimary, brandPrimaryLight],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: brandPrimary.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Icon(
-                  Icons.emoji_events,
-                  color: theme.textTheme.bodyLarge?.color,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Badges Earned',
-                style: TextStyle(
-                  color: theme.textTheme.bodyLarge?.color,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              if (!_loadingExtras && _badges.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: brandPrimary,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${_badges.length}',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_loadingExtras)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Loading badges…',
-                      style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(
-                          0.6,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (_badges.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.emoji_events_outlined,
-                      size: 64,
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(
-                        0.35,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No Badges Earned Yet',
-                      style: TextStyle(
-                        color: theme.textTheme.bodyLarge?.color?.withOpacity(
-                          0.85,
-                        ),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Keep up the great work to earn new badges!',
-                      style: TextStyle(
-                        color: theme.textTheme.bodySmall?.color?.withOpacity(
-                          0.6,
-                        ),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                // Use two columns on wider screens for tidy alignment
-                final bool twoColumns = constraints.maxWidth > 420;
-                final double chipWidth = twoColumns
-                    ? (constraints.maxWidth - 10) /
-                          2 // account for spacing
-                    : constraints.maxWidth;
-
-                return Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.start,
-                  runAlignment: WrapAlignment.start,
-                  children: _badges
-                      .map(
-                        (b) => SizedBox(
-                          width: chipWidth,
-                          child: _badgeChip(theme, b),
-                        ),
-                      )
-                      .toList(),
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _badgeChip(ThemeData theme, String label) {
-    const colorPair = [brandPrimary, brandPrimaryLight];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colorPair),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: colorPair[0].withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.stars, color: theme.textTheme.bodyLarge?.color, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: theme.textTheme.bodyLarge?.color,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -10,8 +10,6 @@ import 'dart:async';
 import '../../utils/visibility_stub.dart'
     if (dart.library.html) '../../utils/visibility_web.dart'
     as vis;
-import '../../services/badge_service.dart';
-import '../../services/badge_rules.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TakeTestScreen extends StatefulWidget {
@@ -362,40 +360,6 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         testResult,
         testEndDate: widget.test.endDate,
       );
-
-      // Award badges ONLY if test has ended (not during active period)
-      final now = DateTime.now();
-      final testHasEnded = now.isAfter(widget.test.endDate);
-
-      if (testHasEnded) {
-        try {
-          // Get total tests completed by this student
-          final allResults = await FirestoreService()
-              .getTestResultsByStudent(studentId)
-              .first;
-          final testsCompleted = allResults.length;
-
-          // Get previous test score for improvement calculation
-          int? previousScorePercent;
-          if (allResults.length > 1) {
-            // Sort by completion date and get second-to-last
-            final sorted = allResults.toList()
-              ..sort((a, b) => a.completedAt.compareTo(b.completedAt));
-            if (sorted.length >= 2) {
-              previousScorePercent = sorted[sorted.length - 2].score.round();
-            }
-          }
-
-          final rules = BadgeRules(BadgeService());
-          await rules.onTestCompleted(
-            studentId: studentId,
-            testId: widget.test.id,
-            scorePercent: score,
-            testsCompleted: testsCompleted,
-            previousScorePercent: previousScorePercent,
-          );
-        } catch (e) {}
-      } else {}
 
       if (!mounted) return;
 

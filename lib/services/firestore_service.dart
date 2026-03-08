@@ -9,8 +9,6 @@ import '../models/test_result_model.dart';
 import '../models/product_model.dart';
 import '../models/reward_points_model.dart';
 import '../models/reward_request_model.dart';
-import 'badge_rules.dart';
-import 'badge_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -1797,29 +1795,6 @@ class FirestoreService {
           if (baselineCompleted < 0) baselineCompleted = 0;
         } catch (_) {}
 
-        // Seed previous score from the latest already-processed test
-        int? prevPercent;
-        try {
-          final prevSnap = await _db
-              .collection('testResults')
-              .where('studentId', isEqualTo: studentId)
-              .where('status', isEqualTo: 'completed')
-              .where('pointsAwarded', isEqualTo: true)
-              .orderBy('completedAt', descending: true)
-              .limit(1)
-              .get();
-          if (prevSnap.docs.isNotEmpty) {
-            final d = prevSnap.docs.first.data();
-            final ca = (d['correctAnswers'] ?? 0) as int;
-            final tq = (d['totalQuestions'] ?? 0) as int;
-            if (tq > 0) {
-              prevPercent = ((ca / tq) * 100).round();
-            }
-          }
-        } catch (_) {}
-
-        final rules = BadgeRules(BadgeService());
-
         for (var i = 0; i < docs.length; i++) {
           final resultDoc = docs[i];
           final data = resultDoc.data();
@@ -1871,26 +1846,6 @@ class FirestoreService {
               'totalPoints': earnedPoints,
               'pointsAwardedAt': FieldValue.serverTimestamp(),
             });
-
-            // Compute badge inputs
-            final scorePercent = totalQuestions > 0
-                ? ((correctAnswers / totalQuestions) * 100).round()
-                : 0;
-            final testsCompleted = baselineCompleted + i + 1; // include current
-
-            // Award badges safely (service prevents duplicates)
-            try {
-              await rules.onTestCompleted(
-                studentId: studentId,
-                testId: testId,
-                scorePercent: scorePercent,
-                testsCompleted: testsCompleted,
-                previousScorePercent: prevPercent,
-              );
-            } catch (e) {}
-
-            // Update prev for next iteration
-            prevPercent = scorePercent;
 
             processedTestIds.add(testId);
           } catch (e) {}
