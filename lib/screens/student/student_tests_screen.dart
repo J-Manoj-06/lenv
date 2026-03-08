@@ -633,6 +633,7 @@ class _TestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('MMM d, yyyy');
+    final fmtTime = DateFormat('MMM d, yyyy • h:mm a');
     final now = DateTime.now();
 
     final Color statusBg;
@@ -662,10 +663,10 @@ class _TestCard extends StatelessWidget {
       // Show start or due date based on schedule
       if (notStartedYet) {
         dateLabel = 'Starts:';
-        dateValue = fmt.format(t.startDate);
+        dateValue = fmtTime.format(t.startDate);
       } else {
         dateLabel = 'Due Date:';
-        dateValue = fmt.format(t.endDate);
+        dateValue = fmtTime.format(t.endDate);
       }
 
       if (isExpired) {
