@@ -517,15 +517,15 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             '   - backgroundColor: ${isDark ? "0xFF2C2C2E (dark gray)" : "0xFFFFFFFF (white)"}',
           );
           print('   - borderRadius: 12');
-          print('   - border: 2.5px theme color');
+          print('   - border: 1.0px theme color');
           return Container(
             width: 260,
-            constraints: const BoxConstraints(minWidth: 220, minHeight: 140),
+            constraints: const BoxConstraints(minWidth: 220, minHeight: 88),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: bgColor,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor, width: 2.5),
+              border: Border.all(color: borderColor, width: 1.0),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -707,34 +707,14 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     print('   thumbnailBase64 length=${widget.thumbnailBase64?.length}');
     // ══════════════════════════════════════════════════════════════════════
 
-    // ── Shared shell: border + clip + gesture ──────────────────────────────
+    // ── Shared shell: clean clip + gesture — no outer ring ─────────────────
     Widget shell(Widget content, {VoidCallback? onTap}) {
       return GestureDetector(
         onTap: widget.selectionMode ? null : onTap,
         onLongPress: null,
-        child: Container(
-          width: 260,
-          height: 260,
-          decoration: BoxDecoration(
-            color: widget.themeColor ?? const Color(0xFF9E9E9E),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.all(
-            3,
-          ), // Creates visible gap like multi-image
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: widget.themeColor ?? const Color(0xFF9E9E9E),
-                width: 1.5,
-              ),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(7.5),
-              child: content,
-            ),
-          ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(width: 220, height: 220, child: content),
         ),
       );
     }
@@ -891,46 +871,117 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     print('   🟠 SENDER path entered (isMe=true or uploading=true)');
     final senderFilePath = widget.localPath ?? _localPath;
     print('   🟠 senderFilePath=$senderFilePath');
+
+    // ── COMPACT CARD: when uploading but local file is gone (temp purged) ──
+    final fileActuallyExists =
+        senderFilePath != null &&
+        senderFilePath.isNotEmpty &&
+        File(senderFilePath).existsSync();
+    if (widget.uploading && !fileActuallyExists) {
+      print('   🟠 SENDER: file gone during upload → compact upload card');
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      final progress = widget.uploadProgress ?? 0.0;
+      return Container(
+        width: 220,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFA929).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.image,
+                color: Color(0xFFFFA929),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.fileName.isNotEmpty ? widget.fileName : 'Image',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF1A1D21),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: progress > 0 ? progress : null,
+                      backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFFFFA929),
+                      ),
+                      minHeight: 4,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    progress <= 0
+                        ? 'Sending...'
+                        : '${(progress * 100).toInt()}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? Colors.white54 : Colors.black45,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     Widget senderImage;
 
-    if (senderFilePath != null && senderFilePath.isNotEmpty) {
+    // At this point, fileActuallyExists is true (we handled false above for uploads).
+    // For non-uploading senders (viewing cached images), we may reach here with false.
+    if (fileActuallyExists) {
       final file = File(senderFilePath);
-      print('   🟠 senderFile.existsSync()=${file.existsSync()}');
-      if (file.existsSync()) {
-        final p = senderFilePath.toLowerCase();
-        final isValidImage =
-            p.endsWith('.jpg') ||
-            p.endsWith('.jpeg') ||
-            p.endsWith('.png') ||
-            p.endsWith('.gif') ||
-            p.endsWith('.webp');
-        senderImage = isValidImage
-            ? Image.file(
-                file,
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.high,
-                errorBuilder: (_, _, _) => Container(
-                  color: Colors.grey[800],
-                  child: const Icon(
-                    Icons.broken_image,
-                    size: 64,
-                    color: Colors.white54,
-                  ),
-                ),
-              )
-            : Container(
+      print('   🟠 senderFile.existsSync()=true');
+      final p = senderFilePath.toLowerCase();
+      final isValidImage =
+          p.endsWith('.jpg') ||
+          p.endsWith('.jpeg') ||
+          p.endsWith('.png') ||
+          p.endsWith('.gif') ||
+          p.endsWith('.webp');
+      senderImage = isValidImage
+          ? Image.file(
+              file,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (_, _, _) => Container(
                 color: Colors.grey[800],
-                child: const Icon(Icons.image, size: 64, color: Colors.white54),
-              );
-      } else {
-        print('   🟠 SENDER: file does not exist at path');
-        senderImage = Container(
-          color: Colors.grey[800],
-          child: const Icon(Icons.image, size: 64, color: Colors.white54),
-        );
-      }
+                child: const Icon(
+                  Icons.broken_image,
+                  size: 64,
+                  color: Colors.white54,
+                ),
+              ),
+            )
+          : Container(
+              color: Colors.grey[800],
+              child: const Icon(Icons.image, size: 64, color: Colors.white54),
+            );
     } else {
-      print('   🟠 SENDER: senderFilePath is null/empty → grey placeholder');
+      print('   🟠 SENDER: file missing (non-upload) → grey placeholder');
       senderImage = Container(
         color: Colors.grey[800],
         child: const Icon(Icons.image, size: 64, color: Colors.white54),

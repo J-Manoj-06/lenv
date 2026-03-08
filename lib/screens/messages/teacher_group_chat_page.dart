@@ -32,6 +32,7 @@ import '../../core/constants/app_colors.dart';
 import '../../models/user_model.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
+import '../../services/connectivity_service.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
@@ -100,6 +101,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
   bool _isUploading = false;
   bool _isRecording = false;
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
   String _uploadingMediaType =
       ''; // Track what type of media is uploading: 'image', 'pdf', 'audio'
   bool _showEmojiPicker = false;
@@ -658,6 +661,12 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService().isOnline;
+    _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
+      online,
+    ) {
+      if (mounted) setState(() => _isOnline = online);
+    });
 
     // ✅ Initialize cached messages stream (prevents reloading on rebuild)
     _messagesStream = _messagingService.getGroupMessages(
@@ -867,6 +876,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       });
     } catch (e) {}
 
+    _connectivitySub?.cancel();
     _messageController.dispose();
     disposeScrollController(); // Use mixin's disposal method
     _messageFocusNode.dispose();
@@ -918,12 +928,99 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     }
   }
 
+  void _showOfflineSnackBar({bool isMedia = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 3),
+        content: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2E),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.45),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Colors.orange,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'No internet connection',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isMedia
+                          ? 'Connect to send media files'
+                          : 'Connect to send messages',
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 12,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.signal_wifi_connected_no_internet_4_rounded,
+                color: Colors.orange.withOpacity(0.7),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _sendMessage({
     String? imageUrl,
     MediaMetadata? mediaMetadata,
   }) async {
     final text = _messageController.text.trim();
     if (text.isEmpty && imageUrl == null && mediaMetadata == null) return;
+    if (!_isOnline && imageUrl == null && mediaMetadata == null) {
+      _showOfflineSnackBar();
+      return;
+    }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
@@ -2477,6 +2574,10 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   }
 
   void _showMediaOptions() {
+    if (!_isOnline) {
+      _showOfflineSnackBar(isMedia: true);
+      return;
+    }
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final isTeacher = authProvider.currentUser?.role == UserRole.teacher;
 
@@ -2977,14 +3078,13 @@ class _MessageBubble extends StatelessWidget {
                       ),
                       child: Padding(
                         padding: EdgeInsets.symmetric(
-                          // Tighter padding for media-only bubbles to maximize image area
+                          // Zero padding for media-only bubbles — let the card fill naturally
                           horizontal:
                               (message.mediaMetadata != null ||
                                       message.imageUrl != null) &&
                                   message.message.isEmpty
-                              ? 6
+                              ? 0
                               : 14,
-                          // Reduce bottom border for media-only bubbles
                           vertical:
                               (message.mediaMetadata != null ||
                                       message.imageUrl != null) &&

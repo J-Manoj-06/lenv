@@ -14,6 +14,7 @@ import '../../../services/media_upload_service.dart';
 import '../../../services/cloudflare_r2_service.dart';
 import '../../../services/local_cache_service.dart';
 import '../../../config/cloudflare_config.dart';
+import '../../../services/connectivity_service.dart';
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -50,6 +51,8 @@ class _ChatScreenState extends State<ChatScreen> {
   double _uploadProgress = 0;
   bool _showEmojiPicker = false;
   String? _recordingPath;
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
   double _slideOffsetX = 0;
   bool _isCancelled = false;
@@ -67,6 +70,13 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _loadCurrentUser();
     _markAsRead();
+    // Connectivity tracking – auto-enables attach/send when internet returns
+    _isOnline = ConnectivityService().isOnline;
+    _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
+      online,
+    ) {
+      if (mounted) setState(() => _isOnline = online);
+    });
   }
 
   void _onEmojiSelected(Emoji emoji) {
@@ -110,6 +120,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _messageController.dispose();
     _scrollController.dispose();
     _recorder.dispose();
@@ -117,9 +128,96 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
+  void _showOfflineSnackBar({bool isMedia = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 3),
+        content: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2E),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.45),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Colors.orange,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'No internet connection',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isMedia
+                          ? 'Connect to send media files'
+                          : 'Connect to send messages',
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 12,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.signal_wifi_connected_no_internet_4_rounded,
+                color: Colors.orange.withOpacity(0.7),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty || _currentUserId == null) return;
+    if (!_isOnline) {
+      _showOfflineSnackBar();
+      return;
+    }
 
     _messageController.clear();
     final newId = await _messagingService.sendMessage(
@@ -359,6 +457,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _pickAttachmentSheet() async {
+    if (!_isOnline) {
+      _showOfflineSnackBar(isMedia: true);
+      return;
+    }
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -879,7 +981,9 @@ class _ChatScreenState extends State<ChatScreen> {
                     size: 24,
                   ),
                   padding: const EdgeInsets.all(8),
-                  onPressed: _isUploading ? null : _pickAttachmentSheet,
+                  onPressed: (_isUploading || !_isOnline)
+                      ? () => _showOfflineSnackBar(isMedia: true)
+                      : _pickAttachmentSheet,
                 ),
                 const SizedBox(width: 8),
                 GestureDetector(

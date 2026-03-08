@@ -202,37 +202,40 @@ Future<void> showModernAttachmentSheet(
       onCameraTap: onCameraTap != null
           ? () {
               Navigator.pop(context);
-              onCameraTap();
+              Future.delayed(const Duration(milliseconds: 300), onCameraTap);
             }
           : null,
       onImageTap: onImageTap != null
           ? () {
               Navigator.pop(context);
-              onImageTap();
+              Future.delayed(const Duration(milliseconds: 300), onImageTap);
             }
           : null,
       onDocumentTap: effectiveDocumentTap != null
           ? () {
               Navigator.pop(context);
-              effectiveDocumentTap();
+              Future.delayed(
+                const Duration(milliseconds: 300),
+                effectiveDocumentTap,
+              );
             }
           : null,
       onAudioTap: onAudioTap != null
           ? () {
               Navigator.pop(context);
-              onAudioTap();
+              Future.delayed(const Duration(milliseconds: 300), onAudioTap);
             }
           : null,
       onPollTap: onPollTap != null
           ? () {
               Navigator.pop(context);
-              onPollTap();
+              Future.delayed(const Duration(milliseconds: 300), onPollTap);
             }
           : null,
       onMindmapTap: onMindmapTap != null
           ? () {
               Navigator.pop(context);
-              onMindmapTap();
+              Future.delayed(const Duration(milliseconds: 300), onMindmapTap);
             }
           : null,
       cameraEnabled: cameraEnabled,

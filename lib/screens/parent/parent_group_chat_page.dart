@@ -29,6 +29,7 @@ import '../../services/unread_count_service.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../../widgets/modern_attachment_sheet.dart';
+import '../../services/connectivity_service.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
@@ -105,6 +106,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   final AudioRecorder _audioRecorder = AudioRecorder();
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
   final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
@@ -119,6 +122,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   final Map<String, int> _lastUploadPercent = {};
   // Ensure unique IDs for rapid uploads
   int _lastUploadTimestamp = 0;
+  // ── Failed-upload state (for retry button) ────────────────────────────
+  final Map<String, String> _failedUploadLocalPaths = {};
+  final Map<String, String> _failedUploadMimeTypes = {};
 
   // Poll cached progress while uploads continue in background
   Timer? _progressPollTimer;
@@ -163,6 +169,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     _focusNode.dispose();
     _recordingTimer?.cancel();
     _progressPollTimer?.cancel();
+    _connectivitySub?.cancel();
     _audioRecorder.dispose();
     super.dispose();
   }
@@ -170,6 +177,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService().isOnline;
+    _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
+      online,
+    ) {
+      if (mounted) setState(() => _isOnline = online);
+    });
 
     // ✅ OPTIMIZATION: Setup scroll listener for pagination
     scrollController.addListener(_onScroll);
@@ -819,9 +832,96 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     }
   }
 
+  void _showOfflineSnackBar({bool isMedia = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 3),
+        content: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2E),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.45),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Colors.orange,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'No internet connection',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isMedia
+                          ? 'Connect to send media files'
+                          : 'Connect to send messages',
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 12,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.signal_wifi_connected_no_internet_4_rounded,
+                color: Colors.orange.withOpacity(0.7),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+    if (!_isOnline) {
+      _showOfflineSnackBar();
+      return;
+    }
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
@@ -1593,41 +1693,21 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                       0.2,
                                                                     )
                                                               : bubbleColor),
+                                                    // No border on media bubbles — media cards have their own shape.
+                                                    // Only show a subtle selection indicator for text-only bubbles.
                                                     border:
-                                                        (msg.multipleMedia !=
-                                                                null &&
-                                                            msg
-                                                                .multipleMedia!
-                                                                .isNotEmpty)
+                                                        isSelected &&
+                                                            !hasMedia &&
+                                                            (msg.multipleMedia ==
+                                                                    null ||
+                                                                msg
+                                                                    .multipleMedia!
+                                                                    .isEmpty)
                                                         ? Border.all(
-                                                            color: primaryColor
-                                                                .withOpacity(
-                                                                  0.8,
-                                                                ),
+                                                            color: primaryColor,
                                                             width: 2.5,
                                                           )
-                                                        : (hasMedia
-                                                              ? Border.all(
-                                                                  color:
-                                                                      isSelected
-                                                                      ? primaryColor
-                                                                            .withOpacity(
-                                                                              0.8,
-                                                                            )
-                                                                      : primaryColor,
-                                                                  width:
-                                                                      isSelected
-                                                                      ? 0.8
-                                                                      : 1.0,
-                                                                )
-                                                              : (isSelected
-                                                                    ? Border.all(
-                                                                        color:
-                                                                            primaryColor,
-                                                                        width:
-                                                                            2.5,
-                                                                      )
-                                                                    : null)),
+                                                        : null,
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                           12,
@@ -1648,22 +1728,25 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                   ),
                                                   child: Padding(
                                                     padding: EdgeInsets.symmetric(
+                                                      // Zero padding for media — let the card fill naturally.
                                                       horizontal:
-                                                          (msg.multipleMedia !=
-                                                                  null &&
-                                                              msg
-                                                                  .multipleMedia!
-                                                                  .isNotEmpty)
-                                                          ? 2
-                                                          : (hasMedia ? 4 : 12),
+                                                          hasMedia ||
+                                                              (msg.multipleMedia !=
+                                                                      null &&
+                                                                  msg
+                                                                      .multipleMedia!
+                                                                      .isNotEmpty)
+                                                          ? 0
+                                                          : 12,
                                                       vertical:
-                                                          (msg.multipleMedia !=
-                                                                  null &&
-                                                              msg
-                                                                  .multipleMedia!
-                                                                  .isNotEmpty)
-                                                          ? 2
-                                                          : (hasMedia ? 4 : 8),
+                                                          hasMedia ||
+                                                              (msg.multipleMedia !=
+                                                                      null &&
+                                                                  msg
+                                                                      .multipleMedia!
+                                                                      .isNotEmpty)
+                                                          ? 0
+                                                          : 8,
                                                     ),
                                                     child: Column(
                                                       crossAxisAlignment:
@@ -1839,7 +1922,104 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                   >(
                                                                     valueListenable:
                                                                         progressNotifier,
-                                                                    builder: (_, value, _) {
+                                                                    builder: (_, value, __) {
+                                                                      // ── Failed upload: show retry overlay ──
+                                                                      if (value ==
+                                                                          -1.0) {
+                                                                        return Stack(
+                                                                          children: [
+                                                                            MediaPreviewCard(
+                                                                              r2Key: msg.mediaMetadata!.r2Key,
+                                                                              fileName: _getFileName(
+                                                                                msg,
+                                                                              ),
+                                                                              mimeType:
+                                                                                  msg.mediaMetadata!.mimeType ??
+                                                                                  'application/octet-stream',
+                                                                              fileSize:
+                                                                                  msg.mediaMetadata!.fileSize ??
+                                                                                  0,
+                                                                              thumbnailBase64: msg.mediaMetadata!.thumbnail,
+                                                                              localPath: localPath,
+                                                                              isMe: isCurrentUser,
+                                                                              uploading: false,
+                                                                              uploadProgress: null,
+                                                                              selectionMode: _selectionMode,
+                                                                            ),
+                                                                            Positioned.fill(
+                                                                              child: Container(
+                                                                                decoration: BoxDecoration(
+                                                                                  color: Colors.black.withOpacity(
+                                                                                    0.65,
+                                                                                  ),
+                                                                                  borderRadius: BorderRadius.circular(
+                                                                                    12,
+                                                                                  ),
+                                                                                ),
+                                                                                child: Column(
+                                                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                                                  mainAxisSize: MainAxisSize.min,
+                                                                                  children: [
+                                                                                    const Icon(
+                                                                                      Icons.cloud_off_rounded,
+                                                                                      color: Colors.white70,
+                                                                                      size: 26,
+                                                                                    ),
+                                                                                    const SizedBox(
+                                                                                      height: 6,
+                                                                                    ),
+                                                                                    const Text(
+                                                                                      'Upload failed',
+                                                                                      style: TextStyle(
+                                                                                        color: Colors.white70,
+                                                                                        fontSize: 12,
+                                                                                        fontWeight: FontWeight.w500,
+                                                                                      ),
+                                                                                    ),
+                                                                                    const SizedBox(
+                                                                                      height: 10,
+                                                                                    ),
+                                                                                    ElevatedButton.icon(
+                                                                                      onPressed: () => _retryPendingUpload(
+                                                                                        msg.messageId,
+                                                                                      ),
+                                                                                      icon: const Icon(
+                                                                                        Icons.refresh_rounded,
+                                                                                        size: 15,
+                                                                                      ),
+                                                                                      label: const Text(
+                                                                                        'Retry',
+                                                                                        style: TextStyle(
+                                                                                          fontSize: 12,
+                                                                                          fontWeight: FontWeight.w600,
+                                                                                        ),
+                                                                                      ),
+                                                                                      style: ElevatedButton.styleFrom(
+                                                                                        backgroundColor: const Color(
+                                                                                          0xFFE53935,
+                                                                                        ),
+                                                                                        foregroundColor: Colors.white,
+                                                                                        padding: const EdgeInsets.symmetric(
+                                                                                          horizontal: 14,
+                                                                                          vertical: 6,
+                                                                                        ),
+                                                                                        minimumSize: Size.zero,
+                                                                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                                                        shape: RoundedRectangleBorder(
+                                                                                          borderRadius: BorderRadius.circular(
+                                                                                            8,
+                                                                                          ),
+                                                                                        ),
+                                                                                      ),
+                                                                                    ),
+                                                                                  ],
+                                                                                ),
+                                                                              ),
+                                                                            ),
+                                                                          ],
+                                                                        );
+                                                                      }
+                                                                      // ── Normal upload in progress ──
                                                                       final progress =
                                                                           ((value / 100).clamp(
                                                                             0.0,
@@ -2337,6 +2517,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   }
 
   void _showAttachmentSheet() {
+    if (!_isOnline) {
+      _showOfflineSnackBar(isMedia: true);
+      return;
+    }
     final primaryColor = widget.senderRole == 'teacher'
         ? teacherViolet
         : parentGreen;
@@ -2362,10 +2546,137 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     );
   }
 
+  /// Retry a failed media upload using the stored local file path.
+  Future<void> _retryPendingUpload(String pendingId) async {
+    if (!_isOnline) {
+      _showOfflineSnackBar(isMedia: true);
+      return;
+    }
+    final localPath = _failedUploadLocalPaths[pendingId];
+    final mimeType =
+        _failedUploadMimeTypes[pendingId] ?? 'application/octet-stream';
+
+    if (localPath == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File path unavailable for retry.')),
+      );
+      return;
+    }
+
+    final file = File(localPath);
+    if (!await file.exists()) {
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _failedUploadLocalPaths.remove(pendingId);
+          _failedUploadMimeTypes.remove(pendingId);
+          _lastUploadPercent.remove(pendingId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('File no longer exists. Please re-attach it.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final pendingMsg = _pendingMessages
+        .cast<CommunityMessageModel?>()
+        .firstWhere((m) => m?.messageId == pendingId, orElse: () => null);
+    if (pendingMsg == null) return;
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    // Reset progress notifier to "in-progress"
+    if (mounted) {
+      setState(() {
+        _pendingUploadNotifiers[pendingId]?.value = 0.0;
+        _failedUploadLocalPaths.remove(pendingId);
+        _failedUploadMimeTypes.remove(pendingId);
+        _lastUploadPercent[pendingId] = -1;
+      });
+    }
+
+    try {
+      final mediaMessage = await _mediaUploadService.uploadMedia(
+        file: file,
+        conversationId: widget.groupId,
+        senderId: user.uid,
+        senderRole: widget.senderRole,
+        mediaType: 'community',
+        onProgress: (progress) {
+          if (!mounted) return;
+          final percent = progress.toInt().clamp(0, 100);
+          final last = _lastUploadPercent[pendingId] ?? -1;
+          if (last < 0 || percent == 100 || (percent - last) >= 5) {
+            _lastUploadPercent[pendingId] = percent;
+            _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
+          }
+        },
+      );
+
+      final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
+      final metadata = MediaMetadata(
+        messageId: mediaMessage.id,
+        r2Key: r2Key,
+        publicUrl: mediaMessage.r2Url,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 365)),
+        uploadedAt: DateTime.now(),
+        fileSize: mediaMessage.fileSize,
+        mimeType: mediaMessage.fileType,
+        originalFileName: mediaMessage.fileName,
+      );
+
+      await _service.sendMessage(
+        groupId: widget.groupId,
+        senderId: user.uid,
+        senderName: user.name,
+        senderRole: widget.senderRole,
+        content: '',
+        mediaType: pendingMsg.type,
+        mediaMetadata: metadata,
+      );
+
+      await _mediaRepository.cacheUploadedMedia(
+        r2Key: r2Key,
+        localPath: localPath,
+        fileName: localPath.split('/').last,
+        mimeType: mimeType,
+        fileSize: await file.length(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _pendingMessages.removeWhere((m) => m.messageId == pendingId);
+          _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _lastUploadPercent.remove(pendingId);
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _pendingUploadNotifiers[pendingId]?.value = -1.0;
+          _failedUploadLocalPaths[pendingId] = localPath;
+          _failedUploadMimeTypes[pendingId] = mimeType;
+        });
+      }
+    }
+  }
+
   Future<void> _pickAndSendCamera() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
     if (user == null) return;
+
+    // Captured for catch-block access (try-scope variables not visible there)
+    String? _capPendingId;
+    String? _capFilePath;
 
     try {
       final picked = await _imagePicker.pickImage(source: ImageSource.camera);
@@ -2373,6 +2684,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
       final file = File(picked.path);
       final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+      _capPendingId = pendingId;
+      _capFilePath = file.path;
 
       // Create optimistic pending message
       final pendingMetadata = MediaMetadata(
@@ -2454,10 +2767,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      if (mounted && _capPendingId != null && _capFilePath != null) {
+        final id = _capPendingId;
+        final path = _capFilePath;
+        setState(() {
+          _pendingUploadNotifiers[id]?.value = -1.0;
+          _failedUploadLocalPaths[id] = path;
+          _failedUploadMimeTypes[id] = 'image/jpeg';
+        });
       }
     }
   }
@@ -2466,6 +2783,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
     if (user == null) return;
+
+    // Captured for catch-block access
+    String? _capPendingId;
+    String? _capFilePath;
 
     try {
       // Try pickMultiImage for multiple image selection (up to 5)
@@ -2482,6 +2803,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       // Single image - use existing logic
       final file = File(picked.first.path);
       final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
+      _capPendingId = pendingId;
+      _capFilePath = file.path;
 
       // Create optimistic pending message
       final pendingMetadata = MediaMetadata(
@@ -2605,10 +2928,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _scrollToBottom();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send image: $e')));
+      if (mounted && _capPendingId != null && _capFilePath != null) {
+        final id = _capPendingId;
+        final path = _capFilePath;
+        setState(() {
+          _pendingUploadNotifiers[id]?.value = -1.0;
+          _failedUploadLocalPaths[id] = path;
+          _failedUploadMimeTypes[id] = 'image/jpeg';
+        });
       }
     }
   }
@@ -2986,6 +3313,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     final user = auth.currentUser;
     if (user == null) return;
 
+    // Captured for catch-block access
+    String? _capPendingId;
+    String? _capFilePath;
+    String _capMime = 'application/pdf';
+
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -3043,6 +3375,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       } else if (fileExtension == 'odp') {
         mimeType = 'application/vnd.oasis.opendocument.presentation';
       }
+
+      // Capture for retry in catch-block
+      _capPendingId = pendingId;
+      _capFilePath = file.path;
+      _capMime = mimeType;
 
       final pendingMetadata = MediaMetadata(
         messageId: pendingId,
@@ -3193,10 +3530,15 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _scrollToBottom();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send PDF: $e')));
+      if (mounted && _capPendingId != null && _capFilePath != null) {
+        final id = _capPendingId;
+        final path = _capFilePath;
+        final mime = _capMime;
+        setState(() {
+          _pendingUploadNotifiers[id]?.value = -1.0;
+          _failedUploadLocalPaths[id] = path;
+          _failedUploadMimeTypes[id] = mime;
+        });
       }
     }
   }
@@ -3205,6 +3547,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
     if (user == null) return;
+
+    // Captured for catch-block access
+    String? _capPendingId;
+    String? _capFilePath;
+    String _capMime = 'audio/mpeg';
 
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.audio);
@@ -3216,6 +3563,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       final fileSize = await file.length();
       final ext = result.files.single.extension?.toLowerCase();
       final mime = _inferAudioMime(ext);
+
+      // Capture for retry in catch-block
+      _capPendingId = pendingId;
+      _capFilePath = file.path;
+      _capMime = mime;
 
       final pendingMetadata = MediaMetadata(
         messageId: pendingId,
@@ -3323,10 +3675,15 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _scrollToBottom();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send audio: $e')));
+      if (mounted && _capPendingId != null && _capFilePath != null) {
+        final id = _capPendingId;
+        final path = _capFilePath;
+        final mime = _capMime;
+        setState(() {
+          _pendingUploadNotifiers[id]?.value = -1.0;
+          _failedUploadLocalPaths[id] = path;
+          _failedUploadMimeTypes[id] = mime;
+        });
       }
     }
   }

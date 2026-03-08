@@ -19,6 +19,7 @@ import '../../widgets/multi_image_message_bubble.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../core/constants/app_colors.dart';
+import '../../services/connectivity_service.dart';
 import '../../models/poll_model.dart';
 import 'message_search_page.dart';
 import '../../utils/message_scroll_highlight_mixin.dart';
@@ -53,6 +54,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   final TextEditingController _messageController = TextEditingController();
   late final MediaUploadService _mediaUploadService;
   final ValueNotifier<bool> _isUploading = ValueNotifier<bool>(false);
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
 
   // OFFLINE-FIRST SERVICES
   late final LocalMessageRepository _localRepo;
@@ -120,6 +123,12 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService().isOnline;
+    _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
+      online,
+    ) {
+      if (mounted) setState(() => _isOnline = online);
+    });
     WidgetsBinding.instance.addObserver(this);
     _initMediaService();
     _initOfflineFirstAsync();
@@ -1108,6 +1117,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   @override
   void dispose() {
     _isInitialized = false;
+    _connectivitySub?.cancel();
     _rebuildThrottleTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _messageController.dispose();
@@ -1135,9 +1145,96 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     super.dispose();
   }
 
+  void _showOfflineSnackBar({bool isMedia = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 3),
+        content: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2E),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.45),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Colors.orange,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'No internet connection',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isMedia
+                          ? 'Connect to send media files'
+                          : 'Connect to send messages',
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 12,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.signal_wifi_connected_no_internet_4_rounded,
+                color: Colors.orange.withOpacity(0.7),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
+    if (!_isOnline) {
+      _showOfflineSnackBar();
+      return;
+    }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
@@ -1823,6 +1920,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   }
 
   void _showAttachmentPicker() {
+    if (!_isOnline) {
+      _showOfflineSnackBar(isMedia: true);
+      return;
+    }
     final primaryColor = widget.isTeacher
         ? AppColors.teacherColor
         : AppColors.instituteColor;

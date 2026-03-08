@@ -392,6 +392,14 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     // Total: 260 - 6 - 6 = 248
     const innerContentWidth = 248.0;
 
+    // Guard: no images to display (e.g., all URLs filtered out during pending upload)
+    if (count == 0) {
+      return const SizedBox(
+        width: innerContentWidth,
+        height: innerContentWidth,
+      );
+    }
+
     // Single image - display with same width as multi-image grid
     if (count == 1) {
       final tileSize = (innerContentWidth - widget.gap) / 2;
@@ -615,7 +623,10 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     // Calculate rows needed (show max 4 images: 2x2 grid)
     final displayCount = count > 4 ? 4 : count;
     final rows = (displayCount / 2).ceil();
-    final gridHeight = (tileSize * rows) + (widget.gap * (rows - 1));
+    // Guard: ensure gridHeight is never negative (rows=0 would give gap*(-1))
+    final gridHeight = rows > 0
+        ? (tileSize * rows) + (widget.gap * (rows - 1))
+        : tileSize;
 
     final grid = GridView.builder(
       shrinkWrap: true,

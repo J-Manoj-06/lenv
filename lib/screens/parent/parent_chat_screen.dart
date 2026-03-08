@@ -17,6 +17,7 @@ import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/modern_attachment_sheet.dart';
+import '../../services/connectivity_service.dart';
 
 class ParentChatScreen extends StatefulWidget {
   final String teacherId;
@@ -52,6 +53,8 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   late final MediaUploadService _mediaUploadService;
   final MediaRepository _mediaRepository = MediaRepository();
   bool _isUploading = false;
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
 
   // Pending message tracking
   final List<Map<String, dynamic>> _pendingMessages = [];
@@ -68,6 +71,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _controller.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
@@ -131,6 +135,12 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   @override
   void initState() {
     super.initState();
+    _isOnline = ConnectivityService().isOnline;
+    _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
+      online,
+    ) {
+      if (mounted) setState(() => _isOnline = online);
+    });
 
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -707,6 +717,10 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                         child: IconButton(
                           onPressed: _controller.text.trim().isNotEmpty
                               ? () async {
+                                  if (!_isOnline) {
+                                    _showOfflineSnackBar();
+                                    return;
+                                  }
                                   final text = _controller.text.trim();
                                   if (text.isEmpty || _conversationId == null) {
                                     return;
@@ -738,7 +752,94 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
     );
   }
 
+  void _showOfflineSnackBar({bool isMedia = false}) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: EdgeInsets.zero,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        duration: const Duration(seconds: 3),
+        content: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E2E),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: Colors.orange.withOpacity(0.45),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Colors.orange,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'No internet connection',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isMedia
+                          ? 'Connect to send media files'
+                          : 'Connect to send messages',
+                      style: const TextStyle(
+                        color: Color(0xFF9CA3AF),
+                        fontSize: 12,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.signal_wifi_connected_no_internet_4_rounded,
+                color: Colors.orange.withOpacity(0.7),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showAttachmentSheet() {
+    if (!_isOnline) {
+      _showOfflineSnackBar(isMedia: true);
+      return;
+    }
     showModernAttachmentSheet(
       context,
       onCameraTap: _pickAndSendCamera,
