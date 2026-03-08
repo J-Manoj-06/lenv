@@ -1049,8 +1049,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   initialValue: selectedClass,
                   isExpanded: true,
                   dropdownColor: Theme.of(context).cardColor,
+                  focusColor: Colors.transparent,
                   decoration: const InputDecoration(
                     border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
@@ -1524,9 +1527,20 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Widget _buildGradientStatsBanner() {
     return InkWell(
       onTap: () {
+        final parsed = _parseClassSection(selectedClass);
+        final classForAttendance =
+            (parsed != null &&
+                parsed['className'] != null &&
+                parsed['section'] != null &&
+                parsed['section']!.isNotEmpty)
+            ? '${parsed['className']} - ${parsed['section']}'
+            : null;
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const AttendanceScreen()),
+          MaterialPageRoute(
+            builder: (context) =>
+                AttendanceScreen(initialClass: classForAttendance),
+          ),
         );
       },
       child: Container(

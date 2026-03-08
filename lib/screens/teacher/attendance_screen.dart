@@ -13,7 +13,8 @@ import '../../services/whatsapp_chat_service.dart';
 enum AttendanceStatus { present, absent }
 
 class AttendanceScreen extends StatefulWidget {
-  const AttendanceScreen({super.key});
+  final String? initialClass;
+  const AttendanceScreen({super.key, this.initialClass});
 
   @override
   State<AttendanceScreen> createState() => _AttendanceScreenState();
@@ -103,7 +104,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             if (mounted) {
               setState(() {
                 _classes = cachedClasses..sort();
-                _selectedClass = _classes.isNotEmpty ? _classes[0] : null;
+                _selectedClass =
+                    (widget.initialClass != null &&
+                        cachedClasses.contains(widget.initialClass))
+                    ? widget.initialClass
+                    : (_classes.isNotEmpty ? _classes[0] : null);
                 _isLoading = false;
                 _isEditing = false;
                 _isOfflineMode = true;
@@ -137,7 +142,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
       setState(() {
         _classes = classes..sort();
-        _selectedClass = _classes.isNotEmpty ? _classes[0] : null;
+        _selectedClass =
+            (widget.initialClass != null &&
+                classes.contains(widget.initialClass))
+            ? widget.initialClass
+            : (_classes.isNotEmpty ? _classes[0] : null);
         _isLoading = false;
         _isEditing = false;
         _isOfflineMode = false;
