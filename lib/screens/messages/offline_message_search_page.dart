@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
@@ -357,13 +356,8 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
             ),
           ),
         ),
-        onTap: () {
-          // Dismiss keyboard before navigating back
-          FocusScope.of(context).unfocus();
-
-          // Return messageId to navigate to it in chat
-          Navigator.pop(context, message.messageId);
-        },
+        // Text messages are static in search results — tapping does nothing
+        onTap: null,
       ),
     );
   }
@@ -510,14 +504,17 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
     final fileExtension = message.getFileExtension();
 
     try {
-      // For images, try to open directly in browser/viewer
+      // For images — open in-app full-screen viewer, never external browser
       if (message.attachmentType?.contains('image') == true ||
           ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(fileExtension)) {
-        final uri = Uri.parse(url);
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return;
-        }
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _OfflineInAppImageViewer(imageUrl: url),
+          ),
+        );
+        return;
       }
 
       // For PDFs and other documents, download and open with external app
@@ -601,5 +598,41 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
+  }
+}
+
+/// Full-screen in-app image viewer used by offline search results.
+class _OfflineInAppImageViewer extends StatelessWidget {
+  final String imageUrl;
+  const _OfflineInAppImageViewer({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5.0,
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (_, child, progress) {
+              if (progress == null) return child;
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              );
+            },
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+          ),
+        ),
+      ),
+    );
   }
 }

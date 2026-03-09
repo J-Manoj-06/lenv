@@ -415,7 +415,41 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () {
-                      // Call the callback which will handle navigation
+                      final attachmentType =
+                          (message['attachmentType'] as String? ?? '')
+                              .toLowerCase();
+                      final msgType = (message['type'] as String? ?? '')
+                          .toLowerCase();
+
+                      // Plain text message → no-op, stays static in list
+                      if (attachmentType.isEmpty &&
+                          msgType != 'image' &&
+                          msgType != 'photo') {
+                        return;
+                      }
+
+                      // Image → open in-app full-screen viewer
+                      if (attachmentType.startsWith('image/') ||
+                          msgType == 'image' ||
+                          msgType == 'photo') {
+                        final url =
+                            (message['attachmentUrl'] ??
+                                    message['url'] ??
+                                    message['mediaUrl'] ??
+                                    '')
+                                as String;
+                        if (url.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => _InAppImageViewer(imageUrl: url),
+                            ),
+                          );
+                        }
+                        return;
+                      }
+
+                      // Documents / audio / other → existing callback
                       widget.onMessageSelected(messageId, message);
                     },
                     borderRadius: BorderRadius.circular(12),
@@ -560,6 +594,42 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
       maxLines: 2,
       overflow: TextOverflow.ellipsis,
       text: TextSpan(children: spans, style: const TextStyle(fontSize: 14)),
+    );
+  }
+}
+
+/// Full-screen in-app image viewer — used only by search results.
+class _InAppImageViewer extends StatelessWidget {
+  final String imageUrl;
+  const _InAppImageViewer({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5.0,
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (_, child, progress) {
+              if (progress == null) return child;
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              );
+            },
+            errorBuilder: (_, __, ___) =>
+                const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+          ),
+        ),
+      ),
     );
   }
 }
