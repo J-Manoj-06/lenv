@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 /// Data model for a message being forwarded.
 /// Captures everything needed to re-send it to new destinations
 /// without re-uploading any media.
@@ -179,8 +181,10 @@ class ForwardMessageData {
               'fileSize': 0,
               'mimeType': 'image/jpeg',
               'serverStatus': 'available',
-              'uploadedAt': now,
-              'expiresAt': now + const Duration(days: 30).inMilliseconds,
+              'uploadedAt': Timestamp.fromMillisecondsSinceEpoch(now),
+              'expiresAt': Timestamp.fromMillisecondsSinceEpoch(
+                now + const Duration(days: 30).inMilliseconds,
+              ),
             },
           )
           .toList();
@@ -199,8 +203,10 @@ class ForwardMessageData {
       'fileSize': fileSize ?? 0,
       'mimeType': mimeType ?? 'application/octet-stream',
       'serverStatus': 'available',
-      'uploadedAt': now,
-      'expiresAt': now + const Duration(days: 30).inMilliseconds,
+      'uploadedAt': Timestamp.fromMillisecondsSinceEpoch(now),
+      'expiresAt': Timestamp.fromMillisecondsSinceEpoch(
+        now + const Duration(days: 30).inMilliseconds,
+      ),
     };
   }
 }

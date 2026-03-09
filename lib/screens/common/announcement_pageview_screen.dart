@@ -584,361 +584,373 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       );
     }
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        onVerticalDragUpdate: (details) {
-          if (!_isLongPressing) {
-            setState(() {
-              _verticalDragOffset += details.delta.dy;
-            });
-          }
-        },
-        onVerticalDragEnd: (details) {
-          if (!_isLongPressing && _verticalDragOffset > 100) {
-            // Swipe down to dismiss
-            Navigator.of(context).maybePop();
-          } else {
-            setState(() {
-              _verticalDragOffset = 0.0;
-            });
-          }
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          transform: Matrix4.translationValues(
-            0,
-            _verticalDragOffset.clamp(0.0, 200.0),
-            0,
-          ),
-          child: PageView.builder(
-            controller: _pageController,
-            physics:
-                const NeverScrollableScrollPhysics(), // Disable swipe - use tap navigation only
-            onPageChanged: _onPageChanged,
-            itemCount: widget.announcements.length,
-            itemBuilder: (context, index) {
-              final announcement = widget.announcements[index];
-              final role = announcement['role'] as String? ?? 'principal';
-              final theme = _RoleTheme.forRole(role);
-              final isLight = theme.useLightBackground;
-              final bgColor = isLight ? theme.bgLight : theme.bgDark;
+    // PopScope disables the navigator's swipe-to-pop gesture so it never
+    // calls didStopUserGesture() while our own GestureDetector is already
+    // owning the horizontal/vertical drag, preventing the framework assertion:
+    // '_userGesturesInProgress > 0' in navigator.dart.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) Navigator.of(context).maybePop(result);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: GestureDetector(
+          onVerticalDragUpdate: (details) {
+            if (!_isLongPressing) {
+              setState(() {
+                _verticalDragOffset += details.delta.dy;
+              });
+            }
+          },
+          onVerticalDragEnd: (details) {
+            if (!_isLongPressing && _verticalDragOffset > 100) {
+              // Swipe down to dismiss
+              Navigator.of(context).maybePop();
+            } else {
+              setState(() {
+                _verticalDragOffset = 0.0;
+              });
+            }
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            transform: Matrix4.translationValues(
+              0,
+              _verticalDragOffset.clamp(0.0, 200.0),
+              0,
+            ),
+            child: PageView.builder(
+              controller: _pageController,
+              physics:
+                  const NeverScrollableScrollPhysics(), // Disable swipe - use tap navigation only
+              onPageChanged: _onPageChanged,
+              itemCount: widget.announcements.length,
+              itemBuilder: (context, index) {
+                final announcement = widget.announcements[index];
+                final role = announcement['role'] as String? ?? 'principal';
+                final theme = _RoleTheme.forRole(role);
+                final isLight = theme.useLightBackground;
+                final bgColor = isLight ? theme.bgLight : theme.bgDark;
 
-              return Scaffold(
-                backgroundColor: bgColor,
-                body: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onLongPressStart: (_) {
-                    // Pause progress when holding
-                    setState(() {
-                      _isLongPressing = true;
-                    });
-                    _progressController.stop();
-                  },
-                  onLongPressEnd: (_) {
-                    // Resume progress when released
-                    setState(() {
-                      _isLongPressing = false;
-                    });
-                    _progressController.forward();
-                  },
-                  onTapUp: (details) {
-                    final width = MediaQuery.of(context).size.width;
-                    final dx = details.globalPosition.dx;
-                    if (dx < width * 0.33) {
-                      // Tap left: go to previous
-                      if (_currentIndex > 0) {
-                        _pageController.previousPage(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOut,
-                        );
+                return Scaffold(
+                  backgroundColor: bgColor,
+                  body: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onLongPressStart: (_) {
+                      // Pause progress when holding
+                      setState(() {
+                        _isLongPressing = true;
+                      });
+                      _progressController.stop();
+                    },
+                    onLongPressEnd: (_) {
+                      // Resume progress when released
+                      setState(() {
+                        _isLongPressing = false;
+                      });
+                      _progressController.forward();
+                    },
+                    onTapUp: (details) {
+                      final width = MediaQuery.of(context).size.width;
+                      final dx = details.globalPosition.dx;
+                      if (dx < width * 0.33) {
+                        // Tap left: go to previous
+                        if (_currentIndex > 0) {
+                          _pageController.previousPage(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                          );
+                        }
+                      } else if (dx > width * 0.67) {
+                        // Tap right: go to next
+                        if (_currentIndex < widget.announcements.length - 1) {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                          );
+                        } else {
+                          // Last item: close
+                          Navigator.of(context).maybePop();
+                        }
                       }
-                    } else if (dx > width * 0.67) {
-                      // Tap right: go to next
-                      if (_currentIndex < widget.announcements.length - 1) {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOut,
-                        );
-                      } else {
-                        // Last item: close
-                        Navigator.of(context).maybePop();
-                      }
-                    }
-                  },
-                  child: Stack(
-                    children: [
-                      // Black background
-                      Positioned.fill(child: Container(color: Colors.black)),
+                    },
+                    child: Stack(
+                      children: [
+                        // Black background
+                        Positioned.fill(child: Container(color: Colors.black)),
 
-                      // Content
-                      SafeArea(
-                        child: Column(
-                          children: [
-                            // Header with progress bars
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                16,
-                                16,
-                                12,
-                              ),
-                              child: Column(
-                                children: [
-                                  // Progress bars for announcements or images
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: _buildProgressBars(
-                                      announcement,
-                                      theme,
+                        // Content
+                        SafeArea(
+                          child: Column(
+                            children: [
+                              // Header with progress bars
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  12,
+                                ),
+                                child: Column(
+                                  children: [
+                                    // Progress bars for announcements or images
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 12,
+                                      ),
+                                      child: _buildProgressBars(
+                                        announcement,
+                                        theme,
+                                      ),
                                     ),
-                                  ),
-                                  // Avatar + metadata row
-                                  Row(
-                                    children: [
-                                      Container(
-                                        height: 40,
-                                        width: 40,
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: theme.primary.withOpacity(
-                                              0.5,
+                                    // Avatar + metadata row
+                                    Row(
+                                      children: [
+                                        Container(
+                                          height: 40,
+                                          width: 40,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: theme.primary.withOpacity(
+                                                0.5,
+                                              ),
+                                              width: 2,
                                             ),
-                                            width: 2,
+                                            image:
+                                                announcement['avatarUrl'] !=
+                                                        null &&
+                                                    announcement['avatarUrl']!
+                                                        .isNotEmpty
+                                                ? DecorationImage(
+                                                    image: NetworkImage(
+                                                      announcement['avatarUrl']!,
+                                                    ),
+                                                    fit: BoxFit.cover,
+                                                  )
+                                                : null,
+                                            color:
+                                                announcement['avatarUrl'] ==
+                                                        null ||
+                                                    announcement['avatarUrl']!
+                                                        .isEmpty
+                                                ? Colors.grey.shade400
+                                                : null,
                                           ),
-                                          image:
-                                              announcement['avatarUrl'] !=
-                                                      null &&
-                                                  announcement['avatarUrl']!
-                                                      .isNotEmpty
-                                              ? DecorationImage(
-                                                  image: NetworkImage(
-                                                    announcement['avatarUrl']!,
-                                                  ),
-                                                  fit: BoxFit.cover,
-                                                )
-                                              : null,
-                                          color:
-                                              announcement['avatarUrl'] ==
-                                                      null ||
-                                                  announcement['avatarUrl']!
-                                                      .isEmpty
-                                              ? Colors.grey.shade400
-                                              : null,
                                         ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              announcement['postedByLabel'] ??
-                                                  '',
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(
-                                                  0.8,
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                announcement['postedByLabel'] ??
+                                                    '',
+                                                style: TextStyle(
+                                                  color: Colors.white
+                                                      .withOpacity(0.8),
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
                                                 ),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
                                               ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              _relativeTime(
-                                                announcement['postedAt']
-                                                    as DateTime?,
-                                              ),
-                                              style: TextStyle(
-                                                color: Colors.white.withOpacity(
-                                                  0.6,
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                _relativeTime(
+                                                  announcement['postedAt']
+                                                      as DateTime?,
                                                 ),
-                                                fontSize: 11,
+                                                style: TextStyle(
+                                                  color: Colors.white
+                                                      .withOpacity(0.6),
+                                                  fontSize: 11,
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
 
-                            // Center content
-                            Expanded(
-                              child: Container(
-                                color: Colors.black,
-                                child: Center(
-                                  child: _buildAnnouncementContent(
-                                    announcement,
-                                    index,
+                              // Center content
+                              Expanded(
+                                child: Container(
+                                  color: Colors.black,
+                                  child: Center(
+                                    child: _buildAnnouncementContent(
+                                      announcement,
+                                      index,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
 
-                            // Footer with expiry and counter
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                12,
-                                16,
-                                24,
-                              ),
-                              child: Column(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(9999),
-                                      border: Border.all(
-                                        color: Colors.white.withOpacity(0.08),
+                              // Footer with expiry and counter
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  24,
+                                ),
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(
+                                          9999,
+                                        ),
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.08),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.schedule,
+                                            size: 16,
+                                            color: Colors.white70,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            _expiryText(
+                                              announcement['expiresAt']
+                                                  as DateTime?,
+                                            ),
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.white70,
+                                              fontWeight: FontWeight.w700,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    child: Row(
+                                    if (widget.announcements.length > 1) ...[
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        '${_currentIndex + 1} / ${widget.announcements.length}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white54,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Tap zone (invisible, for navigation only)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            ignoring: true,
+                            child: Container(),
+                          ),
+                        ),
+
+                        // Swipe down hint at top
+                        if (_showTapHints)
+                          Positioned(
+                            top: 8,
+                            left: 0,
+                            right: 0,
+                            child: IgnorePointer(
+                              child: AnimatedOpacity(
+                                opacity: _showTapHints ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 500),
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.5),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: const Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(
-                                          Icons.schedule,
-                                          size: 16,
+                                        Icon(
+                                          Icons.keyboard_arrow_down,
                                           color: Colors.white70,
+                                          size: 16,
                                         ),
-                                        const SizedBox(width: 8),
+                                        SizedBox(width: 4),
                                         Text(
-                                          _expiryText(
-                                            announcement['expiresAt']
-                                                as DateTime?,
-                                          ),
-                                          style: const TextStyle(
-                                            fontSize: 12,
+                                          'Swipe down to close',
+                                          style: TextStyle(
                                             color: Colors.white70,
-                                            fontWeight: FontWeight.w700,
-                                            letterSpacing: 0.8,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                  if (widget.announcements.length > 1) ...[
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      '${_currentIndex + 1} / ${widget.announcements.length}',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white54,
-                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Delete button at top right (only for creator)
+                        if (widget.currentUserId != null &&
+                            widget.currentUserId!.isNotEmpty &&
+                            announcement['creatorId'] != null &&
+                            (announcement['creatorId'] as String).isNotEmpty &&
+                            announcement['creatorId'] == widget.currentUserId)
+                          Positioned(
+                            top: 60,
+                            right: 16,
+                            child: SafeArea(
+                              child: Material(
+                                color: Colors.transparent,
+                                child: GestureDetector(
+                                  onTap: () {
+                                    if (widget.onDelete != null) {
+                                      widget.onDelete!(_currentIndex);
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.8),
+                                      shape: BoxShape.circle,
                                     ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // Tap zone (invisible, for navigation only)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          ignoring: true,
-                          child: Container(),
-                        ),
-                      ),
-
-                      // Swipe down hint at top
-                      if (_showTapHints)
-                        Positioned(
-                          top: 8,
-                          left: 0,
-                          right: 0,
-                          child: IgnorePointer(
-                            child: AnimatedOpacity(
-                              opacity: _showTapHints ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 500),
-                              child: Center(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.5),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.keyboard_arrow_down,
-                                        color: Colors.white70,
-                                        size: 16,
-                                      ),
-                                      SizedBox(width: 4),
-                                      Text(
-                                        'Swipe down to close',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
+                                    child: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-
-                      // Delete button at top right (only for creator)
-                      if (widget.currentUserId != null &&
-                          widget.currentUserId!.isNotEmpty &&
-                          announcement['creatorId'] != null &&
-                          (announcement['creatorId'] as String).isNotEmpty &&
-                          announcement['creatorId'] == widget.currentUserId)
-                        Positioned(
-                          top: 60,
-                          right: 16,
-                          child: SafeArea(
-                            child: Material(
-                              color: Colors.transparent,
-                              child: GestureDetector(
-                                onTap: () {
-                                  if (widget.onDelete != null) {
-                                    widget.onDelete!(_currentIndex);
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.8),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.white,
-                                    size: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
+      ), // closes Scaffold
+    ); // closes PopScope
   }
 }
 

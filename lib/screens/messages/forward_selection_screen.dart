@@ -7,6 +7,7 @@ import '../../services/forward_message_service.dart';
 import '../../services/community_service.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/teacher_groups_service.dart';
+import 'teacher_group_chat_page.dart';
 
 /// Screen for selecting forward destinations.
 /// Accepts a list of [ForwardMessageData] (the messages to forward),
@@ -116,7 +117,13 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
                   type: 'group',
                   subtitle: className,
                   iconEmoji: '📚',
-                  metadata: {'classId': classId, 'subjectId': subjectId},
+                  metadata: {
+                    'classId': classId,
+                    'subjectId': subjectId,
+                    'subjectName': subject,
+                    'className': className,
+                    'icon': '📚',
+                  },
                 ),
               );
             }
@@ -138,7 +145,13 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
                   type: 'group',
                   subtitle: 'Class Group',
                   iconEmoji: s.icon.isNotEmpty ? s.icon : '📚',
-                  metadata: {'classId': classId, 'subjectId': s.id},
+                  metadata: {
+                    'classId': classId,
+                    'subjectId': s.id,
+                    'subjectName': s.name,
+                    'className': '',
+                    'icon': s.icon.isNotEmpty ? s.icon : '📚',
+                  },
                 ),
               );
             }
@@ -204,7 +217,33 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
-        Navigator.of(context).pop(true); // pop with success flag
+        // Navigate to the destination if a single group was selected
+        final dest = selected.first;
+        if (selected.length == 1 &&
+            dest.type == 'group' &&
+            dest.metadata != null) {
+          final classId = dest.metadata!['classId'] as String? ?? '';
+          final subjectId = dest.metadata!['subjectId'] as String? ?? '';
+          final subjectName =
+              dest.metadata!['subjectName'] as String? ?? dest.name;
+          final className = dest.metadata!['className'] as String? ?? '';
+          final icon = dest.metadata!['icon'] as String? ?? '📚';
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => TeacherGroupChatPage(
+                classId: classId,
+                subjectId: subjectId,
+                subjectName: subjectName,
+                teacherName: 'Teacher',
+                icon: icon,
+                className: className.isNotEmpty ? className : null,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).pop(true); // pop with success flag
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

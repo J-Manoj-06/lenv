@@ -99,7 +99,10 @@ class _GroupsListPageState extends State<GroupsListPage>
     // Store the listener so we can cancel it on dispose
     _messageListeners[chatId] = query.snapshots().listen((snapshot) {
       if (snapshot.docs.isNotEmpty && mounted) {
-        final newTs = (snapshot.docs.first.data()['timestamp'] as int?) ?? 0;
+        final rawTs = snapshot.docs.first.data()['timestamp'];
+        final newTs = rawTs is int
+            ? rawTs
+            : (rawTs is Timestamp ? rawTs.millisecondsSinceEpoch : 0);
 
         // Update timestamp and resort immediately
         _lastMessageTs[chatId] = newTs;
