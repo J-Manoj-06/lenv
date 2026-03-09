@@ -472,11 +472,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
   Widget _buildChart(ThemeData theme, List<TestSubmission> points) {
     if (points.isEmpty) return const SizedBox(height: 160);
+
+    // When there is only one data point x-range would be 0..0 which
+    // prevents fl_chart from rendering anything. Use a padded range instead.
+    final bool singlePoint = points.length == 1;
+
     final spots = points
         .asMap()
         .entries
         .map((e) => FlSpot(e.key.toDouble(), e.value.percentage))
         .toList();
+
     return SizedBox(
       height: 160,
       child: LineChart(
@@ -484,18 +490,27 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           gridData: FlGridData(show: false),
           titlesData: FlTitlesData(show: false),
           borderData: FlBorderData(show: false),
-          minX: 0,
-          maxX: (spots.length - 1).toDouble(),
+          minX: singlePoint ? -0.5 : 0,
+          maxX: singlePoint ? 0.5 : (spots.length - 1).toDouble(),
           minY: 0,
           maxY: 100,
           lineBarsData: [
             LineChartBarData(
               spots: spots,
-              isCurved: true,
+              isCurved: !singlePoint,
               color: brandPrimary,
               barWidth: 3,
               isStrokeCapRound: true,
-              dotData: FlDotData(show: false),
+              dotData: FlDotData(
+                show: singlePoint,
+                getDotPainter: (spot, percent, bar, index) =>
+                    FlDotCirclePainter(
+                      radius: 6,
+                      color: brandPrimary,
+                      strokeWidth: 2,
+                      strokeColor: brandPrimaryLight,
+                    ),
+              ),
               belowBarData: BarAreaData(
                 show: true,
                 gradient: LinearGradient(

@@ -590,7 +590,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : const Color(0xFFF6F5F8),
+      backgroundColor: Colors.black,
       body: Column(
         children: [
           _buildSearchBar(isDark),
@@ -631,7 +631,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                 )
               : null,
           filled: true,
-          fillColor: isDark ? const Color(0xFF1E1A2F) : Colors.white,
+          fillColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -853,27 +853,12 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: isDark
-              ? const LinearGradient(
-                  colors: [Color(0xFF2D2540), Color(0xFF2A2538)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : const LinearGradient(
-                  colors: [Color(0xFFFFF5F0), Color(0xFFFFFFFF)],
-                ),
+          color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFFFF5F0),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: const Color(0xFFF97316).withOpacity(0.3),
             width: 1.5,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFF97316).withOpacity(0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
         child: Material(
           color: Colors.transparent,
@@ -1123,31 +1108,14 @@ class _MessageGroupTileState extends State<MessageGroupTile>
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: widget.isDark
-                    ? LinearGradient(
-                        colors: [
-                          const Color(0xFF2A2A3E),
-                          const Color(0xFF252537),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                color: widget.isDark ? null : Colors.white,
+                color: widget.isDark ? const Color(0xFF1C1C1E) : Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: widget.isDark
                       ? Colors.white.withOpacity(0.08)
                       : Colors.grey[200]!,
-                  width: 1.5,
+                  width: 1,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(widget.isDark ? 0.2 : 0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
