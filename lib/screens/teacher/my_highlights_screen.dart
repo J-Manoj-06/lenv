@@ -236,7 +236,7 @@ class _HighlightCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(8),
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF7E57C2), Color(0xFFB388FF)],
+                        colors: [Color(0xFF355872), Color(0xFF456B85)],
                       ),
                     ),
                     child: status.hasImage
@@ -306,7 +306,7 @@ class _HighlightCard extends StatelessWidget {
                       color: Colors.white,
                     ),
                     label: Text(_getAudienceLabel(status)),
-                    backgroundColor: const Color(0xFF7E57C2),
+                    backgroundColor: const Color(0xFF355872),
                     labelStyle: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
