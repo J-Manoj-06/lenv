@@ -601,7 +601,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                           children: [
                             Icon(
                               Icons.help_outline,
-                              color: Colors.orange.shade700,
+                              color: const Color(0xFF355872),
                               size: 24,
                             ),
                             const SizedBox(width: 8),
@@ -769,8 +769,8 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(
-                  color: theme.colorScheme.primary,
+                borderSide: const BorderSide(
+                  color: Color(0xFF355872),
                   width: 2,
                 ),
               ),

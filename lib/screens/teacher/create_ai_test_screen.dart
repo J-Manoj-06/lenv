@@ -672,7 +672,7 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   ),
                   borderRadius: BorderRadius.circular(12),
                   color: Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF1E1E2E)
+                      ? const Color(0xFF1C1C1E)
                       : Colors.grey.shade50,
                 ),
                 child: Row(

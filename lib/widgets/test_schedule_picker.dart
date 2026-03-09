@@ -115,11 +115,11 @@ class _TestSchedulePickerState extends State<TestSchedulePicker>
       child: Container(
         height: MediaQuery.of(context).size.height * 0.75,
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E2E),
+          color: const Color(0xFF1C1C1E),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF6A4FF7).withOpacity(0.2),
+              color: const Color(0xFF355872).withOpacity(0.2),
               blurRadius: 20,
               offset: const Offset(0, -5),
             ),
@@ -734,7 +734,7 @@ class _AnimatedTileState extends State<AnimatedTile> {
               ? const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF6A4FF7), Color(0xFF8F66FF)],
+                  colors: [Color(0xFF355872), Color(0xFF456B85)],
                 )
               : null,
           color: widget.isSelected ? null : const Color(0xFF2A2A3E),
@@ -742,7 +742,7 @@ class _AnimatedTileState extends State<AnimatedTile> {
           boxShadow: widget.isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF6A4FF7).withOpacity(0.4),
+                    color: const Color(0xFF355872).withOpacity(0.4),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
