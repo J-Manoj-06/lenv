@@ -115,14 +115,9 @@ class LocalMessageRepository {
       // Filter by chatId if specified
       if (chatId != null && msg.chatId != chatId) return false;
 
-      // Search in message text
+      // Search in message text only — sender name is NOT matched
       if (msg.messageText != null &&
           msg.messageText!.toLowerCase().contains(lowerQuery)) {
-        return true;
-      }
-
-      // Search in sender name
-      if (msg.senderName.toLowerCase().contains(lowerQuery)) {
         return true;
       }
 

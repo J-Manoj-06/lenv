@@ -357,13 +357,6 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
             ),
           ),
         ),
-        trailing: Text(
-          _formatTimestamp(message.timestamp),
-          style: TextStyle(
-            fontSize: 12,
-            color: isDark ? const Color(0xFF8696A0) : Colors.grey[500],
-          ),
-        ),
         onTap: () {
           // Dismiss keyboard before navigating back
           FocusScope.of(context).unfocus();

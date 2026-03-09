@@ -130,7 +130,6 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
       final messageText = (message['message'] ?? message['text'] ?? '')
           .toString()
           .toLowerCase();
-      final senderName = (message['senderName'] ?? '').toString().toLowerCase();
       final attachmentName = (message['attachmentName'] ?? '')
           .toString()
           .toLowerCase();
@@ -155,9 +154,9 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
         }
       }
 
-      // Search in message text, sender name, attachment names, media names, and poll questions
+      // Search only in message content — NOT in sender name
+      // Results where only the sender name matched are excluded intentionally
       return messageText.contains(query) ||
-          senderName.contains(query) ||
           attachmentName.contains(query) ||
           mediaName.contains(query) ||
           pollQuestion.contains(query);
