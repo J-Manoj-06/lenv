@@ -545,15 +545,29 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                       'Number of Questions: $_numQuestions',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    Slider(
-                      value: _numQuestions.toDouble(),
-                      min: 1,
-                      max: 20,
-                      divisions: 19,
-                      label: _numQuestions.toString(),
-                      onChanged: (value) {
-                        setState(() => _numQuestions = value.toInt());
-                      },
+                    SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: const Color(0xFF355872),
+                        inactiveTrackColor: const Color(
+                          0xFF355872,
+                        ).withOpacity(0.2),
+                        thumbColor: const Color(0xFF355872),
+                        overlayColor: const Color(0xFF355872).withOpacity(0.15),
+                        valueIndicatorColor: const Color(0xFF355872),
+                        valueIndicatorTextStyle: const TextStyle(
+                          color: Colors.white,
+                        ),
+                      ),
+                      child: Slider(
+                        value: _numQuestions.toDouble(),
+                        min: 1,
+                        max: 20,
+                        divisions: 19,
+                        label: _numQuestions.toString(),
+                        onChanged: (value) {
+                          setState(() => _numQuestions = value.toInt());
+                        },
+                      ),
                     ),
                   ],
                 ),
