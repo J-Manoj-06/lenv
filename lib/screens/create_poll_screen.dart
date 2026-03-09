@@ -681,35 +681,6 @@ class _CreatePollScreenState extends State<CreatePollScreen>
         top: false,
         child: Row(
           children: [
-            // Preview button (outline)
-            Expanded(
-              child: OutlinedButton(
-                onPressed: isValid ? () {} : null, // Preview action (UI only)
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: accentColor,
-                  side: BorderSide(
-                    color: isValid
-                        ? accentColor
-                        : (isDark ? AppColors.textMuted : Colors.grey.shade400),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: Text(
-                  'Preview',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: isValid
-                        ? accentColor
-                        : (isDark ? AppColors.textMuted : Colors.grey),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
             // Send Poll button (gradient fill)
             Expanded(
               flex: 2,
