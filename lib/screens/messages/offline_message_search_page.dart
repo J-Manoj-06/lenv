@@ -602,12 +602,75 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
 }
 
 /// Full-screen in-app image viewer used by offline search results.
-class _OfflineInAppImageViewer extends StatelessWidget {
+/// Supports pinch-to-zoom and animated double-tap zoom.
+class _OfflineInAppImageViewer extends StatefulWidget {
   final String imageUrl;
   const _OfflineInAppImageViewer({required this.imageUrl});
 
   @override
+  State<_OfflineInAppImageViewer> createState() =>
+      _OfflineInAppImageViewerState();
+}
+
+class _OfflineInAppImageViewerState extends State<_OfflineInAppImageViewer>
+    with SingleTickerProviderStateMixin {
+  final TransformationController _transformController =
+      TransformationController();
+  late final AnimationController _animController;
+  Animation<Matrix4>? _animation;
+  TapDownDetails? _lastDoubleTapDetails;
+
+  static const double _zoomScale = 3.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 220),
+        )..addListener(() {
+          if (_animation != null) {
+            _transformController.value = _animation!.value;
+          }
+        });
+  }
+
+  @override
+  void dispose() {
+    _transformController.dispose();
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _onDoubleTapDown(TapDownDetails details) {
+    _lastDoubleTapDetails = details;
+  }
+
+  void _onDoubleTap() {
+    final isZoomedIn = _transformController.value.getMaxScaleOnAxis() > 1.01;
+    if (isZoomedIn) {
+      _animateTo(Matrix4.identity());
+    } else {
+      final pos = _lastDoubleTapDetails?.localPosition ?? Offset.zero;
+      final zoomed = Matrix4.identity()
+        ..translate(-pos.dx * (_zoomScale - 1), -pos.dy * (_zoomScale - 1))
+        ..scale(_zoomScale);
+      _animateTo(zoomed);
+    }
+  }
+
+  void _animateTo(Matrix4 target) {
+    _animation = Matrix4Tween(begin: _transformController.value, end: target)
+        .animate(
+          CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+        );
+    _animController.forward(from: 0);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -615,21 +678,34 @@ class _OfflineInAppImageViewer extends StatelessWidget {
         iconTheme: const IconThemeData(color: Colors.white),
         elevation: 0,
       ),
-      body: Center(
+      body: GestureDetector(
+        onDoubleTapDown: _onDoubleTapDown,
+        onDoubleTap: _onDoubleTap,
         child: InteractiveViewer(
+          transformationController: _transformController,
           minScale: 0.5,
           maxScale: 5.0,
-          child: Image.network(
-            imageUrl,
-            fit: BoxFit.contain,
-            loadingBuilder: (_, child, progress) {
-              if (progress == null) return child;
-              return const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              );
-            },
-            errorBuilder: (_, __, ___) =>
-                const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+          child: SizedBox(
+            width: size.width,
+            height: size.height,
+            child: Image.network(
+              widget.imageUrl,
+              fit: BoxFit.contain,
+              width: size.width,
+              loadingBuilder: (_, child, progress) {
+                if (progress == null) return child;
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              },
+              errorBuilder: (_, __, ___) => const Center(
+                child: Icon(
+                  Icons.broken_image,
+                  color: Colors.white54,
+                  size: 64,
+                ),
+              ),
+            ),
           ),
         ),
       ),

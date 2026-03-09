@@ -707,14 +707,29 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     print('   thumbnailBase64 length=${widget.thumbnailBase64?.length}');
     // ══════════════════════════════════════════════════════════════════════
 
-    // ── Shared shell: clean clip + gesture — no outer ring ─────────────────
+    // ── Shared shell: bordered clip + gesture — matches multi-image grid ───
     Widget shell(Widget content, {VoidCallback? onTap}) {
+      final borderColor = widget.themeColor ?? const Color(0xFF355872);
       return GestureDetector(
         onTap: widget.selectionMode ? null : onTap,
         onLongPress: null,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(width: 220, height: 220, child: content),
+        child: Container(
+          width: 260,
+          height: 260,
+          decoration: BoxDecoration(
+            color: borderColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor, width: 1.5),
+          ),
+          padding: const EdgeInsets.all(3),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: SizedBox(
+              width: double.infinity,
+              height: double.infinity,
+              child: content,
+            ),
+          ),
         ),
       );
     }
