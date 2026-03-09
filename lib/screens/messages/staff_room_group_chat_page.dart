@@ -31,6 +31,8 @@ import 'offline_message_search_page.dart';
 import '../../services/background_upload_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:uuid/uuid.dart';
+import '../../models/forward_message_data.dart';
+import 'forward_selection_screen.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomGroupChatPage extends StatefulWidget {
@@ -2282,15 +2284,32 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                 valueListenable: _selectedMessages,
                 builder: (context, selectedMessages, _) {
                   return isSelectionMode
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.redAccent,
-                            size: 24,
-                          ),
-                          onPressed: selectedMessages.isEmpty
-                              ? null
-                              : _showDeleteDialog,
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.reply_all_rounded,
+                                color: Colors.blueAccent,
+                                size: 24,
+                              ),
+                              tooltip: 'Forward',
+                              onPressed: selectedMessages.isEmpty
+                                  ? null
+                                  : _forwardSelectedMessages,
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.redAccent,
+                                size: 24,
+                              ),
+                              tooltip: 'Delete',
+                              onPressed: selectedMessages.isEmpty
+                                  ? null
+                                  : _showDeleteDialog,
+                            ),
+                          ],
                         )
                       : Row(
                           mainAxisSize: MainAxisSize.min,
@@ -2850,16 +2869,14 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                         final isSelected = selectedMessages.contains(messageId);
 
                         return GestureDetector(
-                          onLongPress: isMe
-                              ? () {
-                                  _isSelectionMode.value = true;
-                                  _selectedMessages.value = {
-                                    ...selectedMessages,
-                                    messageId,
-                                  };
-                                }
-                              : null,
-                          onTap: isSelectionMode && isMe
+                          onLongPress: () {
+                            _isSelectionMode.value = true;
+                            _selectedMessages.value = {
+                              ...selectedMessages,
+                              messageId,
+                            };
+                          },
+                          onTap: isSelectionMode
                               ? () {
                                   if (isSelected) {
                                     final newSelection = Set<String>.from(
@@ -3256,6 +3273,85 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     );
   }
 
+  // ─── Forward selected messages ──────────────────────────────────────────────
+  Future<void> _forwardSelectedMessages() async {
+    final ids = _selectedMessages.value.toList();
+    if (ids.isEmpty) return;
+
+    _isSelectionMode.value = false;
+    _selectedMessages.value = {};
+
+    final forwardData = <ForwardMessageData>[];
+    for (final id in ids) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('staff_rooms')
+            .doc(widget.instituteId)
+            .collection('messages')
+            .doc(id)
+            .get();
+        if (!doc.exists) continue;
+        final data = doc.data()!;
+
+        final text = data['text'] as String? ?? '';
+        final mediaMetaRaw = data['mediaMetadata'] as Map<String, dynamic>?;
+        final mediaUrl = mediaMetaRaw?['publicUrl'] as String?;
+        final mimeType = mediaMetaRaw?['mimeType'] as String?;
+        final fileName = mediaMetaRaw?['originalFileName'] as String?;
+        final fileSize = (mediaMetaRaw?['fileSize'] as num?)?.toInt();
+        final multipleMediaRaw = data['multipleMedia'] as List<dynamic>?;
+
+        String msgType = 'text';
+        List<String>? multiImageUrls;
+        if (multipleMediaRaw != null && multipleMediaRaw.isNotEmpty) {
+          msgType = 'multi_image';
+          multiImageUrls = multipleMediaRaw
+              .map(
+                (m) =>
+                    (m as Map<String, dynamic>?)?['publicUrl'] as String? ?? '',
+              )
+              .where((u) => u.isNotEmpty)
+              .toList();
+        } else if (mediaUrl != null) {
+          final mt = mimeType ?? '';
+          if (mt.startsWith('audio/')) {
+            msgType = 'audio';
+          } else if (mt.startsWith('image/')) {
+            msgType = 'image';
+          } else {
+            msgType = 'file';
+          }
+        }
+
+        forwardData.add(
+          ForwardMessageData(
+            originalMessageId: id,
+            originalSenderId: data['senderId'] as String? ?? '',
+            originalSenderName: data['senderName'] as String? ?? '',
+            messageType: msgType,
+            text: text,
+            mediaUrl: mediaUrl,
+            fileName: fileName,
+            mimeType: mimeType,
+            fileSize: fileSize,
+            multipleImageUrls: multiImageUrls,
+            wasAlreadyForwarded:
+                data['forwarded'] == true || data['isForwarded'] == true,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    if (forwardData.isEmpty || !mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForwardSelectionScreen(messages: forwardData),
+      ),
+    );
+  }
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
@@ -3564,7 +3660,9 @@ class _MessageBubbleState extends State<_MessageBubble>
       }
     }
 
-    final isForwarded = widget.message['isForwarded'] == true;
+    final isForwarded =
+        widget.message['forwarded'] == true ||
+        widget.message['isForwarded'] == true;
     final isPending = widget.message['isPending'] == true;
 
     String timeStr = '';
@@ -3989,7 +4087,7 @@ class _MessageBubbleState extends State<_MessageBubble>
                     ],
                   ),
                 ),
-          if (widget.selectionMode && widget.isMe)
+          if (widget.selectionMode)
             Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Icon(

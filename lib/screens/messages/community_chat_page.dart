@@ -38,6 +38,8 @@ import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
 import '../../services/network_service.dart';
 import '../../services/connectivity_service.dart';
+import '../../models/forward_message_data.dart';
+import 'forward_selection_screen.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -2139,15 +2141,32 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 valueListenable: _selectedMessages,
                 builder: (context, selectedMessages, _) {
                   return isSelectionMode
-                      ? IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.redAccent,
-                            size: 24,
-                          ),
-                          onPressed: selectedMessages.isEmpty
-                              ? null
-                              : _showDeleteDialog,
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.reply_all_rounded,
+                                color: Colors.blueAccent,
+                                size: 24,
+                              ),
+                              tooltip: 'Forward',
+                              onPressed: selectedMessages.isEmpty
+                                  ? null
+                                  : _forwardSelectedMessages,
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                color: Colors.redAccent,
+                                size: 24,
+                              ),
+                              tooltip: 'Delete',
+                              onPressed: selectedMessages.isEmpty
+                                  ? null
+                                  : _showDeleteDialog,
+                            ),
+                          ],
                         )
                       : Row(
                           mainAxisSize: MainAxisSize.min,
@@ -2670,16 +2689,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                       key: getMessageKey(message.id),
                                       isHighlighted: isHighlighted,
                                       child: GestureDetector(
-                                        onLongPress: isMe
-                                            ? () {
-                                                _isSelectionMode.value = true;
-                                                _selectedMessages.value = {
-                                                  ...selectedMessages,
-                                                  message.id,
-                                                };
-                                              }
-                                            : null,
-                                        onTap: isSelectionMode && isMe
+                                        onLongPress: () {
+                                          _isSelectionMode.value = true;
+                                          _selectedMessages.value = {
+                                            ...selectedMessages,
+                                            message.id,
+                                          };
+                                        },
+                                        onTap: isSelectionMode
                                             ? () {
                                                 if (isSelected) {
                                                   final newSelection =
@@ -3108,6 +3125,53 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     );
   }
 
+  // ─── Forward selected messages ────────────────────────────────────────────
+  Future<void> _forwardSelectedMessages() async {
+    final ids = _selectedMessages.value.toList();
+    if (ids.isEmpty) return;
+
+    // Exit selection mode right away for better UX
+    _isSelectionMode.value = false;
+    _selectedMessages.value = {};
+
+    // Fetch each selected message from Firestore to get full data
+    final forwardData = <ForwardMessageData>[];
+    for (final id in ids) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('communities')
+            .doc(widget.communityId)
+            .collection('messages')
+            .doc(id)
+            .get();
+        if (!doc.exists) continue;
+        final data = doc.data()!;
+        final msg = GroupChatMessage.fromFirestore(data, id);
+        forwardData.add(
+          ForwardMessageData.fromRaw(
+            messageId: id,
+            senderId: data['senderId'] as String? ?? '',
+            senderName: data['senderName'] as String? ?? '',
+            rawData: data,
+            imageUrl: msg.imageUrl,
+            message: msg.message,
+            mediaMetadata: msg.mediaMetadata,
+            multipleMedia: msg.multipleMedia,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    if (forwardData.isEmpty || !mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForwardSelectionScreen(messages: forwardData),
+      ),
+    );
+  }
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
@@ -3386,6 +3450,34 @@ class _MessageBubble extends StatelessWidget {
                       ),
                     ),
                   ),
+                // ── Forwarded label ─────────────────────────────────────────
+                if (message.rawData?['forwarded'] == true)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      bottom: 3,
+                      left: 4,
+                      right: 4,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.reply_all_rounded,
+                          size: 12,
+                          color: themeColor.withOpacity(0.75),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Forwarded',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: themeColor.withOpacity(0.75),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 // Check if this is a poll message
                 if (message.type == 'poll')
                   SizedBox(
@@ -3544,7 +3636,7 @@ class _MessageBubble extends StatelessWidget {
               ],
             ),
           ),
-          if (selectionMode && isMe)
+          if (selectionMode)
             Padding(
               padding: const EdgeInsets.only(left: 8),
               child: Icon(

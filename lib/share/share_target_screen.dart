@@ -4,14 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../models/user_model.dart';
+import '../models/group_chat_message.dart';
+import '../models/community_model.dart';
 import '../share/incoming_share_data.dart';
 import '../share/share_controller.dart';
-import '../services/cloudflare_r2_service.dart';
-import '../config/cloudflare_config.dart';
-import '../services/media_upload_service.dart';
-import '../services/local_cache_service.dart';
 import '../services/community_service.dart';
 import '../services/group_messaging_service.dart';
+import '../services/background_upload_service.dart';
+import '../screens/messages/teacher_group_chat_page.dart';
+import '../screens/messages/community_chat_page.dart';
 import '../core/constants/app_colors.dart';
 
 // ---------------------------------------------------------------------------
@@ -50,7 +51,6 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
   bool _isLoading = true;
   String _searchQuery = '';
 
-  late final MediaUploadService _mediaUploadService;
   Color _roleColor = AppColors.primary;
 
   /// Whether the shared content is an image (enables Announcement).
@@ -59,7 +59,6 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
   @override
   void initState() {
     super.initState();
-    _initMediaService();
     _loadDestinations();
     _searchController.addListener(_onSearchChanged);
   }
@@ -69,21 +68,6 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
       _searchQuery = _searchController.text.toLowerCase();
       _applySearch();
     });
-  }
-
-  void _initMediaService() {
-    final r2 = CloudflareR2Service(
-      accountId: CloudflareConfig.accountId,
-      bucketName: CloudflareConfig.bucketName,
-      accessKeyId: CloudflareConfig.accessKeyId,
-      secretAccessKey: CloudflareConfig.secretAccessKey,
-      r2Domain: CloudflareConfig.r2Domain,
-    );
-    _mediaUploadService = MediaUploadService(
-      r2Service: r2,
-      firestore: FirebaseFirestore.instance,
-      cacheService: LocalCacheService(),
-    );
   }
 
   // -------------------------------------------------------------------------
@@ -216,6 +200,7 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
                   data: {
                     'classId': classDoc.id,
                     'subjectId': subjectDocId,
+                    'subjectName': subject, // original-case for navigation
                     'className': className,
                     'section': section,
                   },
@@ -316,6 +301,7 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
               data: {
                 'classId': classId,
                 'subjectId': subjectDocId,
+                'subjectName': subject.name, // for navigation
                 'subject': subject,
               },
             ),
@@ -485,6 +471,12 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Share dispatch — background, non-blocking
+  // ---------------------------------------------------------------------------
+
+  /// Entry point called when user confirms sending to a destination.
+  /// No blocking dialog; upload is queued in background, UI navigates immediately.
   Future<void> _shareToDestination(ShareDestination destination) async {
     final shareController = Provider.of<ShareController>(
       context,
@@ -496,167 +488,352 @@ class _ShareTargetScreenState extends State<ShareTargetScreen> {
 
     shareController.setProcessing(true);
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: Card(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Sharing...'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
     try {
-      final messageData = <String, dynamic>{
-        'senderId': currentUser.uid,
-        'senderName': currentUser.name,
-        'senderRole': currentUser.role.toString().split('.').last,
-        'timestamp': FieldValue.serverTimestamp(),
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'isForwarded': true,
-        'forwardedFrom': 'External App',
-        'text': widget.shareData.hasText ? widget.shareData.text : '',
-      };
-
-      if (widget.shareData.hasFiles) {
-        final file = File(widget.shareData.files.first);
-        final mediaMessage = await _mediaUploadService.uploadMedia(
-          file: file,
-          conversationId: destination.id,
-          senderId: currentUser.uid,
-          senderRole: currentUser.role.toString().split('.').last,
-        );
-        messageData['mediaType'] = 'media';
-        messageData['mediaUrl'] = mediaMessage.r2Url;
-        messageData['fileName'] = mediaMessage.fileName;
-        messageData['fileType'] = mediaMessage.fileType;
-        messageData['fileSize'] = mediaMessage.fileSize;
-        messageData['thumbnailUrl'] = mediaMessage.thumbnailUrl;
-        messageData['mediaId'] = mediaMessage.id;
-      }
+      final senderId = currentUser.uid;
+      final senderName = currentUser.name;
+      final senderRole = currentUser.role.toString().split('.').last;
+      final hasFiles = widget.shareData.hasFiles;
+      final text = widget.shareData.hasText
+          ? (widget.shareData.text ?? '')
+          : '';
 
       switch (destination.type) {
-        case DestinationType.community:
-          await _shareToCommunity(destination, messageData);
-          break;
         case DestinationType.groupChat:
-          await _shareToGroupChat(destination, messageData);
+          await _sendToGroupChat(
+            destination: destination,
+            hasFiles: hasFiles,
+            text: text,
+            senderId: senderId,
+            senderName: senderName,
+            senderRole: senderRole,
+          );
           break;
-        case DestinationType.individualChat:
-          await _shareToIndividualChat(destination, messageData, currentUser);
+        case DestinationType.community:
+          await _sendToCommunity(
+            destination: destination,
+            hasFiles: hasFiles,
+            text: text,
+            senderId: senderId,
+            senderName: senderName,
+            senderRole: senderRole,
+          );
           break;
         case DestinationType.staffRoom:
-          await _shareToStaffRoom(destination, messageData);
+          await _sendToStaffRoom(
+            destination: destination,
+            hasFiles: hasFiles,
+            text: text,
+            senderId: senderId,
+            senderName: senderName,
+            senderRole: senderRole,
+          );
+          break;
+        case DestinationType.individualChat:
+          await _sendToIndividualChat(
+            destination: destination,
+            hasFiles: hasFiles,
+            text: text,
+            senderId: senderId,
+            senderName: senderName,
+            senderRole: senderRole,
+            currentUser: currentUser,
+          );
           break;
         case DestinationType.announcement:
-          await _shareAsAnnouncement(destination, messageData);
+          await _sendAsAnnouncement(
+            destination: destination,
+            senderId: senderId,
+            senderName: senderName,
+            senderRole: senderRole,
+          );
           break;
       }
 
-      if (mounted) {
-        Navigator.pop(context);
-        Navigator.pop(context);
-        shareController.clearShareData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Content shared to ${destination.name}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      if (!mounted) return;
+      shareController.clearShareData();
+      _navigateAfterSend(destination);
     } catch (e) {
-      if (mounted) Navigator.pop(context);
       shareController.setProcessing(false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to share: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to share: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
-  Future<void> _shareToCommunity(
-    ShareDestination destination,
-    Map<String, dynamic> messageData,
-  ) async {
-    await FirebaseFirestore.instance
-        .collection('communities')
-        .doc(destination.id)
-        .collection('messages')
-        .add(messageData);
-  }
+  // ---- group chat ----
 
-  Future<void> _shareToGroupChat(
-    ShareDestination destination,
-    Map<String, dynamic> messageData,
-  ) async {
+  Future<void> _sendToGroupChat({
+    required ShareDestination destination,
+    required bool hasFiles,
+    required String text,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+  }) async {
     final data = destination.data as Map<String, dynamic>;
-    await FirebaseFirestore.instance
-        .collection('classes')
-        .doc(data['classId'] as String)
-        .collection('subjects')
-        .doc(data['subjectId'] as String)
-        .collection('messages')
-        .add(messageData);
+    final classId = data['classId'] as String;
+    final subjectId = data['subjectId'] as String;
+
+    if (hasFiles) {
+      // Background upload — returns immediately, upload runs in background
+      await BackgroundUploadService().queueUpload(
+        file: File(widget.shareData.files.first),
+        conversationId: '${classId}_$subjectId',
+        senderId: senderId,
+        senderRole: senderRole,
+        mediaType: 'image',
+        chatType: 'group',
+        senderName: senderName,
+      );
+    } else {
+      // Text-only: use correct GroupChatMessage schema
+      final message = GroupChatMessage(
+        id: '',
+        senderId: senderId,
+        senderName: senderName,
+        message: text, // Note: field is 'message', NOT 'text'
+        imageUrl: null,
+        mediaMetadata: null,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      );
+      await GroupMessagingService().sendGroupMessage(
+        classId,
+        subjectId,
+        message,
+      );
+    }
   }
 
-  Future<void> _shareToIndividualChat(
-    ShareDestination destination,
-    Map<String, dynamic> messageData,
-    UserModel currentUser,
-  ) async {
+  // ---- community ----
+
+  Future<void> _sendToCommunity({
+    required ShareDestination destination,
+    required bool hasFiles,
+    required String text,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+  }) async {
+    final communityId = destination.id;
+
+    if (hasFiles) {
+      // Background upload for community
+      await BackgroundUploadService().queueUpload(
+        file: File(widget.shareData.files.first),
+        conversationId: communityId,
+        senderId: senderId,
+        senderRole: senderRole,
+        mediaType: 'image',
+        chatType: 'community',
+        senderName: senderName,
+      );
+    } else {
+      // Text-only via CommunityService
+      await CommunityService().sendMessage(
+        communityId: communityId,
+        senderId: senderId,
+        senderName: senderName,
+        senderRole: senderRole,
+        content: text,
+        mediaType: 'text',
+      );
+    }
+  }
+
+  // ---- staff room ----
+
+  Future<void> _sendToStaffRoom({
+    required ShareDestination destination,
+    required bool hasFiles,
+    required String text,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+  }) async {
+    final data = destination.data as Map<String, dynamic>;
+    final instituteId = data['instituteId'] as String;
+
+    if (hasFiles) {
+      // Background upload for staff room
+      await BackgroundUploadService().queueUpload(
+        file: File(widget.shareData.files.first),
+        conversationId: instituteId,
+        senderId: senderId,
+        senderRole: senderRole,
+        mediaType: 'image',
+        chatType: 'staff_room',
+        senderName: senderName,
+      );
+    } else {
+      // Text-only: write directly to staff_rooms collection
+      await FirebaseFirestore.instance
+          .collection('staff_rooms')
+          .doc(instituteId)
+          .collection('messages')
+          .add({
+            'text': text,
+            'senderId': senderId,
+            'senderName': senderName,
+            'senderRole': senderRole,
+            'timestamp': FieldValue.serverTimestamp(),
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+          });
+    }
+  }
+
+  // ---- individual (parent ↔ teacher) ----
+
+  Future<void> _sendToIndividualChat({
+    required ShareDestination destination,
+    required bool hasFiles,
+    required String text,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+    required UserModel currentUser,
+  }) async {
     final data = destination.data as Map<String, dynamic>;
     final teacherId = data['teacherId'] as String;
     final conversationId = '${currentUser.uid}_$teacherId';
 
-    await FirebaseFirestore.instance
-        .collection('conversations')
-        .doc(conversationId)
-        .collection('messages')
-        .add(messageData);
+    if (hasFiles) {
+      await BackgroundUploadService().queueUpload(
+        file: File(widget.shareData.files.first),
+        conversationId: conversationId,
+        senderId: senderId,
+        senderRole: senderRole,
+        mediaType: 'image',
+        chatType: 'direct',
+        senderName: senderName,
+      );
+    } else {
+      await FirebaseFirestore.instance
+          .collection('conversations')
+          .doc(conversationId)
+          .collection('messages')
+          .add({
+            'text': text,
+            'senderId': senderId,
+            'senderName': senderName,
+            'senderRole': senderRole,
+            'timestamp': FieldValue.serverTimestamp(),
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+          });
 
-    await FirebaseFirestore.instance
-        .collection('conversations')
-        .doc(conversationId)
-        .set({
-          'participants': [currentUser.uid, teacherId],
-          'lastMessage': messageData['text'],
-          'lastMessageTime': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+          .collection('conversations')
+          .doc(conversationId)
+          .set({
+            'participants': [currentUser.uid, teacherId],
+            'lastMessage': text,
+            'lastMessageTime': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    }
   }
 
-  Future<void> _shareToStaffRoom(
-    ShareDestination destination,
-    Map<String, dynamic> messageData,
-  ) async {
-    final data = destination.data as Map<String, dynamic>;
-    await FirebaseFirestore.instance
-        .collection('staff_rooms')
-        .doc(data['instituteId'] as String)
-        .collection('messages')
-        .add(messageData);
+  // ---- announcement ----
+
+  Future<void> _sendAsAnnouncement({
+    required ShareDestination destination,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+  }) async {
+    if (!widget.shareData.hasFiles) return;
+
+    // Upload image first, then create announcement document
+    await BackgroundUploadService().queueUpload(
+      file: File(widget.shareData.files.first),
+      conversationId: 'announcements_$senderId',
+      senderId: senderId,
+      senderRole: senderRole,
+      mediaType: 'image',
+      chatType: 'announcement',
+      senderName: senderName,
+    );
   }
 
-  Future<void> _shareAsAnnouncement(
-    ShareDestination destination,
-    Map<String, dynamic> messageData,
-  ) async {
-    await FirebaseFirestore.instance.collection('announcements').add({
-      ...messageData,
-      'destinationId': destination.id,
-      'announcementType': 'image',
-    });
+  // ---------------------------------------------------------------------------
+  // Smart navigation after send
+  // ---------------------------------------------------------------------------
+
+  /// Navigates to the destination chat after queuing the send, or pops to dashboard.
+  /// For group/community chats, replaces the share screen with the destination chat
+  /// so the back button returns to the dashboard.
+  void _navigateAfterSend(ShareDestination destination) {
+    if (!mounted) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+
+    // Show "sending" snackbar BEFORE navigating — ScaffoldMessenger persists
+    // above the Navigator so the snackbar appears on the next screen automatically
+    final isMediaMessage = widget.shareData.hasFiles;
+    final label = isMediaMessage ? 'Sending image' : 'Sending message';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label to ${destination.name}...'),
+        backgroundColor: Colors.green.shade600,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+
+    switch (destination.type) {
+      case DestinationType.groupChat:
+        final data = destination.data as Map<String, dynamic>;
+        final classId = data['classId'] as String;
+        final subjectId = data['subjectId'] as String;
+        final subjectName =
+            (data['subjectName'] as String?) ??
+            destination.name.split(' - ').first;
+        final className = data['className'] as String?;
+        final section = data['section'] as String?;
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TeacherGroupChatPage(
+              classId: classId,
+              subjectId: subjectId,
+              subjectName: subjectName,
+              teacherName: currentUser?.name ?? '',
+              icon: '📚',
+              className: className,
+              section: section,
+            ),
+          ),
+        );
+        break;
+
+      case DestinationType.community:
+        final communityData = destination.data;
+        final communityIcon = communityData is CommunityModel
+            ? communityData.getCategoryIcon()
+            : '👥';
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CommunityChatPage(
+              communityId: destination.id,
+              communityName: destination.name,
+              icon: communityIcon,
+            ),
+          ),
+        );
+        break;
+
+      default:
+        // Staff room, individual chats, announcements → return to dashboard
+        Navigator.pop(context);
+        break;
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -828,7 +1005,7 @@ class _ImagePreview extends StatelessWidget {
           height: 200,
           width: double.infinity,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _fallbackTile(),
+          errorBuilder: (_, _, _) => _fallbackTile(),
         ),
       );
     }
@@ -839,7 +1016,7 @@ class _ImagePreview extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         scrollDirection: Axis.horizontal,
         itemCount: files.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (_, i) => ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: Image.file(
@@ -847,7 +1024,7 @@ class _ImagePreview extends StatelessWidget {
             width: 120,
             height: 120,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _fallbackTile(),
+            errorBuilder: (_, _, _) => _fallbackTile(),
           ),
         ),
       ),

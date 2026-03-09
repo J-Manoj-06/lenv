@@ -698,7 +698,7 @@ class _OfflineInAppImageViewerState extends State<_OfflineInAppImageViewer>
                   child: CircularProgressIndicator(color: Colors.white),
                 );
               },
-              errorBuilder: (_, __, ___) => const Center(
+              errorBuilder: (_, _, _) => const Center(
                 child: Icon(
                   Icons.broken_image,
                   color: Colors.white54,

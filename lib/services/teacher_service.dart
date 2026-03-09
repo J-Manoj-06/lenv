@@ -179,8 +179,9 @@ class TeacherService {
       return allStudents;
     } catch (e) {
       // Return in-memory cache on network error
-      if (_studentsCache.containsKey(cacheKey))
+      if (_studentsCache.containsKey(cacheKey)) {
         return _studentsCache[cacheKey]!;
+      }
       return [];
     }
   }

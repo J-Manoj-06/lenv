@@ -115,8 +115,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 _offlineUserId = userId;
               });
             }
-            if (_selectedClass != null)
+            if (_selectedClass != null) {
               await _loadStudents(offlineUserId: userId);
+            }
             return;
           }
         }

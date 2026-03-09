@@ -694,7 +694,7 @@ class _InAppImageViewerState extends State<_InAppImageViewer>
                   child: CircularProgressIndicator(color: Colors.white),
                 );
               },
-              errorBuilder: (_, __, ___) => const Center(
+              errorBuilder: (_, _, _) => const Center(
                 child: Icon(
                   Icons.broken_image,
                   color: Colors.white54,

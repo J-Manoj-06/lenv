@@ -63,9 +63,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       // Fallback to offline Hive cache when network is unavailable or user is null
-      if (teacherData == null) {
-        teacherData = await _loadTeacherDataFromHiveCache(user?.uid ?? '');
-      }
+      teacherData ??= await _loadTeacherDataFromHiveCache(user?.uid ?? '');
 
       if (teacherData == null) {
         setState(() {

@@ -1922,7 +1922,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                   >(
                                                                     valueListenable:
                                                                         progressNotifier,
-                                                                    builder: (_, value, __) {
+                                                                    builder: (_, value, _) {
                                                                       // ── Failed upload: show retry overlay ──
                                                                       if (value ==
                                                                           -1.0) {
@@ -2675,8 +2675,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     if (user == null) return;
 
     // Captured for catch-block access (try-scope variables not visible there)
-    String? _capPendingId;
-    String? _capFilePath;
+    String? capPendingId;
+    String? capFilePath;
 
     try {
       final picked = await _imagePicker.pickImage(source: ImageSource.camera);
@@ -2684,8 +2684,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
       final file = File(picked.path);
       final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
-      _capPendingId = pendingId;
-      _capFilePath = file.path;
+      capPendingId = pendingId;
+      capFilePath = file.path;
 
       // Create optimistic pending message
       final pendingMetadata = MediaMetadata(
@@ -2767,9 +2767,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         });
       }
     } catch (e) {
-      if (mounted && _capPendingId != null && _capFilePath != null) {
-        final id = _capPendingId;
-        final path = _capFilePath;
+      if (mounted && capPendingId != null && capFilePath != null) {
+        final id = capPendingId;
+        final path = capFilePath;
         setState(() {
           _pendingUploadNotifiers[id]?.value = -1.0;
           _failedUploadLocalPaths[id] = path;
@@ -2785,8 +2785,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     if (user == null) return;
 
     // Captured for catch-block access
-    String? _capPendingId;
-    String? _capFilePath;
+    String? capPendingId;
+    String? capFilePath;
 
     try {
       // Try pickMultiImage for multiple image selection (up to 5)
@@ -2803,8 +2803,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       // Single image - use existing logic
       final file = File(picked.first.path);
       final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
-      _capPendingId = pendingId;
-      _capFilePath = file.path;
+      capPendingId = pendingId;
+      capFilePath = file.path;
 
       // Create optimistic pending message
       final pendingMetadata = MediaMetadata(
@@ -2928,9 +2928,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _scrollToBottom();
       }
     } catch (e) {
-      if (mounted && _capPendingId != null && _capFilePath != null) {
-        final id = _capPendingId;
-        final path = _capFilePath;
+      if (mounted && capPendingId != null && capFilePath != null) {
+        final id = capPendingId;
+        final path = capFilePath;
         setState(() {
           _pendingUploadNotifiers[id]?.value = -1.0;
           _failedUploadLocalPaths[id] = path;
@@ -3314,9 +3314,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     if (user == null) return;
 
     // Captured for catch-block access
-    String? _capPendingId;
-    String? _capFilePath;
-    String _capMime = 'application/pdf';
+    String? capPendingId;
+    String? capFilePath;
+    String capMime = 'application/pdf';
 
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -3377,9 +3377,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       }
 
       // Capture for retry in catch-block
-      _capPendingId = pendingId;
-      _capFilePath = file.path;
-      _capMime = mimeType;
+      capPendingId = pendingId;
+      capFilePath = file.path;
+      capMime = mimeType;
 
       final pendingMetadata = MediaMetadata(
         messageId: pendingId,
@@ -3530,10 +3530,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _scrollToBottom();
       }
     } catch (e) {
-      if (mounted && _capPendingId != null && _capFilePath != null) {
-        final id = _capPendingId;
-        final path = _capFilePath;
-        final mime = _capMime;
+      if (mounted && capPendingId != null && capFilePath != null) {
+        final id = capPendingId;
+        final path = capFilePath;
+        final mime = capMime;
         setState(() {
           _pendingUploadNotifiers[id]?.value = -1.0;
           _failedUploadLocalPaths[id] = path;
@@ -3549,9 +3549,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     if (user == null) return;
 
     // Captured for catch-block access
-    String? _capPendingId;
-    String? _capFilePath;
-    String _capMime = 'audio/mpeg';
+    String? capPendingId;
+    String? capFilePath;
+    String capMime = 'audio/mpeg';
 
     try {
       final result = await FilePicker.platform.pickFiles(type: FileType.audio);
@@ -3565,9 +3565,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       final mime = _inferAudioMime(ext);
 
       // Capture for retry in catch-block
-      _capPendingId = pendingId;
-      _capFilePath = file.path;
-      _capMime = mime;
+      capPendingId = pendingId;
+      capFilePath = file.path;
+      capMime = mime;
 
       final pendingMetadata = MediaMetadata(
         messageId: pendingId,
@@ -3675,10 +3675,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _scrollToBottom();
       }
     } catch (e) {
-      if (mounted && _capPendingId != null && _capFilePath != null) {
-        final id = _capPendingId;
-        final path = _capFilePath;
-        final mime = _capMime;
+      if (mounted && capPendingId != null && capFilePath != null) {
+        final id = capPendingId;
+        final path = capFilePath;
+        final mime = capMime;
         setState(() {
           _pendingUploadNotifiers[id]?.value = -1.0;
           _failedUploadLocalPaths[id] = path;

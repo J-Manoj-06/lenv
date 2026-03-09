@@ -44,6 +44,8 @@ import '../../services/firebase_message_sync_service.dart';
 import '../messages/offline_message_search_page.dart';
 import 'mindmap_viewer_page.dart';
 import 'mindmap_create_page.dart';
+import '../../models/forward_message_data.dart';
+import 'forward_selection_screen.dart';
 
 class TeacherGroupChatPage extends StatefulWidget {
   final String classId;
@@ -545,15 +547,13 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
               },
               child: GestureDetector(
                 key: ValueKey('msg-${message.id}'),
-                onLongPress: isMe
-                    ? () {
-                        setState(() {
-                          _isSelectionMode = true;
-                          _selectedMessages.add(message.id);
-                        });
-                      }
-                    : null,
-                onTap: _isSelectionMode && isMe
+                onLongPress: () {
+                  setState(() {
+                    _isSelectionMode = true;
+                    _selectedMessages.add(message.id);
+                  });
+                },
+                onTap: _isSelectionMode
                     ? () {
                         setState(() {
                           if (isSelected) {
@@ -584,7 +584,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         key: ValueKey('bubble-${message.id}'),
                       ),
                     ),
-                    if (_isSelectionMode && isMe)
+                    if (_isSelectionMode)
                       Padding(
                         padding: const EdgeInsets.only(left: 8),
                         child: Icon(
@@ -1862,10 +1862,22 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                 ? [
                     IconButton(
                       icon: const Icon(
+                        Icons.reply_all_rounded,
+                        color: Colors.blueAccent,
+                        size: 24,
+                      ),
+                      tooltip: 'Forward',
+                      onPressed: _selectedMessages.isEmpty
+                          ? null
+                          : _forwardSelectedMessages,
+                    ),
+                    IconButton(
+                      icon: const Icon(
                         Icons.delete_outline,
                         color: Colors.redAccent,
                         size: 24,
                       ),
+                      tooltip: 'Delete',
                       onPressed: _selectedMessages.isEmpty
                           ? null
                           : _showDeleteDialog,
@@ -2819,6 +2831,55 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     }
   }
 
+  // ─── Forward selected messages ────────────────────────────────────────────
+  Future<void> _forwardSelectedMessages() async {
+    final ids = _selectedMessages.toList();
+    if (ids.isEmpty) return;
+
+    setState(() {
+      _isSelectionMode = false;
+      _selectedMessages.clear();
+    });
+
+    final forwardData = <ForwardMessageData>[];
+    for (final id in ids) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('classes')
+            .doc(widget.classId)
+            .collection('subjects')
+            .doc(widget.subjectId)
+            .collection('messages')
+            .doc(id)
+            .get();
+        if (!doc.exists) continue;
+        final data = doc.data()!;
+        final msg = GroupChatMessage.fromFirestore(data, id);
+        forwardData.add(
+          ForwardMessageData.fromRaw(
+            messageId: id,
+            senderId: data['senderId'] as String? ?? '',
+            senderName: data['senderName'] as String? ?? '',
+            rawData: data,
+            imageUrl: msg.imageUrl,
+            message: msg.message,
+            mediaMetadata: msg.mediaMetadata,
+            multipleMedia: msg.multipleMedia,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    if (forwardData.isEmpty || !mounted) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForwardSelectionScreen(messages: forwardData),
+      ),
+    );
+  }
+
   void _showDeleteDialog() {
     showDialog(
       context: context,
@@ -2920,6 +2981,30 @@ class _MessageBubble extends StatelessWidget {
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
                         ),
+                      ),
+                    ),
+                  // ── Forwarded label ───────────────────────────────────────
+                  if (message.rawData?['forwarded'] == true)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 3),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.reply_all_rounded,
+                            size: 12,
+                            color: const Color(0xFFFFA929).withOpacity(0.8),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Forwarded',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: const Color(0xFFFFA929).withOpacity(0.8),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   // Check if this is a poll message - render it outside the bubble
