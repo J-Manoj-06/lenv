@@ -137,7 +137,7 @@ service cloud.firestore {
     // ============================================
     
     match /schools/{schoolId} {
-      allow read: if true; // Allow unauthenticated access for login/registration
+      allow read: if isSignedIn();
       allow write: if isSignedIn() && (isPrincipal() || isInstitute() || isAdmin());
     }
     
@@ -207,11 +207,6 @@ service cloud.firestore {
       match /subjects/{subjectId} {
         allow read: if isSignedIn();
         allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
-        
-        match /messages/{messageId} {
-          allow read, create: if isSignedIn();
-          allow update, delete: if isSignedIn();
-        }
       }
     }
     
@@ -252,7 +247,11 @@ service cloud.firestore {
     }
     
     match /class_highlights/{highlightId} {
-      allow read, create, update, delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isTeacher();
+      allow update, delete: if isSignedIn() && (
+        resource.data.teacherId == request.auth.uid || isAdmin()
+      );
     }
     
     match /media_messages/{messageId} {
@@ -371,7 +370,13 @@ service cloud.firestore {
     }
     
     match /testResults/{resultId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid
+        || resource.data.teacherId == request.auth.uid
+        || isTeacher()
+        || isParent()
+        || isAdmin()
+      );
       allow write: if isSignedIn();
     }
     
@@ -426,7 +431,15 @@ service cloud.firestore {
       
       allow update: if canUpdateRewardRequest();
       
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.student_id == request.auth.uid
+        || resource.data.studentId == request.auth.uid
+        || resource.data.parent_id == request.auth.uid
+        || resource.data.parentId == request.auth.uid
+        || isParent()
+        || isTeacher()
+        || isAdmin()
+      );
       
       allow delete: if isAdmin();
     }
@@ -459,7 +472,13 @@ service cloud.firestore {
     }
     
     match /student_rewards/{entryId} {
-      allow read, create: if isSignedIn();
+      allow create: if isSignedIn() && (isTeacher() || isApproverRole());
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid 
+        || isTeacher() 
+        || isParent()
+        || isApproverRole()
+      );
       allow update, delete: if false;
     }
     
@@ -504,7 +523,21 @@ service cloud.firestore {
     // ============================================
     
     match /notifications/{notificationId} {
-      allow read, create, update, delete: if isSignedIn();
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid 
+        || resource.data.receiver == request.auth.uid 
+        || isAdmin()
+      );
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || resource.data.receiver == request.auth.uid
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || resource.data.receiver == request.auth.uid
+        || isAdmin()
+      );
     }
     
     // ============================================
@@ -522,11 +555,14 @@ service cloud.firestore {
     }
     
     match /daily_challenge_answers/{answerId} {
-      allow read, create, update, delete: if isSignedIn();
-    }
-    
-    match /daily_challenges/{challengeId} {
-      allow read, create, update, delete: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid || isTeacher() || isAdmin()
+      );
+      allow create: if isSignedIn() && isStudent()
+        && request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid || isAdmin()
+      );
     }
     
     match /challengeAttempts/{attemptId} {

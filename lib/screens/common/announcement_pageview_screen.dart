@@ -51,11 +51,13 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
   @override
   void initState() {
     super.initState();
+    print('🎬 AnnouncementPageView: initState START - ${widget.announcements.length} announcements');
     _currentIndex = widget.initialIndex;
     _pageController = PageController(
       initialPage: widget.initialIndex,
       viewportFraction: 1,
     );
+    print('🎬 AnnouncementPageView: PageController created');
     _progressController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -64,6 +66,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       parent: _progressController,
       curve: Curves.linear,
     );
+    print('🎬 AnnouncementPageView: AnimationController created');
     _progressController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         // Auto-advance to next announcement when progress completes
@@ -81,9 +84,11 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       }
     });
     _progressController.forward();
+    print('🎬 AnnouncementPageView: Progress started');
 
     // Mark as viewed
     widget.onAnnouncementViewed?.call(_currentIndex);
+    print('🎬 AnnouncementPageView: Marked as viewed');
 
     // Hide tap hints after 3 seconds
     Future.delayed(const Duration(seconds: 3), () {
@@ -93,94 +98,85 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
         });
       }
     });
+    print('🎬 AnnouncementPageView: initState END');
   }
 
   @override
   void didChangeDependencies() {
+    print('🎬 AnnouncementPageView: didChangeDependencies START');
     super.didChangeDependencies();
-    // Preload images after context is fully available
+    // Preload images in background without blocking UI
     if (!_hasPreloadedImages) {
+      print('🎬 AnnouncementPageView: Starting image preload');
       _hasPreloadedImages = true;
-      _preloadImages();
+      // Don't await - let it run in background
+      _preloadImages().then((_) {
+        print('🎬 AnnouncementPageView: Image preload COMPLETE');
+        // Images loaded, but don't block anything
+        if (mounted) {
+          setState(() {
+            _isPreloadingImages = false;
+          });
+        }
+      });
+      // Immediately set to false so UI doesn't wait
+      if (mounted) {
+        setState(() {
+          _isPreloadingImages = false;
+        });
+      }
+      print('🎬 AnnouncementPageView: Image preload started in background');
     }
+    print('🎬 AnnouncementPageView: didChangeDependencies END');
   }
 
   /// Preload all announcement images to ensure smooth display
   Future<void> _preloadImages() async {
-    final imagesToPreload = <Future<void>>[];
+    print('🖼️  AnnouncementPageView: _preloadImages START');
+    // Mark all as loaded immediately - we'll preload in background but not block
+    for (int i = 0; i < widget.announcements.length; i++) {
+      _imageLoadedState[i] = true;
+    }
+    print('🖼️  AnnouncementPageView: Marked all ${widget.announcements.length} images as loaded');
 
+    // Preload images in background (non-blocking)
     for (int i = 0; i < widget.announcements.length; i++) {
       final announcement = widget.announcements[i];
+      print('🖼️  AnnouncementPageView: Processing announcement $i');
 
-      // Check for multi-image announcements
-      final imageCaptions =
-          announcement['imageCaptions'] as List<Map<String, String>>?;
+      // Check for multi-image announcements - safely extract list
+      final imageCaptions = _safeGetImageCaptions(announcement);
+      print('🖼️  AnnouncementPageView: imageCaptions count: ${imageCaptions?.length ?? 0}');
 
       if (imageCaptions != null && imageCaptions.isNotEmpty) {
         // Preload all images in multi-image announcement
         for (final imageData in imageCaptions) {
           final imageUrl = imageData['url'];
-          if (imageUrl != null && imageUrl.isNotEmpty) {
-            imagesToPreload.add(
-              precacheImage(
-                CachedNetworkImageProvider(imageUrl),
-                context,
-              ).catchError((error) {
-                // Ignore errors to prevent hanging
-              }),
-            );
+          if (imageUrl != null && imageUrl.toString().isNotEmpty) {
+            // Fire and forget - don't await
+            precacheImage(
+              CachedNetworkImageProvider(imageUrl.toString()),
+              context,
+            ).catchError((error) {
+              // Ignore errors silently
+            });
           }
         }
-        _imageLoadedState[i] = true;
       } else {
         // Legacy single image
         final imageUrl = announcement['avatarUrl'] as String?;
         if (imageUrl != null && imageUrl.isNotEmpty) {
-          imagesToPreload.add(
-            precacheImage(CachedNetworkImageProvider(imageUrl), context)
-                .then((_) {
-                  if (mounted) {
-                    setState(() {
-                      _imageLoadedState[i] = true;
-                    });
-                  }
-                })
-                .catchError((error) {
-                  if (mounted) {
-                    setState(() {
-                      _imageLoadedState[i] = true;
-                    });
-                  }
-                }),
-          );
-        } else {
-          // No image - mark as loaded immediately
-          _imageLoadedState[i] = true;
+          // Fire and forget - don't await
+          precacheImage(
+            CachedNetworkImageProvider(imageUrl),
+            context,
+          ).catchError((error) {
+            // Ignore errors silently
+          });
         }
       }
     }
-
-    // Always wait with a timeout to ensure we don't get stuck on loading
-    try {
-      if (imagesToPreload.isNotEmpty) {
-        await Future.any([
-          Future.wait(imagesToPreload),
-          Future.delayed(const Duration(seconds: 2)),
-        ]);
-      } else {
-        // No images to preload, but still add a small delay for UI stability
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-    } catch (e) {
-      // Ignore any errors
-    }
-
-    // Always set preloading to false
-    if (mounted) {
-      setState(() {
-        _isPreloadingImages = false;
-      });
-    }
+    print('🖼️  AnnouncementPageView: _preloadImages END');
   }
 
   @override
@@ -188,6 +184,23 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     _pageController.dispose();
     _progressController.dispose();
     super.dispose();
+  }
+
+  /// Safely extract imageCaptions from announcement map
+  List<Map<String, dynamic>>? _safeGetImageCaptions(Map<String, dynamic> announcement) {
+    try {
+      final raw = announcement['imageCaptions'];
+      print('🔍 _safeGetImageCaptions: raw type = ${raw?.runtimeType}');
+      if (raw is List) {
+        final result = raw.cast<Map<String, dynamic>>();
+        print('🔍 _safeGetImageCaptions: Successfully cast to List<Map<String, dynamic>>, length=${result.length}');
+        return result;
+      }
+      print('🔍 _safeGetImageCaptions: raw is not a List');
+    } catch (e) {
+      print('❌ _safeGetImageCaptions: ERROR - $e');
+    }
+    return null;
   }
 
   void _onPageChanged(int index) {
@@ -228,8 +241,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     Map<String, dynamic> announcement,
     _RoleTheme theme,
   ) {
-    final imageCaptions =
-        announcement['imageCaptions'] as List<Map<String, String>>?;
+    final imageCaptions = _safeGetImageCaptions(announcement);
 
     // If announcement has multiple images, show progress for each image
     if (imageCaptions != null && imageCaptions.isNotEmpty) {
@@ -315,19 +327,23 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     Map<String, dynamic> announcement,
     int announcementIndex,
   ) {
-    final imageCaptions =
-        announcement['imageCaptions'] as List<Map<String, String>>?;
+    print('🖼️  _buildAnnouncementContent: START - index=$announcementIndex');
+    final imageCaptions = _safeGetImageCaptions(announcement);
+    print('🖼️  _buildAnnouncementContent: imageCaptions=${imageCaptions?.length ?? 0}');
 
     // Check if we have multiple images
     if (imageCaptions != null && imageCaptions.isNotEmpty) {
+      print('🖼️  _buildAnnouncementContent: Multi-image announcement - ${imageCaptions.length} images');
       // Initialize image index for this announcement if not set
       _announcementImageIndex.putIfAbsent(announcementIndex, () => 0);
       final currentImageIndex = _announcementImageIndex[announcementIndex]!;
+      print('🖼️  _buildAnnouncementContent: currentImageIndex=$currentImageIndex');
 
       // Get current image data
       final imageData = imageCaptions[currentImageIndex];
       final imageUrl = imageData['url'] ?? '';
       final caption = imageData['caption'] ?? '';
+      print('🖼️  _buildAnnouncementContent: imageUrl=$imageUrl, caption=$caption');
 
       return Stack(
         fit: StackFit.expand,
@@ -571,8 +587,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
   @override
   Widget build(BuildContext context) {
+    print('📺 AnnouncementPageView: build() called - _isPreloadingImages=$_isPreloadingImages');
     // Show circular loading while preloading images
     if (_isPreloadingImages) {
+      print('📺 AnnouncementPageView: Showing loading spinner');
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(
@@ -584,6 +602,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       );
     }
 
+    print('📺 AnnouncementPageView: Building main UI');
     // PopScope disables the navigator's swipe-to-pop gesture so it never
     // calls didStopUserGesture() while our own GestureDetector is already
     // owning the horizontal/vertical drag, preventing the framework assertion:
@@ -1014,18 +1033,31 @@ Future<void> openAnnouncementPageView(
   Function(int)? onAnnouncementViewed,
   Function(int)? onDelete,
 }) async {
-  await Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => AnnouncementPageViewScreen(
-        announcements: announcements,
-        initialIndex: initialIndex,
-        currentUserId: currentUserId,
-        onIndexChanged: onIndexChanged,
-        onAnnouncementViewed: onAnnouncementViewed,
-        onDelete: onDelete,
+  print('🚀 openAnnouncementPageView: START - ${announcements.length} announcements');
+  print('🚀 openAnnouncementPageView: initialIndex=$initialIndex');
+  
+  try {
+    print('🚀 openAnnouncementPageView: Pushing route...');
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) {
+          print('🚀 openAnnouncementPageView: Builder called - creating AnnouncementPageViewScreen');
+          return AnnouncementPageViewScreen(
+            announcements: announcements,
+            initialIndex: initialIndex,
+            currentUserId: currentUserId,
+            onIndexChanged: onIndexChanged,
+            onAnnouncementViewed: onAnnouncementViewed,
+            onDelete: onDelete,
+          );
+        },
       ),
-    ),
-  );
+    );
+    print('🚀 openAnnouncementPageView: Route popped - COMPLETE');
+  } catch (e) {
+    print('❌ openAnnouncementPageView: ERROR - $e');
+    rethrow;
+  }
 }
 
 /// Adaptive expandable post text widget that fills available space

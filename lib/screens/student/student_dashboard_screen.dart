@@ -897,6 +897,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           'expiresAt': principal.expiresAt,
           '_originalData': item, // Keep reference for marking viewed
           '_principalData': principal, // Pass full principal data
+          'imageCaptions': principal.imageCaptions, // Pass imageCaptions for multi-image support
         };
       }
     }).toList();
