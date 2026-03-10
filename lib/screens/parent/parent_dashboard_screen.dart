@@ -83,6 +83,56 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           if (pendingRequests.isNotEmpty && mounted) {
             _hasShownRewardPopup = true;
 
+            // Build studentId → name map from already-loaded children
+            // so requests without studentName show the real name in the popup
+            final parentProvider = Provider.of<ParentProvider>(
+              context,
+              listen: false,
+            );
+            final nameMap = <String, String>{
+              for (final child in parentProvider.children)
+                if (child.name.isNotEmpty) child.uid: child.name,
+            };
+
+            // Filter to only this parent's children, then resolve any missing names
+            final resolved = pendingRequests
+                .where(
+                  (req) =>
+                      nameMap.containsKey(req.studentId) ||
+                      parentProvider.children.any(
+                        (c) => c.uid == req.studentId,
+                      ),
+                )
+                .map((req) {
+                  if (req.studentName.isEmpty ||
+                      req.studentName.toLowerCase() == 'unknown student') {
+                    final childName = nameMap[req.studentId];
+                    if (childName != null && childName.isNotEmpty) {
+                      return RewardRequestModel(
+                        id: req.id,
+                        studentId: req.studentId,
+                        studentName: childName,
+                        productId: req.productId,
+                        productName: req.productName,
+                        productImageUrl: req.productImageUrl,
+                        amazonLink: req.amazonLink,
+                        price: req.price,
+                        pointsRequired: req.pointsRequired,
+                        status: req.status,
+                        purchaseMethod: req.purchaseMethod,
+                        priceEntered: req.priceEntered,
+                        enteredPrice: req.enteredPrice,
+                        pointsDeducted: req.pointsDeducted,
+                        requestedOn: req.requestedOn,
+                        parentId: req.parentId,
+                        approvedOn: req.approvedOn,
+                      );
+                    }
+                  }
+                  return req;
+                })
+                .toList();
+
             // Show popup after a short delay to ensure UI is ready
             Future.delayed(const Duration(milliseconds: 500), () {
               if (mounted) {
@@ -90,7 +140,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   context: context,
                   barrierDismissible: true,
                   builder: (context) => PendingRewardPopup(
-                    pendingRequests: pendingRequests,
+                    pendingRequests: resolved,
                     onApprove: _navigateToRewardsScreen,
                     onLater: () {
                       // User chose to handle later - popup dismissed

@@ -443,7 +443,9 @@ class ParentProvider with ChangeNotifier {
 
   /// Approve reward via product link
   Future<Map<String, dynamic>> approveRewardByLink(String requestId) async {
-    final result = await _parentService.approveRewardByLink(requestId: requestId);
+    final result = await _parentService.approveRewardByLink(
+      requestId: requestId,
+    );
     if ((result['success'] as bool? ?? false) && selectedChild != null) {
       await loadRewardRequests(selectedChild!.uid);
     }
@@ -623,11 +625,11 @@ class ParentProvider with ChangeNotifier {
   /// Get pending reward requests count
   int get pendingRewardRequestsCount {
     return _rewardRequests
-      .where(
-        (r) =>
-        r.status == RewardRequestStatus.pending ||
-        r.status == RewardRequestStatus.requested,
-      )
+        .where(
+          (r) =>
+              r.status == RewardRequestStatus.pending ||
+              r.status == RewardRequestStatus.requested,
+        )
         .length;
   }
 

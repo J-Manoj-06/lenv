@@ -817,7 +817,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     int tappedGroupIndex,
     String currentUserId,
   ) async {
-    print('🎯 _openCrossPersonAnnouncementViewer: START - tappedGroupIndex=$tappedGroupIndex');
+    print(
+      '🎯 _openCrossPersonAnnouncementViewer: START - tappedGroupIndex=$tappedGroupIndex',
+    );
     // Flatten all announcements starting from tapped group
     final flattenedAnnouncements = <Map<String, dynamic>>[];
 
@@ -825,10 +827,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     for (int i = tappedGroupIndex; i < allCreatorGroups.length; i++) {
       flattenedAnnouncements.addAll(allCreatorGroups[i]);
     }
-    print('🎯 _openCrossPersonAnnouncementViewer: Flattened ${flattenedAnnouncements.length} announcements');
+    print(
+      '🎯 _openCrossPersonAnnouncementViewer: Flattened ${flattenedAnnouncements.length} announcements',
+    );
 
     // Convert to PageView format with metadata for tracking
-    print('🎯 _openCrossPersonAnnouncementViewer: Starting conversion to PageView format...');
+    print(
+      '🎯 _openCrossPersonAnnouncementViewer: Starting conversion to PageView format...',
+    );
     final announcements = flattenedAnnouncements.map((item) {
       final type = item['type'] as String;
       final data = item['data'];
@@ -909,13 +915,18 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           'expiresAt': principal.expiresAt,
           '_originalData': item, // Keep reference for marking viewed
           '_principalData': principal, // Pass full principal data
-          'imageCaptions': principal.imageCaptions, // Pass imageCaptions for multi-image support
+          'imageCaptions': principal
+              .imageCaptions, // Pass imageCaptions for multi-image support
         };
       }
     }).toList();
-    
-    print('🎯 _openCrossPersonAnnouncementViewer: Conversion complete - ${announcements.length} announcements ready');
-    print('🎯 _openCrossPersonAnnouncementViewer: Calling openAnnouncementPageView...');
+
+    print(
+      '🎯 _openCrossPersonAnnouncementViewer: Conversion complete - ${announcements.length} announcements ready',
+    );
+    print(
+      '🎯 _openCrossPersonAnnouncementViewer: Calling openAnnouncementPageView...',
+    );
 
     // Open viewer and await completion
     await openAnnouncementPageView(
@@ -966,8 +977,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         }
       },
     );
-    
-    print('🎯 _openCrossPersonAnnouncementViewer: openAnnouncementPageView returned');
+
+    print(
+      '🎯 _openCrossPersonAnnouncementViewer: openAnnouncementPageView returned',
+    );
 
     // StreamBuilder will automatically update the UI, no manual refresh needed
   }

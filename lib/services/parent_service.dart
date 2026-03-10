@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
@@ -33,159 +34,352 @@ class ParentService {
         return s.isEmpty ? null : s;
       }
 
-      /// Resolve the parent Firestore document using multiple strategies:
-      /// 1. Query by email field (primary)
-      /// 2. Direct doc lookup by parentId / auth UID  (fallback)
-      /// 3. Query by lowercase email  (fallback for case mismatch)
+      /// Resolve linked students using multiple strategies:
+      /// 1. Query parents collection by email
+      /// 2. Direct parents/{uid} doc lookup
+      /// 3. Query parents by lowercase email
+      /// 4. Query users/{uid} for children/linkedStudents array
+      /// 5. Query students collection directly by parentEmail / parentId fields
       DocumentSnapshot<Map<String, dynamic>>? parentDoc;
+      final lowerEmail = parentEmail.toLowerCase().trim();
 
       // Strategy 1: query parents collection by email
+      debugPrint(
+        '👨‍👩‍👧 [ParentService] S1: querying parents where email==$parentEmail',
+      );
       final parentQuery = await _firestore
           .collection('parents')
           .where('email', isEqualTo: parentEmail)
           .limit(1)
           .get();
+      debugPrint(
+        '👨‍👩‍👧 [ParentService] S1 result: ${parentQuery.docs.length} docs',
+      );
 
       if (parentQuery.docs.isNotEmpty) {
         parentDoc = parentQuery.docs.first;
+        debugPrint('👨‍👩‍👧 [ParentService] S1 found: ${parentDoc.id}');
       }
 
-      // Strategy 2: direct doc lookup by UID (common when doc ID == auth UID)
+      // Strategy 2: direct doc lookup by UID
       if (parentDoc == null && parentId != null && parentId.isNotEmpty) {
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S2: direct lookup parents/$parentId',
+        );
         final directDoc = await _firestore
             .collection('parents')
             .doc(parentId)
             .get();
+        debugPrint('👨‍👩‍👧 [ParentService] S2 exists: ${directDoc.exists}');
         if (directDoc.exists) {
           parentDoc = directDoc;
         }
       }
 
-      // Strategy 3: query by lowercase email (handles case mismatch)
-      if (parentDoc == null) {
-        final lowerEmail = parentEmail.toLowerCase().trim();
-        if (lowerEmail != parentEmail) {
-          final lowerQuery = await _firestore
-              .collection('parents')
-              .where('email', isEqualTo: lowerEmail)
-              .limit(1)
-              .get();
-          if (lowerQuery.docs.isNotEmpty) {
-            parentDoc = lowerQuery.docs.first;
-          }
+      // Strategy 3: query by lowercase email
+      if (parentDoc == null && lowerEmail != parentEmail) {
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S3: querying parents where email==$lowerEmail',
+        );
+        final lowerQuery = await _firestore
+            .collection('parents')
+            .where('email', isEqualTo: lowerEmail)
+            .limit(1)
+            .get();
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S3 result: ${lowerQuery.docs.length} docs',
+        );
+        if (lowerQuery.docs.isNotEmpty) {
+          parentDoc = lowerQuery.docs.first;
         }
       }
 
-      if (parentDoc == null) {
-        return [];
-      }
-      final parentData = parentDoc.data()!;
-      final linkedStudents = parentData['linkedStudents'] as List<dynamic>?;
-
-      if (linkedStudents == null || linkedStudents.isEmpty) {
-        return [];
-      }
-
-      // ✅ OPTIMIZATION: Fetch all students in parallel instead of sequentially
-      final studentFutures = linkedStudents.map((studentInfo) async {
-        var studentId = studentInfo['id'] as String?;
-        if (studentId == null) {
-          return null;
-        }
-
-        // Trim whitespace and ensure clean ID
-        studentId = studentId.trim();
-
-        try {
-          // Try to get student document
-          final studentDoc = await _firestore
-              .collection('students')
-              .doc(studentId)
-              .get();
-
-          StudentModel? studentModel;
-
-          if (studentDoc.exists) {
-            studentModel = StudentModel.fromFirestore(studentDoc);
-          }
-
-          // Cache linked-student fields for reuse (avoid recompute)
-          final linkedName = toStr(studentInfo['name']);
-          final linkedClass = toStr(studentInfo['class']);
-          final linkedSection = toStr(studentInfo['section']);
-          final linkedEmail =
-              toStr(studentInfo['email']) ??
-              toStr(studentInfo['studentEmail']) ??
-              toStr(studentInfo['emailId']) ??
-              toStr(studentInfo['mail']) ??
-              toStr(studentInfo['contactEmail']);
-
-          if (studentModel != null) {
-            var hydratedStudent = studentModel;
-            final sd = studentDoc.data();
-
-            // Hydrate email: prioritize linkedEmail (parent's metadata), then student doc
-            if (hydratedStudent.email.isEmpty) {
-              final email =
-                  linkedEmail ??
-                  toStr(sd?['email']) ??
-                  toStr(sd?['studentEmail']) ??
-                  toStr(sd?['emailId']) ??
-                  toStr(sd?['mail']) ??
-                  toStr(sd?['contactEmail']);
-              if (email != null && email.isNotEmpty) {
-                hydratedStudent = hydratedStudent.copyWith(email: email);
-              }
-            }
-
-            // Fill in missing name/class/section from linkedStudents data only
-            if (hydratedStudent.name.isEmpty &&
-                linkedName != null &&
-                linkedName.isNotEmpty) {
-              hydratedStudent = hydratedStudent.copyWith(name: linkedName);
-            }
-            if ((hydratedStudent.className == null ||
-                    hydratedStudent.className!.isEmpty) &&
-                linkedClass != null &&
-                linkedClass.isNotEmpty) {
-              hydratedStudent = hydratedStudent.copyWith(
-                className: linkedClass,
-              );
-            }
-            if ((hydratedStudent.section == null ||
-                    hydratedStudent.section!.isEmpty) &&
-                linkedSection != null &&
-                linkedSection.isNotEmpty) {
-              hydratedStudent = hydratedStudent.copyWith(
-                section: linkedSection,
-              );
-            }
-
-            return hydratedStudent;
-          } else {
-            // Create placeholder from linkedStudents data
-            return StudentModel(
-              uid: studentId,
-              name: linkedName ?? 'Unknown Student',
-              email: '',
-              schoolCode: parentData['schoolCode'] as String? ?? '',
-              className: linkedClass ?? '',
-              section: linkedSection ?? '',
-              rewardPoints: 0,
-              monthlyProgress: 0.0,
-              createdAt: DateTime.now(),
+      // Strategy 4: look in users/{uid} for linkedStudents / children array
+      if (parentDoc == null && parentId != null && parentId.isNotEmpty) {
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S4: checking users/$parentId for children',
+        );
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(parentId)
+            .get();
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S4 exists: ${userDoc.exists}, data keys: ${userDoc.data()?.keys.toList()}',
+        );
+        if (userDoc.exists) {
+          final userData = userDoc.data()!;
+          // Accept any field that holds an array of student refs
+          final linked =
+              userData['linkedStudents'] ??
+              userData['children'] ??
+              userData['students'] ??
+              userData['childIds'];
+          if (linked != null && linked is List && linked.isNotEmpty) {
+            debugPrint(
+              '👨‍👩‍👧 [ParentService] S4 found linked array with ${linked.length} items',
             );
+            // Fetch each student directly
+            final futures = linked.map((item) async {
+              final id = (item is Map ? (item['id'] ?? item['uid']) : item)
+                  ?.toString()
+                  .trim();
+              if (id == null || id.isEmpty) return null;
+              try {
+                final doc = await _firestore
+                    .collection('students')
+                    .doc(id)
+                    .get();
+                if (doc.exists) return StudentModel.fromFirestore(doc);
+              } catch (_) {}
+              return null;
+            }).toList();
+            final results = await Future.wait(futures);
+            final found = results.whereType<StudentModel>().toList();
+            debugPrint(
+              '👨‍👩‍👧 [ParentService] S4 resolved ${found.length} students',
+            );
+            if (found.isNotEmpty) return found;
           }
-        } catch (e) {
-          return null;
         }
-      }).toList();
+      }
 
-      // ✅ OPTIMIZATION: Wait for all students in parallel
-      final studentResults = await Future.wait(studentFutures);
-      final children = studentResults.whereType<StudentModel>().toList();
+      // Strategy 5: search students collection directly by parentEmail or parentId
+      if (parentDoc == null) {
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S5: searching students by parentEmail/parentId',
+        );
+        final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
 
-      return children;
+        // Search by parentEmail field
+        futures.add(
+          _firestore
+              .collection('students')
+              .where('parentEmail', isEqualTo: parentEmail)
+              .limit(20)
+              .get(),
+        );
+        // Also try lowercase
+        if (lowerEmail != parentEmail) {
+          futures.add(
+            _firestore
+                .collection('students')
+                .where('parentEmail', isEqualTo: lowerEmail)
+                .limit(20)
+                .get(),
+          );
+        }
+        // Search by parentId (UID)
+        if (parentId != null && parentId.isNotEmpty) {
+          futures.add(
+            _firestore
+                .collection('students')
+                .where('parentId', isEqualTo: parentId)
+                .limit(20)
+                .get(),
+          );
+        }
+
+        final snapshots = await Future.wait(futures);
+        final seen = <String>{};
+        final found = <StudentModel>[];
+        for (final snap in snapshots) {
+          for (final doc in snap.docs) {
+            if (seen.add(doc.id)) {
+              found.add(StudentModel.fromFirestore(doc));
+            }
+          }
+        }
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S5 found ${found.length} students',
+        );
+        if (found.isNotEmpty) return found;
+      }
+
+      if (parentDoc == null) {
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] All strategies failed — no parent doc found for $parentEmail / $parentId',
+        );
+        return [];
+      }
+
+      final parentData = parentDoc.data()!;
+      debugPrint(
+        '👨‍👩‍👧 [ParentService] Parent doc found: ${parentDoc.id}, keys: ${parentData.keys.toList()}',
+      );
+      final linkedStudents = parentData['linkedStudents'] as List<dynamic>?;
+      debugPrint('👨‍👩‍👧 [ParentService] linkedStudents: $linkedStudents');
+
+      // If linkedStudents is empty/null, fall through to student-direct search (S5 below)
+      if (linkedStudents != null && linkedStudents.isNotEmpty) {
+        // ✅ OPTIMIZATION: Fetch all students in parallel instead of sequentially
+        final studentFutures = linkedStudents.map((studentInfo) async {
+          var studentId = studentInfo['id'] as String?;
+          if (studentId == null) {
+            return null;
+          }
+
+          // Trim whitespace and ensure clean ID
+          studentId = studentId.trim();
+
+          try {
+            // Try to get student document
+            final studentDoc = await _firestore
+                .collection('students')
+                .doc(studentId)
+                .get();
+
+            StudentModel? studentModel;
+
+            if (studentDoc.exists) {
+              studentModel = StudentModel.fromFirestore(studentDoc);
+            }
+
+            // Cache linked-student fields for reuse (avoid recompute)
+            final linkedName = toStr(studentInfo['name']);
+            final linkedClass = toStr(studentInfo['class']);
+            final linkedSection = toStr(studentInfo['section']);
+            final linkedEmail =
+                toStr(studentInfo['email']) ??
+                toStr(studentInfo['studentEmail']) ??
+                toStr(studentInfo['emailId']) ??
+                toStr(studentInfo['mail']) ??
+                toStr(studentInfo['contactEmail']);
+
+            if (studentModel != null) {
+              var hydratedStudent = studentModel;
+              final sd = studentDoc.data();
+
+              // Hydrate email: prioritize linkedEmail (parent's metadata), then student doc
+              if (hydratedStudent.email.isEmpty) {
+                final email =
+                    linkedEmail ??
+                    toStr(sd?['email']) ??
+                    toStr(sd?['studentEmail']) ??
+                    toStr(sd?['emailId']) ??
+                    toStr(sd?['mail']) ??
+                    toStr(sd?['contactEmail']);
+                if (email != null && email.isNotEmpty) {
+                  hydratedStudent = hydratedStudent.copyWith(email: email);
+                }
+              }
+
+              // Fill in missing name/class/section from linkedStudents data only
+              if (hydratedStudent.name.isEmpty &&
+                  linkedName != null &&
+                  linkedName.isNotEmpty) {
+                hydratedStudent = hydratedStudent.copyWith(name: linkedName);
+              }
+              if ((hydratedStudent.className == null ||
+                      hydratedStudent.className!.isEmpty) &&
+                  linkedClass != null &&
+                  linkedClass.isNotEmpty) {
+                hydratedStudent = hydratedStudent.copyWith(
+                  className: linkedClass,
+                );
+              }
+              if ((hydratedStudent.section == null ||
+                      hydratedStudent.section!.isEmpty) &&
+                  linkedSection != null &&
+                  linkedSection.isNotEmpty) {
+                hydratedStudent = hydratedStudent.copyWith(
+                  section: linkedSection,
+                );
+              }
+
+              return hydratedStudent;
+            } else {
+              // Create placeholder from linkedStudents data
+              return StudentModel(
+                uid: studentId,
+                name: linkedName ?? 'Unknown Student',
+                email: '',
+                schoolCode: parentData['schoolCode'] as String? ?? '',
+                className: linkedClass ?? '',
+                section: linkedSection ?? '',
+                rewardPoints: 0,
+                monthlyProgress: 0.0,
+                createdAt: DateTime.now(),
+              );
+            }
+          } catch (e) {
+            return null;
+          }
+        }).toList();
+
+        // ✅ OPTIMIZATION: Wait for all students in parallel
+        final studentResults = await Future.wait(studentFutures);
+        final children = studentResults.whereType<StudentModel>().toList();
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] linkedStudents resolved ${children.length} students',
+        );
+        if (children.isNotEmpty) return children;
+      } // end if (linkedStudents not empty)
+
+      // Strategy 5 (final fallback): search students collection directly
+      // This handles the case where the parent doc exists but linkedStudents is empty/not populated
+      debugPrint(
+        '👨‍👩‍👧 [ParentService] S5 (final): searching students by parentEmail/parentId',
+      );
+      {
+        final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
+        final resolvedEmail = parentData['email'] as String? ?? parentEmail;
+        final resolvedLower = resolvedEmail.toLowerCase().trim();
+
+        futures.add(
+          _firestore
+              .collection('students')
+              .where('parentEmail', isEqualTo: resolvedEmail)
+              .limit(20)
+              .get(),
+        );
+        if (resolvedLower != resolvedEmail) {
+          futures.add(
+            _firestore
+                .collection('students')
+                .where('parentEmail', isEqualTo: resolvedLower)
+                .limit(20)
+                .get(),
+          );
+        }
+        if (parentId != null && parentId.isNotEmpty) {
+          futures.add(
+            _firestore
+                .collection('students')
+                .where('parentId', isEqualTo: parentId)
+                .limit(20)
+                .get(),
+          );
+        }
+        // Also try parentPhone if stored on the parent doc
+        final phone = parentData['phoneNumber'] as String?;
+        if (phone != null && phone.isNotEmpty) {
+          futures.add(
+            _firestore
+                .collection('students')
+                .where('parentPhone', isEqualTo: phone)
+                .limit(20)
+                .get(),
+          );
+        }
+
+        final snapshots = await Future.wait(futures);
+        final seen = <String>{};
+        final found = <StudentModel>[];
+        for (final snap in snapshots) {
+          for (final doc in snap.docs) {
+            if (seen.add(doc.id)) found.add(StudentModel.fromFirestore(doc));
+          }
+        }
+        debugPrint(
+          '👨‍👩‍👧 [ParentService] S5 found ${found.length} students',
+        );
+        if (found.isNotEmpty) return found;
+      }
+
+      debugPrint(
+        '👨‍👩‍👧 [ParentService] All strategies exhausted — returning empty',
+      );
+      return [];
     } catch (e) {
       return [];
     }

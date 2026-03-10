@@ -263,6 +263,12 @@ service cloud.firestore {
     match /schools/{schoolId} {
       allow read: if true; // Allow unauthenticated access for login/registration
       allow write: if isSignedIn() && (isPrincipal() || isInstitute() || isAdmin());
+      
+      // All sub-collections (tests, leaderboard, etc.)
+      match /{document=**} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      }
     }
     
     match /students/{studentId} {
@@ -417,6 +423,12 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() && (
           resource.data.senderId == request.auth.uid || isAdmin()
         );
+      }
+      
+      // Members subcollection (join/leave community)
+      match /members/{memberId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
       }
     }
     
@@ -656,7 +668,11 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.studentId == request.auth.uid || isTeacher() || isAdmin()
       );
-      allow write: if isSignedIn() && (
+      // create: use request.resource because resource doesn't exist yet
+      allow create: if isSignedIn() && (
+        request.resource.data.studentId == request.auth.uid || isAdmin()
+      );
+      allow update, delete: if isSignedIn() && (
         resource.data.studentId == request.auth.uid || isAdmin()
       );
     }
@@ -674,11 +690,59 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.studentId == request.auth.uid || isTeacher() || isAdmin()
       );
-      allow write: if isSignedIn() && (
+      // create: use request.resource because resource doesn't exist yet
+      allow create: if isSignedIn() && (
+        request.resource.data.studentId == request.auth.uid || isTeacher() || isAdmin()
+      );
+      allow update, delete: if isSignedIn() && (
         resource.data.studentId == request.auth.uid || isTeacher() || isAdmin()
       );
     }
     
+    // ============================================
+    // INSIGHTS & ANALYTICS
+    // ============================================
+
+    match /insights_top_performers/{docId} {
+      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+    }
+
+    match /insights_top_performers_full/{docId} {
+      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+    }
+
+    match /insights_teacher_stats/{docId} {
+      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+    }
+
+    match /ai_reports/{reportId} {
+      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+    }
+
+    // ============================================
+    // APPROVED REWARDS
+    // ============================================
+
+    match /approved_rewards/{rewardId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isApproverRole();
+      allow update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // VIOLATIONS
+    // ============================================
+
+    match /violations/{violationId} {
+      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+      allow create: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
     // ============================================
     // FALLBACK: DENY ALL NOT EXPLICITLY ALLOWED
     // ============================================

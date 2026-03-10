@@ -196,6 +196,16 @@ class RewardsRepository {
 
         final requestMap = request.toMap();
 
+        // Inject student name so parent-side fromJson() can display it correctly
+        final resolvedStudentName =
+            (studentData['name'] as String?)?.trim() ??
+            (studentData['studentName'] as String?)?.trim() ??
+            '';
+        if (resolvedStudentName.isNotEmpty) {
+          requestMap['student_name'] = resolvedStudentName;
+          requestMap['studentName'] = resolvedStudentName;
+        }
+
         // Update student points
         print('🔴 Updating student points (locking $pointsRequired) ...');
         transaction.update(studentRef, {
