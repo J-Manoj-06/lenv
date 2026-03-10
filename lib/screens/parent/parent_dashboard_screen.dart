@@ -1051,12 +1051,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   Color _getStatusColor(RewardRequestStatus status) {
     switch (status) {
+      case RewardRequestStatus.requested:
+        return const Color(0xFFF59E0B);
       case RewardRequestStatus.pending:
         return const Color(0xFFF2800D);
+      case RewardRequestStatus.pendingPrice:
+        return const Color(0xFFEA580C);
       case RewardRequestStatus.approved:
         return const Color(0xFF16A34A);
       case RewardRequestStatus.orderPlaced:
         return const Color(0xFF0EA5E9);
+      case RewardRequestStatus.delivered:
+        return const Color(0xFF0D9488);
       case RewardRequestStatus.rejected:
         return const Color(0xFFEF4444);
     }
@@ -1064,12 +1070,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   String _getStatusText(RewardRequestStatus status) {
     switch (status) {
+      case RewardRequestStatus.requested:
+        return 'Requested';
       case RewardRequestStatus.pending:
         return 'Pending';
+      case RewardRequestStatus.pendingPrice:
+        return 'Pending Price';
       case RewardRequestStatus.approved:
         return 'Approved';
       case RewardRequestStatus.orderPlaced:
         return 'Order Placed';
+      case RewardRequestStatus.delivered:
+        return 'Delivered';
       case RewardRequestStatus.rejected:
         return 'Rejected';
     }
@@ -1083,7 +1095,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     // Count only pending requests for the badge
     final pendingCount = rewardRequests
-        .where((r) => r.status == RewardRequestStatus.pending)
+        .where(
+          (r) =>
+              r.status == RewardRequestStatus.requested ||
+              r.status == RewardRequestStatus.pending ||
+              r.status == RewardRequestStatus.pendingPrice,
+        )
         .length;
 
     return Padding(

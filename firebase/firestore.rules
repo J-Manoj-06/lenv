@@ -5,109 +5,423 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Read-only rewards catalog
-    match /rewards_catalog/{product} {
-      allow read: if request.auth != null;
-      allow write: if false; // Only admin and Cloud Functions can write
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Reward requests - students create, parents update
-    match /reward_requests/{requestId} {
-      // Students can create new requests
-      allow create: if request.auth != null 
-        && request.auth.token.role == 'student'
-        && request.resource.data.student_id == request.auth.uid
-        && request.resource.data.status == 'pending_parent_approval'
-        && request.resource.data.points.locked > 0
-        && request.resource.data.timestamps.lock_expires_at > now;
-
-      // Parents and admins can update requests
-      allow update: if request.auth != null && (
-        (request.auth.token.role == 'parent' 
-          && resource.data.parent_id == request.auth.uid)
-        || request.auth.token.role == 'admin'
-      );
-
-      // Anyone with permission can read their own requests
-      allow read: if request.auth != null && (
-        resource.data.student_id == request.auth.uid
-        || resource.data.parent_id == request.auth.uid
-        || request.auth.token.role == 'admin'
-      );
-
-      // Cloud Functions can update for auto-expiry
-      allow update: if request.auth == null
-        && request.headers['authorization'] != null;
+    function userRole() {
+      return isSignedIn() && request.auth.token.role != null
+          ? request.auth.token.role
+          : '';
     }
 
-    // Student points (read-only for students, update via Cloud Functions/transactions)
-    match /students/{studentId} {
-      allow read: if request.auth != null 
-        && request.auth.uid == studentId;
-
-      allow write: if false; // Only Cloud Functions and transactions
-    }
-
-    // Parent profiles
-    match /parents/{parentId} {
-      allow read: if request.auth != null 
-        && request.auth.uid == parentId;
-
-      allow write: if request.auth != null 
-        && request.auth.uid == parentId;
-    }
-
-    // Notifications (for reminders and analytics)
-    match /notifications/{notificationId} {
-      allow create: if request.auth != null;
-      
-      allow read: if request.auth != null 
-        && (resource.data.receiver == request.auth.uid 
-            || request.auth.token.role == 'admin');
-
-      allow write: if false; // Only server writes
-    }
-
-    // Audit logs (append-only)
-    match /audit_logs/{auditId} {
-      allow create: if request.auth != null;
-      
-      allow read: if request.auth != null 
-        && (resource.data.actor == request.auth.uid 
-            || request.auth.token.role == 'admin');
-
-      allow update, delete: if false;
-    }
-
-    // Helper function: check if user has role
     function hasRole(role) {
-      return request.auth.token.role == role;
+      return isSignedIn() && userRole() == role;
     }
 
-    // Helper function: check if user is student
+    function hasAnyRole(roles) {
+      return isSignedIn() && roles.hasAny([userRole()]);
+    }
+
+    function isAdmin() {
+      return (isSignedIn() && request.auth.token.admin == true)
+          || hasRole('admin');
+    }
+
     function isStudent() {
       return hasRole('student');
     }
 
-    // Helper function: check if user is parent
     function isParent() {
       return hasRole('parent');
     }
 
-    // Helper function: check if user is admin
-    function isAdmin() {
-      return hasRole('admin');
+    function isTeacher() {
+      return hasRole('teacher');
     }
 
-    // Daily content (pre-fetched by Cloudflare Worker, read-only for all)
-    // Collection: daily_content/{YYYY-MM-DD}
-    // Fields: quote, fact, history, fetchedAt, status
-    match /daily_content/{date} {
-      // All authenticated users can read
-      allow read: if request.auth != null;
-      
-      // No client writes - only Cloudflare Worker via service account
+    function isPrincipal() {
+      return hasRole('principal');
+    }
+
+    function isInstitute() {
+      return hasRole('institute');
+    }
+
+    function uidIs(id) {
+      return isSignedIn() && request.auth.uid == id;
+    }
+
+    function isApproverRole() {
+      return hasAnyRole(['teacher', 'admin', 'principal', 'institute', 'parent']);
+    }
+
+    function isElevatedApproverRole() {
+      return hasAnyRole(['teacher', 'admin', 'principal', 'institute']);
+    }
+
+    function pointsFieldsUpdateOnly() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return changed.hasOnly([
+        'rewardPoints',
+        'totalPoints',
+        'points',
+        'reward_points',
+        'available_points',
+        'lastRewardRedemptionAt',
+      ]);
+    }
+
+    function isRewardCreateStatus(status) {
+      return status in ['requested', 'pending', 'pending_parent_approval'];
+    }
+
+    function isRewardUpdateStatus(status) {
+      return status in [
+        'approved',
+        'rejected',
+        'pending_price',
+        'pendingPrice',
+        'order_placed',
+        'orderPlaced',
+        'delivered',
+      ];
+    }
+
+    function canTransitionRewardStatus(fromStatus, toStatus) {
+      return (
+        (fromStatus in ['requested', 'pending', 'pending_parent_approval']
+          && toStatus in ['approved', 'pending_price', 'pendingPrice', 'rejected'])
+        ||
+        (fromStatus in ['pending_price', 'pendingPrice']
+          && toStatus in ['approved', 'rejected'])
+        ||
+        (fromStatus == 'approved'
+          && toStatus in ['approved', 'order_placed', 'orderPlaced', 'delivered'])
+        ||
+        (fromStatus in ['order_placed', 'orderPlaced']
+          && toStatus in ['order_placed', 'orderPlaced', 'delivered'])
+        ||
+        (fromStatus == 'rejected' && toStatus == 'rejected')
+        ||
+        (fromStatus == 'delivered' && toStatus == 'delivered')
+      );
+    }
+
+    function rewardUpdateKeysAreSafe() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return changed.hasOnly([
+        'status',
+        'purchaseMethod',
+        'purchase_method',
+        'purchase_mode',
+        'priceEntered',
+        'price_entered',
+        'enteredPrice',
+        'entered_price',
+        'manual_price',
+        'price',
+        'pointsDeducted',
+        'points_deducted',
+        'approved_on',
+        'approvedOn',
+        'parentApprovedAt',
+        'approvedBy',
+        'updatedAt',
+        'parentNote',
+        'audit',
+      ]);
+    }
+
+    function rewardIdentityFieldsUnchanged() {
+      return request.resource.data.id == resource.data.id
+        && request.resource.data.student_id == resource.data.student_id
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.parent_id == resource.data.parent_id
+        && request.resource.data.parentId == resource.data.parentId
+        && request.resource.data.productId == resource.data.productId
+        && request.resource.data.productName == resource.data.productName
+        && request.resource.data.timestamps == resource.data.timestamps;
+    }
+
+    function canUpdateRewardRequest() {
+      let parentOwns =
+        (resource.data.parent_id != null && resource.data.parent_id == request.auth.uid)
+        || (resource.data.parentId != null && resource.data.parentId == request.auth.uid);
+
+      return isSignedIn()
+        && rewardUpdateKeysAreSafe()
+        && rewardIdentityFieldsUnchanged()
+        && isRewardUpdateStatus(request.resource.data.status)
+        && canTransitionRewardStatus(resource.data.status, request.resource.data.status)
+        && (
+          isAdmin()
+          || isElevatedApproverRole()
+          || (isParent() && parentOwns)
+        );
+    }
+
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+      match /{document=**} {
+        allow read: if true;
+        allow write: if isSignedIn();
+      }
+    }
+
+    match /students/{studentId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (uidIs(studentId) || isAdmin());
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (uidIs(teacherId) || isAdmin());
+    }
+
+    match /parents/{parentId} {
+      allow read: if true;
+      allow write: if isSignedIn() && (uidIs(parentId) || isAdmin());
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && (
+        uidIs(userId)
+        || isAdmin()
+        || (isApproverRole() && pointsFieldsUpdateOnly())
+      );
+      allow create, delete: if isSignedIn() && (uidIs(userId) || isAdmin());
+    }
+
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+
+      match /subjects/{subjectId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+      }
+    }
+
+    match /teacher_groups/{teacherId} {
+      allow read, write: if isSignedIn() && (uidIs(teacherId) || isAdmin());
+    }
+
+    match /user_communities/{userId} {
+      allow read, write: if isSignedIn() && (uidIs(userId) || isAdmin());
+    }
+
+    match /institute_announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (isPrincipal() || isAdmin());
+      allow update, delete: if isSignedIn() && (
+        resource.data.principalId == request.auth.uid || isAdmin()
+      );
+
+      match /views/{viewId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && uidIs(viewId);
+      }
+    }
+
+    match /teacher_community/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isTeacher();
+      allow update, delete: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /student_community/{messageId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isStudent();
+      allow update, delete: if isSignedIn() && (
+        resource.data.senderId == request.auth.uid || isAdmin()
+      );
+    }
+
+    match /group_messages/{classId} {
+      allow read: if isSignedIn();
+
+      match /subjects/{subjectId} {
+        allow read: if isSignedIn();
+
+        match /messages/{messageId} {
+          allow read: if isSignedIn();
+          allow create: if isSignedIn();
+          allow update, delete: if isSignedIn() && (
+            resource.data.senderId == request.auth.uid || isAdmin()
+          );
+        }
+      }
+    }
+
+    match /parent_teacher_groups/{groupId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isParent() || isTeacher() || isAdmin());
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && (isParent() || isTeacher() || isAdmin());
+        allow update, delete: if isSignedIn() && (
+          resource.data.senderId == request.auth.uid || isAdmin()
+        );
+      }
+    }
+
+    match /unread_counts/{userId} {
+      allow read, write: if isSignedIn() && uidIs(userId);
+    }
+
+    match /scheduledTests/{testId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /testResults/{resultId} {
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid
+        || resource.data.teacherId == request.auth.uid
+        || isAdmin()
+      );
+      allow write: if isSignedIn();
+    }
+
+    match /tests/{testId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /test_assignments/{assignmentId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /test_submissions/{submissionId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /rewards_catalog/{productId} {
+      allow read: if isSignedIn();
       allow write: if false;
+    }
+
+    match /reward_requests/{requestId} {
+      allow create: if isSignedIn()
+        && isStudent()
+        && (
+          request.resource.data.student_id == request.auth.uid
+          || request.resource.data.studentId == request.auth.uid
+        )
+        && (
+          request.resource.data.parent_id == null
+          || request.resource.data.parent_id is string
+        )
+        && isRewardCreateStatus(request.resource.data.status)
+        && (
+          request.resource.data.points == null
+          || request.resource.data.points.locked == null
+          || request.resource.data.points.locked > 0
+        )
+        && (
+          request.resource.data.timestamps == null
+          || request.resource.data.timestamps.lock_expires_at == null
+          || request.resource.data.timestamps.lock_expires_at > request.time
+        );
+
+      allow update: if canUpdateRewardRequest();
+
+      allow read: if isSignedIn() && (
+        resource.data.student_id == request.auth.uid
+        || resource.data.studentId == request.auth.uid
+        || resource.data.parent_id == request.auth.uid
+        || resource.data.parentId == request.auth.uid
+        || isApproverRole()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /students_points/{studentId} {
+      allow read: if isSignedIn() && uidIs(studentId);
+      allow write: if false;
+    }
+
+    match /notifications/{notificationId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.receiver == request.auth.uid || isAdmin()
+      );
+      allow update, delete: if false;
+    }
+
+    match /leaderboards/{leaderboardId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /performances/{performanceId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /conversations/{conversationId} {
+      allow read, write: if isSignedIn();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && resource.data.senderId == request.auth.uid;
+      }
+
+      match /media/{mediaId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isSignedIn()
+          && resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    match /reward_transactions/{txId} {
+      allow create: if isApproverRole()
+        && request.resource.data.type == 'reward_redemption'
+        && request.resource.data.studentId is string
+        && request.resource.data.rewardId is string
+        && request.resource.data.pointsDeducted is int
+        && request.resource.data.pointsDeducted > 0;
+
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid || isApproverRole()
+      );
+      allow update, delete: if false;
+    }
+
+    match /student_rewards/{entryId} {
+      allow create: if isApproverRole();
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid || isApproverRole()
+      );
+      allow update, delete: if false;
+    }
+
+    match /audit_logs/{auditId} {
+      allow create: if isSignedIn() && isApproverRole();
+      allow read: if isSignedIn() && (
+        resource.data.actor == request.auth.uid || isAdmin()
+      );
+      allow update, delete: if false;
+    }
+
+    match /daily_content/{date} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

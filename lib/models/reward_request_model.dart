@@ -1,6 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum RewardRequestStatus { pending, approved, orderPlaced, rejected }
+enum RewardRequestStatus {
+  requested,
+  pending,
+  pendingPrice,
+  approved,
+  orderPlaced,
+  delivered,
+  rejected,
+}
 
 class RewardRequestModel {
   final String id;
@@ -13,6 +21,10 @@ class RewardRequestModel {
   final double price;
   final int pointsRequired;
   final RewardRequestStatus status;
+  final String? purchaseMethod;
+  final bool priceEntered;
+  final double? enteredPrice;
+  final int pointsDeducted;
   final DateTime requestedOn;
   final String? parentId; // who approved
   final DateTime? approvedOn;
@@ -28,6 +40,10 @@ class RewardRequestModel {
     required this.price,
     required this.pointsRequired,
     required this.status,
+    this.purchaseMethod,
+    this.priceEntered = false,
+    this.enteredPrice,
+    this.pointsDeducted = 0,
     required this.requestedOn,
     this.parentId,
     this.approvedOn,
@@ -37,15 +53,25 @@ class RewardRequestModel {
     final statusStr = (json['status'] as String? ?? 'pending');
     RewardRequestStatus parseStatus(String s) {
       switch (s) {
+        case 'requested':
+          return RewardRequestStatus.requested;
+        case 'pending_price':
+        case 'pendingPrice':
+          return RewardRequestStatus.pendingPrice;
         case 'approved':
           return RewardRequestStatus.approved;
         case 'approvedPurchaseInProgress':
         case 'order_placed':
         case 'orderPlaced':
           return RewardRequestStatus.orderPlaced;
+        case 'delivered':
+          return RewardRequestStatus.delivered;
         case 'rejected':
         case 'cancelled':
           return RewardRequestStatus.rejected;
+        case 'pendingParentApproval':
+        case 'pending_parent_approval':
+          return RewardRequestStatus.pending;
         default:
           return RewardRequestStatus.pending;
       }
@@ -183,6 +209,21 @@ class RewardRequestModel {
       price: extractPrice(),
       pointsRequired: extractPointsRequired(),
       status: parseStatus(statusStr),
+        purchaseMethod:
+          json['purchaseMethod'] as String? ??
+          json['purchase_method'] as String? ??
+          json['purchase_mode'] as String?,
+        priceEntered: (json['priceEntered'] as bool?) ??
+          (json['price_entered'] as bool?) ??
+          false,
+        enteredPrice: (json['enteredPrice'] as num?)?.toDouble() ??
+          (json['entered_price'] as num?)?.toDouble() ??
+          (json['manual_price'] as num?)?.toDouble(),
+        pointsDeducted: (json['pointsDeducted'] as num?)?.toInt() ??
+          (json['points_deducted'] as num?)?.toInt() ??
+          (json['points'] is Map
+            ? (((json['points'] as Map)['deducted'] as num?)?.toInt() ?? 0)
+            : 0),
       requestedOn: extractRequestedOn(),
       parentId: json['parentId'] as String? ?? json['parent_id'] as String?,
       approvedOn: (json['approvedOn'] is Timestamp)
@@ -204,6 +245,10 @@ class RewardRequestModel {
     'price': price,
     'pointsRequired': pointsRequired,
     'status': _statusString(status),
+    if (purchaseMethod != null) 'purchaseMethod': purchaseMethod,
+    'priceEntered': priceEntered,
+    if (enteredPrice != null) 'enteredPrice': enteredPrice,
+    'pointsDeducted': pointsDeducted,
     'timestamps': {'requested_at': Timestamp.fromDate(requestedOn)},
     if (parentId != null) 'parentId': parentId,
     if (approvedOn != null) 'approvedOn': Timestamp.fromDate(approvedOn!),
@@ -211,10 +256,16 @@ class RewardRequestModel {
 
   static String _statusString(RewardRequestStatus s) {
     switch (s) {
+      case RewardRequestStatus.requested:
+        return 'requested';
+      case RewardRequestStatus.pendingPrice:
+        return 'pending_price';
       case RewardRequestStatus.approved:
         return 'approved';
       case RewardRequestStatus.orderPlaced:
         return 'order_placed';
+      case RewardRequestStatus.delivered:
+        return 'delivered';
       case RewardRequestStatus.rejected:
         return 'rejected';
       case RewardRequestStatus.pending:

@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
@@ -13,7 +11,6 @@ import '../services/parent_teacher_group_service.dart';
 class ParentProvider with ChangeNotifier {
   final ParentService _parentService = ParentService();
   final ParentTeacherGroupService _ptGroupService = ParentTeacherGroupService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // SharedPreferences key for persisting selected child
   static const String _selectedChildKey = 'parent_selected_child_uid';
@@ -441,61 +438,76 @@ class ParentProvider with ChangeNotifier {
     } catch (e) {}
   }
 
-  /// Approve a reward request
-  Future<bool> approveRewardRequest(String requestId) async {
-    try {
-      final success = await _parentService.updateRewardRequestStatus(
-        requestId: requestId,
-        status: 'approved',
-      );
-
-      if (success && selectedChild != null) {
-        // Reload reward requests to reflect the change
-        await loadRewardRequests(selectedChild!.uid);
-      }
-
-      return success;
-    } catch (e) {
-      return false;
+  /// Approve reward via product link
+  Future<Map<String, dynamic>> approveRewardByLink(String requestId) async {
+    final result = await _parentService.approveRewardByLink(requestId: requestId);
+    if ((result['success'] as bool? ?? false) && selectedChild != null) {
+      await loadRewardRequests(selectedChild!.uid);
     }
+    return result;
   }
 
-  /// Approve reward request with specific method (Amazon or Manual)
+  /// Mark reward as pending manual price entry
+  Future<Map<String, dynamic>> markRewardPendingPrice(String requestId) async {
+    final result = await _parentService.markRewardPendingPrice(
+      requestId: requestId,
+    );
+    if ((result['success'] as bool? ?? false) && selectedChild != null) {
+      await loadRewardRequests(selectedChild!.uid);
+    }
+    return result;
+  }
+
+  /// Approve reward by entering manual price now (deducts points)
+  Future<Map<String, dynamic>> approveRewardManualNow({
+    required String requestId,
+    required double price,
+  }) async {
+    final result = await _parentService.approveRewardManualWithPrice(
+      requestId: requestId,
+      enteredPrice: price,
+    );
+    if ((result['success'] as bool? ?? false) && selectedChild != null) {
+      await loadRewardRequests(selectedChild!.uid);
+    }
+    return result;
+  }
+
+  /// Enter price later flow finalization (uses same backend as manual-now)
+  Future<Map<String, dynamic>> enterRewardPriceLater({
+    required String requestId,
+    required double price,
+  }) async {
+    return approveRewardManualNow(requestId: requestId, price: price);
+  }
+
+  /// Backward-compatible wrapper used by older screens
+  Future<bool> approveRewardRequest(String requestId) async {
+    final result = await approveRewardByLink(requestId);
+    return result['success'] as bool? ?? false;
+  }
+
+  /// Backward-compatible wrapper used by older screens
   Future<bool> approveRewardRequestWithMethod({
     required String requestId,
-    required String approvalMethod, // 'amazon' or 'manual'
+    required String approvalMethod,
     double? manualPrice,
   }) async {
-    try {
-      final db = FirebaseFirestore.instance;
-
-      await db.collection('reward_requests').doc(requestId).update({
-        'status': 'approved',
-        'purchase_mode': approvalMethod,
-        'manual_price': ?manualPrice,
-        'approved_on': FieldValue.serverTimestamp(),
-        'audit': FieldValue.arrayUnion([
-          {
-            'actor': _auth.currentUser?.uid,
-            'action': 'approved',
-            'timestamp': DateTime.now().toIso8601String(),
-            'metadata': {
-              'approval_method': approvalMethod,
-              'manual_price': ?manualPrice,
-            },
-          },
-        ]),
-      });
-
-      if (selectedChild != null) {
-        await loadRewardRequests(selectedChild!.uid);
-      }
-
-      return true;
-    } catch (e) {
-      print('Error approving request: $e');
-      return false;
+    if (approvalMethod == 'amazon' || approvalMethod == 'link') {
+      final result = await approveRewardByLink(requestId);
+      return result['success'] as bool? ?? false;
     }
+
+    if (manualPrice != null && manualPrice > 0) {
+      final result = await approveRewardManualNow(
+        requestId: requestId,
+        price: manualPrice,
+      );
+      return result['success'] as bool? ?? false;
+    }
+
+    final result = await markRewardPendingPrice(requestId);
+    return result['success'] as bool? ?? false;
   }
 
   /// Reject a reward request
@@ -608,7 +620,11 @@ class ParentProvider with ChangeNotifier {
   /// Get pending reward requests count
   int get pendingRewardRequestsCount {
     return _rewardRequests
-        .where((r) => r.status == 'pending' || r.status == 'requested')
+      .where(
+        (r) =>
+        r.status == RewardRequestStatus.pending ||
+        r.status == RewardRequestStatus.requested,
+      )
         .length;
   }
 

@@ -21,12 +21,18 @@ class _ParentRewardRequestDetailScreenState
 
   String _statusLabel(RewardRequestStatus status) {
     switch (status) {
+      case RewardRequestStatus.requested:
+        return 'Requested';
       case RewardRequestStatus.pending:
         return 'Pending Approval';
+      case RewardRequestStatus.pendingPrice:
+        return 'Pending Price';
       case RewardRequestStatus.approved:
         return 'Approved';
       case RewardRequestStatus.orderPlaced:
         return 'Order Placed';
+      case RewardRequestStatus.delivered:
+        return 'Delivered';
       case RewardRequestStatus.rejected:
         return 'Rejected';
     }
@@ -34,33 +40,120 @@ class _ParentRewardRequestDetailScreenState
 
   Color _statusColor(RewardRequestStatus status) {
     switch (status) {
+      case RewardRequestStatus.requested:
+        return const Color(0xFFF59E0B);
       case RewardRequestStatus.pending:
         return const Color(0xFFF2800D);
+      case RewardRequestStatus.pendingPrice:
+        return const Color(0xFFEA580C);
       case RewardRequestStatus.approved:
         return const Color(0xFF16A34A);
       case RewardRequestStatus.orderPlaced:
         return const Color(0xFF0EA5E9);
+      case RewardRequestStatus.delivered:
+        return const Color(0xFF0D9488);
       case RewardRequestStatus.rejected:
         return const Color(0xFFEF4444);
     }
   }
 
   Future<void> _handleApprove() async {
-    setState(() => _isLoading = true);
     final parentProvider = Provider.of<ParentProvider>(context, listen: false);
-    final success = await parentProvider.approveRewardRequest(
-      widget.request.id,
-    );
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success ? 'Reward request approved!' : 'Failed to approve request',
+    final method = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Approve Reward'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('How will this reward be purchased?'),
+            const SizedBox(height: 14),
+            _ApprovalOptionCard(
+              icon: Icons.open_in_new,
+              title: 'Buy Through Product Link',
+              subtitle: 'Approve now and buy through product link',
+              accentColor: parentGreen,
+              onTap: () => Navigator.pop(c, 'link'),
+            ),
+            const SizedBox(height: 10),
+            _ApprovalOptionCard(
+              icon: Icons.storefront,
+              title: 'Order Manually',
+              subtitle: 'Choose when to enter the purchase price',
+              accentColor: Colors.orange,
+              onTap: () => Navigator.pop(c, 'manual'),
+            ),
+          ],
         ),
-        backgroundColor: success ? const Color(0xFF14A670) : Colors.red[400],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
+
+    if (!mounted || method == null) return;
+
+    setState(() => _isLoading = true);
+    Map<String, dynamic> result;
+
+    if (method == 'link') {
+      result = await parentProvider.approveRewardByLink(widget.request.id);
+    } else {
+      final timing = await showDialog<String>(
+        context: context,
+        builder: (c) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text('Manual Order'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('When will you enter the purchase price?'),
+              const SizedBox(height: 14),
+              _ApprovalOptionCard(
+                icon: Icons.currency_rupee,
+                title: 'Enter Price Now',
+                subtitle: 'Deduct points immediately',
+                accentColor: parentGreen,
+                onTap: () => Navigator.pop(c, 'now'),
+              ),
+              const SizedBox(height: 10),
+              _ApprovalOptionCard(
+                icon: Icons.schedule,
+                title: 'Enter Price Later',
+                subtitle: 'Mark request as pending price',
+                accentColor: Colors.orange,
+                onTap: () => Navigator.pop(c, 'later'),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      if (!mounted || timing == null) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      if (timing == 'later') {
+        result = await parentProvider.markRewardPendingPrice(widget.request.id);
+      } else {
+        setState(() => _isLoading = false);
+        await _showEnterPriceDialog(isEnterLaterFlow: false);
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    _showResultSnackBar(result);
   }
 
   Future<void> _handleReject() async {
@@ -78,6 +171,117 @@ class _ParentRewardRequestDetailScreenState
           success ? 'Reward request rejected' : 'Failed to reject request',
         ),
         backgroundColor: success ? Colors.red[400] : Colors.red[400],
+      ),
+    );
+  }
+
+  Future<void> _showEnterPriceDialog({required bool isEnterLaterFlow}) async {
+    final provider = Provider.of<ParentProvider>(context, listen: false);
+    final priceController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Enter Purchase Price'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: priceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  prefixText: '₹ ',
+                  labelText: 'Price',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  final price = double.tryParse((value ?? '').trim());
+                  if (price == null || price <= 0) {
+                    return 'Enter valid price greater than zero';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: priceController,
+                builder: (context, value, _) {
+                  final price = double.tryParse(value.text.trim()) ?? 0;
+                  final points = price.round();
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: parentGreen.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Price: ₹${price.toStringAsFixed(2)}\nPoints to Deduct: $points',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(c, true);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: parentGreen),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) {
+      priceController.dispose();
+      return;
+    }
+
+    final price = double.tryParse(priceController.text.trim()) ?? 0;
+    priceController.dispose();
+
+    setState(() => _isLoading = true);
+    final result = isEnterLaterFlow
+        ? await provider.enterRewardPriceLater(
+            requestId: widget.request.id,
+            price: price,
+          )
+        : await provider.approveRewardManualNow(
+            requestId: widget.request.id,
+            price: price,
+          );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    _showResultSnackBar(result);
+  }
+
+  void _showResultSnackBar(Map<String, dynamic> result) {
+    final success = result['success'] as bool? ?? false;
+    final message =
+        result['message'] as String? ?? (success ? 'Success' : 'Failed');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? parentGreen : Colors.red,
       ),
     );
   }
@@ -165,11 +369,13 @@ class _ParentRewardRequestDetailScreenState
 
                     const SizedBox(height: 20),
 
-                    // Status Timeline (if approved or order placed)
-                    if (request.status != RewardRequestStatus.pending)
+                    // Status Timeline (after request submission)
+                    if (request.status != RewardRequestStatus.requested &&
+                        request.status != RewardRequestStatus.pending)
                       _buildStatusTimeline(isDark, request),
 
-                    if (request.status != RewardRequestStatus.pending)
+                    if (request.status != RewardRequestStatus.requested &&
+                        request.status != RewardRequestStatus.pending)
                       const SizedBox(height: 20),
 
                     // Action Section
@@ -407,7 +613,13 @@ class _ParentRewardRequestDetailScreenState
 
   // Status Timeline
   Widget _buildStatusTimeline(bool isDark, RewardRequestModel request) {
-    final isOrderPlaced = request.status == RewardRequestStatus.orderPlaced;
+    final isOrderPlaced =
+      request.status == RewardRequestStatus.orderPlaced ||
+      request.status == RewardRequestStatus.delivered;
+    final isApproved =
+      request.status == RewardRequestStatus.approved ||
+      request.status == RewardRequestStatus.orderPlaced ||
+      request.status == RewardRequestStatus.delivered;
 
     return Container(
       width: double.infinity,
@@ -448,8 +660,10 @@ class _ParentRewardRequestDetailScreenState
             title: 'Approved',
             subtitle: request.approvedOn != null
                 ? _formatDate(request.approvedOn!)
-                : 'Pending',
-            isCompleted: request.status != RewardRequestStatus.pending,
+                : (request.status == RewardRequestStatus.pendingPrice
+                      ? 'Pending price entry'
+                      : 'Pending'),
+            isCompleted: isApproved,
             isLast: !isOrderPlaced,
             isDark: isDark,
           ),
@@ -517,8 +731,9 @@ class _ParentRewardRequestDetailScreenState
             ),
           ),
 
-        // Approve/Reject Buttons (if pending)
-        if (request.status == RewardRequestStatus.pending) ...[
+        // Approve/Reject Buttons (if requested/pending)
+        if (request.status == RewardRequestStatus.pending ||
+            request.status == RewardRequestStatus.requested) ...[
           const SizedBox(height: 16),
           Row(
             children: [
@@ -611,6 +826,28 @@ class _ParentRewardRequestDetailScreenState
             ],
           ),
         ],
+
+        if (request.status == RewardRequestStatus.pendingPrice) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading
+                  ? null
+                  : () => _showEnterPriceDialog(isEnterLaterFlow: true),
+              icon: const Icon(Icons.currency_rupee),
+              label: const Text('Enter Price'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -619,6 +856,79 @@ class _ParentRewardRequestDetailScreenState
     return '${date.day.toString().padLeft(2, '0')}/'
         '${date.month.toString().padLeft(2, '0')}/'
         '${date.year}';
+  }
+}
+
+class _ApprovalOptionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color accentColor;
+  final VoidCallback onTap;
+
+  const _ApprovalOptionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.accentColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: accentColor.withOpacity(0.5)),
+          boxShadow: [
+            BoxShadow(
+              color: accentColor.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accentColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: accentColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey[500]),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -18,12 +18,18 @@ class _MyRewardRequestsScreenState extends State<MyRewardRequestsScreen> {
 
   Color _statusColor(RewardRequestStatus s) {
     switch (s) {
+      case RewardRequestStatus.requested:
+        return const Color(0xFFF59E0B);
       case RewardRequestStatus.pending:
         return const Color(0xFF1777FF);
+      case RewardRequestStatus.pendingPrice:
+        return const Color(0xFFEA580C);
       case RewardRequestStatus.approved:
         return const Color(0xFF16A34A);
       case RewardRequestStatus.orderPlaced:
         return const Color(0xFF0EA5E9);
+      case RewardRequestStatus.delivered:
+        return const Color(0xFF0D9488);
       case RewardRequestStatus.rejected:
         return const Color(0xFFEF4444);
     }
@@ -31,12 +37,18 @@ class _MyRewardRequestsScreenState extends State<MyRewardRequestsScreen> {
 
   String _statusText(RewardRequestStatus s) {
     switch (s) {
+      case RewardRequestStatus.requested:
+        return 'Requested';
       case RewardRequestStatus.pending:
         return 'Pending Approval';
+      case RewardRequestStatus.pendingPrice:
+        return 'Pending Price Entry';
       case RewardRequestStatus.approved:
         return 'Approved – Waiting for Order';
       case RewardRequestStatus.orderPlaced:
         return 'Order Placed';
+      case RewardRequestStatus.delivered:
+        return 'Delivered';
       case RewardRequestStatus.rejected:
         return 'Rejected';
     }

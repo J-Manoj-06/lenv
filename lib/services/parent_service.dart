@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
@@ -7,6 +8,15 @@ import '../models/attendance_record.dart';
 
 class ParentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  static const Set<String> _approverRoles = {
+    'teacher',
+    'admin',
+    'principal',
+    'institute',
+    'parent',
+  };
 
   /// Get all children (students) linked to a parent by email
   /// First fetches parent document to get linkedStudents, then fetches each student
@@ -67,23 +77,12 @@ class ParentService {
           final linkedName = toStr(studentInfo['name']);
           final linkedClass = toStr(studentInfo['class']);
           final linkedSection = toStr(studentInfo['section']);
-          final linkedSchoolCode = toStr(studentInfo['schoolCode']);
           final linkedEmail =
               toStr(studentInfo['email']) ??
               toStr(studentInfo['studentEmail']) ??
               toStr(studentInfo['emailId']) ??
               toStr(studentInfo['mail']) ??
               toStr(studentInfo['contactEmail']);
-          final linkedPhone =
-              toStr(studentInfo['phone']) ??
-              toStr(studentInfo['phoneNumber']) ??
-              toStr(studentInfo['mobile']) ??
-              toStr(studentInfo['mobileNumber']) ??
-              toStr(studentInfo['contact']) ??
-              toStr(studentInfo['contactNo']) ??
-              toStr(studentInfo['contact_number']) ??
-              toStr(studentInfo['whatsapp']) ??
-              toStr(studentInfo['whatsApp']);
 
           if (studentModel != null) {
             var hydratedStudent = studentModel;
@@ -1008,6 +1007,274 @@ class ParentService {
     } catch (e) {
       return false;
     }
+  }
+
+  Future<Map<String, dynamic>> approveRewardByLink({
+    required String requestId,
+  }) async {
+    try {
+      final roleResult = await _validateApproverRole();
+      if (!(roleResult['success'] as bool)) return roleResult;
+
+      final approverId = _auth.currentUser?.uid;
+      await _firestore.collection('reward_requests').doc(requestId).update({
+        'status': 'approved',
+        'purchaseMethod': 'link',
+        'purchase_method': 'link',
+        'purchase_mode': 'link',
+        'priceEntered': false,
+        'pointsDeducted': 0,
+        'approved_on': FieldValue.serverTimestamp(),
+        'approvedOn': FieldValue.serverTimestamp(),
+        'parentApprovedAt': FieldValue.serverTimestamp(),
+        'approvedBy': approverId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await _appendRewardAudit(
+        requestId: requestId,
+        action: 'approved_link',
+        metadata: {'purchase_method': 'link'},
+      );
+
+      return {'success': true, 'message': 'Reward approved via product link'};
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to approve by link: ${e.toString()}',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> markRewardPendingPrice({
+    required String requestId,
+  }) async {
+    try {
+      final roleResult = await _validateApproverRole();
+      if (!(roleResult['success'] as bool)) return roleResult;
+
+      final approverId = _auth.currentUser?.uid;
+      await _firestore.collection('reward_requests').doc(requestId).update({
+        'status': 'pending_price',
+        'purchaseMethod': 'manual',
+        'purchase_method': 'manual',
+        'purchase_mode': 'manual',
+        'priceEntered': false,
+        'pointsDeducted': 0,
+        'approvedBy': approverId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      await _appendRewardAudit(
+        requestId: requestId,
+        action: 'pending_price',
+        metadata: {'purchase_method': 'manual'},
+      );
+
+      return {
+        'success': true,
+        'message': 'Reward marked as pending price entry',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to mark pending price: ${e.toString()}',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> approveRewardManualWithPrice({
+    required String requestId,
+    required double enteredPrice,
+  }) async {
+    if (enteredPrice <= 0) {
+      return {'success': false, 'message': 'Price must be greater than zero'};
+    }
+
+    try {
+      final roleResult = await _validateApproverRole();
+      if (!(roleResult['success'] as bool)) return roleResult;
+
+      final pointsToDeduct = enteredPrice.round();
+      final approverId = _auth.currentUser?.uid;
+      final requestRef = _firestore.collection('reward_requests').doc(requestId);
+
+      await _firestore.runTransaction((transaction) async {
+        final requestSnap = await transaction.get(requestRef);
+        if (!requestSnap.exists) {
+          throw Exception('Reward request not found');
+        }
+
+        final requestData = requestSnap.data() ?? <String, dynamic>{};
+        final currentStatus = (requestData['status'] ?? '').toString();
+        final alreadyEntered =
+            (requestData['priceEntered'] as bool?) == true ||
+            (requestData['price_entered'] as bool?) == true;
+        if (alreadyEntered || currentStatus == 'approved') {
+          throw Exception('This reward is already approved');
+        }
+        if (currentStatus == 'rejected') {
+          throw Exception('Rejected rewards cannot be approved');
+        }
+
+        final studentId =
+            (requestData['student_id'] as String?) ??
+            (requestData['studentId'] as String?) ??
+            '';
+        if (studentId.isEmpty) {
+          throw Exception('Student information missing on request');
+        }
+
+        final studentRef = _firestore.collection('students').doc(studentId);
+        final userRef = _firestore.collection('users').doc(studentId);
+
+        final studentSnap = await transaction.get(studentRef);
+        final userSnap = await transaction.get(userRef);
+
+        final studentData = studentSnap.data() ?? <String, dynamic>{};
+        final userData = userSnap.data() ?? <String, dynamic>{};
+
+        int toInt(dynamic value) {
+          if (value is int) return value;
+          if (value is num) return value.toInt();
+          if (value is String) return int.tryParse(value) ?? 0;
+          return 0;
+        }
+
+        final availableInStudent = toInt(studentData['rewardPoints']);
+        final availableInUser = toInt(userData['rewardPoints']);
+        final available = availableInStudent > 0
+            ? availableInStudent
+            : availableInUser;
+
+        if (available > 0 && available < pointsToDeduct) {
+          throw Exception(
+            'Insufficient points: $available available, $pointsToDeduct required',
+          );
+        }
+
+        transaction.update(requestRef, {
+          'status': 'approved',
+          'purchaseMethod': 'manual',
+          'purchase_method': 'manual',
+          'purchase_mode': 'manual',
+          'priceEntered': true,
+          'price_entered': true,
+          'enteredPrice': enteredPrice,
+          'entered_price': enteredPrice,
+          'manual_price': enteredPrice,
+          'price': enteredPrice,
+          'pointsDeducted': pointsToDeduct,
+          'points_deducted': pointsToDeduct,
+          'approved_on': FieldValue.serverTimestamp(),
+          'approvedOn': FieldValue.serverTimestamp(),
+          'parentApprovedAt': FieldValue.serverTimestamp(),
+          'approvedBy': approverId,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        if (studentSnap.exists) {
+          transaction.update(studentRef, {
+            'rewardPoints': FieldValue.increment(-pointsToDeduct),
+            'totalPoints': FieldValue.increment(-pointsToDeduct),
+            'points': FieldValue.increment(-pointsToDeduct),
+            'reward_points': FieldValue.increment(-pointsToDeduct),
+            'available_points': FieldValue.increment(-pointsToDeduct),
+            'lastRewardRedemptionAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        if (userSnap.exists) {
+          transaction.update(userRef, {
+            'rewardPoints': FieldValue.increment(-pointsToDeduct),
+            'totalPoints': FieldValue.increment(-pointsToDeduct),
+            'points': FieldValue.increment(-pointsToDeduct),
+            'reward_points': FieldValue.increment(-pointsToDeduct),
+            'available_points': FieldValue.increment(-pointsToDeduct),
+            'lastRewardRedemptionAt': FieldValue.serverTimestamp(),
+          });
+        }
+
+        final logRef = _firestore.collection('reward_transactions').doc();
+        transaction.set(logRef, {
+          'type': 'reward_redemption',
+          'studentId': studentId,
+          'rewardId': requestId,
+          'pointsDeducted': pointsToDeduct,
+          'price': enteredPrice,
+          'purchaseMethod': 'manual',
+          'approvedBy': approverId,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        final historyRef = _firestore.collection('student_rewards').doc();
+        transaction.set(historyRef, {
+          'studentId': studentId,
+          'type': 'reward_redemption',
+          'rewardId': requestId,
+          'points': -pointsToDeduct,
+          'description': 'Reward redemption (manual purchase)',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      });
+
+      await _appendRewardAudit(
+        requestId: requestId,
+        action: 'approved_manual_price_entered',
+        metadata: {
+          'purchase_method': 'manual',
+          'entered_price': enteredPrice,
+          'points_deducted': pointsToDeduct,
+        },
+      );
+
+      return {
+        'success': true,
+        'message': 'Reward approved and $pointsToDeduct points deducted',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to approve manual purchase: ${e.toString()}',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _validateApproverRole() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return {'success': false, 'message': 'Not authenticated'};
+    }
+
+    final userDoc = await _firestore.collection('users').doc(uid).get();
+    final role = (userDoc.data()?['role'] as String? ?? '').toLowerCase();
+    if (!_approverRoles.contains(role)) {
+      return {
+        'success': false,
+        'message': 'You are not authorized to approve rewards',
+      };
+    }
+
+    return {'success': true, 'message': 'Authorized'};
+  }
+
+  Future<void> _appendRewardAudit({
+    required String requestId,
+    required String action,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      await _firestore.collection('reward_requests').doc(requestId).update({
+        'audit': FieldValue.arrayUnion([
+          {
+            'actor': _auth.currentUser?.uid,
+            'action': action,
+            'timestamp': DateTime.now().toIso8601String(),
+            'metadata': ?metadata,
+          },
+        ]),
+      });
+    } catch (_) {}
   }
 
   /// Delete a reward request (for pending or rejected requests)
