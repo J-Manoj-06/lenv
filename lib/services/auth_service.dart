@@ -24,8 +24,9 @@ class AuthService {
         // CRITICAL: Ensure uid is set in the data map before converting to UserModel
         data['uid'] = uid;
 
-        // If role or institute fields are missing, patch from the role collection
-        // This happens when the users/{uid} doc was created without schoolCode (e.g. principals)
+        // Always ensure the users/{uid} doc has role + institute fields.
+        // Principals are stored in 'principals' collection (not 'users'), so
+        // their doc often exists without schoolCode, breaking Firestore rules.
         final roleValue = (data['role'] as String? ?? '').toLowerCase();
         final schoolCodeValue =
             data['schoolCode'] ?? data['schoolId'] ?? data['instituteId'];
@@ -39,6 +40,25 @@ class AuthService {
             _auth.currentUser!.email!,
           );
           if (patched != null) return patched;
+        } else {
+          // Even when the doc looks complete, make sure schoolCode + schoolId
+          // are present (rules check both field names).
+          try {
+            if (schoolCodeValue != null) {
+              final updates = <String, dynamic>{};
+              if (data['schoolCode'] == null)
+                updates['schoolCode'] = schoolCodeValue;
+              if (data['schoolId'] == null)
+                updates['schoolId'] = schoolCodeValue;
+              if (data['instituteId'] == null)
+                updates['instituteId'] = schoolCodeValue;
+              if (updates.isNotEmpty) {
+                await _firestore.collection('users').doc(uid).update(updates);
+              }
+            }
+          } catch (_) {
+            // Non-blocking
+          }
         }
 
         return UserModel.fromJson(data);

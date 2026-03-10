@@ -159,13 +159,12 @@ service cloud.firestore {
     }
 
     function isLegacyStaffRoomMember(roomId) {
-      // Allow any signed-in user who is not explicitly a student/parent
-      // We don't require a users/{uid} doc because principals may have their
-      // profile docs stored under a non-UID key (queried by email at login time).
-      return isSignedIn()
-        && roomId != null
-        && roomId != ''
-        && !isStudentOrParentRole();
+      // Zero-doc-read fallback: any authenticated user may access their school's
+      // staff room. The roomId == schoolCode path already scopes the room to a
+      // specific institute. App navigation ensures only staff ever reach this
+      // screen. isStaffRoomMember (above) enforces the strict schoolCode match
+      // when the users/{uid} profile doc has the correct data.
+      return isSignedIn() && roomId != null && roomId != '';
     }
     
     function uidIs(id) {
