@@ -17,6 +17,7 @@ class ParentRewardRequestDetailScreen extends StatefulWidget {
 class _ParentRewardRequestDetailScreenState
     extends State<ParentRewardRequestDetailScreen> {
   bool _isLoading = false;
+  static const Color parentGreen = Color(0xFF14A670);
 
   String _statusLabel(RewardRequestStatus status) {
     switch (status) {
@@ -96,134 +97,482 @@ class _ParentRewardRequestDetailScreenState
     final statusColor = _statusColor(request.status);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reward Request'), centerTitle: true),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1F1F1F) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0 : 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : const Color(0xFFF5F5F5),
+      body: CustomScrollView(
+        slivers: [
+          // Gradient AppBar
+          SliverAppBar(
+            expandedHeight: 120,
+            pinned: true,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
+            ),
+            flexibleSpace: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF14A670), Color(0xFF0D7C52)],
+                ),
+              ),
+              child: FlexibleSpaceBar(
+                centerTitle: true,
+                title: Text(
+                  'Reward Request',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.3),
+                        offset: const Offset(0, 1),
+                        blurRadius: 3,
+                      ),
+                    ],
                   ),
+                ),
+                titlePadding: const EdgeInsets.only(bottom: 16),
+              ),
+            ),
+          ),
+
+          // Content
+          SliverList(
+            delegate: SliverChildListDelegate([
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Product Card with Image and Info
+                    _buildProductCard(isDark, request, statusColor),
+
+                    const SizedBox(height: 20),
+
+                    // Reward Details Section
+                    _buildDetailsSection(isDark, request),
+
+                    const SizedBox(height: 20),
+
+                    // Status Timeline (if approved or order placed)
+                    if (request.status != RewardRequestStatus.pending)
+                      _buildStatusTimeline(isDark, request),
+
+                    if (request.status != RewardRequestStatus.pending)
+                      const SizedBox(height: 20),
+
+                    // Action Section
+                    _buildActionSection(isDark, request),
+
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Product Card with Image and Name
+  Widget _buildProductCard(
+    bool isDark,
+    RewardRequestModel request,
+    Color statusColor,
+  ) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Product Image Section
+          Container(
+            width: double.infinity,
+            height: 180,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  parentGreen.withOpacity(0.1),
+                  parentGreen.withOpacity(0.05),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          request.productName,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.card_giftcard,
+                size: 80,
+                color: parentGreen.withOpacity(0.6),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Product Name and Status Badge
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        request.productName,
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? Colors.white
+                              : const Color(0xFF1A1A1A),
+                          height: 1.3,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: statusColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _statusLabel(request.status),
-                          style: TextStyle(
-                            color: statusColor,
-                            fontWeight: FontWeight.w600,
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
+                        ],
+                      ),
+                      child: Text(
+                        _statusLabel(request.status),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Details Section with Icons
+  Widget _buildDetailsSection(bool isDark, RewardRequestModel request) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Reward Details',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _DetailRow(
+            icon: Icons.person_outline,
+            label: 'Student',
+            value: request.studentName,
+            isDark: isDark,
+          ),
+          _buildDivider(isDark),
+          _DetailRow(
+            icon: Icons.stars_outlined,
+            label: 'Points Required',
+            value: '${request.pointsRequired}',
+            isDark: isDark,
+          ),
+          _buildDivider(isDark),
+          _DetailRow(
+            icon: Icons.payments_outlined,
+            label: 'Price',
+            value: '₹${request.price.toStringAsFixed(0)}',
+            isDark: isDark,
+          ),
+          _buildDivider(isDark),
+          _DetailRow(
+            icon: Icons.calendar_today_outlined,
+            label: 'Requested On',
+            value: _formatDate(request.requestedOn),
+            isDark: isDark,
+          ),
+          if (request.approvedOn != null) ...[
+            _buildDivider(isDark),
+            _DetailRow(
+              icon: Icons.check_circle_outline,
+              label: 'Approved On',
+              value: _formatDate(request.approvedOn!),
+              isDark: isDark,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDivider(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Divider(
+        height: 1,
+        color: isDark ? Colors.grey[800] : Colors.grey[200],
+      ),
+    );
+  }
+
+  // Status Timeline
+  Widget _buildStatusTimeline(bool isDark, RewardRequestModel request) {
+    final isOrderPlaced = request.status == RewardRequestStatus.orderPlaced;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Status Timeline',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _TimelineStep(
+            icon: Icons.send,
+            title: 'Requested',
+            subtitle: _formatDate(request.requestedOn),
+            isCompleted: true,
+            isLast: false,
+            isDark: isDark,
+          ),
+          _TimelineStep(
+            icon: Icons.check_circle,
+            title: 'Approved',
+            subtitle: request.approvedOn != null
+                ? _formatDate(request.approvedOn!)
+                : 'Pending',
+            isCompleted: request.status != RewardRequestStatus.pending,
+            isLast: !isOrderPlaced,
+            isDark: isDark,
+          ),
+          if (isOrderPlaced)
+            _TimelineStep(
+              icon: Icons.local_shipping,
+              title: 'Ready for Delivery',
+              subtitle: 'Order placed',
+              isCompleted: true,
+              isLast: true,
+              isDark: isDark,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Action Section
+  Widget _buildActionSection(bool isDark, RewardRequestModel request) {
+    return Column(
+      children: [
+        // Open Product Link Button
+        if (request.amazonLink.trim().isNotEmpty)
+          Container(
+            width: double.infinity,
+            height: 56,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF14A670), Color(0xFF0D7C52)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: parentGreen.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _openLink(request.amazonLink),
+                borderRadius: BorderRadius.circular(16),
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(Icons.open_in_new, color: Colors.white, size: 22),
+                      SizedBox(width: 10),
+                      Text(
+                        'Open Product Link',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  _InfoRow(label: 'Student', value: request.studentName),
-                  _InfoRow(
-                    label: 'Points Required',
-                    value: '${request.pointsRequired}',
-                  ),
-                  _InfoRow(
-                    label: 'Price',
-                    value: '₹${request.price.toStringAsFixed(0)}',
-                  ),
-                  _InfoRow(
-                    label: 'Requested On',
-                    value: _formatDate(request.requestedOn),
-                  ),
-                  if (request.approvedOn != null)
-                    _InfoRow(
-                      label: 'Approved On',
-                      value: _formatDate(request.approvedOn!),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (request.amazonLink.trim().isNotEmpty)
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _openLink(request.amazonLink),
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('Open Product Link'),
                 ),
               ),
-            const SizedBox(height: 16),
-            if (request.status == RewardRequestStatus.pending)
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isLoading ? null : _handleReject,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red[400],
-                        side: BorderSide(color: Colors.red[400]!),
-                        minimumSize: const Size(double.infinity, 48),
+            ),
+          ),
+
+        // Approve/Reject Buttons (if pending)
+        if (request.status == RewardRequestStatus.pending) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.red[400]!, width: 2),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _isLoading ? null : _handleReject,
+                      borderRadius: BorderRadius.circular(14),
+                      child: Center(
+                        child: _isLoading
+                            ? SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.red[400],
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                'Reject',
+                                style: TextStyle(
+                                  color: Colors.red[400],
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Reject'),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _handleApprove,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF14A670),
-                        minimumSize: const Size(double.infinity, 48),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Approve'),
-                    ),
-                  ),
-                ],
+                ),
               ),
-          ],
-        ),
-      ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF14A670), Color(0xFF0D7C52)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: parentGreen.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _isLoading ? null : _handleApprove,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Center(
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text(
+                                'Approve',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 
@@ -234,37 +583,153 @@ class _ParentRewardRequestDetailScreenState
   }
 }
 
-class _InfoRow extends StatelessWidget {
+// Detail Row Widget with Icon
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
   final String label;
   final String value;
+  final bool isDark;
 
-  const _InfoRow({required this.label, required this.value});
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFF14A670).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: const Color(0xFF14A670)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Timeline Step Widget
+class _TimelineStep extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool isCompleted;
+  final bool isLast;
+  final bool isDark;
+
+  const _TimelineStep({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.isCompleted,
+    required this.isLast,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Column(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isCompleted
+                    ? const Color(0xFF14A670)
+                    : (isDark ? Colors.grey[800] : Colors.grey[300]),
+                shape: BoxShape.circle,
+                boxShadow: isCompleted
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF14A670).withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Icon(
+                icon,
+                size: 20,
+                color: isCompleted ? Colors.white : Colors.grey[600],
+              ),
+            ),
+            if (!isLast)
+              Container(
+                width: 2,
+                height: 40,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                color: isCompleted
+                    ? const Color(0xFF14A670).withOpacity(0.5)
+                    : (isDark ? Colors.grey[800] : Colors.grey[300]),
+              ),
+          ],
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isCompleted
+                        ? (isDark ? Colors.white : const Color(0xFF1A1A1A))
+                        : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

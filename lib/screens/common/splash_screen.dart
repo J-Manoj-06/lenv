@@ -183,7 +183,9 @@ class _SplashScreenState extends State<SplashScreen>
       await authProvider.ensureInitialized().timeout(
         const Duration(seconds: 5),
         onTimeout: () {
-          debugPrint('⚠️ Auth initialization timed out, proceeding with cached state');
+          debugPrint(
+            '⚠️ Auth initialization timed out, proceeding with cached state',
+          );
         },
       );
 
