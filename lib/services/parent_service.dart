@@ -407,15 +407,27 @@ class ParentService {
     String studentId,
   ) async {
     try {
-      final querySnapshot = await _firestore
-          .collection('reward_requests')
-          .where('studentId', isEqualTo: studentId)
-          .orderBy('requestedOn', descending: true)
-          .get();
+      final snapshots = await Future.wait([
+        _firestore
+            .collection('reward_requests')
+            .where('studentId', isEqualTo: studentId)
+            .get(),
+        _firestore
+            .collection('reward_requests')
+            .where('student_id', isEqualTo: studentId)
+            .get(),
+      ]);
 
-      return querySnapshot.docs
-          .map((doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id))
-          .toList();
+      final deduped = <String, RewardRequestModel>{};
+      for (final snapshot in snapshots) {
+        for (final doc in snapshot.docs) {
+          deduped[doc.id] = RewardRequestModel.fromJson(doc.data(), id: doc.id);
+        }
+      }
+
+      final requests = deduped.values.toList()
+        ..sort((a, b) => b.requestedOn.compareTo(a.requestedOn));
+      return requests;
     } catch (e) {
       return [];
     }
@@ -425,15 +437,32 @@ class ParentService {
   Stream<List<RewardRequestModel>> getStudentRewardRequestsStream(
     String studentId,
   ) {
-    return _firestore
-        .collection('reward_requests')
-        .where('student_id', isEqualTo: studentId)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id))
-              .toList(),
-        );
+    final streams = <Stream<List<RewardRequestModel>>>[
+      _firestore
+          .collection('reward_requests')
+          .where('studentId', isEqualTo: studentId)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map(
+                  (doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                )
+                .toList(),
+          ),
+      _firestore
+          .collection('reward_requests')
+          .where('student_id', isEqualTo: studentId)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map(
+                  (doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                )
+                .toList(),
+          ),
+    ];
+
+    return _combineRewardStreams(streams);
   }
 
   /// Get reward requests stream for ALL children of a parent (real-time)
@@ -449,20 +478,40 @@ class ParentService {
 
     // Firestore 'in' query supports max 10 items
     if (studentIds.length <= 10) {
-      return _firestore
-          .collection('reward_requests')
-          .where('student_id', whereIn: studentIds)
-          .snapshots()
-          .map((snapshot) {
-            print('🔵 ParentService: Got ${snapshot.docs.length} reward docs');
-            return snapshot.docs.map((doc) {
-              print('🔵 Doc ${doc.id} keys: ${doc.data().keys.toList()}');
+      final streams = <Stream<List<RewardRequestModel>>>[
+        _firestore
+            .collection('reward_requests')
+            .where('student_id', whereIn: studentIds)
+            .snapshots()
+            .map((snapshot) {
               print(
-                '🔵 Doc student_id: ${doc.data()['student_id']}, parent_id: ${doc.data()['parent_id']}',
+                '🔵 ParentService: Got ${snapshot.docs.length} reward docs (student_id)',
               );
-              return RewardRequestModel.fromJson(doc.data(), id: doc.id);
-            }).toList();
-          });
+              return snapshot.docs
+                  .map(
+                    (doc) =>
+                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                  )
+                  .toList();
+            }),
+        _firestore
+            .collection('reward_requests')
+            .where('studentId', whereIn: studentIds)
+            .snapshots()
+            .map((snapshot) {
+              print(
+                '🔵 ParentService: Got ${snapshot.docs.length} reward docs (studentId)',
+              );
+              return snapshot.docs
+                  .map(
+                    (doc) =>
+                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                  )
+                  .toList();
+            }),
+      ];
+
+      return _combineRewardStreams(streams);
     }
 
     // For >10 children, merge multiple streams
@@ -476,42 +525,83 @@ class ParentService {
       );
     }
 
-    final streams = chunks.map((chunk) {
-      return _firestore
-          .collection('reward_requests')
-          .where('student_id', whereIn: chunk)
-          .snapshots()
-          .map(
-            (snapshot) => snapshot.docs
-                .map(
-                  (doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id),
-                )
-                .toList(),
-          );
-    }).toList();
+    final streams = <Stream<List<RewardRequestModel>>>[];
+    for (final chunk in chunks) {
+      streams.add(
+        _firestore
+            .collection('reward_requests')
+            .where('student_id', whereIn: chunk)
+            .snapshots()
+            .map(
+              (snapshot) => snapshot.docs
+                  .map(
+                    (doc) =>
+                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                  )
+                  .toList(),
+            ),
+      );
+
+      streams.add(
+        _firestore
+            .collection('reward_requests')
+            .where('studentId', whereIn: chunk)
+            .snapshots()
+            .map(
+              (snapshot) => snapshot.docs
+                  .map(
+                    (doc) =>
+                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                  )
+                  .toList(),
+            ),
+      );
+    }
 
     // Merge and deduplicate
-    return _mergeRewardStreams(streams);
+    return _combineRewardStreams(streams);
   }
 
-  Stream<List<RewardRequestModel>> _mergeRewardStreams(
+  Stream<List<RewardRequestModel>> _combineRewardStreams(
     List<Stream<List<RewardRequestModel>>> streams,
-  ) async* {
-    final combined = <String, RewardRequestModel>{};
+  ) {
+    if (streams.isEmpty) {
+      return Stream.value([]);
+    }
 
-    await for (final _ in Stream.periodic(const Duration(milliseconds: 100))) {
-      for (final stream in streams) {
-        await for (final list in stream.take(1)) {
-          for (final req in list) {
-            combined[req.id] = req;
-          }
+    final controller = StreamController<List<RewardRequestModel>>();
+    final latest = List<List<RewardRequestModel>?>.filled(streams.length, null);
+    final subscriptions = <StreamSubscription<List<RewardRequestModel>>>[];
+
+    void emitMerged() {
+      final merged = <String, RewardRequestModel>{};
+      for (final list in latest) {
+        if (list == null) continue;
+        for (final req in list) {
+          merged[req.id] = req;
         }
       }
 
-      final sorted = combined.values.toList()
+      final sorted = merged.values.toList()
         ..sort((a, b) => b.requestedOn.compareTo(a.requestedOn));
-      yield sorted;
+      controller.add(sorted);
     }
+
+    for (var i = 0; i < streams.length; i++) {
+      final sub = streams[i].listen((data) {
+        latest[i] = data;
+        emitMerged();
+      }, onError: controller.addError);
+      subscriptions.add(sub);
+    }
+
+    controller.onCancel = () async {
+      for (final sub in subscriptions) {
+        await sub.cancel();
+      }
+    };
+
+    return controller.stream;
   }
 
   /// Get announcements for student's class

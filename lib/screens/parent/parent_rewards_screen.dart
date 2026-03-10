@@ -86,9 +86,17 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
   ) {
     final selectedChild = parentProvider.selectedChild;
     final points = selectedChild?.rewardPoints ?? 0;
+    final selectedUid = selectedChild?.uid;
+    final selectedStudentId = selectedChild?.studentId;
     // Filter requests to show only those for current selected child
     final childRequests = parentProvider.rewardRequests
-        .where((r) => r.studentId == selectedChild?.uid)
+        .where(
+          (r) =>
+              r.studentId == selectedUid ||
+              (selectedStudentId != null &&
+                  selectedStudentId.isNotEmpty &&
+                  r.studentId == selectedStudentId),
+        )
         .toList();
     final requests = _filtered(childRequests);
     final isDark = Theme.of(context).brightness == Brightness.dark;

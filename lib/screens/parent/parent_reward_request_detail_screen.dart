@@ -94,7 +94,9 @@ class _ParentRewardRequestDetailScreenState
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final request = widget.request;
+    final parentProvider = Provider.of<ParentProvider>(context);
     final statusColor = _statusColor(request.status);
+    final studentName = _resolveStudentName(request, parentProvider);
 
     return Scaffold(
       backgroundColor: isDark
@@ -108,7 +110,11 @@ class _ParentRewardRequestDetailScreenState
             pinned: true,
             elevation: 0,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
             flexibleSpace: Container(
@@ -155,7 +161,7 @@ class _ParentRewardRequestDetailScreenState
                     const SizedBox(height: 20),
 
                     // Reward Details Section
-                    _buildDetailsSection(isDark, request),
+                    _buildDetailsSection(isDark, request, studentName),
 
                     const SizedBox(height: 20),
 
@@ -186,6 +192,8 @@ class _ParentRewardRequestDetailScreenState
     RewardRequestModel request,
     Color statusColor,
   ) {
+    final hasImage = request.productImageUrl.trim().isNotEmpty;
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -220,13 +228,31 @@ class _ParentRewardRequestDetailScreenState
                 topRight: Radius.circular(20),
               ),
             ),
-            child: Center(
-              child: Icon(
-                Icons.card_giftcard,
-                size: 80,
-                color: parentGreen.withOpacity(0.6),
-              ),
-            ),
+            child: hasImage
+                ? ClipRRect(
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                    child: Image.network(
+                      request.productImageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Center(
+                        child: Icon(
+                          Icons.card_giftcard,
+                          size: 80,
+                          color: parentGreen.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Icon(
+                      Icons.card_giftcard,
+                      size: 80,
+                      color: parentGreen.withOpacity(0.6),
+                    ),
+                  ),
           ),
 
           Padding(
@@ -234,28 +260,14 @@ class _ParentRewardRequestDetailScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Product Name and Status Badge
+                // Status badge (top-right)
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        request.productName,
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? Colors.white
-                              : const Color(0xFF1A1A1A),
-                          height: 1.3,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                        horizontal: 14,
+                        vertical: 8,
                       ),
                       decoration: BoxDecoration(
                         color: statusColor,
@@ -279,6 +291,19 @@ class _ParentRewardRequestDetailScreenState
                     ),
                   ],
                 ),
+                const SizedBox(height: 14),
+                Text(
+                  request.productName,
+                  textAlign: TextAlign.left,
+                  maxLines: 5,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF1A1A1A),
+                    height: 1.25,
+                  ),
+                ),
               ],
             ),
           ),
@@ -288,7 +313,11 @@ class _ParentRewardRequestDetailScreenState
   }
 
   // Details Section with Icons
-  Widget _buildDetailsSection(bool isDark, RewardRequestModel request) {
+  Widget _buildDetailsSection(
+    bool isDark,
+    RewardRequestModel request,
+    String studentName,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -318,7 +347,7 @@ class _ParentRewardRequestDetailScreenState
           _DetailRow(
             icon: Icons.person_outline,
             label: 'Student',
-            value: request.studentName,
+            value: studentName,
             isDark: isDark,
           ),
           _buildDivider(isDark),
@@ -335,25 +364,35 @@ class _ParentRewardRequestDetailScreenState
             value: '₹${request.price.toStringAsFixed(0)}',
             isDark: isDark,
           ),
-          _buildDivider(isDark),
-          _DetailRow(
-            icon: Icons.calendar_today_outlined,
-            label: 'Requested On',
-            value: _formatDate(request.requestedOn),
-            isDark: isDark,
-          ),
-          if (request.approvedOn != null) ...[
-            _buildDivider(isDark),
-            _DetailRow(
-              icon: Icons.check_circle_outline,
-              label: 'Approved On',
-              value: _formatDate(request.approvedOn!),
-              isDark: isDark,
-            ),
-          ],
         ],
       ),
     );
+  }
+
+  String _resolveStudentName(
+    RewardRequestModel request,
+    ParentProvider parentProvider,
+  ) {
+    final rawName = request.studentName.trim();
+    if (rawName.isNotEmpty && rawName.toLowerCase() != 'unknown student') {
+      return rawName;
+    }
+
+    for (final child in parentProvider.children) {
+      if (child.uid == request.studentId ||
+          child.studentId == request.studentId) {
+        final resolvedName = child.name.trim();
+        if (resolvedName.isNotEmpty) {
+          return resolvedName;
+        }
+      }
+    }
+
+    if (rawName.isNotEmpty) {
+      return rawName;
+    }
+
+    return 'Student';
   }
 
   Widget _buildDivider(bool isDark) {

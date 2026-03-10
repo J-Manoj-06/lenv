@@ -8,6 +8,7 @@ class RewardRequestModel {
   final String studentName;
   final String productId; // reference to ProductModel in 'products'
   final String productName;
+  final String productImageUrl;
   final String amazonLink;
   final double price;
   final int pointsRequired;
@@ -22,6 +23,7 @@ class RewardRequestModel {
     required this.studentName,
     required this.productId,
     required this.productName,
+    this.productImageUrl = '',
     required this.amazonLink,
     required this.price,
     required this.pointsRequired,
@@ -77,6 +79,34 @@ class RewardRequestModel {
       return json['productName'] as String? ?? 'Unknown Product';
     }
 
+    String extractProductImageUrl() {
+      if (json['product_snapshot'] is Map) {
+        final product = json['product_snapshot'] as Map;
+        final directImage = product['image_url'] as String?;
+        if (directImage != null && directImage.trim().isNotEmpty) {
+          return directImage.trim();
+        }
+
+        final images = product['images'];
+        if (images is List && images.isNotEmpty) {
+          final firstImage = images.first;
+          if (firstImage is Map) {
+            final imageUrl = firstImage['url'] as String?;
+            if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+              return imageUrl.trim();
+            }
+          }
+        }
+      }
+
+      final directImage = json['imageUrl'] as String?;
+      if (directImage != null && directImage.trim().isNotEmpty) {
+        return directImage.trim();
+      }
+
+      return '';
+    }
+
     String extractAmazonLink() {
       if (json['product_snapshot'] is Map) {
         final product = json['product_snapshot'] as Map;
@@ -116,13 +146,39 @@ class RewardRequestModel {
       return json['productId'] as String? ?? '';
     }
 
+    String extractStudentName() {
+      final directName = json['studentName'] as String?;
+      if (directName != null && directName.trim().isNotEmpty) {
+        return directName.trim();
+      }
+
+      final snakeCaseName = json['student_name'] as String?;
+      if (snakeCaseName != null && snakeCaseName.trim().isNotEmpty) {
+        return snakeCaseName.trim();
+      }
+
+      if (json['student_snapshot'] is Map) {
+        final student = json['student_snapshot'] as Map;
+        final snapshotName =
+            student['name'] as String? ??
+            student['student_name'] as String? ??
+            student['full_name'] as String?;
+        if (snapshotName != null && snapshotName.trim().isNotEmpty) {
+          return snapshotName.trim();
+        }
+      }
+
+      return 'Unknown Student';
+    }
+
     return RewardRequestModel(
       id: id ?? (json['id'] as String? ?? json['request_id'] as String? ?? ''),
       studentId:
           (json['studentId'] as String? ?? json['student_id'] as String? ?? ''),
-      studentName: (json['studentName'] as String? ?? 'Unknown Student'),
+      studentName: extractStudentName(),
       productId: extractProductId(),
       productName: extractProductName(),
+      productImageUrl: extractProductImageUrl(),
       amazonLink: extractAmazonLink(),
       price: extractPrice(),
       pointsRequired: extractPointsRequired(),
@@ -143,6 +199,7 @@ class RewardRequestModel {
     'studentName': studentName,
     'productId': productId,
     'productName': productName,
+    'imageUrl': productImageUrl,
     'amazonLink': amazonLink,
     'price': price,
     'pointsRequired': pointsRequired,
