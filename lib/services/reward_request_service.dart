@@ -70,17 +70,21 @@ class RewardRequestService {
   }
 
   // Get all pending reward requests (for parents/teachers)
+  // Uses 'pendingParentApproval' status — the value written by RewardsRepository.createRequest()
+  // Sorting is done client-side to avoid requiring a composite index
   Stream<List<RewardRequestModel>> getPendingRewardRequests() {
     return _firestore
         .collection(_collection)
-        .where('status', isEqualTo: 'pending')
-        .orderBy('timestamps.requested_at', descending: true)
+        .where('status', isEqualTo: 'pendingParentApproval')
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
+        .map((snapshot) {
+          final list = snapshot.docs
               .map((doc) => RewardRequestModel.fromJson(doc.data(), id: doc.id))
-              .toList(),
-        );
+              .toList();
+          // Sort descending by requestedOn client-side
+          list.sort((a, b) => b.requestedOn.compareTo(a.requestedOn));
+          return list;
+        });
   }
 
   // Update reward request status

@@ -138,6 +138,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
       final resolvedUserId = userId;
 
+      // Force auth token propagation to Firestore SDK before creating any streams.
+      // This prevents the "permission denied" race condition where Firestore streams
+      // are created before the auth token has been picked up by the Firestore SDK.
+      try {
+        await FirebaseAuth.instance.currentUser?.getIdToken(false);
+      } catch (_) {
+        // Ignore token refresh errors — best effort
+      }
+
       // Load cached student data instantly (synchronous from SharedPreferences)
       final cachedStudent = await CacheManager.getStudentDataCache(
         studentId: resolvedUserId,
@@ -985,30 +994,37 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
     String instituteId,
   ) async* {
-    await for (final teacherSnapshot
-        in FirebaseFirestore.instance
-            .collection('class_highlights')
-            .where('instituteId', isEqualTo: instituteId)
-            .snapshots()) {
-      // Get principal announcements (no expiry filter in query - will filter in code)
-      final principalSnapshot = await FirebaseFirestore.instance
-          .collection('institute_announcements')
-          .where('instituteId', isEqualTo: instituteId)
-          .get();
+    try {
+      await for (final teacherSnapshot
+          in FirebaseFirestore.instance
+              .collection('class_highlights')
+              .where('instituteId', isEqualTo: instituteId)
+              .snapshots()) {
+        final combined = <Map<String, dynamic>>[];
 
-      final combined = <Map<String, dynamic>>[];
+        // Add teacher announcements
+        for (final doc in teacherSnapshot.docs) {
+          combined.add({'type': 'teacher', 'snapshot': doc});
+        }
 
-      // Add teacher announcements
-      for (final doc in teacherSnapshot.docs) {
-        combined.add({'type': 'teacher', 'snapshot': doc});
+        // Get principal announcements — catch permission errors independently
+        try {
+          final principalSnapshot = await FirebaseFirestore.instance
+              .collection('institute_announcements')
+              .where('instituteId', isEqualTo: instituteId)
+              .get();
+          for (final doc in principalSnapshot.docs) {
+            combined.add({'type': 'principal', 'snapshot': doc});
+          }
+        } catch (e) {
+          debugPrint('Could not load institute_announcements: $e');
+        }
+
+        yield combined;
       }
-
-      // Add principal announcements (already filtered by expiry)
-      for (final doc in principalSnapshot.docs) {
-        combined.add({'type': 'principal', 'snapshot': doc});
-      }
-
-      yield combined;
+    } catch (e) {
+      debugPrint('_combineAnnouncementStreams error: $e');
+      yield [];
     }
   }
 
@@ -1083,6 +1099,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               }
             }
           }
+        } else if (rewardsSnapshot.hasError) {
+          // Permission denied or network error — fall back to cached value on student model
+          studentPoints = student.rewardPoints;
         }
 
         // Get topper points from class

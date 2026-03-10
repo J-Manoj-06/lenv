@@ -498,34 +498,54 @@ class RewardsRepository {
 
   /// Listen to student points (real-time)
   Stream<double> streamStudentPoints(String studentId) {
-    // Primary live source: student_rewards collection (sums pointsEarned)
-    // Fallback: students doc available_points / legacy fields
+    // Read from student_rewards collection — the single source of truth for
+    // earned points. This is the same source the student dashboard uses.
+    // We subtract locked_points and deducted_points from the students doc
+    // to get the actual available balance.
     return _firestore
         .collection('student_rewards')
         .where('studentId', isEqualTo: studentId)
         .snapshots()
         .asyncMap((snap) async {
-          if (snap.docs.isNotEmpty) {
-            double total = 0;
-            for (final doc in snap.docs) {
-              final data = doc.data();
-              final pts = data['pointsEarned'];
-              if (pts is num) total += pts.toDouble();
-            }
-            return total;
+          // Sum all pointsEarned from student_rewards
+          double totalEarned = 0;
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            final pts = data['pointsEarned'];
+            if (pts is num) totalEarned += pts.toDouble();
           }
 
-          // Fallback to students document if no rewards entries
-          final studentDoc = await _firestore
-              .collection(studentsCollection)
-              .doc(studentId)
-              .get();
-          final data = studentDoc.data() ?? {};
-          final available = (data['available_points'] as num?)?.toDouble();
-          final legacyEarned = (data['pointsEarned'] as num?)?.toDouble();
-          final legacyPoints = (data['points'] as num?)?.toDouble();
-          final result = available ?? legacyEarned ?? legacyPoints ?? 0.0;
-          return result;
+          // Get locked and deducted from students document
+          try {
+            final studentDoc = await _firestore
+                .collection(studentsCollection)
+                .doc(studentId)
+                .get();
+            if (studentDoc.exists) {
+              final sData = studentDoc.data() ?? {};
+              final locked = (sData['locked_points'] as num?)?.toDouble() ?? 0;
+              // NOTE: deducted_points is NOT subtracted here because approved
+              // deductions are already reflected as negative entries in
+              // student_rewards (so totalEarned already accounts for them).
+              final available = totalEarned - locked;
+
+              // Sync available_points on student doc if it differs
+              final currentAvailable = (sData['available_points'] as num?)
+                  ?.toDouble();
+              if (currentAvailable == null ||
+                  (currentAvailable - available).abs() > 0.5) {
+                _firestore
+                    .collection(studentsCollection)
+                    .doc(studentId)
+                    .update({'available_points': available.round()})
+                    .catchError((_) {});
+              }
+
+              return available < 0 ? 0.0 : available;
+            }
+          } catch (_) {}
+
+          return totalEarned;
         });
   }
 
@@ -542,12 +562,25 @@ class RewardsRepository {
           .doc(studentId)
           .get();
 
+      // Compute actual earned points from student_rewards collection
+      int earnedPoints = 0;
+      try {
+        final rewardsSnap = await _firestore
+            .collection('student_rewards')
+            .where('studentId', isEqualTo: studentId)
+            .get();
+        for (final doc in rewardsSnap.docs) {
+          final pts = doc.data()['pointsEarned'];
+          if (pts is num) earnedPoints += pts.toInt();
+        }
+      } catch (_) {}
+
       if (!studentDoc.exists) {
         print(
-          '⚠️ Student document does not exist, creating with default points',
+          '⚠️ Student document does not exist, creating with earned points: $earnedPoints',
         );
         await _firestore.collection(studentsCollection).doc(studentId).set({
-          'available_points': 1000, // Default points for testing
+          'available_points': earnedPoints,
           'locked_points': 0,
           'deducted_points': 0,
           'created_at': Timestamp.now(),
@@ -556,33 +589,22 @@ class RewardsRepository {
       }
 
       final data = studentDoc.data() ?? {};
+      final lockedPoints = (data['locked_points'] as num?)?.toInt() ?? 0;
+      final deductedPoints = (data['deducted_points'] as num?)?.toInt() ?? 0;
+      // NOTE: deducted_points is NOT subtracted because approved deductions
+      // are already reflected as negative entries in student_rewards.
+      final correctAvailable = earnedPoints - lockedPoints;
 
-      // Get current points with fallbacks
-      final availablePointsRaw =
-          data['available_points'] ?? data['pointsEarned'] ?? data['points'];
-      final availablePoints = (availablePointsRaw is num)
-          ? availablePointsRaw.toInt()
-          : 0;
-
-      // Check if points fields exist OR if balance is negative
-      if (data['available_points'] == null &&
-          data['pointsEarned'] == null &&
-          data['points'] == null) {
-        print('⚠️ Student missing points fields, adding default structure');
-        await _firestore.collection(studentsCollection).doc(studentId).update({
-          'available_points': 1000,
-          'locked_points': 0,
-          'deducted_points': 0,
-        });
-      } else if (availablePoints < 0) {
-        // Fix negative balance by resetting points
+      // Always sync available_points from the real earned total
+      final currentAvailable = (data['available_points'] as num?)?.toInt();
+      if (currentAvailable == null || currentAvailable != correctAvailable) {
         print(
-          '⚠️ Student has negative balance ($availablePoints), resetting to 1000',
+          '⚠️ Syncing available_points: was $currentAvailable, should be $correctAvailable (earned=$earnedPoints, locked=$lockedPoints, deducted=$deductedPoints)',
         );
         await _firestore.collection(studentsCollection).doc(studentId).update({
-          'available_points': 1000,
-          'locked_points': 0,
-          'deducted_points': 0,
+          'available_points': correctAvailable < 0 ? 0 : correctAvailable,
+          'locked_points': lockedPoints,
+          'deducted_points': deductedPoints,
         });
       }
     } catch (e) {

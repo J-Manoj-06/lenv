@@ -20,9 +20,11 @@ class ParentService {
 
   /// Get all children (students) linked to a parent by email
   /// First fetches parent document to get linkedStudents, then fetches each student
+  /// Falls back to direct UID lookup on the parents collection if email query returns empty
   Future<List<StudentModel>> getChildrenByParentEmail(
-    String parentEmail,
-  ) async {
+    String parentEmail, {
+    String? parentId,
+  }) async {
     try {
       // Helper to coerce any value (String/int) to a trimmed String
       String? toStr(dynamic v) {
@@ -31,19 +33,53 @@ class ParentService {
         return s.isEmpty ? null : s;
       }
 
-      // First, get the parent document to find linked students
+      /// Resolve the parent Firestore document using multiple strategies:
+      /// 1. Query by email field (primary)
+      /// 2. Direct doc lookup by parentId / auth UID  (fallback)
+      /// 3. Query by lowercase email  (fallback for case mismatch)
+      DocumentSnapshot<Map<String, dynamic>>? parentDoc;
+
+      // Strategy 1: query parents collection by email
       final parentQuery = await _firestore
           .collection('parents')
           .where('email', isEqualTo: parentEmail)
           .limit(1)
           .get();
 
-      if (parentQuery.docs.isEmpty) {
-        return [];
+      if (parentQuery.docs.isNotEmpty) {
+        parentDoc = parentQuery.docs.first;
       }
 
-      final parentDoc = parentQuery.docs.first;
-      final parentData = parentDoc.data();
+      // Strategy 2: direct doc lookup by UID (common when doc ID == auth UID)
+      if (parentDoc == null && parentId != null && parentId.isNotEmpty) {
+        final directDoc = await _firestore
+            .collection('parents')
+            .doc(parentId)
+            .get();
+        if (directDoc.exists) {
+          parentDoc = directDoc;
+        }
+      }
+
+      // Strategy 3: query by lowercase email (handles case mismatch)
+      if (parentDoc == null) {
+        final lowerEmail = parentEmail.toLowerCase().trim();
+        if (lowerEmail != parentEmail) {
+          final lowerQuery = await _firestore
+              .collection('parents')
+              .where('email', isEqualTo: lowerEmail)
+              .limit(1)
+              .get();
+          if (lowerQuery.docs.isNotEmpty) {
+            parentDoc = lowerQuery.docs.first;
+          }
+        }
+      }
+
+      if (parentDoc == null) {
+        return [];
+      }
+      final parentData = parentDoc.data()!;
       final linkedStudents = parentData['linkedStudents'] as List<dynamic>?;
 
       if (linkedStudents == null || linkedStudents.isEmpty) {
@@ -157,22 +193,50 @@ class ParentService {
 
   /// Get real-time stream of children for a parent
   /// Note: This returns a stream but checks parent's linkedStudents on each update
-  Stream<List<StudentModel>> getChildrenStream(String parentEmail) async* {
+  Stream<List<StudentModel>> getChildrenStream(
+    String parentEmail, {
+    String? parentId,
+  }) async* {
     try {
-      // Get parent document to find linked student IDs
+      // Resolve parent document using the same multi-strategy lookup
+      DocumentSnapshot<Map<String, dynamic>>? parentDocSnap;
+
       final parentQuery = await _firestore
           .collection('parents')
           .where('email', isEqualTo: parentEmail)
           .limit(1)
           .get();
 
-      if (parentQuery.docs.isEmpty) {
+      if (parentQuery.docs.isNotEmpty) {
+        parentDocSnap = parentQuery.docs.first;
+      }
+
+      if (parentDocSnap == null && parentId != null && parentId.isNotEmpty) {
+        final directDoc = await _firestore
+            .collection('parents')
+            .doc(parentId)
+            .get();
+        if (directDoc.exists) parentDocSnap = directDoc;
+      }
+
+      if (parentDocSnap == null) {
+        final lowerEmail = parentEmail.toLowerCase().trim();
+        if (lowerEmail != parentEmail) {
+          final lowerQuery = await _firestore
+              .collection('parents')
+              .where('email', isEqualTo: lowerEmail)
+              .limit(1)
+              .get();
+          if (lowerQuery.docs.isNotEmpty) parentDocSnap = lowerQuery.docs.first;
+        }
+      }
+
+      if (parentDocSnap == null) {
         yield [];
         return;
       }
 
-      final parentDoc = parentQuery.docs.first;
-      final parentData = parentDoc.data();
+      final parentData = parentDocSnap.data()!;
       final linkedStudents = parentData['linkedStudents'] as List<dynamic>?;
 
       if (linkedStudents == null || linkedStudents.isEmpty) {
@@ -1017,18 +1081,106 @@ class ParentService {
       if (!(roleResult['success'] as bool)) return roleResult;
 
       final approverId = _auth.currentUser?.uid;
-      await _firestore.collection('reward_requests').doc(requestId).update({
-        'status': 'approved',
-        'purchaseMethod': 'link',
-        'purchase_method': 'link',
-        'purchase_mode': 'link',
-        'priceEntered': false,
-        'pointsDeducted': 0,
-        'approved_on': FieldValue.serverTimestamp(),
-        'approvedOn': FieldValue.serverTimestamp(),
-        'parentApprovedAt': FieldValue.serverTimestamp(),
-        'approvedBy': approverId,
-        'updatedAt': FieldValue.serverTimestamp(),
+      final requestRef = _firestore
+          .collection('reward_requests')
+          .doc(requestId);
+
+      await _firestore.runTransaction((transaction) async {
+        final requestSnap = await transaction.get(requestRef);
+        if (!requestSnap.exists) {
+          throw Exception('Reward request not found');
+        }
+
+        final requestData = requestSnap.data() ?? <String, dynamic>{};
+
+        // Get student ID from request
+        final studentId =
+            (requestData['student_id'] as String?) ??
+            (requestData['studentId'] as String?) ??
+            '';
+
+        // Get points locked for this request
+        int pointsLocked = 0;
+        if (requestData['points'] is Map) {
+          pointsLocked =
+              ((requestData['points'] as Map)['locked'] as num?)?.toInt() ?? 0;
+        }
+        if (pointsLocked == 0) {
+          pointsLocked = (requestData['pointsRequired'] as num?)?.toInt() ?? 0;
+        }
+
+        // Update request status - use both old and new status strings for compatibility
+        transaction.update(requestRef, {
+          'status': 'approved',
+          'purchaseMethod': 'link',
+          'purchase_method': 'link',
+          'purchase_mode': 'link',
+          'priceEntered': false,
+          'pointsDeducted': pointsLocked,
+          'points_deducted': pointsLocked,
+          'points.deducted': pointsLocked,
+          'approved_on': FieldValue.serverTimestamp(),
+          'approvedOn': FieldValue.serverTimestamp(),
+          'parentApprovedAt': FieldValue.serverTimestamp(),
+          'approvedBy': approverId,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Deduct points from student and convert locked → deducted
+        if (studentId.isNotEmpty && pointsLocked > 0) {
+          final studentRef = _firestore.collection('students').doc(studentId);
+          final userRef = _firestore.collection('users').doc(studentId);
+          final studentSnap = await transaction.get(studentRef);
+          final userSnap = await transaction.get(userRef);
+
+          if (studentSnap.exists) {
+            transaction.update(studentRef, {
+              'locked_points': FieldValue.increment(-pointsLocked),
+              'deducted_points': FieldValue.increment(pointsLocked),
+              'rewardPoints': FieldValue.increment(-pointsLocked),
+              'totalPoints': FieldValue.increment(-pointsLocked),
+              'points': FieldValue.increment(-pointsLocked),
+              'reward_points': FieldValue.increment(-pointsLocked),
+              'lastRewardRedemptionAt': FieldValue.serverTimestamp(),
+            });
+          }
+
+          if (userSnap.exists) {
+            transaction.update(userRef, {
+              'rewardPoints': FieldValue.increment(-pointsLocked),
+              'totalPoints': FieldValue.increment(-pointsLocked),
+              'points': FieldValue.increment(-pointsLocked),
+              'reward_points': FieldValue.increment(-pointsLocked),
+              'lastRewardRedemptionAt': FieldValue.serverTimestamp(),
+            });
+          }
+
+          // Create transaction log
+          final logRef = _firestore.collection('reward_transactions').doc();
+          transaction.set(logRef, {
+            'type': 'reward_redemption',
+            'student_id': studentId,
+            'request_id': requestId,
+            'points_deducted': pointsLocked,
+            'purchase_method': 'link',
+            'approved_by': approverId,
+            'created_at': FieldValue.serverTimestamp(),
+          });
+
+          // Add negative entry to student_rewards so dashboard, leaderboard,
+          // and all point displays reflect the deduction immediately.
+          final rewardHistoryRef = _firestore
+              .collection('student_rewards')
+              .doc();
+          transaction.set(rewardHistoryRef, {
+            'studentId': studentId,
+            'pointsEarned': -pointsLocked, // negative = deduction
+            'type': 'reward_redemption',
+            'rewardId': requestId,
+            'description': 'Reward redeemed (product link)',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+        }
       });
 
       await _appendRewardAudit(
@@ -1097,7 +1249,9 @@ class ParentService {
 
       final pointsToDeduct = enteredPrice.round();
       final approverId = _auth.currentUser?.uid;
-      final requestRef = _firestore.collection('reward_requests').doc(requestId);
+      final requestRef = _firestore
+          .collection('reward_requests')
+          .doc(requestId);
 
       await _firestore.runTransaction((transaction) async {
         final requestSnap = await transaction.get(requestRef);
@@ -1166,6 +1320,7 @@ class ParentService {
           'price': enteredPrice,
           'pointsDeducted': pointsToDeduct,
           'points_deducted': pointsToDeduct,
+          'points.deducted': pointsToDeduct,
           'approved_on': FieldValue.serverTimestamp(),
           'approvedOn': FieldValue.serverTimestamp(),
           'parentApprovedAt': FieldValue.serverTimestamp(),
@@ -1173,15 +1328,37 @@ class ParentService {
           'updatedAt': FieldValue.serverTimestamp(),
         });
 
+        // Get locked points from the request (set during creation)
+        int lockedPoints = 0;
+        if (requestData['points'] is Map) {
+          lockedPoints =
+              ((requestData['points'] as Map)['locked'] as num?)?.toInt() ?? 0;
+        }
+        if (lockedPoints == 0) {
+          lockedPoints = (requestData['pointsRequired'] as num?)?.toInt() ?? 0;
+        }
+
         if (studentSnap.exists) {
-          transaction.update(studentRef, {
+          final updateData = <String, dynamic>{
             'rewardPoints': FieldValue.increment(-pointsToDeduct),
             'totalPoints': FieldValue.increment(-pointsToDeduct),
             'points': FieldValue.increment(-pointsToDeduct),
             'reward_points': FieldValue.increment(-pointsToDeduct),
-            'available_points': FieldValue.increment(-pointsToDeduct),
             'lastRewardRedemptionAt': FieldValue.serverTimestamp(),
-          });
+          };
+          // Convert locked points to deducted points
+          if (lockedPoints > 0) {
+            updateData['locked_points'] = FieldValue.increment(-lockedPoints);
+            updateData['deducted_points'] = FieldValue.increment(
+              pointsToDeduct,
+            );
+          } else {
+            // If no locked points tracked, deduct from available_points
+            updateData['available_points'] = FieldValue.increment(
+              -pointsToDeduct,
+            );
+          }
+          transaction.update(studentRef, updateData);
         }
 
         if (userSnap.exists) {
@@ -1210,9 +1387,10 @@ class ParentService {
         final historyRef = _firestore.collection('student_rewards').doc();
         transaction.set(historyRef, {
           'studentId': studentId,
+          'pointsEarned':
+              -pointsToDeduct, // negative = deduction; dashboard & leaderboard sum this field
           'type': 'reward_redemption',
           'rewardId': requestId,
-          'points': -pointsToDeduct,
           'description': 'Reward redemption (manual purchase)',
           'timestamp': FieldValue.serverTimestamp(),
         });

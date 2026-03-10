@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const Color _primaryOrange = Color(0xFFF97316);
@@ -8,7 +9,7 @@ const Color _darkBg = Color(0xFF0F0F14);
 const Color _cardDark = Color(0xFF1E1E1E);
 const Color _borderDark = Color(0xFF2D2D32);
 
-class RewardDetailsScreen extends ConsumerWidget {
+class RewardDetailsScreen extends ConsumerStatefulWidget {
   final String productId;
   final String? studentId;
 
@@ -19,16 +20,37 @@ class RewardDetailsScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RewardDetailsScreen> createState() =>
+      _RewardDetailsScreenState();
+}
+
+class _RewardDetailsScreenState extends ConsumerState<RewardDetailsScreen> {
+  late final Future<DocumentSnapshot> _catalogFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _catalogFuture = _fetchCatalogDoc();
+  }
+
+  Future<DocumentSnapshot> _fetchCatalogDoc() async {
+    try {
+      await FirebaseAuth.instance.currentUser?.getIdToken(false);
+    } catch (_) {}
+    return FirebaseFirestore.instance
+        .collection('rewards_catalog')
+        .doc(widget.productId)
+        .get();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: isDark ? _darkBg : const Color(0xFFF5F6F7),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance
-            .collection('rewards_catalog')
-            .doc(productId)
-            .get(),
+        future: _catalogFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return _buildLoadingState(isDark);
@@ -1071,7 +1093,7 @@ class RewardDetailsScreen extends ConsumerWidget {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance
           .collection('rewards_catalog')
-          .doc(productId)
+          .doc(widget.productId)
           .get(),
       builder: (context, snapshot) {
         final data = snapshot.data?.data() as Map<String, dynamic>?;

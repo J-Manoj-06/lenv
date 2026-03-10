@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/product_model.dart';
 import '../../models/reward_request_model.dart';
 import '../../providers/rewards_providers.dart';
@@ -30,10 +31,27 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
   bool _hasPendingRequest = false;
   bool _isThisProductPending = false;
 
+  // Catalog future stored in state so it is created once and never recreated on
+  // each build. Also ensures the auth token is refreshed before the Firestore
+  // read to avoid the startup "permission denied" race condition.
+  late final Future<DocumentSnapshot> _catalogFuture;
+
   @override
   void initState() {
     super.initState();
+    _catalogFuture = _fetchCatalogDoc();
     _checkPendingRequest();
+  }
+
+  Future<DocumentSnapshot> _fetchCatalogDoc() async {
+    // Ensure Firestore SDK has the current auth token before reading.
+    try {
+      await FirebaseAuth.instance.currentUser?.getIdToken(false);
+    } catch (_) {}
+    return FirebaseFirestore.instance
+        .collection('rewards_catalog')
+        .doc(widget.productId)
+        .get();
   }
 
   Future<void> _checkPendingRequest() async {
@@ -90,10 +108,7 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
         centerTitle: true,
       ),
       body: FutureBuilder<DocumentSnapshot>(
-        future: FirebaseFirestore.instance
-            .collection('rewards_catalog')
-            .doc(widget.productId)
-            .get(),
+        future: _catalogFuture,
         builder: (context, snapshot) {
           print(
             '🔵 RewardRequestScreen - connectionState: ${snapshot.connectionState}',

@@ -1279,7 +1279,7 @@ class _ExpandableAnnouncementText extends StatefulWidget {
     required this.textColor,
     required this.accentColor,
     this.maxCollapsedLines = 3,
-  });
+  }); 
 
   @override
   State<_ExpandableAnnouncementText> createState() =>

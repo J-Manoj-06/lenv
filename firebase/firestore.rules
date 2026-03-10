@@ -192,7 +192,7 @@ service cloud.firestore {
     }
     
     function isRewardCreateStatus(status) {
-      return status in ['requested', 'pending', 'pending_parent_approval'];
+      return status in ['requested', 'pending', 'pending_parent_approval', 'pendingParentApproval'];
     }
     
     function isRewardUpdateStatus(status) {
@@ -208,6 +208,9 @@ service cloud.firestore {
         'rejected',
         'expired',
         'pending_parent_approval',
+        'pendingParentApproval',
+        'approvedPurchaseInProgress',
+        'approved_purchase_in_progress',
       ];
     }
     
@@ -215,14 +218,17 @@ service cloud.firestore {
       let oldStatus = resource.data.status;
       let newStatus = request.resource.data.status;
       
-      return (oldStatus == 'requested' && newStatus in ['pending', 'approved', 'pendingPrice', 'rejected'])
-        || (oldStatus == 'pending' && newStatus in ['approved', 'pendingPrice', 'rejected'])
+      return (oldStatus == 'requested' && newStatus in ['pending', 'approved', 'pendingPrice', 'rejected', 'pendingParentApproval', 'pending_parent_approval'])
+        || (oldStatus == 'pending' && newStatus in ['approved', 'pendingPrice', 'rejected', 'pendingParentApproval', 'pending_parent_approval'])
         || (oldStatus == 'pendingPrice' && newStatus in ['approved', 'rejected'])
         || (oldStatus == 'pending_price' && newStatus in ['approved', 'rejected'])
-        || (oldStatus == 'approved' && newStatus in ['orderPlaced', 'order_placed', 'rejected'])
+        || (oldStatus == 'approved' && newStatus in ['orderPlaced', 'order_placed', 'rejected', 'approvedPurchaseInProgress', 'approved_purchase_in_progress'])
+        || (oldStatus == 'approvedPurchaseInProgress' && newStatus in ['orderPlaced', 'order_placed', 'delivered', 'rejected'])
+        || (oldStatus == 'approved_purchase_in_progress' && newStatus in ['orderPlaced', 'order_placed', 'delivered', 'rejected'])
         || (oldStatus == 'orderPlaced' && newStatus in ['delivered'])
         || (oldStatus == 'order_placed' && newStatus in ['delivered'])
-        || (oldStatus == 'pending_parent_approval' && newStatus in ['approved', 'rejected']);
+        || (oldStatus == 'pending_parent_approval' && newStatus in ['approved', 'rejected', 'approvedPurchaseInProgress'])
+        || (oldStatus == 'pendingParentApproval' && newStatus in ['approved', 'rejected', 'approvedPurchaseInProgress', 'approved_purchase_in_progress']);
     }
     
     function rewardIdentityFieldsUnchanged() {
@@ -521,7 +527,6 @@ service cloud.firestore {
     
     match /reward_requests/{requestId} {
       allow create: if isSignedIn()
-        && isStudent()
         && (
           request.resource.data.student_id == request.auth.uid
           || request.resource.data.studentId == request.auth.uid

@@ -126,7 +126,10 @@ class ParentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _children = await _parentService.getChildrenByParentEmail(_parentEmail!);
+      _children = await _parentService.getChildrenByParentEmail(
+        _parentEmail!,
+        parentId: _parentId,
+      );
 
       // ✅ Load persisted child selection
       await _loadPersistedSelection();

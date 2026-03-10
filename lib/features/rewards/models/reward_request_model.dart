@@ -32,10 +32,40 @@ enum RewardRequestStatus {
   }
 
   static RewardRequestStatus fromString(String value) {
-    return RewardRequestStatus.values.firstWhere(
-      (e) => e.value == value,
-      orElse: () => RewardRequestStatus.pendingParentApproval,
-    );
+    // Handle mappings from old parent_service status strings
+    switch (value) {
+      case 'approved':
+      case 'approved_purchase_in_progress':
+      case 'order_placed':
+      case 'orderPlaced':
+        return RewardRequestStatus.approvedPurchaseInProgress;
+      case 'pending_price':
+      case 'pendingPrice':
+        return RewardRequestStatus.approvedPurchaseInProgress;
+      case 'delivered':
+      case 'completed':
+        return RewardRequestStatus.completed;
+      case 'rejected':
+      case 'cancelled':
+        return RewardRequestStatus.cancelled;
+      case 'pending':
+      case 'requested':
+      case 'pending_parent_approval':
+      case 'pendingParentApproval':
+        return RewardRequestStatus.pendingParentApproval;
+      case 'awaiting_delivery_confirmation':
+      case 'awaitingDeliveryConfirmation':
+        return RewardRequestStatus.awaitingDeliveryConfirmation;
+      case 'expired':
+      case 'expired_or_auto_resolved':
+      case 'expiredOrAutoResolved':
+        return RewardRequestStatus.expiredOrAutoResolved;
+      default:
+        return RewardRequestStatus.values.firstWhere(
+          (e) => e.value == value,
+          orElse: () => RewardRequestStatus.pendingParentApproval,
+        );
+    }
   }
 }
 

@@ -47,9 +47,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF111827)
-          : const Color(0xFFF7F3EF),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Consumer<AuthProvider>(
           builder: (context, auth, child) {

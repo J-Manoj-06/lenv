@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
@@ -53,6 +54,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     await authProvider.ensureInitialized();
 
     if (authProvider.currentUser != null) {
+      // Force auth token propagation to Firestore SDK before any queries
+      try {
+        await FirebaseAuth.instance.currentUser?.getIdToken(false);
+      } catch (_) {}
+
       final parentEmail = authProvider.currentUser!.email;
       final parentId = authProvider.currentUser!.uid;
 
