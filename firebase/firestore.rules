@@ -13,7 +13,85 @@ service cloud.firestore {
     function userRole() {
       return isSignedIn() && request.auth.token.role != null
           ? request.auth.token.role
+          : userRoleFromDoc();
+    }
+
+    function userDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function userRoleFromDoc() {
+      return isSignedIn() && exists(userDocPath())
+          ? (get(userDocPath()).data.role != null
+              ? get(userDocPath()).data.role
+              : (get(userDocPath()).data.userRole != null
+                  ? get(userDocPath()).data.userRole
+            : ''))
           : '';
+    }
+
+    function userInstituteIdFromDoc() {
+      return isSignedIn() && exists(userDocPath())
+          ? (get(userDocPath()).data.instituteId != null
+              ? get(userDocPath()).data.instituteId
+              : (get(userDocPath()).data.schoolCode != null
+                  ? get(userDocPath()).data.schoolCode
+                  : (get(userDocPath()).data.schoolId != null
+                      ? get(userDocPath()).data.schoolId
+                      : '')))
+          : '';
+    }
+
+    function teacherDocPath() {
+      return /databases/$(database)/documents/teachers/$(request.auth.uid);
+    }
+
+    function principalDocPath() {
+      return /databases/$(database)/documents/principals/$(request.auth.uid);
+    }
+
+    function instituteDocPath() {
+      return /databases/$(database)/documents/institutes/$(request.auth.uid);
+    }
+
+    function hasStaffDoc() {
+      return isSignedIn() && (
+        exists(teacherDocPath())
+        || exists(principalDocPath())
+        || exists(instituteDocPath())
+      );
+    }
+
+    function teacherInstituteIdFromDoc() {
+      return isSignedIn() && exists(teacherDocPath())
+          ? (get(teacherDocPath()).data.schoolCode != null
+              ? get(teacherDocPath()).data.schoolCode
+              : (get(teacherDocPath()).data.schoolId != null
+                  ? get(teacherDocPath()).data.schoolId
+                  : (get(teacherDocPath()).data.instituteId != null
+                      ? get(teacherDocPath()).data.instituteId
+                      : '')))
+          : '';
+    }
+
+    function principalInstituteIdFromDoc() {
+      return isSignedIn() && exists(principalDocPath())
+          ? (get(principalDocPath()).data.schoolCode != null
+              ? get(principalDocPath()).data.schoolCode
+              : (get(principalDocPath()).data.schoolId != null
+                  ? get(principalDocPath()).data.schoolId
+                  : (get(principalDocPath()).data.instituteId != null
+                      ? get(principalDocPath()).data.instituteId
+                      : '')))
+          : '';
+    }
+
+    function instituteIdFromAnyDoc() {
+      return userInstituteIdFromDoc() != ''
+          ? userInstituteIdFromDoc()
+          : (teacherInstituteIdFromDoc() != ''
+              ? teacherInstituteIdFromDoc()
+              : principalInstituteIdFromDoc());
     }
     
     function hasRole(role) {
@@ -47,6 +125,47 @@ service cloud.firestore {
     
     function isInstitute() {
       return hasRole('institute');
+    }
+
+    function isStaffRole() {
+      return hasAnyRole([
+        'teacher',
+        'Teacher',
+        'principal',
+        'Principal',
+        'institute',
+        'Institute',
+        'admin',
+        'Admin',
+        'staff',
+        'Staff',
+        'teaching',
+        'Teaching',
+      ]) || hasStaffDoc();
+    }
+
+    function isStaffRoomMember(roomId) {
+      return isSignedIn()
+        && isStaffRole()
+        && (
+          roomId == instituteIdFromAnyDoc()
+          || isAdmin()
+        );
+    }
+
+    function isStudentOrParentRole() {
+      let role = userRole();
+      return role in ['student', 'Student', 'parent', 'Parent'];
+    }
+
+    function isLegacyStaffRoomMember(roomId) {
+      // Allow any signed-in user who is not explicitly a student/parent
+      // We don't require a users/{uid} doc because principals may have their
+      // profile docs stored under a non-UID key (queried by email at login time).
+      return isSignedIn()
+        && roomId != null
+        && roomId != ''
+        && !isStudentOrParentRole();
     }
     
     function uidIs(id) {
@@ -297,12 +416,12 @@ service cloud.firestore {
     }
     
     match /staff_rooms/{roomId} {
-      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
-      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      allow read: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
+      allow write: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
       
       match /messages/{messageId} {
-        allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
-        allow create: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+        allow read: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
+        allow create: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
         allow update, delete: if isSignedIn() && (
           resource.data.senderId == request.auth.uid || isAdmin()
         );

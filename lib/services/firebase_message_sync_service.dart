@@ -34,7 +34,8 @@ class FirebaseMessageSyncService {
     final Query messagesQuery = _getMessagesQuery(chatId, chatType);
 
     // Listen to real-time updates
-    final subscription = messagesQuery.snapshots().listen(
+    late StreamSubscription subscription;
+    subscription = messagesQuery.snapshots().listen(
       (snapshot) async {
         final List<LocalMessage> newMessages = [];
 
@@ -70,6 +71,13 @@ class FirebaseMessageSyncService {
       },
       onError: (error) {
         print('❌ Sync error for chat $chatId: $error');
+        if (error is FirebaseException && error.code == 'permission-denied') {
+          print(
+            '🚫 Stopping sync listener for $chatId due to permission-denied',
+          );
+          subscription.cancel();
+          _activeListeners.remove(chatId);
+        }
       },
     );
 
@@ -178,6 +186,12 @@ class FirebaseMessageSyncService {
       }
     } catch (e) {
       print('❌ Initial sync failed: $e');
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        print(
+          '🚫 Permission denied for $chatType/$chatId. Using local cache only.',
+        );
+        return;
+      }
       rethrow;
     }
   }

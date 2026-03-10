@@ -18,21 +18,35 @@ class AuthService {
   Future<UserModel?> getUserData(String uid) async {
     try {
       // First try to get from users collection
-      // ignore: avoid_print
       final userDoc = await _firestore.collection('users').doc(uid).get();
       if (userDoc.exists) {
         final data = userDoc.data()!;
-        // ignore: avoid_print
         // CRITICAL: Ensure uid is set in the data map before converting to UserModel
-        // The uid is stored as the document ID in Firestore, not in the data itself
         data['uid'] = uid;
+
+        // If role or institute fields are missing, patch from the role collection
+        // This happens when the users/{uid} doc was created without schoolCode (e.g. principals)
+        final roleValue = (data['role'] as String? ?? '').toLowerCase();
+        final schoolCodeValue =
+            data['schoolCode'] ?? data['schoolId'] ?? data['instituteId'];
+        final needsPatch =
+            (roleValue.isEmpty || schoolCodeValue == null) &&
+            _auth.currentUser?.email != null;
+
+        if (needsPatch) {
+          final patched = await _getUserFromRoleCollections(
+            uid,
+            _auth.currentUser!.email!,
+          );
+          if (patched != null) return patched;
+        }
+
         return UserModel.fromJson(data);
       }
 
       // If not found, try to find by UID in role collections
       final user = _auth.currentUser;
       if (user != null) {
-        // ignore: avoid_print
         return await _getUserFromRoleCollections(uid, user.email!);
       }
 
@@ -110,6 +124,49 @@ class AuthService {
 
         if (querySnapshot.docs.isNotEmpty) {
           final data = querySnapshot.docs.first.data();
+          final mappedInstituteId =
+              data['schoolId'] ?? data['schoolCode'] ?? data['instituteId'];
+
+          final normalizedUser = UserModel(
+            uid: uid, // Use Firebase Auth UID
+            email: email,
+            name:
+                data['teacherName'] ??
+                data['studentName'] ??
+                data['principalName'] ??
+                data['parentName'] ??
+                data['name'] ??
+                'Unknown',
+            role: role,
+            phone: data['phone']?.toString(),
+            profileImage:
+                data['photoUrl']?.toString() ??
+                data['profileImage']?.toString(),
+            instituteId: mappedInstituteId,
+            createdAt:
+                (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+            isActive: data['isActive'] ?? true,
+          );
+
+          // Ensure a normalized users/{uid} document exists for rule checks
+          try {
+            final normalizedUserData = <String, dynamic>{
+              ...normalizedUser.toJson(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            };
+
+            if (mappedInstituteId != null) {
+              normalizedUserData['schoolCode'] = mappedInstituteId;
+              normalizedUserData['schoolId'] = mappedInstituteId;
+            }
+
+            await _firestore
+                .collection('users')
+                .doc(uid)
+                .set(normalizedUserData, SetOptions(merge: true));
+          } catch (_) {
+            // Non-blocking: auth should still continue even if profile sync fails
+          }
 
           // UPDATE: Ensure the user document in 'users' collection has the correct Auth UID
           try {
@@ -135,27 +192,7 @@ class AuthService {
             // Continue anyway - not critical
           }
 
-          // Convert Firestore document to UserModel
-          return UserModel(
-            uid: uid, // Use Firebase Auth UID
-            email: email,
-            name:
-                data['teacherName'] ??
-                data['studentName'] ??
-                data['principalName'] ??
-                data['parentName'] ??
-                data['name'] ??
-                'Unknown',
-            role: role,
-            phone: data['phone']?.toString(),
-            profileImage:
-                data['photoUrl']?.toString() ??
-                data['profileImage']?.toString(),
-            instituteId: data['schoolId'] ?? data['schoolCode'],
-            createdAt:
-                (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-            isActive: data['isActive'] ?? true,
-          );
+          return normalizedUser;
         }
       }
 

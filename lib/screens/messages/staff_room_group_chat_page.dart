@@ -320,6 +320,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     print('🔍 [DEBUG-INIT] Cached messages: ${cachedMessages.length}');
 
     if (currentUser != null) {
+      var hasStaffRoomAccess = true;
+
       if (cachedMessages.isEmpty) {
         // No cache: fetch initial batch from Firebase
         print('🔍 [DEBUG-INIT] No cache, fetching from Firebase...');
@@ -338,13 +340,32 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         );
       }
 
+      // Access check before starting live listener to avoid repeated permission-denied logs
+      try {
+        await FirebaseFirestore.instance
+            .collection('staff_rooms')
+            .doc(widget.instituteId)
+            .collection('messages')
+            .limit(1)
+            .get();
+      } on FirebaseException catch (e) {
+        if (e.code == 'permission-denied') {
+          hasStaffRoomAccess = false;
+          print(
+            '🚫 [DEBUG-INIT] Staff room access denied for ${widget.instituteId}. Skipping real-time listener.',
+          );
+        }
+      }
+
       // Start real-time listener for new messages
-      print('🔍 [DEBUG-INIT] Starting real-time listener...');
-      await _syncService.startSyncForChat(
-        chatId: widget.instituteId,
-        chatType: 'staff_room',
-        userId: currentUser.uid,
-      );
+      if (hasStaffRoomAccess) {
+        print('🔍 [DEBUG-INIT] Starting real-time listener...');
+        await _syncService.startSyncForChat(
+          chatId: widget.instituteId,
+          chatType: 'staff_room',
+          userId: currentUser.uid,
+        );
+      }
 
       // Mark initialization as complete
       if (mounted) {
@@ -2415,6 +2436,19 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         if (snapshot.hasError) {
           // Show pending messages even if Firestore has error
           if (_pendingMessages.isEmpty) {
+            final errorText = snapshot.error.toString().toLowerCase();
+            if (errorText.contains('permission-denied') ||
+                errorText.contains('insufficient permissions')) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'You do not have permission to access this Staff Room.\nPlease contact your institute admin.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
             return Center(child: Text('Error: ${snapshot.error}'));
           }
           // Continue building with pending messages
