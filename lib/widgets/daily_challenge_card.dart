@@ -188,13 +188,16 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
     return Consumer<StudentProvider>(
       builder: (context, studentProvider, _) {
         final currentStreak = studentProvider.currentStudent?.streak ?? 0;
-        
+
         return FutureBuilder<Map<String, dynamic>>(
           future: DailyChallengeService().getResultData(widget.studentId),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Theme.of(context).cardColor,
@@ -202,7 +205,9 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
                 ),
                 child: const Center(
                   child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF27F0D)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFFF27F0D),
+                    ),
                   ),
                 ),
               );

@@ -271,7 +271,7 @@ class DailyChallengeService {
   }
 
   /// Get result data
-  /// Note: streak should be retrieved from Firestore (users collection) 
+  /// Note: streak should be retrieved from Firestore (users collection)
   /// as it is the authoritative source and persists across app restarts
   Future<Map<String, dynamic>> getResultData(String userId) async {
     final prefs = await SharedPreferences.getInstance();

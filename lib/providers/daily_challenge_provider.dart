@@ -398,16 +398,16 @@ class DailyChallengeProvider with ChangeNotifier {
         'streak': newStreak,
         'lastStreakDate': today,
       }, SetOptions(merge: true));
-      
+
       print('[Streak] ✅ Updated users collection');
-      
+
       await _firestore.collection('students').doc(studentId).set({
         'streak': newStreak,
         'lastStreakDate': today,
       }, SetOptions(merge: true));
 
       print('[Streak] ✅ Streak updated successfully in both collections!');
-      
+
       // Wait for Firestore to propagate (important for consistency)
       await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
