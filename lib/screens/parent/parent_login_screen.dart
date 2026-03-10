@@ -249,6 +249,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
           style: TextStyle(color: textColor),
+          cursorColor: parentGreen,
           decoration: InputDecoration(
             hintText: 'you@example.com',
             hintStyle: TextStyle(color: hintColor),
@@ -315,6 +316,7 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
           controller: _passwordController,
           obscureText: !_isPasswordVisible,
           style: TextStyle(color: textColor),
+          cursorColor: parentGreen,
           decoration: InputDecoration(
             hintText: '••••••••',
             hintStyle: TextStyle(color: hintColor),

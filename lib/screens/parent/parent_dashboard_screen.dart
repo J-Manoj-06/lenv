@@ -1363,16 +1363,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         // Header skeleton
         Container(
           padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                parentGreen.withOpacity(0.3),
-                parentGreen.withOpacity(0.1),
-              ],
-            ),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

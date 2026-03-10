@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../screens/parent/parent_dashboard_screen.dart';
 import '../screens/parent/parent_rewards_screen.dart';
 import '../screens/parent/parent_messages_screen.dart';
 import '../screens/parent/parent_tests_screen.dart';
 import '../screens/parent/parent_attendance_screen.dart';
 import '../utils/share_handler_mixin.dart';
+import '../providers/parent_provider.dart';
+import '../providers/auth_provider.dart';
 
 /// Parent Main Navigation Wrapper
 /// Provides 5 tabs: Dashboard, Rewards, Messages, Tests, Attendance
@@ -70,77 +73,92 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return WillPopScope(
-      onWillPop: () async {
-        if (_currentIndex != 0) {
-          setState(() => _currentIndex = 0);
-          return false;
-        }
-        await SystemNavigator.pop();
-        return false;
-      },
-      child: Scaffold(
-        body: IndexedStack(index: _currentIndex, children: _screens),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            border: Border(
-              top: BorderSide(color: theme.dividerColor, width: 1),
-            ),
-          ),
-          child: SafeArea(
-            top: false,
-            child: SizedBox(
-              height: 64,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _NavItem(
-                    icon: Icons.dashboard_outlined,
-                    selectedIcon: Icons.dashboard,
-                    label: 'Dashboard',
-                    isSelected: _currentIndex == 0,
-                    onTap: () => _onTap(0),
-                    color: parentGreen,
+    return Consumer2<AuthProvider, ParentProvider>(
+      builder: (context, authProvider, parentProvider, child) {
+        // Check if loading (only on dashboard tab)
+        final isLoading =
+            _currentIndex == 0 &&
+            (!authProvider.isInitialized || parentProvider.isLoadingChildren);
+
+        return WillPopScope(
+          onWillPop: () async {
+            if (_currentIndex != 0) {
+              setState(() => _currentIndex = 0);
+              return false;
+            }
+            await SystemNavigator.pop();
+            return false;
+          },
+          child: Scaffold(
+            body: IndexedStack(index: _currentIndex, children: _screens),
+            bottomNavigationBar: IgnorePointer(
+              ignoring: isLoading,
+              child: Opacity(
+                opacity: isLoading ? 0.5 : 1.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.cardColor,
+                    border: Border(
+                      top: BorderSide(color: theme.dividerColor, width: 1),
+                    ),
                   ),
-                  _NavItem(
-                    icon: Icons.card_giftcard_outlined,
-                    selectedIcon: Icons.card_giftcard,
-                    label: 'Rewards',
-                    isSelected: _currentIndex == 1,
-                    onTap: () => _onTap(1),
-                    color: parentGreen,
+                  child: SafeArea(
+                    top: false,
+                    child: SizedBox(
+                      height: 64,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _NavItem(
+                            icon: Icons.dashboard_outlined,
+                            selectedIcon: Icons.dashboard,
+                            label: 'Dashboard',
+                            isSelected: _currentIndex == 0,
+                            onTap: () => _onTap(0),
+                            color: parentGreen,
+                          ),
+                          _NavItem(
+                            icon: Icons.card_giftcard_outlined,
+                            selectedIcon: Icons.card_giftcard,
+                            label: 'Rewards',
+                            isSelected: _currentIndex == 1,
+                            onTap: () => _onTap(1),
+                            color: parentGreen,
+                          ),
+                          _NavItem(
+                            icon: Icons.message_outlined,
+                            selectedIcon: Icons.message,
+                            label: 'Messages',
+                            isSelected: _currentIndex == 2,
+                            onTap: () => _onTap(2),
+                            color: parentGreen,
+                          ),
+                          _NavItem(
+                            icon: Icons.quiz_outlined,
+                            selectedIcon: Icons.quiz,
+                            label: 'Tests',
+                            isSelected: _currentIndex == 3,
+                            onTap: () => _onTap(3),
+                            color: parentGreen,
+                          ),
+                          _NavItem(
+                            icon: Icons.calendar_today_outlined,
+                            selectedIcon: Icons.calendar_today,
+                            label: 'Attendance',
+                            isSelected: _currentIndex == 4,
+                            onTap: () => _onTap(4),
+                            color: parentGreen,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  _NavItem(
-                    icon: Icons.message_outlined,
-                    selectedIcon: Icons.message,
-                    label: 'Messages',
-                    isSelected: _currentIndex == 2,
-                    onTap: () => _onTap(2),
-                    color: parentGreen,
-                  ),
-                  _NavItem(
-                    icon: Icons.quiz_outlined,
-                    selectedIcon: Icons.quiz,
-                    label: 'Tests',
-                    isSelected: _currentIndex == 3,
-                    onTap: () => _onTap(3),
-                    color: parentGreen,
-                  ),
-                  _NavItem(
-                    icon: Icons.calendar_today_outlined,
-                    selectedIcon: Icons.calendar_today,
-                    label: 'Attendance',
-                    isSelected: _currentIndex == 4,
-                    onTap: () => _onTap(4),
-                    color: parentGreen,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

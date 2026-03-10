@@ -179,7 +179,13 @@ class _SplashScreenState extends State<SplashScreen>
       );
 
       // Ensure auth is initialized before checking user
-      await authProvider.ensureInitialized();
+      // Use a timeout so Firestore hangs don't block navigation indefinitely
+      await authProvider.ensureInitialized().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          debugPrint('⚠️ Auth initialization timed out, proceeding with cached state');
+        },
+      );
 
       // Parallelize auth check and session retrieval for faster startup
       final results = await Future.wait([
