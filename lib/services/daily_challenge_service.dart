@@ -253,24 +253,31 @@ class DailyChallengeService {
     double points,
   ) async {
     final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toIso8601String().split('T').first;
+    final savedDate = prefs.getString('${_dateKey}_$userId');
+    final alreadyAttemptedToday =
+        savedDate == today &&
+        (prefs.getBool('${_attemptedKey}_$userId') ?? false);
+
     await prefs.setBool('${_attemptedKey}_$userId', true);
     await prefs.setBool('${_correctKey}_$userId', isCorrect);
     await prefs.setDouble('${_pointsKey}_$userId', points);
 
-    // Update streak
-    if (isCorrect) {
+    // Update streak once per day, regardless of correct/incorrect answer
+    if (!alreadyAttemptedToday) {
       final currentStreak = prefs.getInt('${_streakKey}_$userId') ?? 0;
       await prefs.setInt('${_streakKey}_$userId', currentStreak + 1);
     }
   }
 
   /// Get result data
+  /// Note: streak should be retrieved from Firestore (users collection) 
+  /// as it is the authoritative source and persists across app restarts
   Future<Map<String, dynamic>> getResultData(String userId) async {
     final prefs = await SharedPreferences.getInstance();
     return {
       'isCorrect': prefs.getBool('${_correctKey}_$userId') ?? false,
       'points': prefs.getDouble('${_pointsKey}_$userId') ?? 0.0,
-      'streak': prefs.getInt('${_streakKey}_$userId') ?? 0,
     };
   }
 

@@ -361,7 +361,7 @@ class DailyChallengeProvider with ChangeNotifier {
       }
 
       final data = studentDoc.data() as Map<String, dynamic>;
-      final lastStreakDate = data['lastStreakDate'] as String?;
+      final lastStreakDate = _extractDateString(data['lastStreakDate']);
       final currentStreak = data['streak'] as int? ?? 0;
 
       print(
@@ -371,50 +371,21 @@ class DailyChallengeProvider with ChangeNotifier {
       int newStreak;
 
       if (lastStreakDate == null) {
-        // First time answering
+        // First recorded attempt
         newStreak = 1;
-        print('[Streak] 🆕 First time answering - setting streak to 1');
+        print('[Streak] 🆕 First recorded attempt - setting streak to 1');
       } else if (lastStreakDate == today) {
-        // Already answered today (shouldn't happen, but keep current streak)
+        // Already counted for today; do not increment twice
         newStreak = currentStreak;
         print(
-          '[Streak] ⚠️ Already answered today - keeping streak at $currentStreak',
+          '[Streak] ⚠️ Already counted today - keeping streak at $currentStreak',
         );
       } else {
-        // Check if it's a consecutive day
-        final lastDate = _parseDate(lastStreakDate);
-        final todayDate = _parseDate(today);
-
-        if (lastDate != null && todayDate != null) {
-          final daysDiff = todayDate.difference(lastDate).inDays;
-          print(
-            '[Streak] 📅 Days difference: $daysDiff (Last: $lastDate, Today: $todayDate)',
-          );
-
-          if (daysDiff == 1) {
-            // Consecutive day - increment streak
-            newStreak = currentStreak + 1;
-            print(
-              '[Streak] ✅ Consecutive day! Incrementing streak: $currentStreak → $newStreak',
-            );
-          } else if (daysDiff == 0) {
-            // Same day (shouldn't happen but handle it)
-            newStreak = currentStreak;
-            print(
-              '[Streak] ⚠️ Same day detected - keeping streak at $currentStreak',
-            );
-          } else {
-            // Missed days - reset streak
-            newStreak = 1;
-            print(
-              '[Streak] ⚠️ Missed ${daysDiff - 1} days - resetting streak to 1',
-            );
-          }
-        } else {
-          // Error parsing dates - reset streak
-          newStreak = 1;
-          print('[Streak] ❌ Error parsing dates - resetting streak to 1');
-        }
+        // New day attempt: increment streak regardless of gap and correctness
+        newStreak = currentStreak + 1;
+        print(
+          '[Streak] ✅ New day attempt recorded - incrementing streak: $currentStreak → $newStreak',
+        );
       }
 
       print(
@@ -422,39 +393,48 @@ class DailyChallengeProvider with ChangeNotifier {
       );
 
       // Update BOTH users and students collections for consistency
-      await Future.wait([
-        _firestore.collection('users').doc(studentId).set({
-          'streak': newStreak,
-          'lastStreakDate': today,
-        }, SetOptions(merge: true)),
-        _firestore.collection('students').doc(studentId).set({
-          'streak': newStreak,
-          'lastStreakDate': today,
-        }, SetOptions(merge: true)),
-      ]);
+      // Use sequential writes to ensure atomicity
+      await _firestore.collection('users').doc(studentId).set({
+        'streak': newStreak,
+        'lastStreakDate': today,
+      }, SetOptions(merge: true));
+      
+      print('[Streak] ✅ Updated users collection');
+      
+      await _firestore.collection('students').doc(studentId).set({
+        'streak': newStreak,
+        'lastStreakDate': today,
+      }, SetOptions(merge: true));
 
       print('[Streak] ✅ Streak updated successfully in both collections!');
+      
+      // Wait for Firestore to propagate (important for consistency)
+      await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
       print('[Streak] ❌ Error updating streak: $e');
     }
   }
 
-  /// Parse date string (yyyy-MM-dd) to DateTime
-  DateTime? _parseDate(String dateStr) {
-    try {
-      final parts = dateStr.split('-');
-      if (parts.length != 3) return null;
+  String? _extractDateString(dynamic value) {
+    if (value == null) return null;
 
-      final year = int.tryParse(parts[0]);
-      final month = int.tryParse(parts[1]);
-      final day = int.tryParse(parts[2]);
-
-      if (year == null || month == null || day == null) return null;
-
-      return DateTime(year, month, day);
-    } catch (e) {
-      return null;
+    if (value is String) {
+      if (value.isEmpty) return null;
+      if (value.length >= 10) {
+        return value.substring(0, 10);
+      }
+      return value;
     }
+
+    if (value is Timestamp) {
+      final date = value.toDate();
+      final year = date.year.toString().padLeft(4, '0');
+      final month = date.month.toString().padLeft(2, '0');
+      final day = date.day.toString().padLeft(2, '0');
+      return '$year-$month-$day';
+    }
+
+    return null;
   }
 
   /// Reset provider for new day

@@ -241,10 +241,13 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     Map<String, dynamic> announcement,
     _RoleTheme theme,
   ) {
+    print('📊 _buildProgressBars: START');
     final imageCaptions = _safeGetImageCaptions(announcement);
+    print('📊 _buildProgressBars: imageCaptions=${imageCaptions?.length ?? 0}');
 
     // If announcement has multiple images, show progress for each image
     if (imageCaptions != null && imageCaptions.isNotEmpty) {
+      print('📊 _buildProgressBars: Building progress bars for ${imageCaptions.length} images');
       final currentImageIndex = _announcementImageIndex[_currentIndex] ?? 0;
 
       return Row(
@@ -646,11 +649,15 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
               onPageChanged: _onPageChanged,
               itemCount: widget.announcements.length,
               itemBuilder: (context, index) {
+                print('📄 PageView.builder itemBuilder: START - index=$index');
                 final announcement = widget.announcements[index];
+                print('📄 PageView.builder itemBuilder: Got announcement - role=${announcement['role']}');
                 final role = announcement['role'] as String? ?? 'principal';
                 final theme = _RoleTheme.forRole(role);
+                print('📄 PageView.builder itemBuilder: Theme created');
                 final isLight = theme.useLightBackground;
                 final bgColor = isLight ? theme.bgLight : theme.bgDark;
+                print('📄 PageView.builder itemBuilder: Building Scaffold for index $index');
 
                 return Scaffold(
                   backgroundColor: bgColor,

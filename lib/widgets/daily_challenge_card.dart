@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/daily_challenge_provider.dart';
+import '../providers/student_provider.dart';
 import '../services/daily_challenge_service.dart';
 import 'daily_result_screen.dart';
 
@@ -83,6 +84,15 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
       isCorrect,
       5.0, // Points earned for daily challenge
     );
+
+    // Wait for Firestore write to complete before refreshing UI
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    // Refresh student data to update Firestore streak in UI
+    if (mounted) {
+      final studentProvider = context.read<StudentProvider>();
+      await studentProvider.refreshStudentStreak(widget.studentId);
+    }
 
     if (isCorrect) {
       // Trigger success animation
@@ -175,32 +185,38 @@ class _DailyChallengeCardState extends State<DailyChallengeCard>
 
   /// Build result view after answering
   Widget _buildResultView(DailyChallengeProvider provider) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: DailyChallengeService().getResultData(widget.studentId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF27F0D)),
-              ),
-            ),
-          );
-        }
+    return Consumer<StudentProvider>(
+      builder: (context, studentProvider, _) {
+        final currentStreak = studentProvider.currentStudent?.streak ?? 0;
+        
+        return FutureBuilder<Map<String, dynamic>>(
+          future: DailyChallengeService().getResultData(widget.studentId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF27F0D)),
+                  ),
+                ),
+              );
+            }
 
-        final resultData =
-            snapshot.data ?? {'isCorrect': false, 'points': 5.0, 'streak': 0};
+            final resultData =
+                snapshot.data ?? {'isCorrect': false, 'points': 5.0};
 
-        return DailyResultScreen(
-          isCorrect: resultData['isCorrect'] as bool,
-          points: resultData['points'] as double,
-          streak: resultData['streak'] as int,
+            return DailyResultScreen(
+              isCorrect: resultData['isCorrect'] as bool,
+              points: resultData['points'] as double,
+              streak: currentStreak,
+            );
+          },
         );
       },
     );
