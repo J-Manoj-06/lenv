@@ -14,7 +14,8 @@ import 'parent_rewards_screen.dart';
 import 'parent_profile_screen.dart';
 
 class ParentDashboardScreen extends StatefulWidget {
-  const ParentDashboardScreen({super.key});
+  final VoidCallback? onSwitchToRewards;
+  const ParentDashboardScreen({super.key, this.onSwitchToRewards});
 
   @override
   State<ParentDashboardScreen> createState() => _ParentDashboardScreenState();
@@ -158,10 +159,13 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 
   void _navigateToRewardsScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ParentRewardsScreen()),
-    );
+    if (widget.onSwitchToRewards != null) {
+      widget.onSwitchToRewards!();
+    } else {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute(builder: (context) => const ParentRewardsScreen()),
+      );
+    }
   }
 
   @override

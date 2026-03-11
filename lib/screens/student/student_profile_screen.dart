@@ -458,8 +458,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               children: [
                 _infoRow('Email', email, top: true),
                 _infoRow('Phone', phone),
-                _infoRow('School Name', schoolName),
-                _infoRow('Guardian Contact', parentPhone, bottom: true),
+                _infoRow('School Name', schoolName, bottom: true),
               ],
             ),
           ),

@@ -27,20 +27,22 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
   late int _currentIndex;
   bool _initialized = false;
 
-  // Define screens directly instead of using a list
-  static const List<Widget> _screens = [
-    ParentDashboardScreen(),
-    ParentRewardsScreen(),
-    ParentMessagesScreen(),
-    ParentTestsScreen(),
-    ParentAttendanceScreen(),
-  ];
+  // Screens are created once so IndexedStack preserves their state.
+  // Dashboard receives a callback to switch to the Rewards tab directly.
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     WidgetsBinding.instance.addObserver(this);
+    _screens = [
+      ParentDashboardScreen(onSwitchToRewards: () => _onTap(1)),
+      const ParentRewardsScreen(),
+      const ParentMessagesScreen(),
+      const ParentTestsScreen(),
+      const ParentAttendanceScreen(),
+    ];
   }
 
   @override

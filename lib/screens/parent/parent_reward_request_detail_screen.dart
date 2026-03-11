@@ -61,39 +61,33 @@ class _ParentRewardRequestDetailScreenState
     final parentProvider = Provider.of<ParentProvider>(context, listen: false);
     final method = await showDialog<String>(
       context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Approve Reward'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('How will this reward be purchased?'),
-            const SizedBox(height: 14),
-            _ApprovalOptionCard(
-              icon: Icons.open_in_new,
+      builder: (c) {
+        final isDark = Theme.of(c).brightness == Brightness.dark;
+        return _ApproveMethodDialog(
+          isDark: isDark,
+          headerIcon: Icons.verified_rounded,
+          headerTitle: 'Approve Reward',
+          headerSubtitle: 'How will this reward be purchased?',
+          options: [
+            _ApprovalOption(
+              icon: Icons.open_in_new_rounded,
               title: 'Buy Through Product Link',
-              subtitle: 'Approve now and buy through product link',
+              subtitle: 'Approve & open purchase link',
               accentColor: parentGreen,
-              onTap: () => Navigator.pop(c, 'link'),
+              value: 'link',
             ),
-            const SizedBox(height: 10),
-            _ApprovalOptionCard(
-              icon: Icons.storefront,
+            _ApprovalOption(
+              icon: Icons.storefront_rounded,
               title: 'Order Manually',
-              subtitle: 'Choose when to enter the purchase price',
+              subtitle: 'Complete purchase outside the app',
               accentColor: Colors.orange,
-              onTap: () => Navigator.pop(c, 'manual'),
+              value: 'manual',
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
+          onSelect: (v) => Navigator.pop(c, v),
+          onCancel: () => Navigator.pop(c),
+        );
+      },
     );
 
     if (!mounted || method == null) return;
@@ -106,35 +100,33 @@ class _ParentRewardRequestDetailScreenState
     } else {
       final timing = await showDialog<String>(
         context: context,
-        builder: (c) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: const Text('Manual Order'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('When will you enter the purchase price?'),
-              const SizedBox(height: 14),
-              _ApprovalOptionCard(
-                icon: Icons.currency_rupee,
+        builder: (c) {
+          final isDark = Theme.of(c).brightness == Brightness.dark;
+          return _ApproveMethodDialog(
+            isDark: isDark,
+            headerIcon: Icons.shopping_bag_rounded,
+            headerTitle: 'Manual Order',
+            headerSubtitle: 'When will you enter the purchase price?',
+            options: [
+              _ApprovalOption(
+                icon: Icons.currency_rupee_rounded,
                 title: 'Enter Price Now',
                 subtitle: 'Deduct points immediately',
                 accentColor: parentGreen,
-                onTap: () => Navigator.pop(c, 'now'),
+                value: 'now',
               ),
-              const SizedBox(height: 10),
-              _ApprovalOptionCard(
-                icon: Icons.schedule,
+              _ApprovalOption(
+                icon: Icons.schedule_rounded,
                 title: 'Enter Price Later',
                 subtitle: 'Mark request as pending price',
                 accentColor: Colors.orange,
-                onTap: () => Navigator.pop(c, 'later'),
+                value: 'later',
               ),
             ],
-          ),
-        ),
+            onSelect: (v) => Navigator.pop(c, v),
+            onCancel: () => Navigator.pop(c),
+          );
+        },
       );
 
       if (!mounted || timing == null) {
@@ -614,12 +606,12 @@ class _ParentRewardRequestDetailScreenState
   // Status Timeline
   Widget _buildStatusTimeline(bool isDark, RewardRequestModel request) {
     final isOrderPlaced =
-      request.status == RewardRequestStatus.orderPlaced ||
-      request.status == RewardRequestStatus.delivered;
+        request.status == RewardRequestStatus.orderPlaced ||
+        request.status == RewardRequestStatus.delivered;
     final isApproved =
-      request.status == RewardRequestStatus.approved ||
-      request.status == RewardRequestStatus.orderPlaced ||
-      request.status == RewardRequestStatus.delivered;
+        request.status == RewardRequestStatus.approved ||
+        request.status == RewardRequestStatus.orderPlaced ||
+        request.status == RewardRequestStatus.delivered;
 
     return Container(
       width: double.infinity,
@@ -859,73 +851,250 @@ class _ParentRewardRequestDetailScreenState
   }
 }
 
-class _ApprovalOptionCard extends StatelessWidget {
+// ─────────────────────────────────────────────
+// Approve-method dialog
+// ─────────────────────────────────────────────
+
+class _ApprovalOption {
   final IconData icon;
   final String title;
   final String subtitle;
   final Color accentColor;
-  final VoidCallback onTap;
-
-  const _ApprovalOptionCard({
+  final String value;
+  const _ApprovalOption({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.accentColor,
+    required this.value,
+  });
+}
+
+class _ApproveMethodDialog extends StatelessWidget {
+  final bool isDark;
+  final IconData headerIcon;
+  final String headerTitle;
+  final String headerSubtitle;
+  final List<_ApprovalOption> options;
+  final void Function(String) onSelect;
+  final VoidCallback onCancel;
+
+  const _ApproveMethodDialog({
+    required this.isDark,
+    required this.headerIcon,
+    required this.headerTitle,
+    required this.headerSubtitle,
+    required this.options,
+    required this.onSelect,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF1A1A1A) : Colors.white;
+    final subtitleColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+
+    return Dialog(
+      backgroundColor: bgColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Gradient header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF14A670), Color(0xFF0D7A52)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(headerIcon, color: Colors.white, size: 26),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        headerTitle,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        headerSubtitle,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.white.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Option cards
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Column(
+              children: options.map((opt) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ApprovalOptionCard(
+                    option: opt,
+                    isDark: isDark,
+                    onTap: () => onSelect(opt.value),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          // Cancel button
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: onCancel,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: isDark ? Colors.grey[700]! : Colors.grey[300]!,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: subtitleColor,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApprovalOptionCard extends StatelessWidget {
+  final _ApprovalOption option;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ApprovalOptionCard({
+    required this.option,
+    required this.isDark,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: accentColor.withOpacity(0.5)),
-          boxShadow: [
-            BoxShadow(
-              color: accentColor.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+    final cardBg = isDark ? const Color(0xFF252525) : const Color(0xFFF9F9F9);
+    final titleColor = isDark ? Colors.white : const Color(0xFF111827);
+    final subtitleColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: option.accentColor.withOpacity(isDark ? 0.4 : 0.3),
+              width: 1.2,
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: option.accentColor.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 3),
               ),
-              child: Icon(icon, color: accentColor),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      option.accentColor.withOpacity(0.18),
+                      option.accentColor.withOpacity(0.08),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(option.icon, color: option.accentColor, size: 22),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      option.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.5,
+                        color: titleColor,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      option.subtitle,
+                      style: TextStyle(fontSize: 12, color: subtitleColor),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey[500]),
-          ],
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: option.accentColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 13,
+                  color: option.accentColor,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -107,24 +107,37 @@ service cloud.firestore {
           || hasRole('admin');
     }
     
+    function parentDocPath() {
+      return /databases/$(database)/documents/parents/$(request.auth.uid);
+    }
+
+    function studentDocPath() {
+      return /databases/$(database)/documents/students/$(request.auth.uid);
+    }
+
     function isStudent() {
-      return hasRole('student');
+      return hasRole('student') || hasRole('Student') ||
+          (isSignedIn() && exists(studentDocPath()));
     }
     
     function isParent() {
-      return hasRole('parent');
+      return hasRole('parent') || hasRole('Parent') ||
+          (isSignedIn() && exists(parentDocPath()));
     }
     
     function isTeacher() {
-      return hasRole('teacher');
+      return hasRole('teacher') || hasRole('Teacher') ||
+          (isSignedIn() && exists(teacherDocPath()));
     }
     
     function isPrincipal() {
-      return hasRole('principal');
+      return hasRole('principal') || hasRole('Principal') ||
+          (isSignedIn() && exists(principalDocPath()));
     }
     
     function isInstitute() {
-      return hasRole('institute');
+      return hasRole('institute') || hasRole('Institute') ||
+          (isSignedIn() && exists(instituteDocPath()));
     }
 
     function isStaffRole() {
@@ -153,11 +166,6 @@ service cloud.firestore {
         );
     }
 
-    function isStudentOrParentRole() {
-      let role = userRole();
-      return role in ['student', 'Student', 'parent', 'Parent'];
-    }
-
     function isLegacyStaffRoomMember(roomId) {
       // Zero-doc-read fallback: any authenticated user may access their school's
       // staff room. The roomId == schoolCode path already scopes the room to a
@@ -172,11 +180,11 @@ service cloud.firestore {
     }
     
     function isApproverRole() {
-      return hasAnyRole(['teacher', 'admin', 'principal', 'institute', 'parent']);
+      return isElevatedApproverRole() || isParent();
     }
     
     function isElevatedApproverRole() {
-      return hasAnyRole(['teacher', 'admin', 'principal', 'institute']);
+      return isTeacher() || isAdmin() || isPrincipal() || isInstitute();
     }
     
     function pointsFieldsUpdateOnly() {
@@ -387,7 +395,7 @@ service cloud.firestore {
     
     match /media_messages/{messageId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && (isTeacher() || isPrincipal());
+      allow create: if isSignedIn() && isStaffRole();
       allow update, delete: if isSignedIn() && (
         resource.data.senderId == request.auth.uid || isAdmin()
       );
@@ -399,7 +407,7 @@ service cloud.firestore {
     
     match /teacher_community/{messageId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && isTeacher();
+      allow create: if isSignedIn() && isStaffRole();
       allow update, delete: if isSignedIn() && (
         resource.data.senderId == request.auth.uid || isAdmin()
       );
@@ -447,9 +455,11 @@ service cloud.firestore {
     
     match /group_messages/{classId} {
       allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaffRole();
       
       match /subjects/{subjectId} {
         allow read: if isSignedIn();
+        allow write: if isSignedIn() && isStaffRole();
         
         match /messages/{messageId} {
           allow read: if isSignedIn();
@@ -463,11 +473,11 @@ service cloud.firestore {
     
     match /parent_teacher_groups/{groupId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isParent() || isTeacher() || isAdmin());
+      allow write: if isSignedIn() && (isParent() || isTeacher() || isPrincipal() || isAdmin());
       
       match /messages/{messageId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && (isParent() || isTeacher() || isAdmin());
+        allow create: if isSignedIn() && (isParent() || isTeacher() || isPrincipal() || isAdmin());
         allow update, delete: if isSignedIn() && (
           resource.data.senderId == request.auth.uid || isAdmin()
         );

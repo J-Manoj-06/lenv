@@ -23,6 +23,8 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
 
+  static const _green = Color(0xFF14A670);
+
   @override
   void initState() {
     super.initState();
@@ -51,27 +53,34 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
     return FadeTransition(
       opacity: _fadeAnimation,
       child: ScaleTransition(
         scale: _scaleAnimation,
         child: Dialog(
+          backgroundColor: dialogBg,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: widget.pendingRequests.length == 1
-                ? _buildSingleRequestContent()
-                : _buildMultipleRequestsContent(),
+                ? _buildSingleRequestContent(isDark)
+                : _buildMultipleRequestsContent(isDark),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSingleRequestContent() {
+  Widget _buildSingleRequestContent(bool isDark) {
     final request = widget.pendingRequests.first;
+    final titleColor = isDark ? Colors.white : const Color(0xFF110D1B);
+    final subtitleColor = isDark ? Colors.grey[400] : Colors.grey[600];
+    final cardBg = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -83,31 +92,27 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF14A670).withOpacity(0.1),
+                color: _green.withOpacity(isDark ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.card_giftcard,
-                color: Color(0xFF14A670),
-                size: 32,
-              ),
+              child: const Icon(Icons.card_giftcard, color: _green, size: 32),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     'Reward Request',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF110D1B),
+                      color: titleColor,
                     ),
                   ),
                   Text(
                     'From ${request.studentName}',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    style: TextStyle(fontSize: 14, color: subtitleColor),
                   ),
                 ],
               ),
@@ -118,20 +123,26 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
 
         // Product Details
         Container(
+          width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.grey[100],
+            color: cardBg,
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.grey.withOpacity(0.15),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 request.productName,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Color(0xFF110D1B),
+                  color: titleColor,
                 ),
               ),
               const SizedBox(height: 8),
@@ -141,7 +152,7 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                   Row(
                     children: [
                       const Icon(
-                        Icons.stars,
+                        Icons.stars_rounded,
                         color: Color(0xFFFFA500),
                         size: 18,
                       ),
@@ -150,7 +161,7 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                         '${request.pointsRequired} Points',
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.grey[700],
+                          color: subtitleColor,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -161,7 +172,7 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF14A670),
+                      color: _green,
                     ),
                   ),
                 ],
@@ -172,63 +183,17 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
         const SizedBox(height: 20),
 
         // Action Buttons
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  widget.onLater();
-                  Navigator.of(context).pop();
-                },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Colors.grey),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text(
-                  "I'll Do Later",
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  widget.onApprove();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF14A670),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Approve',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+        _buildActionButtons(isDark, approveLabel: 'Approve'),
       ],
     );
   }
 
-  Widget _buildMultipleRequestsContent() {
+  Widget _buildMultipleRequestsContent(bool isDark) {
+    final titleColor = isDark ? Colors.white : const Color(0xFF110D1B);
+    final subtitleColor = isDark ? Colors.grey[400] : Colors.grey[600];
+    final cardBg = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5);
+    final dividerColor = isDark ? Colors.white12 : Colors.grey.shade200;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -239,14 +204,10 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF14A670).withOpacity(0.1),
+                color: _green.withOpacity(isDark ? 0.2 : 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.card_giftcard,
-                color: Color(0xFF14A670),
-                size: 32,
-              ),
+              child: const Icon(Icons.card_giftcard, color: _green, size: 32),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -255,15 +216,15 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                 children: [
                   Text(
                     '${widget.pendingRequests.length} Reward Requests',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF110D1B),
+                      color: titleColor,
                     ),
                   ),
-                  const Text(
+                  Text(
                     'Waiting for approval',
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(fontSize: 14, color: subtitleColor),
                   ),
                 ],
               ),
@@ -280,14 +241,20 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
             itemCount: widget.pendingRequests.length > 3
                 ? 3
                 : widget.pendingRequests.length,
-            separatorBuilder: (context, index) => const Divider(height: 16),
+            separatorBuilder: (context, index) =>
+                Divider(height: 16, color: dividerColor),
             itemBuilder: (context, index) {
               final request = widget.pendingRequests[index];
               return Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
+                  color: cardBg,
                   borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.grey.withOpacity(0.15),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,10 +264,10 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                         Expanded(
                           child: Text(
                             request.studentName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF110D1B),
+                              color: titleColor,
                             ),
                           ),
                         ),
@@ -309,7 +276,7 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF14A670),
+                            color: _green,
                           ),
                         ),
                       ],
@@ -317,7 +284,7 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                     const SizedBox(height: 4),
                     Text(
                       request.productName,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                      style: TextStyle(fontSize: 13, color: subtitleColor),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -325,17 +292,14 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                     Row(
                       children: [
                         const Icon(
-                          Icons.stars,
+                          Icons.stars_rounded,
                           color: Color(0xFFFFA500),
                           size: 14,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${request.pointsRequired} Points',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
+                          style: TextStyle(fontSize: 12, color: subtitleColor),
                         ),
                       ],
                     ),
@@ -355,7 +319,7 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
                 '+${widget.pendingRequests.length - 3} more requests',
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey[600],
+                  color: subtitleColor,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -365,57 +329,65 @@ class _PendingRewardPopupState extends State<PendingRewardPopup>
         const SizedBox(height: 20),
 
         // Action Buttons
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () {
-                  widget.onLater();
-                  Navigator.of(context).pop();
-                },
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: const BorderSide(color: Colors.grey),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                child: const Text(
-                  "I'll Do Later",
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+        _buildActionButtons(isDark, approveLabel: 'View Rewards'),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(bool isDark, {required String approveLabel}) {
+    final laterBorderColor = isDark ? Colors.grey[600]! : Colors.grey[400]!;
+    final laterTextColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () {
+              widget.onLater();
+              Navigator.of(context).pop();
+            },
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              side: BorderSide(color: laterBorderColor),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  widget.onApprove();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF14A670),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'View Rewards',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+            child: Text(
+              "I'll Do Later",
+              style: TextStyle(
+                fontSize: 15,
+                color: laterTextColor,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: () {
+              widget.onApprove();
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              approveLabel,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ),
       ],
     );
