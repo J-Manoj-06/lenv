@@ -258,9 +258,17 @@ service cloud.firestore {
         && canTransitionRewardStatus()
         && rewardIdentityFieldsUnchanged()
         && (
+          // Student owns the request
           (resource.data.student_id == request.auth.uid || resource.data.studentId == request.auth.uid)
+          // Parent assigned to this request (by UID stored in doc)
           || (resource.data.parent_id == request.auth.uid || resource.data.parentId == request.auth.uid)
-          || isApproverRole()
+          // Elevated staff roles (teacher, principal, admin, institute)
+          || isElevatedApproverRole()
+          // Parent role (via role token or users doc) — allows approval even when parent doc ID differs from UID
+          || isParent()
+          // Fallback: any signed-in user may approve/update if approved_by matches their UID
+          // (covers the case where parent_id was not pre-populated in the doc)
+          || request.resource.data.approvedBy == request.auth.uid
         );
     }
     

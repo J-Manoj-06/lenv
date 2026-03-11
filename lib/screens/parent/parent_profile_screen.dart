@@ -554,6 +554,14 @@ class ParentProfileScreen extends StatelessWidget {
 
               if (confirmed != true) return;
 
+              // Stop all active Firestore streams BEFORE signing out
+              // to prevent PERMISSION_DENIED errors on stale listeners
+              final parentProvider = Provider.of<ParentProvider>(
+                context,
+                listen: false,
+              );
+              parentProvider.clear();
+
               await authProvider.signOut();
               // ignore: use_build_context_synchronously
               Navigator.of(

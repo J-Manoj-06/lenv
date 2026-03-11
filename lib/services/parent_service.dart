@@ -724,54 +724,19 @@ class ParentService {
 
   /// Get reward requests stream for ALL children of a parent (real-time)
   Stream<List<RewardRequestModel>> getParentRewardRequestsStream(
-    List<String> studentIds,
-  ) {
+    List<String> studentIds, {
+    String? parentId,
+  }) {
     print(
       '🔵 ParentService: getParentRewardRequestsStream for students: $studentIds',
     );
-    if (studentIds.isEmpty) {
+    if (studentIds.isEmpty && (parentId == null || parentId.isEmpty)) {
       return Stream.value([]);
     }
 
-    // Firestore 'in' query supports max 10 items
-    if (studentIds.length <= 10) {
-      final streams = <Stream<List<RewardRequestModel>>>[
-        _firestore
-            .collection('reward_requests')
-            .where('student_id', whereIn: studentIds)
-            .snapshots()
-            .map((snapshot) {
-              print(
-                '🔵 ParentService: Got ${snapshot.docs.length} reward docs (student_id)',
-              );
-              return snapshot.docs
-                  .map(
-                    (doc) =>
-                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
-                  )
-                  .toList();
-            }),
-        _firestore
-            .collection('reward_requests')
-            .where('studentId', whereIn: studentIds)
-            .snapshots()
-            .map((snapshot) {
-              print(
-                '🔵 ParentService: Got ${snapshot.docs.length} reward docs (studentId)',
-              );
-              return snapshot.docs
-                  .map(
-                    (doc) =>
-                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
-                  )
-                  .toList();
-            }),
-      ];
+    final streams = <Stream<List<RewardRequestModel>>>[];
 
-      return _combineRewardStreams(streams);
-    }
-
-    // For >10 children, merge multiple streams
+    // Firestore 'in' query supports max 10 items per chunk
     final chunks = <List<String>>[];
     for (var i = 0; i < studentIds.length; i += 10) {
       chunks.add(
@@ -782,41 +747,106 @@ class ParentService {
       );
     }
 
-    final streams = <Stream<List<RewardRequestModel>>>[];
     for (final chunk in chunks) {
+      // Query by snake_case field (new request format)
       streams.add(
-        _firestore
-            .collection('reward_requests')
-            .where('student_id', whereIn: chunk)
-            .snapshots()
-            .map(
-              (snapshot) => snapshot.docs
-                  .map(
-                    (doc) =>
-                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
-                  )
-                  .toList(),
-            ),
+        _safeStream(
+          _firestore
+              .collection('reward_requests')
+              .where('student_id', whereIn: chunk)
+              .snapshots()
+              .map((snapshot) {
+                print(
+                  '🔵 ParentService: Got ${snapshot.docs.length} reward docs (student_id)',
+                );
+                return snapshot.docs
+                    .map(
+                      (doc) =>
+                          RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                    )
+                    .toList();
+              }),
+        ),
       );
 
+      // Query by camelCase field (old request format)
       streams.add(
-        _firestore
-            .collection('reward_requests')
-            .where('studentId', whereIn: chunk)
-            .snapshots()
-            .map(
-              (snapshot) => snapshot.docs
-                  .map(
-                    (doc) =>
-                        RewardRequestModel.fromJson(doc.data(), id: doc.id),
-                  )
-                  .toList(),
-            ),
+        _safeStream(
+          _firestore
+              .collection('reward_requests')
+              .where('studentId', whereIn: chunk)
+              .snapshots()
+              .map((snapshot) {
+                print(
+                  '🔵 ParentService: Got ${snapshot.docs.length} reward docs (studentId)',
+                );
+                return snapshot.docs
+                    .map(
+                      (doc) =>
+                          RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                    )
+                    .toList();
+              }),
+        ),
       );
     }
 
-    // Merge and deduplicate
+    // Fallback: also query by parent_id so approved requests always appear
+    if (parentId != null && parentId.isNotEmpty) {
+      streams.add(
+        _safeStream(
+          _firestore
+              .collection('reward_requests')
+              .where('parent_id', isEqualTo: parentId)
+              .snapshots()
+              .map(
+                (snapshot) => snapshot.docs
+                    .map(
+                      (doc) =>
+                          RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                    )
+                    .toList(),
+              ),
+        ),
+      );
+      // Also try camelCase parentId field
+      streams.add(
+        _safeStream(
+          _firestore
+              .collection('reward_requests')
+              .where('parentId', isEqualTo: parentId)
+              .snapshots()
+              .map(
+                (snapshot) => snapshot.docs
+                    .map(
+                      (doc) =>
+                          RewardRequestModel.fromJson(doc.data(), id: doc.id),
+                    )
+                    .toList(),
+              ),
+        ),
+      );
+    }
+
+    if (streams.isEmpty) return Stream.value([]);
     return _combineRewardStreams(streams);
+  }
+
+  /// Wraps a stream so errors emit an empty list instead of terminating the stream
+  Stream<List<RewardRequestModel>> _safeStream(
+    Stream<List<RewardRequestModel>> source,
+  ) {
+    return source.transform(
+      StreamTransformer<
+        List<RewardRequestModel>,
+        List<RewardRequestModel>
+      >.fromHandlers(
+        handleError: (error, stackTrace, sink) {
+          // Swallow the error and emit empty list so the combined stream keeps working
+          sink.add([]);
+        },
+      ),
+    );
   }
 
   Stream<List<RewardRequestModel>> _combineRewardStreams(

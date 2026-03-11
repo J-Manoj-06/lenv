@@ -582,13 +582,12 @@ class ParentProvider with ChangeNotifier {
 
   /// Start real-time reward requests stream for all children
   void startRewardRequestsStream() {
-    if (_children.isEmpty) return;
-
     final studentIds = _children.map((c) => c.uid).toList();
+    if (studentIds.isEmpty && (_parentId == null || _parentId!.isEmpty)) return;
 
     _rewardRequestsSub?.cancel();
     _rewardRequestsSub = _parentService
-        .getParentRewardRequestsStream(studentIds)
+        .getParentRewardRequestsStream(studentIds, parentId: _parentId)
         .listen(
           (requests) {
             _rewardRequests = requests;

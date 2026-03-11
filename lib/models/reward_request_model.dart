@@ -134,13 +134,72 @@ class RewardRequestModel {
     }
 
     String extractAmazonLink() {
+      // Helper: return raw string only if it looks like a real URL
+      String? validUrl(String? raw) {
+        if (raw == null) return null;
+        final trimmed = raw.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          return trimmed;
+        }
+        return null;
+      }
+
+      // Helper: build Amazon product URL from ASIN
+      String? fromAsin(String? asin) {
+        if (asin == null) return null;
+        final trimmed = asin.trim();
+        if (trimmed.isEmpty) return null;
+        return 'https://www.amazon.in/dp/$trimmed';
+      }
+
+      // Helper: build Amazon search URL from product title
+      String fromTitle(String? title) {
+        if (title == null || title.trim().isEmpty) return '';
+        final query = Uri.encodeComponent(title.trim());
+        return 'https://www.amazon.in/s?k=$query';
+      }
+
+      // 1. Try explicit stored URLs first (product_snapshot fields)
       if (json['product_snapshot'] is Map) {
         final product = json['product_snapshot'] as Map;
-        return product['affiliate_url'] as String? ??
-            product['description'] as String? ??
-            '';
+        final fromSnapshot =
+            validUrl(product['affiliate_url'] as String?) ??
+            validUrl(product['amazonLink'] as String?) ??
+            validUrl(product['product_url'] as String?) ??
+            validUrl(product['url'] as String?) ??
+            validUrl(product['link'] as String?);
+        if (fromSnapshot != null) return fromSnapshot;
+
+        // 2. Construct URL from ASIN stored in product_snapshot
+        final asinUrl = fromAsin(product['asin'] as String?);
+        if (asinUrl != null) return asinUrl;
+
+        // 3. Fall back to search URL using product title from snapshot
+        final titleUrl = fromTitle(
+          (product['title'] as String?) ??
+              (product['name'] as String?) ??
+              (product['productName'] as String?),
+        );
+        if (titleUrl.isNotEmpty) return titleUrl;
       }
-      return json['amazonLink'] as String? ?? '';
+
+      // 4. Try top-level URL fields
+      final topLevel =
+          validUrl(json['amazonLink'] as String?) ??
+          validUrl(json['productUrl'] as String?) ??
+          validUrl(json['product_url'] as String?);
+      if (topLevel != null) return topLevel;
+
+      // 5. Construct URL from top-level ASIN
+      final topAsinUrl = fromAsin(json['asin'] as String?);
+      if (topAsinUrl != null) return topAsinUrl;
+
+      // 6. Fall back to search URL from top-level product name
+      return fromTitle(
+        (json['productName'] as String?) ??
+            (json['product_name'] as String?) ??
+            (json['name'] as String?),
+      );
     }
 
     double extractPrice() {
@@ -209,21 +268,24 @@ class RewardRequestModel {
       price: extractPrice(),
       pointsRequired: extractPointsRequired(),
       status: parseStatus(statusStr),
-        purchaseMethod:
+      purchaseMethod:
           json['purchaseMethod'] as String? ??
           json['purchase_method'] as String? ??
           json['purchase_mode'] as String?,
-        priceEntered: (json['priceEntered'] as bool?) ??
+      priceEntered:
+          (json['priceEntered'] as bool?) ??
           (json['price_entered'] as bool?) ??
           false,
-        enteredPrice: (json['enteredPrice'] as num?)?.toDouble() ??
+      enteredPrice:
+          (json['enteredPrice'] as num?)?.toDouble() ??
           (json['entered_price'] as num?)?.toDouble() ??
           (json['manual_price'] as num?)?.toDouble(),
-        pointsDeducted: (json['pointsDeducted'] as num?)?.toInt() ??
+      pointsDeducted:
+          (json['pointsDeducted'] as num?)?.toInt() ??
           (json['points_deducted'] as num?)?.toInt() ??
           (json['points'] is Map
-            ? (((json['points'] as Map)['deducted'] as num?)?.toInt() ?? 0)
-            : 0),
+              ? (((json['points'] as Map)['deducted'] as num?)?.toInt() ?? 0)
+              : 0),
       requestedOn: extractRequestedOn(),
       parentId: json['parentId'] as String? ?? json['parent_id'] as String?,
       approvedOn: (json['approvedOn'] is Timestamp)

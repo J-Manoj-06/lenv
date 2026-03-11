@@ -6,7 +6,6 @@ import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
-import '../../services/reward_request_service.dart';
 import '../../widgets/pending_reward_popup.dart';
 import '../common/announcement_pageview_screen.dart';
 import 'parent_reward_request_detail_screen.dart';
@@ -37,7 +36,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
   // Flag to prevent popup from showing multiple times in same session
   bool _hasShownRewardPopup = false;
-  final RewardRequestService _rewardRequestService = RewardRequestService();
 
   @override
   void initState() {
@@ -70,92 +68,109 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     }
   }
 
-  Future<void> _checkPendingRewards() async {
+  void _checkPendingRewards() {
     // Only show popup once per session
     if (_hasShownRewardPopup) return;
 
-    // Get pending reward requests
-    final pendingRequestsStream = _rewardRequestService
-        .getPendingRewardRequests();
+    final parentProvider = Provider.of<ParentProvider>(context, listen: false);
 
-    // Listen to the first emission
-    pendingRequestsStream.first
-        .then((pendingRequests) {
-          if (pendingRequests.isNotEmpty && mounted) {
-            _hasShownRewardPopup = true;
+    // Try immediately with whatever is already loaded
+    _tryShowRewardPopup(parentProvider);
 
-            // Build studentId → name map from already-loaded children
-            // so requests without studentName show the real name in the popup
-            final parentProvider = Provider.of<ParentProvider>(
-              context,
-              listen: false,
-            );
-            final nameMap = <String, String>{
-              for (final child in parentProvider.children)
-                if (child.name.isNotEmpty) child.uid: child.name,
-            };
+    // Also listen for the first time rewardRequests becomes populated
+    // (the stream may not have emitted yet when initState runs)
+    void listener() {
+      if (!_hasShownRewardPopup && mounted) {
+        _tryShowRewardPopup(parentProvider);
+      }
+      if (_hasShownRewardPopup) {
+        parentProvider.removeListener(listener);
+      }
+    }
 
-            // Filter to only this parent's children, then resolve any missing names
-            final resolved = pendingRequests
-                .where(
-                  (req) =>
-                      nameMap.containsKey(req.studentId) ||
-                      parentProvider.children.any(
-                        (c) => c.uid == req.studentId,
-                      ),
-                )
-                .map((req) {
-                  if (req.studentName.isEmpty ||
-                      req.studentName.toLowerCase() == 'unknown student') {
-                    final childName = nameMap[req.studentId];
-                    if (childName != null && childName.isNotEmpty) {
-                      return RewardRequestModel(
-                        id: req.id,
-                        studentId: req.studentId,
-                        studentName: childName,
-                        productId: req.productId,
-                        productName: req.productName,
-                        productImageUrl: req.productImageUrl,
-                        amazonLink: req.amazonLink,
-                        price: req.price,
-                        pointsRequired: req.pointsRequired,
-                        status: req.status,
-                        purchaseMethod: req.purchaseMethod,
-                        priceEntered: req.priceEntered,
-                        enteredPrice: req.enteredPrice,
-                        pointsDeducted: req.pointsDeducted,
-                        requestedOn: req.requestedOn,
-                        parentId: req.parentId,
-                        approvedOn: req.approvedOn,
-                      );
-                    }
-                  }
-                  return req;
-                })
-                .toList();
+    parentProvider.addListener(listener);
 
-            // Show popup after a short delay to ensure UI is ready
-            Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted) {
-                showDialog(
-                  context: context,
-                  barrierDismissible: true,
-                  builder: (context) => PendingRewardPopup(
-                    pendingRequests: resolved,
-                    onApprove: _navigateToRewardsScreen,
-                    onLater: () {
-                      // User chose to handle later - popup dismissed
-                    },
-                  ),
-                );
-              }
-            });
-          }
-        })
-        .catchError((error) {
-          // Silently handle errors - popup is optional
-          debugPrint('Error checking pending rewards: $error');
-        });
+    // Auto-remove listener after 30 seconds to avoid leaks
+    Future.delayed(const Duration(seconds: 30), () {
+      if (mounted) parentProvider.removeListener(listener);
+    });
+  }
+
+  void _tryShowRewardPopup(ParentProvider parentProvider) {
+    if (_hasShownRewardPopup || !mounted) return;
+
+    final allRequests = parentProvider.rewardRequests;
+    if (allRequests.isEmpty) return;
+
+    // Filter for pending/awaiting-approval requests belonging to this parent's children
+    final childUids = parentProvider.children.map((c) => c.uid).toSet();
+    final childStudentIds = parentProvider.children
+        .where((c) => c.studentId != null && c.studentId!.isNotEmpty)
+        .map((c) => c.studentId!)
+        .toSet();
+
+    final pendingRequests = allRequests.where((req) {
+      final isPending =
+          req.status == RewardRequestStatus.pending ||
+          req.status == RewardRequestStatus.requested;
+      final isForThisParentsChild =
+          childUids.contains(req.studentId) ||
+          childStudentIds.contains(req.studentId);
+      return isPending && isForThisParentsChild;
+    }).toList();
+
+    if (pendingRequests.isEmpty) return;
+
+    // Resolve any missing student names from children list
+    final nameMap = <String, String>{
+      for (final child in parentProvider.children)
+        if (child.name.isNotEmpty) child.uid: child.name,
+    };
+    final resolved = pendingRequests.map((req) {
+      if (req.studentName.isEmpty ||
+          req.studentName.toLowerCase() == 'unknown student') {
+        final childName = nameMap[req.studentId];
+        if (childName != null && childName.isNotEmpty) {
+          return RewardRequestModel(
+            id: req.id,
+            studentId: req.studentId,
+            studentName: childName,
+            productId: req.productId,
+            productName: req.productName,
+            productImageUrl: req.productImageUrl,
+            amazonLink: req.amazonLink,
+            price: req.price,
+            pointsRequired: req.pointsRequired,
+            status: req.status,
+            purchaseMethod: req.purchaseMethod,
+            priceEntered: req.priceEntered,
+            enteredPrice: req.enteredPrice,
+            pointsDeducted: req.pointsDeducted,
+            requestedOn: req.requestedOn,
+            parentId: req.parentId,
+            approvedOn: req.approvedOn,
+          );
+        }
+      }
+      return req;
+    }).toList();
+
+    _hasShownRewardPopup = true;
+
+    // Show popup after a short delay to ensure UI is ready
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => PendingRewardPopup(
+            pendingRequests: resolved,
+            onApprove: _navigateToRewardsScreen,
+            onLater: () {},
+          ),
+        );
+      }
+    });
   }
 
   void _navigateToRewardsScreen() {

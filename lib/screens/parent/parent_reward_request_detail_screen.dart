@@ -279,10 +279,29 @@ class _ParentRewardRequestDetailScreenState
   }
 
   Future<void> _openLink(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    if (await canLaunchUrl(uri)) {
+    if (url.isEmpty) return;
+    // Ensure the URL has a scheme
+    final raw = url.trim();
+    final withScheme = (raw.startsWith('http://') || raw.startsWith('https://'))
+        ? raw
+        : 'https://$raw';
+    final uri = Uri.tryParse(withScheme);
+    if (uri == null || !uri.hasAuthority) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Invalid product link')));
+      }
+      return;
+    }
+    try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open product link')),
+        );
+      }
     }
   }
 

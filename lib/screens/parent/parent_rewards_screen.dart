@@ -135,7 +135,9 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
         case 'pendingPrice':
           return r.status == RewardRequestStatus.pendingPrice;
         case 'approved':
-          return r.status == RewardRequestStatus.approved;
+          return r.status == RewardRequestStatus.approved ||
+              r.status == RewardRequestStatus.orderPlaced ||
+              r.status == RewardRequestStatus.delivered;
         case 'orderPlaced':
           return r.status == RewardRequestStatus.orderPlaced ||
               r.status == RewardRequestStatus.delivered;
