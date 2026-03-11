@@ -4738,6 +4738,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   late int _currentIndex;
   late Map<int, TransformationController> _transformationControllers;
   late Map<int, bool> _zoomStates;
+  final Map<int, Offset> _doubleTapPositions = {}; // Per-image double-tap position
   bool _isInteracting = false; // Track if user is zooming
   int _pointerCount = 0; // Track number of fingers on screen
 
@@ -4932,8 +4933,12 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
         });
       },
       child: GestureDetector(
+        onDoubleTapDown: (details) {
+          // Capture the exact tap position for position-aware zoom
+          _doubleTapPositions[index] = details.localPosition;
+        },
         onDoubleTap: () {
-          // ✅ Double-tap toggle: 1x ↔ 2.5x zoom
+          // ✅ Double-tap toggle: 1x ↔ 2.5x zoom at the tapped location
           final controller = _transformationControllers[index]!;
           final scale = controller.value.getMaxScaleOnAxis();
 
@@ -4941,8 +4946,15 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
             // Zoom out to 1x
             controller.value = Matrix4.identity();
           } else {
-            // Zoom in to 2.5x at center
-            final matrix = Matrix4.identity()..scale(2.5);
+            // Zoom in to 2.5x at the exact tapped position
+            const double zoomLevel = 2.5;
+            final tapPos = _doubleTapPositions[index] ?? Offset.zero;
+            final matrix = Matrix4.identity()
+              ..translate(
+                -tapPos.dx * (zoomLevel - 1),
+                -tapPos.dy * (zoomLevel - 1),
+              )
+              ..scale(zoomLevel);
             controller.value = matrix;
           }
           setState(() {});
@@ -4951,7 +4963,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           transformationController: _transformationControllers[index],
           minScale: 1.0, // No zoom out below original size
           maxScale: 5.0, // Max 5x zoom
-          panEnabled: _pointerCount >= 2, // Only pan with 2+ fingers
+          panEnabled: (_zoomStates[index] ?? false) || _pointerCount >= 2, // Pan with 1 finger when zoomed, or 2+ fingers
           scaleEnabled: true, // Enable pinch zoom
           boundaryMargin: const EdgeInsets.all(double.infinity),
           clipBehavior: Clip.none,

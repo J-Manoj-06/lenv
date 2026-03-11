@@ -107,13 +107,14 @@ class ModernAttachmentSheet extends StatelessWidget {
                 enabled: pollEnabled,
                 onTap: onPollTap,
               ),
-              _AttachmentOption(
-                icon: Icons.account_tree_outlined,
-                label: 'Mindmap',
-                color: color,
-                enabled: mindmapEnabled,
-                onTap: onMindmapTap,
-              ),
+              if (mindmapEnabled)
+                _AttachmentOption(
+                  icon: Icons.account_tree_outlined,
+                  label: 'Mindmap',
+                  color: color,
+                  enabled: mindmapEnabled,
+                  onTap: onMindmapTap,
+                ),
             ],
           ),
           const SizedBox(height: 20),
