@@ -567,7 +567,17 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
     if (method == 'link') {
       final result = await provider.approveRewardByLink(request.id);
       if (!mounted) return;
-      _showResultSnackBar(result);
+      if (result['success'] == true) {
+        // Navigate to detail screen so parent can view the product and tap Open Product Link
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ParentRewardRequestDetailScreen(request: request),
+          ),
+        );
+      } else {
+        _showResultSnackBar(result);
+      }
       return;
     }
 

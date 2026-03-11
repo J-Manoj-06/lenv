@@ -97,6 +97,15 @@ class _ParentRewardRequestDetailScreenState
 
     if (method == 'link') {
       result = await parentProvider.approveRewardByLink(widget.request.id);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showResultSnackBar(result);
+      // Navigate to product link after approval
+      if (result['success'] == true && widget.request.amazonLink.trim().isNotEmpty) {
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (mounted) _openLink(widget.request.amazonLink);
+      }
+      return;
     } else {
       final timing = await showDialog<String>(
         context: context,
