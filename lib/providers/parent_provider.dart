@@ -126,10 +126,13 @@ class ParentProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _children = await _parentService.getChildrenByParentEmail(
+      final rawChildren = await _parentService.getChildrenByParentEmail(
         _parentEmail!,
         parentId: _parentId,
       );
+      // Deduplicate by UID (guard against duplicate linkedStudents entries in Firestore)
+      final seenUids = <String>{};
+      _children = rawChildren.where((c) => seenUids.add(c.uid)).toList();
 
       // ✅ Load persisted child selection
       await _loadPersistedSelection();

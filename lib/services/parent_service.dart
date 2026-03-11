@@ -308,7 +308,12 @@ class ParentService {
 
         // ✅ OPTIMIZATION: Wait for all students in parallel
         final studentResults = await Future.wait(studentFutures);
-        final children = studentResults.whereType<StudentModel>().toList();
+        // Deduplicate by UID in case linkedStudents array has duplicate entries
+        final seenUids = <String>{};
+        final children = studentResults
+            .whereType<StudentModel>()
+            .where((s) => seenUids.add(s.uid))
+            .toList();
         debugPrint(
           '👨‍👩‍👧 [ParentService] linkedStudents resolved ${children.length} students',
         );
