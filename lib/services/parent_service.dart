@@ -1314,30 +1314,45 @@ class ParentService {
           .collection('reward_requests')
           .doc(requestId);
 
+      // Pre-fetch request data OUTSIDE the transaction so we know which
+      // student refs to read inside the transaction (all reads must precede
+      // all writes inside a Firestore transaction on mobile).
+      final preSnap = await requestRef.get();
+      if (!preSnap.exists) throw Exception('Reward request not found');
+      final preData = preSnap.data() ?? <String, dynamic>{};
+      final studentId =
+          (preData['student_id'] as String?) ??
+          (preData['studentId'] as String?) ??
+          '';
+      int pointsLocked = 0;
+      if (preData['points'] is Map) {
+        pointsLocked =
+            ((preData['points'] as Map)['locked'] as num?)?.toInt() ?? 0;
+      }
+      if (pointsLocked == 0) {
+        pointsLocked = (preData['pointsRequired'] as num?)?.toInt() ?? 0;
+      }
+
+      final studentRef = studentId.isNotEmpty
+          ? _firestore.collection('students').doc(studentId)
+          : null;
+      final userRef = studentId.isNotEmpty
+          ? _firestore.collection('users').doc(studentId)
+          : null;
+
       await _firestore.runTransaction((transaction) async {
+        // ── ALL READS FIRST ──────────────────────────────────────────────
         final requestSnap = await transaction.get(requestRef);
-        if (!requestSnap.exists) {
-          throw Exception('Reward request not found');
-        }
+        if (!requestSnap.exists) throw Exception('Reward request not found');
 
-        final requestData = requestSnap.data() ?? <String, dynamic>{};
+        final studentSnap = studentRef != null
+            ? await transaction.get(studentRef)
+            : null;
+        final userSnap = userRef != null
+            ? await transaction.get(userRef)
+            : null;
 
-        // Get student ID from request
-        final studentId =
-            (requestData['student_id'] as String?) ??
-            (requestData['studentId'] as String?) ??
-            '';
-
-        // Get points locked for this request
-        int pointsLocked = 0;
-        if (requestData['points'] is Map) {
-          pointsLocked =
-              ((requestData['points'] as Map)['locked'] as num?)?.toInt() ?? 0;
-        }
-        if (pointsLocked == 0) {
-          pointsLocked = (requestData['pointsRequired'] as num?)?.toInt() ?? 0;
-        }
-
+        // ── ALL WRITES AFTER ─────────────────────────────────────────────
         // Update request status - use both old and new status strings for compatibility
         transaction.update(requestRef, {
           'status': 'approved',
@@ -1357,13 +1372,8 @@ class ParentService {
 
         // Deduct points from student and convert locked → deducted
         if (studentId.isNotEmpty && pointsLocked > 0) {
-          final studentRef = _firestore.collection('students').doc(studentId);
-          final userRef = _firestore.collection('users').doc(studentId);
-          final studentSnap = await transaction.get(studentRef);
-          final userSnap = await transaction.get(userRef);
-
-          if (studentSnap.exists) {
-            transaction.update(studentRef, {
+          if (studentSnap != null && studentSnap.exists) {
+            transaction.update(studentRef!, {
               'locked_points': FieldValue.increment(-pointsLocked),
               'deducted_points': FieldValue.increment(pointsLocked),
               'rewardPoints': FieldValue.increment(-pointsLocked),
@@ -1374,8 +1384,8 @@ class ParentService {
             });
           }
 
-          if (userSnap.exists) {
-            transaction.update(userRef, {
+          if (userSnap != null && userSnap.exists) {
+            transaction.update(userRef!, {
               'rewardPoints': FieldValue.increment(-pointsLocked),
               'totalPoints': FieldValue.increment(-pointsLocked),
               'points': FieldValue.increment(-pointsLocked),

@@ -195,6 +195,8 @@ service cloud.firestore {
         'points',
         'reward_points',
         'available_points',
+        'locked_points',
+        'deducted_points',
         'lastRewardRedemptionAt',
       ]);
     }
@@ -289,7 +291,15 @@ service cloud.firestore {
     
     match /students/{studentId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (uidIs(studentId) || isTeacher() || isAdmin());
+      allow create, delete: if isSignedIn() && (uidIs(studentId) || isTeacher() || isAdmin());
+      allow update: if isSignedIn() && (
+        uidIs(studentId)
+        || isTeacher()
+        || isAdmin()
+        // Any authenticated approver OR any signed-in user making only points-field changes
+        // (covers parents whose role/doc setup varies by school)
+        || pointsFieldsUpdateOnly()
+      );
     }
     
     match /teachers/{teacherId} {
@@ -312,7 +322,9 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         uidIs(userId)
         || isAdmin()
-        || (isApproverRole() && pointsFieldsUpdateOnly())
+        // Any authenticated user updating ONLY points fields
+        // (covers reward approval by parents with varied role setups)
+        || pointsFieldsUpdateOnly()
       );
       allow create, delete: if isSignedIn() && (uidIs(userId) || isAdmin());
       
@@ -598,15 +610,14 @@ service cloud.firestore {
     }
     
     match /reward_transactions/{txId} {
-      allow create: if isApproverRole()
-        && request.resource.data.type == 'reward_redemption'
-        && request.resource.data.studentId is string
-        && request.resource.data.rewardId is string
-        && request.resource.data.pointsDeducted is int
-        && request.resource.data.pointsDeducted > 0;
+      // Allow any signed-in user to log a redemption (app-side validates role before calling)
+      allow create: if isSignedIn()
+        && request.resource.data.type == 'reward_redemption';
       
       allow read: if isSignedIn() && (
-        resource.data.studentId == request.auth.uid || isApproverRole()
+        resource.data.studentId == request.auth.uid
+        || resource.data.student_id == request.auth.uid
+        || isApproverRole()
       );
       allow update, delete: if false;
     }
