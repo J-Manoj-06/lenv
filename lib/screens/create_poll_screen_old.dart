@@ -41,14 +41,10 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
   @override
   void initState() {
     super.initState();
-    print('🔵 CreatePollScreen initState called');
-    print('🔵 Chat ID: ${widget.chatId}');
-    print('🔵 Chat Type: ${widget.chatType}');
   }
 
   @override
   void dispose() {
-    print('🔵 CreatePollScreen disposed');
     _questionController.dispose();
     for (final controller in _optionControllers) {
       controller.dispose();
@@ -88,16 +84,13 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
   }
 
   Future<void> _sendPoll() async {
-    print('🔵 _sendPoll called');
     if (!_isValid()) {
-      print('🔵 ❌ Poll validation failed');
       setState(() {
         _errorMessage =
             'Please enter a question and at least $_minOptions options';
       });
       return;
     }
-    print('🔵 ✅ Poll validation passed');
 
     setState(() {
       _isSending = true;
@@ -105,21 +98,17 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
     });
 
     try {
-      print('🔵 Getting auth provider...');
       final authProvider = Provider.of<local_auth.AuthProvider>(
         context,
         listen: false,
       );
       final currentUser = authProvider.currentUser;
-      print('🔵 Current user: ${currentUser?.uid} - ${currentUser?.name}');
 
       if (currentUser == null) {
-        print('🔵 ❌ User not authenticated');
         throw Exception('User not authenticated');
       }
 
       // Build poll options
-      print('🔵 Building poll options...');
       final options = <PollOption>[];
       for (int i = 0; i < _optionControllers.length; i++) {
         final text = _optionControllers[i].text.trim();
@@ -130,13 +119,10 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
               text: text,
             ),
           );
-          print('🔵 Option $i: $text');
         }
       }
-      print('🔵 Total options: ${options.length}');
 
       // Create poll model
-      print('🔵 Creating poll model...');
       final poll = PollModel(
         question: _questionController.text.trim(),
         options: options,
@@ -145,24 +131,17 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
         createdByName: currentUser.name,
         createdByRole: currentUser.role.toString().split('.').last,
       );
-      print('🔵 Poll question: ${poll.question}');
-      print('🔵 Allow multiple: ${poll.allowMultiple}');
 
       // Send poll
-      print('🔵 Sending poll to Firestore...');
-      print('🔵 Chat ID: ${widget.chatId}');
-      print('🔵 Chat Type: ${widget.chatType}');
       final pollService = PollService();
       final messageId = await pollService.sendPoll(
         chatId: widget.chatId,
         poll: poll,
         chatType: widget.chatType,
       );
-      print('🔵 ✅ Poll sent successfully! Message ID: $messageId');
 
       // Success - go back to chat
       if (mounted) {
-        print('🔵 Navigating back to chat...');
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -173,8 +152,6 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
         );
       }
     } catch (e) {
-      print('🔵 ❌ ERROR sending poll: $e');
-      print('🔵 Stack trace: ${StackTrace.current}');
       setState(() {
         _isSending = false;
         _errorMessage = 'Failed to send poll: ${e.toString()}';
@@ -194,7 +171,6 @@ class _CreatePollScreenState extends State<CreatePollScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('🔵 CreatePollScreen build method called');
     final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(

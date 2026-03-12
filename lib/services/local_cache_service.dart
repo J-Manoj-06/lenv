@@ -64,7 +64,6 @@ class LocalCacheService {
     } catch (e) {
       // Mark as initialized even on error to prevent retry loops
       _initialized = true;
-      print('⚠️ LocalCacheService initialization failed: $e');
       rethrow;
     }
   }

@@ -201,9 +201,6 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
 
     await _localRepo.initialize();
 
-    print('🔥 BaseGroupChat - Initializing offline-first');
-    print('   Chat ID: ${widget.chatId}');
-    print('   Chat Type: ${widget.chatType}');
 
     // Load from cache first
     final cachedMessages = await _localRepo.getMessagesForChat(
@@ -212,14 +209,12 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
     );
 
     if (cachedMessages.isEmpty) {
-      print('📥 No cache - fetching initial messages...');
       await _syncService.initialSyncForChat(
         chatId: widget.chatId,
         chatType: widget.chatType,
         limit: 50,
       );
     } else {
-      print('✅ Loaded ${cachedMessages.length} messages from cache');
       _syncService.syncNewMessages(
         chatId: widget.chatId,
         chatType: widget.chatType,
@@ -416,22 +411,18 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
   // Attachment handlers (to be implemented with actual upload logic)
   void _pickCamera() async {
     // TODO: Implement camera picker
-    print('📷 Camera picker');
   }
 
   void _pickImages() async {
     // TODO: Implement image picker
-    print('🖼️ Image picker');
   }
 
   void _pickDocument() async {
     // TODO: Implement document picker
-    print('📄 Document picker');
   }
 
   void _pickAudio() async {
     // TODO: Implement audio picker
-    print('🎵 Audio picker');
   }
 
   void _navigateToCreatePoll() {
@@ -445,7 +436,6 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
 
   void _navigateToCreateMindmap() {
     // TODO: Implement mindmap creation navigation
-    print('🧠 Mindmap creator');
   }
 
   Future<void> _sendMessage() async {
@@ -459,7 +449,6 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
     _messageController.clear();
 
     // TODO: Implement message sending logic
-    print('💬 Sending message: $text');
   }
 
   Future<void> _startRecording() async {
@@ -497,7 +486,6 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
     _isRecording.value = false;
 
     // TODO: Implement audio upload logic
-    print('🎤 Sending recording: $_recordingPath');
 
     _recordingPath = null;
     _recordingDuration.value = 0;
@@ -516,7 +504,6 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
           await file.delete();
         }
       } catch (e) {
-        print('Error deleting recording: $e');
       }
     }
 
@@ -912,7 +899,6 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
 
   Future<void> _deleteSelectedMessages() async {
     // TODO: Implement message deletion
-    print('🗑️ Deleting ${_selectedMessages.value.length} messages');
     _isSelectionMode.value = false;
     _selectedMessages.value = {};
   }

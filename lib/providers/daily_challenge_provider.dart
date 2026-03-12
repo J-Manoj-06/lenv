@@ -347,7 +347,6 @@ class DailyChallengeProvider with ChangeNotifier {
   /// Update streak for a student
   Future<void> _updateStreak(String studentId, String today) async {
     try {
-      print('[Streak] 🔥 Updating streak for student: $studentId on $today');
 
       // Get student document
       final studentDoc = await _firestore
@@ -356,7 +355,6 @@ class DailyChallengeProvider with ChangeNotifier {
           .get();
 
       if (!studentDoc.exists) {
-        print('[Streak] ❌ Student document does not exist');
         return;
       }
 
@@ -364,33 +362,20 @@ class DailyChallengeProvider with ChangeNotifier {
       final lastStreakDate = _extractDateString(data['lastStreakDate']);
       final currentStreak = data['streak'] as int? ?? 0;
 
-      print(
-        '[Streak] 📊 Current streak: $currentStreak, Last date: $lastStreakDate',
-      );
 
       int newStreak;
 
       if (lastStreakDate == null) {
         // First recorded attempt
         newStreak = 1;
-        print('[Streak] 🆕 First recorded attempt - setting streak to 1');
       } else if (lastStreakDate == today) {
         // Already counted for today; do not increment twice
         newStreak = currentStreak;
-        print(
-          '[Streak] ⚠️ Already counted today - keeping streak at $currentStreak',
-        );
       } else {
         // New day attempt: increment streak regardless of gap and correctness
         newStreak = currentStreak + 1;
-        print(
-          '[Streak] ✅ New day attempt recorded - incrementing streak: $currentStreak → $newStreak',
-        );
       }
 
-      print(
-        '[Streak] 💾 Updating Firestore: streak=$newStreak, lastStreakDate=$today',
-      );
 
       // Update BOTH users and students collections for consistency
       // Use sequential writes to ensure atomicity
@@ -399,19 +384,16 @@ class DailyChallengeProvider with ChangeNotifier {
         'lastStreakDate': today,
       }, SetOptions(merge: true));
 
-      print('[Streak] ✅ Updated users collection');
 
       await _firestore.collection('students').doc(studentId).set({
         'streak': newStreak,
         'lastStreakDate': today,
       }, SetOptions(merge: true));
 
-      print('[Streak] ✅ Streak updated successfully in both collections!');
 
       // Wait for Firestore to propagate (important for consistency)
       await Future.delayed(const Duration(milliseconds: 500));
     } catch (e) {
-      print('[Streak] ❌ Error updating streak: $e');
     }
   }
 

@@ -237,18 +237,15 @@ class ChatService {
                 try {
                   await r2Service.deleteFile(key: key);
                 } catch (e) {
-                  print('⚠️  Failed to delete R2 file $key: $e');
                   // Continue with other files
                 }
               }
             } catch (e) {
-              print('⚠️  R2 service initialization failed: $e');
             }
           }
         }
       }
     } catch (e) {
-      print('⚠️  Error extracting R2 keys: $e');
     }
 
     // Soft-delete message in Firestore

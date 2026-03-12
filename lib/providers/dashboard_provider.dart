@@ -46,7 +46,6 @@ class DashboardProvider extends ChangeNotifier {
 
       // Auto-refresh when connectivity is restored
       if (wasDisconnected && isConnected && _dashboardData != null) {
-        print('Connectivity restored - auto-refreshing dashboard');
         refreshDashboard(_dashboardData!.studentId);
       }
     });
@@ -76,7 +75,6 @@ class DashboardProvider extends ChangeNotifier {
     } catch (e) {
       _hasError = true;
       _errorMessage = 'Error loading dashboard: $e';
-      print('Dashboard load error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();

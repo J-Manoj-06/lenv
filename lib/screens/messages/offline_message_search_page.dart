@@ -66,27 +66,17 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
 
     try {
       // Debug: Show search parameters
-      print('🔍 Starting search with:');
-      print('   Query: "$query"');
-      print('   ChatId: "${widget.chatId}"');
-      print('   ChatType: "${widget.chatType}"');
 
       // First check total messages in DB for this chat
       final totalMessages = await _localRepo.getMessagesForChat(widget.chatId);
-      print('   Total messages in this chat: ${totalMessages.length}');
 
       final messagesWithFiles = totalMessages
           .where((m) => m.attachmentUrl != null && m.attachmentUrl!.isNotEmpty)
           .toList();
-      print('   Messages with attachments: ${messagesWithFiles.length}');
 
       if (messagesWithFiles.isNotEmpty) {
-        print('   Sample attachments:');
         for (var i = 0; i < messagesWithFiles.take(3).length; i++) {
           final msg = messagesWithFiles[i];
-          print(
-            '      [$i] Type: ${msg.attachmentType}, URL: ${msg.attachmentUrl?.substring(0, 50)}...',
-          );
         }
       }
 
@@ -114,20 +104,14 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
       });
 
       // Debug: Show detailed info about search results
-      print('📋 Message results: ${messages.length}');
-      print('📁 File results: ${files.length}');
 
       if (files.isNotEmpty) {
         for (var i = 0; i < files.take(3).length; i++) {
           final file = files[i];
-          print('   [$i] ${file.getFileName()} (${file.attachmentType})');
         }
       } else {
-        print('   ❌ No files found matching query: "$query"');
       }
     } catch (e, stackTrace) {
-      print('❌ Search error: $e');
-      print('Stack trace: $stackTrace');
       setState(() {
         _isSearching = false;
       });
@@ -570,7 +554,6 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
         );
       }
     } catch (e) {
-      print('Error opening file: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(

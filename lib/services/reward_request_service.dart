@@ -16,7 +16,6 @@ class RewardRequestService {
     required int pointsRequired,
   }) async {
     try {
-      print('🔴 Creating reward request for student: $studentId');
       final docData = {
         'student_id': studentId,
         'studentName': studentName,
@@ -28,43 +27,31 @@ class RewardRequestService {
         'status': 'pending',
         'timestamps': {'requested_at': FieldValue.serverTimestamp()},
       };
-      print('🔴 Document data to save: $docData');
 
       final docRef = await _firestore.collection(_collection).add(docData);
-      print('🔴 Document created with ID: ${docRef.id}');
 
       // Verify it was saved
       final savedDoc = await docRef.get();
-      print('🔴 Saved document data: ${savedDoc.data()}');
 
       return docRef.id;
     } catch (e) {
-      print('🔴 ERROR creating reward request: $e');
       throw Exception('Failed to create reward request: $e');
     }
   }
 
   // Get reward requests for a specific student
   Stream<List<RewardRequestModel>> getStudentRewardRequests(String studentId) {
-    print('🔵 RewardRequestService: Querying for student: $studentId');
     // Query using student_id (new field name) - new requests use this field
     return _firestore
         .collection(_collection)
         .where('student_id', isEqualTo: studentId)
         .snapshots()
         .map((snapshot) {
-          print(
-            '🔵 RewardRequestService: Got ${snapshot.docs.length} documents',
-          );
           final list = snapshot.docs.map((doc) {
-            print('🔵 Document: ${doc.data()}');
             return RewardRequestModel.fromJson(doc.data(), id: doc.id);
           }).toList();
           // Sort descending by requestedOn locally
           list.sort((a, b) => b.requestedOn.compareTo(a.requestedOn));
-          print(
-            '🔵 RewardRequestService: Returning ${list.length} parsed requests',
-          );
           return list;
         });
   }

@@ -481,17 +481,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         final studentDoc = await repository.getStudentDocument(
           widget.studentId!,
         );
-        print('🟣 Student doc keys: ${studentDoc.keys.toList()}');
         parentId =
             studentDoc['parentId'] as String? ??
             studentDoc['parent_id'] as String? ??
             studentDoc['userId'] as String? ??
             widget.studentId!;
-        print('🟣 Parent ID resolved: $parentId from student doc');
       } catch (e) {
-        print(
-          '🟣 Error fetching student doc: $e, using student ID as fallback',
-        );
         parentId = widget.studentId!;
       }
 

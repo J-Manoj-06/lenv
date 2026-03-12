@@ -221,7 +221,6 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
           await file.delete();
         }
       } catch (e) {
-        print('Error deleting recording: $e');
       }
     }
 

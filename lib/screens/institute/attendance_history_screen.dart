@@ -45,7 +45,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
           .get();
 
       final totalStudents = studentSnapshot.size;
-      print('📅 Total students in school: $totalStudents');
 
       // Get attendance records for the selected date
       final snapshot = await FirebaseFirestore.instance
@@ -105,7 +104,6 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      print('Error loading attendance: $e');
       setState(() => _isLoading = false);
     }
   }

@@ -57,7 +57,6 @@ class _StandardTopPerformersPageState extends State<StandardTopPerformersPage> {
         });
       }
     } catch (e) {
-      print('❌ Error loading ranking: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }

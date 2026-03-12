@@ -631,14 +631,12 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     );
 
     if (cachedMessages.isEmpty) {
-      print('📥 No cache - fetching initial messages...');
       await _syncService.initialSyncForChat(
         chatId: chatId,
         chatType: 'group',
         limit: 50,
       );
     } else {
-      print('✅ Loaded ${cachedMessages.length} messages from cache');
       _syncService.syncNewMessages(
         chatId: chatId,
         chatType: 'group',
@@ -2049,9 +2047,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                             // Check if Firestore doc ID matches our pending ID
                             if (fsMsg.id == pendingId) {
                               foundExactMatch = true;
-                              print(
-                                '✅ [EXACT_ID_MATCH] Firestore ID matches pending ID: $pendingId',
-                              );
                               break;
                             }
                           }
@@ -2808,7 +2803,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   Future<void> _deleteMediaFiles(List<String> keys) async {
     if (keys.isEmpty) return;
 
-    print('🗑️  Deleting ${keys.length} media file(s) from R2...');
 
     try {
       final r2Service = CloudflareR2Service(
@@ -2824,18 +2818,12 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         try {
           await r2Service.deleteFile(key: key);
           successCount++;
-          print('  ✅ Deleted: $key');
         } catch (e) {
-          print('  ⚠️  Failed to delete $key: $e');
           // Continue with next file
         }
       }
 
-      print(
-        '✅ R2 cleanup complete: $successCount/${keys.length} files deleted',
-      );
     } catch (e) {
-      print('❌ R2 cleanup failed: $e');
     }
   }
 
@@ -4193,7 +4181,6 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
         ),
       );
     } catch (e) {
-      print('Error showing audio player: $e');
     }
   }
 

@@ -105,7 +105,6 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
         _filteredMessages = []; // Start with empty results
       });
     } catch (e) {
-      print('❌ Error loading messages: $e');
       setState(() {
         _isLoading = false;
         _hasError = true;

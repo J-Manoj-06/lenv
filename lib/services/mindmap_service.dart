@@ -40,11 +40,6 @@ class MindmapService {
     required String section,
   }) async {
     try {
-      print('📝 [MindmapService] Generating mindmap for topic: $topic');
-      print('📝 [MindmapService] URL: $_workerUrl/mindmap/generate');
-      print(
-        '📝 [MindmapService] Params: topicCount=$topicCount, depthLevel=$depthLevel, learningStyle=$learningStyle',
-      );
 
       final body = jsonEncode({
         'topic': topic.trim(),
@@ -55,7 +50,6 @@ class MindmapService {
         'standard': className.isNotEmpty ? className : '',
         'section': section.isNotEmpty ? section : '',
       });
-      print('📝 [MindmapService] Request body: $body');
 
       final response = await http
           .post(
@@ -65,28 +59,17 @@ class MindmapService {
           )
           .timeout(const Duration(seconds: 60));
 
-      print('📝 [MindmapService] Response status: ${response.statusCode}');
-      print('📝 [MindmapService] Response length: ${response.body.length}');
-      print(
-        '📝 [MindmapService] Response preview: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}',
-      );
 
       if (response.statusCode != 200) {
         final error = _parseError(response);
-        print('❌ [MindmapService] Error response: $error');
         throw Exception('HTTP ${response.statusCode}: $error');
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      print('📝 [MindmapService] Parsed JSON keys: ${data.keys}');
 
       final structure = data['structure'];
-      print('📝 [MindmapService] Structure type: ${structure.runtimeType}');
 
       if (structure is! Map) {
-        print(
-          '❌ [MindmapService] Structure is not a Map, got: ${structure.runtimeType}',
-        );
         throw Exception(
           'Invalid AI mindmap structure: expected Map, got ${structure.runtimeType}',
         );
@@ -95,22 +78,15 @@ class MindmapService {
       // Extract the root from the structure
       final root = structure['root'] as Map<String, dynamic>?;
       if (root == null) {
-        print('❌ [MindmapService] Structure missing root key');
         throw Exception('Invalid mindmap structure: missing root node');
       }
 
-      print(
-        '✅ [MindmapService] Successfully generated mindmap structure with root: ${root['title']}',
-      );
       return root;
     } on http.ClientException catch (e) {
-      print('❌ [MindmapService] Network error: ${e.message}');
       throw Exception('Network error: ${e.message}');
     } on TimeoutException catch (e) {
-      print('❌ [MindmapService] Timeout: ${e.message}');
       throw Exception('Request timeout: ${e.message}');
     } catch (e) {
-      print('❌ [MindmapService] Unexpected error: ${e.toString()}');
       rethrow;
     }
   }
@@ -126,9 +102,6 @@ class MindmapService {
     required Map<String, dynamic> structure,
   }) async {
     try {
-      print('📤 [MindmapService] Publishing mindmap for topic: $topic');
-      print('📤 [MindmapService] Structure type: ${structure.runtimeType}');
-      print('📤 [MindmapService] Structure keys: ${structure.keys}');
 
       // Wrap root node with proper structure for worker validation
       final publishStructure = {
@@ -151,15 +124,12 @@ class MindmapService {
           )
           .timeout(const Duration(seconds: 65));
 
-      print('📤 [MindmapService] Response status: ${response.statusCode}');
 
       if (response.statusCode != 200) {
         final error = _parseError(response);
-        print('❌ [MindmapService] Publish error: $error');
         throw Exception('Failed to publish mindmap: $error');
       }
 
-      print('✅ [MindmapService] Mindmap published successfully');
 
       // Generate local ID for now
       final mindmapId = 'mindmap_${DateTime.now().millisecondsSinceEpoch}';
@@ -175,10 +145,8 @@ class MindmapService {
 
       return mindmapId;
     } on http.ClientException catch (e) {
-      print('❌ [MindmapService] Network error: ${e.message}');
       throw Exception('Network error: ${e.message}');
     } catch (e) {
-      print('❌ [MindmapService] Unexpected error: $e');
       rethrow;
     }
   }
@@ -272,7 +240,6 @@ class MindmapService {
         }
       }
     } catch (e) {
-      print('⚠️ [MindmapService] Failed to update teacher_groups: $e');
       // Continue anyway - message was still sent
     }
   }

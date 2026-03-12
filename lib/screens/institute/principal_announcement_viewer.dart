@@ -267,23 +267,8 @@ class _PrincipalAnnouncementViewerState
               const bgColor = Colors.black; // Changed to black background
 
               // Debug logging
-              print('🔍 Announcement Debug:');
-              print('  - hasImage: ${announcement.hasImage}');
-              print('  - hasText: ${announcement.hasText}');
-              print('  - text: ${announcement.text}');
-              print('  - imageUrl: ${announcement.imageUrl}');
-              print('  - imageCaptions: ${announcement.imageCaptions}');
               if (announcement.imageCaptions != null) {
-                print(
-                  '  - imageCaptions count: ${announcement.imageCaptions!.length}',
-                );
                 for (int i = 0; i < announcement.imageCaptions!.length; i++) {
-                  print(
-                    '    [$i] url: ${announcement.imageCaptions![i]['url']}',
-                  );
-                  print(
-                    '    [$i] caption: ${announcement.imageCaptions![i]['caption']}',
-                  );
                 }
               }
 

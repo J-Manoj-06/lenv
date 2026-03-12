@@ -79,7 +79,6 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
         }
       }
     } catch (e) {
-      print('Error checking pending request: $e');
     }
   }
 
@@ -87,8 +86,6 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    print('🔵 RewardRequestScreen - productId: ${widget.productId}');
-    print('🔵 RewardRequestScreen - studentId: ${widget.studentId}');
 
     return Scaffold(
       backgroundColor: isDark
@@ -110,20 +107,13 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
       body: FutureBuilder<DocumentSnapshot>(
         future: _catalogFuture,
         builder: (context, snapshot) {
-          print(
-            '🔵 RewardRequestScreen - connectionState: ${snapshot.connectionState}',
-          );
 
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          print('🔵 RewardRequestScreen - hasError: ${snapshot.hasError}');
-          print('🔵 RewardRequestScreen - hasData: ${snapshot.hasData}');
-          print('🔵 RewardRequestScreen - exists: ${snapshot.data?.exists}');
 
           if (snapshot.hasError) {
-            print('🔴 RewardRequestScreen - error: ${snapshot.error}');
           }
 
           if (snapshot.hasError ||
@@ -150,13 +140,8 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          print(
-            '🟢 RewardRequestScreen - Found product data: ${data['title']}',
-          );
-          print('🟢 RewardRequestScreen - Data keys: ${data.keys.toList()}');
 
           final product = ProductModel.fromMap(data);
-          print('🟢 RewardRequestScreen - Product parsed: ${product.title}');
 
           // Calculate points required
           final pointsRequired = PointsCalculator.calculatePointsRequired(

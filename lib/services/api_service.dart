@@ -36,23 +36,17 @@ class ApiService {
         final data = json.decode(response.body) as Map<String, dynamic>;
         return data;
       } else {
-        print('API Error: ${response.statusCode} - ${response.body}');
         return null;
       }
     } on TimeoutException catch (e) {
-      print('Timeout: ${e.message}');
       return null;
     } on SocketException catch (e) {
-      print('No Internet Connection: ${e.message}');
       return null;
     } on HttpException catch (e) {
-      print('HTTP Error: ${e.message}');
       return null;
     } on FormatException catch (e) {
-      print('Invalid Response Format: ${e.message}');
       return null;
     } catch (e) {
-      print('Unexpected Error: $e');
       return null;
     }
   }
@@ -85,7 +79,6 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      print('API GET Error: $e');
       return null;
     }
   }
@@ -116,7 +109,6 @@ class ApiService {
       }
       return null;
     } catch (e) {
-      print('API POST Error: $e');
       return null;
     }
   }

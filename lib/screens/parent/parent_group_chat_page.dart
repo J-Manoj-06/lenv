@@ -226,9 +226,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       await _localRepo.initialize();
 
       final chatId = widget.groupId;
-      print('👨‍👩‍👧 Parent Group Chat - Initializing offline-first');
-      print('   Group ID: $chatId');
-      print('   Group Name: ${widget.groupName}');
 
       // Load from cache first
       final cachedMessages = await _localRepo.getMessagesForChat(
@@ -237,24 +234,19 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       );
 
       if (cachedMessages.isEmpty) {
-        print('📥 No cache - fetching initial messages from Firebase...');
         await _syncService.initialSyncForChat(
           chatId: chatId,
           chatType: 'parent_group',
           limit: 50,
         );
-        print('✅ Initial sync completed');
       } else {
-        print('✅ Loaded ${cachedMessages.length} messages from cache');
 
         // Debug: Check what senders are in the cache
         final senders = cachedMessages.map((m) => m.senderId).toSet();
-        print('   👥 Unique senders in cache: ${senders.length}');
         for (final senderId in senders) {
           final count = cachedMessages
               .where((m) => m.senderId == senderId)
               .length;
-          print('      - $senderId: $count messages');
         }
 
         _syncService.syncNewMessages(
@@ -269,13 +261,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser != null) {
-        print('🔄 Starting real-time sync for parent group chat');
         await _syncService.startSyncForChat(
           chatId: chatId,
           chatType: 'parent_group',
           userId: currentUser.uid,
         );
-        print('✅ Real-time sync started successfully');
 
         // ✅ CRITICAL: Load pending messages after sync starts
         await _loadPendingMessages();
@@ -283,11 +273,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         // Mark offline services ready for progress polling
         _offlineReady = true;
       } else {
-        print('⚠️ No current user found, skipping real-time sync');
       }
     } catch (e, stackTrace) {
-      print('❌ Error initializing offline-first for parent group: $e');
-      print('Stack trace: $stackTrace');
     }
   }
 
@@ -307,9 +294,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           .firstWhere((m) => m?.messageId == messageId, orElse: () => null);
 
       if (pendingMsg == null) {
-        print(
-          '⚠️ Pending message $messageId not found in list, skipping cache update',
-        );
         return;
       }
 
@@ -326,9 +310,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       );
 
       await _localRepo.saveMessage(localMessage);
-      print('💾 Updated cache for $messageId with progress');
     } catch (e) {
-      print('⚠️ Failed to update pending message cache: $e');
     }
   }
 
@@ -348,11 +330,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       );
 
       if (pendingMessages.isEmpty) {
-        print('📭 No pending messages to restore');
         return;
       }
 
-      print('📥 Loading ${pendingMessages.length} pending messages from cache');
 
       if (!mounted) return;
 
@@ -374,9 +354,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             .map((msg) => msg.messageId)
             .toSet();
 
-        print(
-          '🔄 Preserving ${activeUploadIds.length} actively uploading messages',
-        );
 
         // Remove only completed/stale messages, keep active uploads
         _pendingMessages.removeWhere(
@@ -401,9 +378,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         // Convert LocalMessage to CommunityMessageModel format
         for (final msg in pendingMessages) {
           if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
-            print(
-              '   📤 Restoring pending: ${msg.messageId} (${msg.multipleMedia!.length} media items)',
-            );
 
             // Convert multipleMedia from List<dynamic> to List<MediaMetadata>
             final mediaList = <MediaMetadata>[];
@@ -428,7 +402,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   ),
                 );
               } catch (e) {
-                print('⚠️ Failed to parse media item: $e');
               }
             }
 
@@ -443,9 +416,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             // This prevents duplication when an upload is still in progress
             // (activeUploadIds logic keeps it alive, then restore loop would add it again)
             if (_pendingMessages.any((m) => m.messageId == messageId)) {
-              print(
-                '⏭️ [RESTORE] Skipping $messageId - already present in pending list (upload in progress)',
-              );
               continue;
             }
 
@@ -503,21 +473,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     );
                 _lastUploadPercent[media.messageId] = (progressValue * 100)
                     .toInt();
-                print(
-                  '   📊 Restored progress: ${media.messageId} at ${(progressValue * 100).toInt()}%',
-                );
               } else {
-                print('   ✅ Skipped completed upload: ${media.messageId}');
               }
             }
           }
         }
       });
 
-      print('✅ Restored ${_pendingMessages.length} pending messages');
     } catch (e, stackTrace) {
-      print('❌ Error loading pending messages: $e');
-      print('Stack trace: $stackTrace');
     }
   }
 
@@ -547,9 +510,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           // ✅ CRITICAL: Check if upload is still in progress before removing
           final notifier = _pendingUploadNotifiers[pendingId];
           if (notifier != null && notifier.value < 100) {
-            print(
-              '⏳ [CLEANUP] Keep pending:$pendingId - upload at ${notifier.value}%',
-            );
             continue; // Still uploading, don't remove yet
           }
           toRemove.add(pendingId);
@@ -702,9 +662,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     // Higher threshold prevents premature loading when just scrolling up a bit
     final scrollPosition = scrollController.position;
     if (scrollPosition.pixels >= scrollPosition.maxScrollExtent * 0.95) {
-      print(
-        '[CHAT_DEBUG] Scroll threshold reached - loading more messages. Current: ${scrollPosition.pixels}, Max: ${scrollPosition.maxScrollExtent}',
-      );
       _loadMoreMessages();
     }
   }
@@ -712,25 +669,16 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   /// ✅ OPTIMIZATION: Load older messages with pagination - NO STATE CHANGES
   Future<void> _loadMoreMessages() async {
     if (_isLoadingMore || !_hasMoreMessages) {
-      print(
-        '[CHAT_DEBUG] Load skipped - isLoadingMore: $_isLoadingMore, hasMoreMessages: $_hasMoreMessages',
-      );
       return;
     }
 
     _isLoadingMore = true;
     _isLoadingMoreNotifier.value = true;
-    print(
-      '[CHAT_DEBUG] [LOAD #${++_messageLoadCount}] Starting message load. Current older messages: ${_olderMessages.length}',
-    );
 
     // Save current scroll position before loading
     final savedPosition = scrollController.hasClients
         ? scrollController.position.pixels
         : 0.0;
-    print(
-      '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Saved scroll position: $savedPosition',
-    );
 
     try {
       final newMessages = await _service.getMessagesPaginated(
@@ -739,15 +687,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         startAfter: _lastDocument,
       );
 
-      print(
-        '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Fetched ${newMessages.length} messages from Firestore',
-      );
 
       if (newMessages.length < _messagesPerPage) {
         _hasMoreMessages = false;
-        print(
-          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] No more messages - reached end',
-        );
       }
 
       if (newMessages.isNotEmpty && mounted) {
@@ -759,62 +701,32 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _olderMessages.addAll(newMessages);
         _lastDocument = newMessages.last.documentSnapshot;
 
-        print(
-          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Added messages to _olderMessages. Total older messages now: ${_olderMessages.length}',
-        );
 
         // ✅ KEY FIX: Update loading notifier AFTER messages are added
         // This updates only the loading indicator, not the entire list
         _isLoadingMoreNotifier.value = false;
-        print(
-          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Loading indicator updated to false',
-        );
 
         // Restore scroll position after the next frame
-        print(
-          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scheduling scroll restoration via addPostFrameCallback',
-        );
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) {
-            print(
-              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Widget not mounted, skipping scroll restoration',
-            );
             _isRestoringScroll = false;
             return;
           }
 
           if (!scrollController.hasClients) {
-            print(
-              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] ScrollController has no clients',
-            );
             _isRestoringScroll = false;
             return;
           }
 
           try {
-            print(
-              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Restoring scroll to position: $savedPosition',
-            );
             scrollController.jumpTo(savedPosition);
-            print(
-              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scroll restoration completed',
-            );
           } catch (e) {
-            print(
-              '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scroll restoration failed: $e',
-            );
             // If position is out of bounds, jump to safe position
             try {
               final safePosition =
                   scrollController.position.maxScrollExtent * 0.5;
-              print(
-                '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Attempting safe scroll to: $safePosition',
-              );
               scrollController.jumpTo(safePosition);
             } catch (_) {
-              print(
-                '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Safe scroll also failed',
-              );
             }
           }
 
@@ -823,26 +735,18 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             Future.delayed(const Duration(milliseconds: 50), () {
               if (mounted) {
                 _isRestoringScroll = false;
-                print(
-                  '[CHAT_DEBUG] [LOAD #$_messageLoadCount] Scroll listener re-enabled',
-                );
               }
             });
           }
         });
       } else {
         _hasMoreMessages = false;
-        print(
-          '[CHAT_DEBUG] [LOAD #$_messageLoadCount] No new messages or widget not mounted',
-        );
         _isLoadingMoreNotifier.value = false;
       }
     } catch (e) {
-      print('[CHAT_DEBUG] [LOAD #$_messageLoadCount] ERROR: $e');
       _isLoadingMoreNotifier.value = false;
     } finally {
       _isLoadingMore = false;
-      print('[CHAT_DEBUG] [LOAD #$_messageLoadCount] Load operation completed');
     }
   }
 
@@ -971,21 +875,17 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   void _scrollToBottom() {
     if (!scrollController.hasClients) return;
 
-    print('[CHAT_DEBUG] Instant scrolling to bottom to show latest message');
 
     // Schedule after frame to ensure ListView has laid out
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !scrollController.hasClients) {
-        print('[CHAT_DEBUG] ScrollController not ready for bottom scroll');
         return;
       }
 
       try {
         // Instant jump to bottom (0 in reverse list) - no animation
         scrollController.jumpTo(0.0);
-        print('[CHAT_DEBUG] Successfully jumped to bottom instantly');
       } catch (e) {
-        print('[CHAT_DEBUG] Exception during instant scroll: $e');
       }
     });
   }
@@ -1166,16 +1066,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   // Add to older cached messages to preserve them
                   olderCachedMessages.add(entry.value);
                 }
-                print(
-                  '🔍 [CACHE_DEBUG] Firestore=${firestoreMessages.length} PreservedCache=${olderCachedMessages.length}',
-                );
 
                 // ✅ SMART MERGE: Remove pending messages that now exist in Firestore
                 final pendingIdsToRemove = <String>[];
                 final filteredPendingMessages = <CommunityMessageModel>[];
-                print(
-                  '🔍 [PENDING_MERGE] Pending=${_pendingMessages.length} Firestore=${cachedFirestoreMessages.length}',
-                );
 
                 for (final pendingMsg in _pendingMessages) {
                   final pendingId = pendingMsg.messageId.replaceFirst(
@@ -1191,18 +1085,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     uploadInProgress = true;
                   }
 
-                  print(
-                    '🔍 [PENDING_MERGE] Check ${pendingMsg.messageId} base=$pendingId media=${pendingMsg.multipleMedia?.length ?? 0} uploading=$uploadInProgress progress=${notifier?.value ?? -1}%',
-                  );
 
                   // ✅ If upload in progress, keep the message visible
                   if (uploadInProgress) {
                     final cachedPending =
                         _messageCache[pendingMsg.messageId] ??= pendingMsg;
                     filteredPendingMessages.add(cachedPending);
-                    print(
-                      '⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload at ${notifier?.value ?? 0}%',
-                    );
                     continue;
                   }
 
@@ -1218,9 +1106,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                               _pendingUploadNotifiers[media.messageId];
                           if (notifier != null && notifier.value < 100) {
                             uploadComplete = false;
-                            print(
-                              '📤 [EXACT_MATCH] ${media.messageId} still uploading: ${notifier.value}%',
-                            );
                             break;
                           }
                         }
@@ -1230,23 +1115,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             _pendingUploadNotifiers[pendingMsg.messageId];
                         if (notifier != null && notifier.value < 100) {
                           uploadComplete = false;
-                          print(
-                            '📤 [EXACT_MATCH] ${pendingMsg.messageId} still uploading: ${notifier.value}%',
-                          );
                         }
                       }
 
                       if (uploadComplete) {
                         foundExactMatch = true;
-                        print(
-                          '✅ [EXACT_ID_MATCH] Firestore ID matches pending ID: $pendingId - removing',
-                        );
                         pendingIdsToRemove.add(pendingMsg.messageId);
                       } else {
                         // Still uploading - keep pending visible
-                        print(
-                          '⏳ [EXACT_ID_MATCH] Firestore ID matches but upload incomplete: $pendingId - keeping',
-                        );
                       }
                       break;
                     }
@@ -1329,9 +1205,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             _pendingUploadNotifiers[media.messageId];
                         if (notifier != null && notifier.value < 100) {
                           uploadComplete = false;
-                          print(
-                            '📤 [PENDING_MERGE] ${media.messageId} still uploading: ${notifier.value}%',
-                          );
                           break;
                         }
                       }
@@ -1341,26 +1214,17 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                           _pendingUploadNotifiers[pendingMsg.messageId];
                       if (notifier != null && notifier.value < 100) {
                         uploadComplete = false;
-                        print(
-                          '📤 [PENDING_MERGE] ${pendingMsg.messageId} still uploading: ${notifier.value}%',
-                        );
                       }
                     }
 
                     if (uploadComplete) {
                       // Upload complete - safe to remove pending and show server version
-                      print(
-                        '🗑️ [PENDING_MERGE] Remove ${pendingMsg.messageId} matched ${matchingServerMsg.messageId}',
-                      );
                       pendingIdsToRemove.add(pendingMsg.messageId);
                     } else {
                       // Still uploading - keep pending message visible
                       final cachedPending =
                           _messageCache[pendingMsg.messageId] ??= pendingMsg;
                       filteredPendingMessages.add(cachedPending);
-                      print(
-                        '⏳ [PENDING_MERGE] Keep ${pendingMsg.messageId} - upload in progress',
-                      );
                     }
                   } else {
                     // Still uploading - keep in list
@@ -1368,15 +1232,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     final cachedPending =
                         _messageCache[pendingMsg.messageId] ??= pendingMsg;
                     filteredPendingMessages.add(cachedPending);
-                    print('✅ [PENDING_MERGE] Keep ${pendingMsg.messageId}');
                   }
                 }
 
                 // Remove completed pending messages (after frame to avoid flicker)
                 if (pendingIdsToRemove.isNotEmpty) {
-                  print(
-                    '🧹 [PENDING_MERGE] Removing pending: $pendingIdsToRemove',
-                  );
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted) return;
                     setState(() {
@@ -1803,23 +1663,43 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                   .multipleMedia!
                                                                   .map((m) {
                                                                     // Priority 1: publicUrl (Firestore/uploaded)
-                                                                    if (m.publicUrl.isNotEmpty) {
-                                                                      return m.publicUrl;
+                                                                    if (m
+                                                                        .publicUrl
+                                                                        .isNotEmpty) {
+                                                                      return m
+                                                                          .publicUrl;
                                                                     }
                                                                     // Priority 2: local path by r2Key
-                                                                    final byR2Key = _localSenderMediaPaths[m.r2Key];
-                                                                    if (byR2Key != null && byR2Key.isNotEmpty) {
+                                                                    final byR2Key =
+                                                                        _localSenderMediaPaths[m
+                                                                            .r2Key];
+                                                                    if (byR2Key !=
+                                                                            null &&
+                                                                        byR2Key
+                                                                            .isNotEmpty) {
                                                                       return byR2Key;
                                                                     }
                                                                     // Priority 3: local path by messageId (set during initial upload)
-                                                                    final byMsgId = _localSenderMediaPaths[m.messageId];
-                                                                    if (byMsgId != null && byMsgId.isNotEmpty) {
+                                                                    final byMsgId =
+                                                                        _localSenderMediaPaths[m
+                                                                            .messageId];
+                                                                    if (byMsgId !=
+                                                                            null &&
+                                                                        byMsgId
+                                                                            .isNotEmpty) {
                                                                       return byMsgId;
                                                                     }
                                                                     // Priority 4: thumbnail (local file path stored in pending metadata)
-                                                                    return m.thumbnail.isNotEmpty ? m.thumbnail : '';
+                                                                    return m
+                                                                            .thumbnail
+                                                                            .isNotEmpty
+                                                                        ? m.thumbnail
+                                                                        : '';
                                                                   })
-                                                                  .where((url) => url.isNotEmpty)
+                                                                  .where(
+                                                                    (url) => url
+                                                                        .isNotEmpty,
+                                                                  )
                                                                   .toList(),
                                                               isMe:
                                                                   isCurrentUser,
@@ -3055,20 +2935,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         isPending: true,
       );
       await _localRepo.saveMessage(pendingLocalMsg);
-      print('💾 Pending message saved to cache (survives navigation)');
     } catch (e) {
-      print('⚠️ Failed to cache pending message: $e');
     }
 
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
-      print(
-        '✅ [PENDING_DEBUG] Added pending message to list: ${pendingMessage.messageId}',
-      );
-      print('   - Sender: ${user.uid}');
-      print('   - Timestamp: $baseTimestamp');
-      print('   - MultipleMedia count: ${mediaList.length}');
-      print('   - Total pending messages now: ${_pendingMessages.length}');
 
       // Track local paths and upload progress for each media item
       for (int i = 0; i < localPaths.length; i++) {
@@ -3076,21 +2947,16 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _localSenderMediaPaths[messageId] = localPaths[i];
         _pendingUploadNotifiers[messageId] = ValueNotifier<double>(0);
         _lastUploadPercent[messageId] = -1;
-        print(
-          '   - Media $i: messageId=$messageId, localPath=${localPaths[i]}',
-        );
       }
     });
 
     // Upload all images
     try {
-      print('🚀 [UPLOAD_DEBUG] Starting upload for ${files.length} files');
       final uploadedMetadata = <MediaMetadata>[];
 
       for (int i = 0; i < files.length; i++) {
         final file = files[i];
         final messageId = '${groupMessageId}_$i';
-        print('📤 [UPLOAD_DEBUG] Uploading file $i: ${file.path}');
 
         // Upload to R2 with progress tracking
         final mediaMessage = await _mediaUploadService.uploadMedia(
@@ -3119,11 +2985,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     final mId = m.messageId;
                     final progress = _pendingUploadNotifiers[mId]?.value ?? 0.0;
                     // ✅ FIX: Include thumbnail (local file path) so it survives cache restore
-                    final localPath = _localSenderMediaPaths[mId] ?? m.thumbnail;
+                    final localPath =
+                        _localSenderMediaPaths[mId] ?? m.thumbnail;
                     return {
                       'messageId': mId,
                       'localPath': localPath,
-                      'thumbnail': localPath, // ✅ Preserve local path as thumbnail
+                      'thumbnail':
+                          localPath, // ✅ Preserve local path as thumbnail
                       'uploadProgress': progress / 100.0,
                       'r2Key': m.r2Key,
                       'publicUrl': m.publicUrl,
@@ -3174,7 +3042,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           },
         );
 
-        print('✅ [UPLOAD_DEBUG] File $i uploaded: ${mediaMessage.r2Url}');
         final r2Key = mediaMessage.r2Url.split('/').skip(3).join('/');
         final publicUrl = mediaMessage.r2Url;
 
@@ -3192,7 +3059,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
         uploadedMetadata.add(metadata);
 
-        print('💾 [UPLOAD_DEBUG] Cached media file $i');
         // Cache the uploaded file
         await _mediaRepository.cacheUploadedMedia(
           r2Key: r2Key,
@@ -3203,13 +3069,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         );
       }
 
-      print('🔥 [UPLOAD_DEBUG] All files uploaded, writing to Firestore');
       // ✅ Create Firestore message with auto-generated ID (like staff room)
       // ✅ CRITICAL: Use correct collection - parent_teacher_groups, not communities!
       final messageTimestamp = DateTime.now().millisecondsSinceEpoch;
-      print(
-        '🔥 [UPLOAD_DEBUG] Writing to parent_teacher_groups/${widget.groupId}/messages',
-      );
       final messageRef = await FirebaseFirestore.instance
           .collection('parent_teacher_groups')
           .doc(widget.groupId)
@@ -3239,7 +3101,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             'reportCount': 0,
           });
 
-      print('✅ [UPLOAD_DEBUG] Firestore message created: ${messageRef.id}');
       // ✅ CRITICAL: Save final message to LocalMessageRepository with Firestore ID
       final uploadedMediaForCache = uploadedMetadata
           .map(
@@ -3268,11 +3129,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         await _localRepo.saveMessage(localMessage);
 
         // ✅ Keep pending cache until Firestore message is visible
-        print(
-          '✅ Final message saved to cache (ID: ${messageRef.id}); pending retained until sync',
-        );
       } catch (e) {
-        print('⚠️ Failed to save final message to cache: $e');
       }
 
       // ✅ Keep pending message in UI until Firestore sync replaces it
@@ -3293,8 +3150,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _scrollToBottom();
       }
     } catch (e) {
-      print('❌ [UPLOAD_DEBUG] Upload failed: $e');
-      print('❌ [UPLOAD_DEBUG] Stack trace: ${StackTrace.current}');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -3317,7 +3172,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         try {
           await _localRepo.deletePendingMessage(groupMessageId);
         } catch (e) {
-          print('⚠️ Failed to delete pending message from cache: $e');
         }
       }
     }
@@ -3461,9 +3315,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           isPending: true,
         );
         await _localRepo.saveMessage(pendingLocalMsg);
-        print('💾 PDF pending message saved to cache');
       } catch (e) {
-        print('⚠️ Failed to cache pending PDF: $e');
       }
 
       // Upload in background with optimistic UI

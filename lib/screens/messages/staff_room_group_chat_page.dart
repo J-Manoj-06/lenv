@@ -148,17 +148,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    print(
-      '🔄 [LIFECYCLE] App state changed: $state (isInitialized: $_isInitialized)',
-    );
     if (state == AppLifecycleState.resumed && _isInitialized) {
-      print('🔄 [LIFECYCLE] App RESUMED - reloading pending messages');
-      print(
-        '   Current pending count before reload: ${_pendingMessages.length}',
-      );
       _loadPendingMessages().then((_) {
-        print('🔄 [LIFECYCLE] Pending messages reloaded');
-        print('   Pending count after reload: ${_pendingMessages.length}');
       });
     }
   }
@@ -292,24 +283,17 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     _localRepo = LocalMessageRepository();
     _syncService = FirebaseMessageSyncService(_localRepo);
 
-    print('🔍 [DEBUG-INIT] Initializing local repo...');
     await _localRepo.initialize();
-    print('✅ [DEBUG-INIT] Local repo initialized');
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
 
     // ✅ OFFLINE FALLBACK: Load cached messages regardless of auth state
     // SQLite cache is auth-independent; only sync/write operations need auth
-    print('🔍 [DEBUG-INIT] Institute ID: ${widget.instituteId}');
 
     if (currentUser != null) {
       // Load pending messages from cache (survive navigation during upload)
-      print('🔍 [DEBUG-INIT] Loading pending messages from cache...');
       await _loadPendingMessages();
-      print(
-        '✅ [DEBUG-INIT] Pending messages load complete. Current pending: ${_pendingMessages.length}',
-      );
     }
 
     // Load from cache first (works offline even without auth)
@@ -317,14 +301,12 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       widget.instituteId,
       limit: 50,
     );
-    print('🔍 [DEBUG-INIT] Cached messages: ${cachedMessages.length}');
 
     if (currentUser != null) {
       var hasStaffRoomAccess = true;
 
       if (cachedMessages.isEmpty) {
         // No cache: fetch initial batch from Firebase
-        print('🔍 [DEBUG-INIT] No cache, fetching from Firebase...');
         await _syncService.initialSyncForChat(
           chatId: widget.instituteId,
           chatType: 'staff_room',
@@ -332,7 +314,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         );
       } else {
         // Sync new messages in background (if online)
-        print('🔍 [DEBUG-INIT] Syncing new messages in background...');
         _syncService.syncNewMessages(
           chatId: widget.instituteId,
           chatType: 'staff_room',
@@ -351,15 +332,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       } on FirebaseException catch (e) {
         if (e.code == 'permission-denied') {
           hasStaffRoomAccess = false;
-          print(
-            '🚫 [DEBUG-INIT] Staff room access denied for ${widget.instituteId}. Skipping real-time listener.',
-          );
         }
       }
 
       // Start real-time listener for new messages
       if (hasStaffRoomAccess) {
-        print('🔍 [DEBUG-INIT] Starting real-time listener...');
         await _syncService.startSyncForChat(
           chatId: widget.instituteId,
           chatType: 'staff_room',
@@ -370,13 +347,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       // Mark initialization as complete
       if (mounted) {
         _isInitialized = true;
-        print('✅ [DEBUG-INIT] ✓ Initialization complete');
       }
     } else {
       // Offline: mark ready so UI can show cached messages
-      print(
-        '🔄 [DEBUG-INIT] No auth user - showing ${cachedMessages.length} cached messages offline',
-      );
       if (mounted) {
         _isInitialized = true;
       }
@@ -430,13 +403,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     if (currentUser == null) {
-      print('❌ [PENDING-LOAD] No current user - cannot load pending messages');
       return;
     }
 
-    print(
-      '📝 [PENDING-LOAD] Loading pending messages for user: ${currentUser.uid}',
-    );
 
     // Load pending messages for this chat from cache
     final pendingMessages = await _localRepo.getPendingMessages(
@@ -444,26 +413,18 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       senderId: currentUser.uid,
     );
 
-    print(
-      '📝 [DEBUG-LOAD] Found ${pendingMessages.length} pending messages in cache',
-    );
 
     if (pendingMessages.isEmpty || !mounted) {
-      print(
-        '📝 [DEBUG-LOAD] Returning early - pending empty: ${pendingMessages.isEmpty}, mounted: $mounted',
-      );
       // ✅ Clear pending messages if no pending uploads
       if (!mounted) return;
       setState(() {
         _pendingMessages.clear();
-        print('📝 [DEBUG-LOAD] Cleared pending messages (empty)');
       });
       return;
     }
 
     try {
       // Get current Firestore messages to filter out already-uploaded ones
-      print('📝 [DEBUG-LOAD] Fetching Firestore messages...');
       final firestoreSnap = await FirebaseFirestore.instance
           .collection('staff_rooms')
           .doc(widget.instituteId)
@@ -471,21 +432,17 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           .limit(500)
           .get();
       final firestoreDocs = firestoreSnap.docs;
-      print('📝 [DEBUG-LOAD] Firestore has ${firestoreDocs.length} messages');
 
       if (!mounted) {
-        print('📝 [DEBUG-LOAD] Mounted changed to false before processing');
         return;
       }
 
       setState(() {
-        print('📝 [DEBUG-LOAD] ★ Entering setState...');
 
         // ✅ CRITICAL FIX: Clear old pending messages before reloading
         // This prevents the duplicate detection from skipping messages on navigation
         _pendingMessages.clear();
         _uploadingMessageIds.clear();
-        print('📝 [DEBUG-LOAD] ✓ Cleared old pending messages');
 
         int addedCount = 0;
 
@@ -499,12 +456,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               ? 'MULTI_MEDIA'
               : (isSingleAttachment ? 'SINGLE_ATTACHMENT' : 'TEXT_ONLY');
 
-          print('📝 [PENDING-LOAD] ★ Processing message: ${msg.messageId}');
-          print('   Type: $messageType');
           if (isMultiMedia) {
-            print('      (${msg.multipleMedia!.length} media items)');
           } else if (isSingleAttachment) {
-            print('      (${msg.attachmentType}: ${msg.attachmentUrl})');
           }
 
           // Check if this message is already uploaded to Firestore
@@ -536,7 +489,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                   }
                   if (allMatch) {
                     isAlreadyUploaded = true;
-                    print('   ⚠️ Already uploaded to Firestore');
                     break;
                   }
                 }
@@ -546,7 +498,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               msg.attachmentUrl!.isNotEmpty &&
               msg.attachmentUrl != 'pending') {
             // SINGLE ATTACHMENT: Already has URL from Firestore, skip
-            print('   ⚠️ Already has URL from Firestore, skipping');
             isAlreadyUploaded = true;
           } else {
             // SINGLE ATTACHMENT (still uploading): Check if attachmentUrl is still "pending"
@@ -555,9 +506,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
             if (msg.attachmentUrl == 'pending') {
               // Still uploading - don't mark as complete
-              print(
-                '   📤 Still uploading (attachmentUrl: pending) - will restore to pending list',
-              );
               isAlreadyUploaded = false;
             } else if (msg.messageId.contains('pending_')) {
               // This is a newly created pending message with no URL yet
@@ -569,7 +517,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                 // This means the upload already completed and synced
                 if (docMessageId == msg.messageId) {
                   isAlreadyUploaded = true;
-                  print('   ⚠️ Found exact match in Firestore: $docMessageId');
                   break;
                 }
               }
@@ -597,7 +544,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                     if (timeDiff < 30000 && serverAttachmentSize == 0) {
                       // Server file size is 0 means it hasn't been uploaded yet
                       // Don't mark as complete
-                      print('   📤 Server has pending upload record (size: 0)');
                       break;
                     }
                   }
@@ -659,7 +605,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             };
 
             _pendingMessages.add(messageData);
-            print('   ✅ RESTORED to pending list');
 
             // Restore local file paths and uploading state
             // Check if this was a single file stored in multipleMedia format
@@ -667,18 +612,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               // Treat as single attachment for upload tracking
               final isStillUploading = msg.attachmentUrl == 'pending';
 
-              print(
-                '      📊 Single attachment (from metadata): ${msg.messageId} (${msg.attachmentType})',
-              );
-              print('         - File: $attachmentName');
-              print(
-                '         - Status: ${isStillUploading ? 'UPLOADING' : 'UPLOADED'}',
-              );
 
               if (isStillUploading) {
                 if (!_uploadingMessageIds.contains(msg.messageId)) {
                   _uploadingMessageIds.add(msg.messageId);
-                  print('         - Added to uploading set');
                 }
 
                 if (!_pendingUploadProgress.containsKey(msg.messageId)) {
@@ -724,9 +661,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                     );
                   }
 
-                  print(
-                    '      📊 Multi-media[$i]: $mediaId (${(cachedProgress ?? 0.01) * 100}%)',
-                  );
                 }
               }
             } else if (msg.attachmentUrl != null &&
@@ -735,26 +669,16 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               // Show loading for pending, hide for uploaded
               final isStillUploading = msg.attachmentUrl == 'pending';
 
-              print(
-                '      📊 Single attachment: ${msg.messageId} (${msg.attachmentType})',
-              );
-              print(
-                '         - Status: ${isStillUploading ? 'UPLOADING' : 'UPLOADED'}',
-              );
 
               // ✅ CRITICAL: Add to uploading set if still pending
               if (isStillUploading) {
                 if (!_uploadingMessageIds.contains(msg.messageId)) {
                   _uploadingMessageIds.add(msg.messageId);
-                  print(
-                    '         - Added to uploading set for loading indicator',
-                  );
                 }
 
                 // Set initial progress to show loading
                 if (!_pendingUploadProgress.containsKey(msg.messageId)) {
                   _pendingUploadProgress[msg.messageId] = 0.01;
-                  print('         - Set initial progress to show loading');
                 }
 
                 // Create progress notifier for UI updates
@@ -762,34 +686,23 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                   _progressNotifiers[msg.messageId] = ValueNotifier<double>(
                     0.01,
                   );
-                  print('         - Created progress notifier');
                 }
               }
             }
           } else {
             // ✅ CLEANUP: Message already uploaded, mark as no longer pending in local DB
             // Queue cleanup after setState completes
-            print('   🧹 Cleanup: Will mark as no longer pending in local DB');
             WidgetsBinding.instance.addPostFrameCallback((_) {
               _cleanupUploadedMessage(msg);
             });
           }
         }
-        print('');
-        print('========== PENDING MESSAGE LOAD SUMMARY ==========');
-        print('   Total in local DB: ${pendingMessages.length}');
-        print('   Already uploaded: ${pendingMessages.length - addedCount}');
-        print('   Restored to pending: $addedCount');
-        print('   Current pending list: ${_pendingMessages.length}');
-        print('=================================================');
-        print('');
       });
 
       // ✅ RE-QUEUE incomplete uploads after restoring pending messages
       if (!mounted) return;
       _reQueueIncompleteUploads(pendingMessages);
     } catch (e) {
-      print('❌ [PENDING-LOAD] Error loading from Firestore: $e');
       // Fallback: just restore all as pending without upload check
       if (!mounted) return;
 
@@ -846,7 +759,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             }
           }
         }
-        print('📝 [PENDING-LOAD] Fallback: Added $addedCount messages');
 
         // ✅ RE-QUEUE INCOMPLETE UPLOADS
         _reQueueIncompleteUploads(pendingMessages);
@@ -940,7 +852,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   Future<void> _reQueueIncompleteUploads(
     List<LocalMessage> pendingMessages,
   ) async {
-    print('🔄 [RE-QUEUE] Checking for incomplete uploads...');
     int requeuedCount = 0;
 
     for (final msg in pendingMessages) {
@@ -962,9 +873,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               if (!_uploadingMessageIds.contains(mediaId)) {
                 hasIncompleteUploads = true;
 
-                print(
-                  '📤 [RE-QUEUE] Re-queueing incomplete media: $mediaId for group: $groupId',
-                );
 
                 // Store local path for upload
                 _localFilePaths[mediaId] = localPath;
@@ -986,7 +894,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
                   requeuedCount++;
                 } catch (e) {
-                  print('❌ [RE-QUEUE] Error re-queueing $mediaId: $e');
                 }
               }
             }
@@ -994,12 +901,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         }
 
         if (hasIncompleteUploads) {
-          print('✅ [RE-QUEUE] Group $groupId has incomplete uploads');
         }
       }
     }
 
-    print('✅ [RE-QUEUE] Re-queued $requeuedCount incomplete uploads');
   }
 
   Future<void> _showUploadNotification(double progress) async {
@@ -1406,14 +1311,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser == null) {
-        print('❌ [DEBUG-SAVE] No current user, cannot save');
         return;
       }
 
-      print('🔍 [DEBUG-SAVE] Saving pending message: $messageId');
-      print('   - messageData: ${messageData.toString().substring(0, 100)}...');
-      print('   - attachmentName: $attachmentName');
-      print('   - multipleMedia count: ${multipleMedia?.length ?? 0}');
 
       // ✅ CRITICAL: Preserve single attachment metadata in multipleMedia structure
       // This way when we reload, we can extract the name and size
@@ -1431,7 +1331,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             'messageId': messageId,
           },
         ];
-        print('   - Converted single attachment to multipleMedia format');
       }
 
       final localMessage = LocalMessage(
@@ -1450,22 +1349,15 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         multipleMedia: metadataList,
       );
 
-      print(
-        '   - LocalMessage created: id=${localMessage.messageId}, isPending=${localMessage.isPending}',
-      );
 
       await _localRepo.saveMessage(localMessage);
 
       // Verify it was saved
       final saved = await _localRepo.getMessageById(messageId);
       if (saved != null) {
-        print('✅ [DEBUG-SAVE] ✓ Confirmed saved in local repo: $messageId');
       } else {
-        print('❌ [DEBUG-SAVE] ✗ Message NOT found after save: $messageId');
       }
     } catch (e) {
-      print('⚠️ [DEBUG-SAVE] Exception: $e');
-      print('   Stack: ${StackTrace.current}');
       // Don't fail the upload just because local save failed
     }
   }
@@ -1474,9 +1366,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   /// This allows them to appear in the regular message stream instead of pending list
   Future<void> _cleanupUploadedMessage(LocalMessage originalMsg) async {
     try {
-      print(
-        '🧹 [CLEANUP] Marking message as no longer pending: ${originalMsg.messageId}',
-      );
 
       // Create a new message with isPending: false (since isPending is final)
       final updatedMessage = LocalMessage(
@@ -1495,10 +1384,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
       // Save the updated message
       await _localRepo.saveMessage(updatedMessage);
-      print('   ✅ Message marked as uploaded in local DB');
-      print('   ✅ Now it will appear in regular message stream');
     } catch (e) {
-      print('❌ [CLEANUP] Error: $e');
     }
   }
 
@@ -1567,8 +1453,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       'isPending': true,
     };
 
-    print('📤 Creating pending message with ${mediaList.length} images');
-    print('   Pending ID: $groupMessageId');
 
     // Save pending message to cache IMMEDIATELY (survives navigation)
     try {
@@ -1584,15 +1468,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         isPending: true,
       );
       await _localRepo.saveMessage(pendingLocalMsg);
-      print('💾 Pending message saved to cache (survives navigation)');
     } catch (e) {
-      print('⚠️ Failed to cache pending message: $e');
     }
 
     // Store local file paths BEFORE adding pending message to ensure they're available for rendering
-    print('🎯 [MULTI-IMAGE UPLOAD] Initialized:');
-    print('   Group Message ID: $groupMessageId');
-    print('   Number of images: ${mediaList.length}');
     for (int i = 0; i < mediaList.length; i++) {
       final messageId = mediaList[i]['messageId'];
       final localPath = localPaths[i];
@@ -1606,23 +1485,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       _progressNotifiers[messageId] = progressNotifier;
 
       final file = File(localPath);
-      print('   Image $i:');
-      print('     - messageId: $messageId');
-      print('     - localPath: $localPath');
-      print('     - exists: ${file.existsSync()}');
-      print('     - size: ${mediaList[i]['fileSize'] / 1024} KB');
     }
-    print('   Total uploadingMessageIds: ${_uploadingMessageIds.length}');
-    print('   Total localFilePaths: ${_localFilePaths.length}');
-    print('   Total pendingUploadProgress: ${_pendingUploadProgress.length}');
 
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
-      print('   ✅ Pending message added (count: ${_pendingMessages.length})');
-      print(
-        '   📊 Pending message structure: ${pendingMessage.toString().substring(0, 200)}...',
-      );
-      print('   📊 Calling setState - widget should rebuild now');
     });
 
     // Add a small delay to ensure setState completes
@@ -1646,10 +1512,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           groupId: groupMessageId, // Group all images together
         );
 
-        print('✅ Image $i queued for background upload: $messageId');
       }
 
-      print('✅ [MULTI-IMAGE UPLOAD] All ${files.length} images queued');
 
       // Scroll to bottom only if user hasn't scrolled away
       if (!_userHasScrolled) {
@@ -1751,24 +1615,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final progressNotifier = ValueNotifier<double>(0.01);
     _progressNotifiers[messageId] = progressNotifier;
 
-    print('🎯 [SINGLE FILE UPLOAD] Initialized with BackgroundUploadService:');
-    print('   Message ID: $messageId');
-    print('   File: $fileName');
-    print('   Absolute Path: $absolutePath');
-    print('   File exists: ${file.existsSync()}');
-    print('   File size: ${fileSize / 1024} KB');
-    print('   MIME type: $mimeType');
 
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
-      print(
-        '   ✅ Pending message added to list (count: ${_pendingMessages.length})',
-      );
-      print('   📊 Total pending messages: ${_pendingMessages.length}');
-      print('   📊 Uploading message IDs: ${_uploadingMessageIds.length}');
-      print('   📊 Local file paths: ${_localFilePaths.length}');
-      print('   📊 Pending message structure: $pendingMessage');
-      print('   📊 Calling setState - widget should rebuild now');
     });
 
     // Save pending message to local repository for persistence
@@ -1790,7 +1639,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         messageId: messageId, // Use our pending messageId for progress tracking
       );
 
-      print('✅ [SINGLE FILE UPLOAD] Queued for background upload: $messageId');
 
       // Scroll to bottom only if user hasn't scrolled away
       if (!_userHasScrolled) {
@@ -1806,10 +1654,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       }
     } catch (e) {
       // Log the error to understand what's happening
-      print('❌ [UPLOAD ERROR] Exception caught in _uploadFile:');
-      print('   Error type: ${e.runtimeType}');
-      print('   Error message: $e');
-      print('   Stack trace: ${StackTrace.current}');
 
       // Remove failed pending message
       setState(() {
@@ -1857,12 +1701,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   }
 
   void _navigateToPollScreen() {
-    print('🟢 _navigateToPollScreen called');
     Navigator.of(context).push(
       MaterialPageRoute(
         settings: const RouteSettings(name: '/create_poll'),
         builder: (_) {
-          print('🟢 CreatePollScreen builder executing');
           return CreatePollScreen(
             chatId: widget.instituteId,
             chatType: 'staff_room',
@@ -1875,7 +1717,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
   /// Handle when a poll is sent - add it to pending messages for immediate display
   void _handlePollSent(PollModel poll, String messageId) {
-    print('✅ Poll sent! Adding to pending messages...');
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     if (currentUser == null) return;
@@ -1916,7 +1757,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       if (mounted) {
         setState(() {
           _pendingMessages.add(pendingPoll);
-          print('   ➕ Added pending poll to _pendingMessages');
         });
       }
 
@@ -1933,12 +1773,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           isPending: true,
         );
         _localRepo.saveMessage(localMsg);
-        print('   💾 Saved pending poll to local cache');
       } catch (e) {
-        print('   ⚠️ Failed to cache pending poll: $e');
       }
     } catch (e) {
-      print('   ❌ Error handling poll sent: $e');
     }
   }
 
@@ -2021,7 +1858,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                   label: 'Poll',
                   color: primaryColor,
                   onTap: () {
-                    print('🟢 POLL BUTTON TAPPED');
                     Navigator.pop(bottomSheetContext);
                     _navigateToPollScreen();
                   },
@@ -2067,12 +1903,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   Future<void> _sendRecording() async {
     // Prevent duplicate sends
     if (!_isRecording.value) {
-      print('⚠️ Not recording');
       return;
     }
 
     try {
-      print('🎤 Sending recording...');
       _recordingTimer?.cancel();
       final path = await _audioRecorder.stop();
 
@@ -2121,21 +1955,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             final progressNotifier = ValueNotifier<double>(0.01);
             _progressNotifiers[messageId] = progressNotifier;
 
-            print(
-              '🎤 [RECORDING UPLOAD] Initialized with BackgroundUploadService:',
-            );
-            print('   Message ID: $messageId');
-            print('   File size: ${fileSize / 1024} KB');
-            print('   File path: $absolutePath');
 
             setState(() {
               _pendingMessages.insert(0, pendingMessage);
-              print(
-                '   ✅ Pending audio message added (count: ${_pendingMessages.length})',
-              );
-              print(
-                '   📊 Uploading message IDs: ${_uploadingMessageIds.length}',
-              );
             });
 
             // Save pending message to local repository for persistence
@@ -2162,9 +1984,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                   messageId, // Use our pending messageId for progress tracking
             );
 
-            print(
-              '✅ [RECORDING UPLOAD] Queued for background upload: $messageId',
-            );
 
             // Scroll to bottom only if user hasn't scrolled away
             if (!_userHasScrolled) {
@@ -2179,7 +1998,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               });
             }
           } catch (e) {
-            print('❌ Error uploading audio: $e');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Failed to send audio: $e')),
@@ -2192,7 +2010,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       _recordingPath = null;
       _recordingDuration.value = 0;
     } catch (e) {
-      print('❌ Error sending recording: $e');
       _isRecording.value = false;
     }
   }
@@ -2495,7 +2312,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             // If pending ID matches exactly, it's definitely the same message
             if (pendingId == docId) {
               foundMatch = true;
-              print('✅ [DEDUPE] Exact ID match: $pendingId == $docId');
               break;
             }
           }
@@ -2607,13 +2423,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                       timeDiff >= 0 &&
                       timeDiff < 300000) {
                     isMatch = true;
-                    print('✅ [DEDUPE] Single attachment matched: $pendingId');
-                    print(
-                      '   - Pending: $pendingName (${pendingAttachmentSize ?? pendingMsg['attachmentSize']} bytes)',
-                    );
-                    print(
-                      '   - Server: $serverAttachmentName ($serverAttachmentSize bytes)',
-                    );
                   }
                 }
               } else {
@@ -2631,9 +2440,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
               if (isMatch) {
                 foundMatch = true;
-                print(
-                  '✅ [DEDUPE] Pending message matched to Firestore: $pendingId',
-                );
                 break;
               }
             }
@@ -2987,7 +2793,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                     GestureDetector(
                       onTap: () async {
                         try {
-                          print('🗑️ Deleting recording...');
                           _recordingTimer?.cancel();
                           await _audioRecorder.stop();
 
@@ -3011,7 +2816,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                             );
                           }
                         } catch (e) {
-                          print('❌ Error deleting recording: $e');
                         }
                       },
                       child: Container(
@@ -3262,11 +3066,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                           },
                                         );
 
-                                        print(
-                                          '🎤 Recording started: $recordingPath',
-                                        );
                                       } catch (e) {
-                                        print('❌ Error starting recording: $e');
                                       }
                                     },
                               child: Container(
@@ -3494,7 +3294,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                 mediaToDelete.add(key);
               }
             } catch (e) {
-              print('⚠️  Failed to parse attachmentUrl: $e');
             }
           }
         }
@@ -3512,7 +3311,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                 mediaToDelete.add(key);
               }
             } catch (e) {
-              print('⚠️  Failed to parse thumbnailUrl: $e');
             }
           }
         }
@@ -3570,7 +3368,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   void _deleteMediaFiles(List<String> keys) async {
     if (keys.isEmpty) return;
 
-    print('🗑️  Deleting ${keys.length} media file(s) from R2...');
 
     try {
       final r2Service = CloudflareR2Service(
@@ -3593,23 +3390,14 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           final stillExists = await _checkFileExistsInR2(r2Service, key);
 
           successCount++;
-          print('  ✅ Deleted: $key (Verified: ${!stillExists})');
           if (stillExists) {
-            print(
-              '     ⚠️  WARNING: File still exists after deletion attempt!',
-            );
           }
         } catch (e) {
-          print('  ⚠️  Failed to delete $key: $e');
           // Continue with next file
         }
       }
 
-      print(
-        '✅ R2 cleanup complete: $successCount/${keys.length} files deleted',
-      );
     } catch (e) {
-      print('❌ R2 cleanup failed: $e');
       // Non-critical error - don't show to user
     }
   }

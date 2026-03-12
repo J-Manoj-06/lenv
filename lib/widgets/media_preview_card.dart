@@ -92,16 +92,11 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       }
       // Local file doesn't exist anymore (temp cache cleaned up)
       // Need to download from R2 if upload completed
-      print('⚠️ Local file deleted: ${widget.localPath}');
     }
 
     // Use MediaAvailabilityService to check if media is cached
     final availability = await _availabilityService.checkMediaAvailability(
       widget.r2Key,
-    );
-    print(
-      '🔍 _checkDownloadStatus r2Key=${widget.r2Key} → '
-      'isCached=${availability.isCached}',
     );
 
     if (mounted) {
@@ -110,7 +105,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         if (_isDownloaded) {
           // Get the cached local path
           _availabilityService.getCachedFilePath(widget.r2Key).then((path) {
-            print('🔍 getCachedFilePath for ${widget.r2Key} → $path');
             if (mounted && path != null) {
               setState(() {
                 _localPath = path;
@@ -164,13 +158,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   void _open() {
-    print(
-      '🎯 _open() called: localPath=$_localPath, isDownloaded=$_isDownloaded, isAudio=$_isAudio, uploading=${widget.uploading}',
-    );
 
     // Block playback if still uploading
     if (widget.uploading) {
-      print('⏳ File is still uploading, cannot play yet');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please wait, audio is still uploading...'),
@@ -184,12 +174,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
     // Verify file still exists before trying to open
     final file = File(_localPath!);
-    print('🔍 Checking if file exists: ${file.path}');
     final fileExists = file.existsSync();
-    print('🔍 File exists: $fileExists');
 
     if (!fileExists) {
-      print('❌ File does NOT exist, triggering re-download');
       // File was deleted, need to re-download
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -201,14 +188,11 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       return;
     }
 
-    print('✅ File exists, opening...');
 
     if (_isDocument) {
-      print('📄 Opening document with system app');
       // Open documents with system app picker
       OpenFilex.open(_localPath!, type: widget.mimeType);
     } else if (_isAudio) {
-      print('🎵 Opening audio player screen with path: $_localPath');
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => AudioPlayerScreen(
@@ -234,19 +218,14 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   Future<void> _openFromR2() async {
     if (!_isDocument && !_isAudio) return;
 
-    print(
-      '📂 Opening from R2: r2Key=${widget.r2Key}, localPath=$_localPath, isDownloaded=$_isDownloaded',
-    );
 
     // Check if already downloaded locally and file still exists
     if (_isDownloaded && _localPath != null) {
       final file = File(_localPath!);
       final fileExists = await file.exists();
 
-      print('📂 Checking local file: path=$_localPath, exists=$fileExists');
 
       if (fileExists) {
-        print('✅ Playing from local file: $_localPath');
         // Open immediately without downloading
         if (_isDocument) {
           await OpenFilex.open(_localPath!, type: widget.mimeType);
@@ -263,12 +242,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         return;
       }
       // File doesn't exist anymore, fall through to download
-      print('⚠️ Local file missing, will download from R2');
     }
 
     // Check if r2Key still shows as pending (not uploaded yet)
     if (widget.r2Key.startsWith('pending/')) {
-      print('❌ Cannot play - file not uploaded to R2 yet: ${widget.r2Key}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -282,7 +259,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
     // Not downloaded yet or file deleted - download first then open
     try {
-      print('📥 Downloading from R2: ${widget.r2Key}');
 
       // Show loading indicator
       if (mounted) {
@@ -302,9 +278,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         fileName: widget.fileName,
         mimeType: widget.mimeType,
         onProgress: (progress) {
-          print(
-            '📥 Download progress: ${(progress * 100).toStringAsFixed(0)}%',
-          );
         },
       );
 
@@ -312,9 +285,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
 
-      print(
-        '📥 Download result: success=${result.success}, path=${result.localPath}, message=${result.message}',
-      );
 
       // Check if download succeeded
       if (result.success && result.localPath != null) {
@@ -326,7 +296,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           throw Exception('Downloaded file not found: ${result.localPath}');
         }
 
-        print('✅ Download complete, file exists: ${result.localPath}');
 
         // Update state
         setState(() {
@@ -338,7 +307,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         if (_isDocument) {
           await OpenFilex.open(result.localPath!, type: widget.mimeType);
         } else if (_isAudio) {
-          print('🎵 Opening audio player with: ${result.localPath}');
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => AudioPlayerScreen(
@@ -352,7 +320,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         throw Exception(result.message);
       }
     } catch (e) {
-      print('❌ Error downloading/opening file: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -484,14 +451,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
   @override
   Widget build(BuildContext context) {
-    print('📱 MediaPreviewCard.build() called');
-    print('   - r2Key: ${widget.r2Key}');
-    print('   - mimeType: ${widget.mimeType}');
-    print('   - fileName: ${widget.fileName}');
 
     // For IMAGES: Show WhatsApp-style preview (image with tap to expand)
     if (_isImage) {
-      print('✅ _isImage=true, calling _buildImagePreview()');
       return _buildImagePreview();
     }
 
@@ -512,12 +474,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           final borderColor =
               widget.themeColor ??
               (isDark ? const Color(0xFF3A3A3A) : const Color(0xFFE0E0E0));
-          print('🎨 MEDIAPREVIEWCARD DECORATION:');
-          print(
-            '   - backgroundColor: ${isDark ? "0xFF2C2C2E (dark gray)" : "0xFFFFFFFF (white)"}',
-          );
-          print('   - borderRadius: 12');
-          print('   - border: 1.0px theme color');
           return Container(
             width: 260,
             constraints: const BoxConstraints(minWidth: 220, minHeight: 88),
@@ -698,13 +654,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   Widget _buildImagePreview() {
     // ══════════════════════════════════════════════════════════════════════
     // DEBUG — remove once issue is confirmed fixed
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('🖼️  _buildImagePreview() r2Key=${widget.r2Key}');
-    print('   isMe=${widget.isMe}  uploading=${widget.uploading}');
-    print('   _isDownloaded=$_isDownloaded  _isDownloading=$_isDownloading');
-    print('   widget.localPath=${widget.localPath}');
-    print('   _localPath=$_localPath');
-    print('   thumbnailBase64 length=${widget.thumbnailBase64?.length}');
     // ══════════════════════════════════════════════════════════════════════
 
     // ── Shared shell: bordered clip + gesture — matches multi-image grid ───
@@ -749,14 +698,8 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             !widget.uploading &&
             !senderFileAvailable &&
             !_isDownloaded)) {
-      print(
-        '   🔵 RECEIVER path entered (isMe=${widget.isMe}, senderFileAvailable=$senderFileAvailable)',
-      );
       // 1. Currently downloading — show progress
       if (_isDownloading) {
-        print(
-          '   🔵 RECEIVER branch-1: IS DOWNLOADING (progress=$_downloadProgress)',
-        );
         return shell(
           Container(
             color: Colors.black,
@@ -796,9 +739,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
       // 2. Not yet downloaded — solid black "Tap to download"
       if (!_isDownloaded) {
-        print(
-          '   🔵 RECEIVER branch-2: NOT DOWNLOADED → showing Tap to download',
-        );
         return shell(
           Container(
             color: Colors.black,
@@ -845,11 +785,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       }
 
       // 3. Already downloaded — show local image
-      print(
-        '   🔵 RECEIVER branch-3/4: _isDownloaded=true, _localPath=$_localPath',
-      );
       if (_localPath != null) {
-        print('   🔵 RECEIVER branch-3: showing local image at $_localPath');
         return shell(
           Image.file(
             File(_localPath!),
@@ -869,9 +805,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       }
 
       // 4. Fallback — localPath unexpectedly null after download flag set
-      print(
-        '   🔵 RECEIVER branch-4: FALLBACK — _isDownloaded=true but _localPath is null! (r2Key=${widget.r2Key})',
-      );
       return shell(
         Container(
           color: Colors.grey[800],
@@ -883,9 +816,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
     // ── SENDER PATH ────────────────────────────────────────────────────────
     // Show the local file the sender just captured/picked, plus upload progress.
-    print('   🟠 SENDER path entered (isMe=true or uploading=true)');
     final senderFilePath = widget.localPath ?? _localPath;
-    print('   🟠 senderFilePath=$senderFilePath');
 
     // ── COMPACT CARD: when uploading but local file is gone (temp purged) ──
     final fileActuallyExists =
@@ -893,7 +824,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         senderFilePath.isNotEmpty &&
         File(senderFilePath).existsSync();
     if (widget.uploading && !fileActuallyExists) {
-      print('   🟠 SENDER: file gone during upload → compact upload card');
       final isDark = Theme.of(context).brightness == Brightness.dark;
       final progress = widget.uploadProgress ?? 0.0;
       return Container(
@@ -969,7 +899,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // For non-uploading senders (viewing cached images), we may reach here with false.
     if (fileActuallyExists) {
       final file = File(senderFilePath);
-      print('   🟠 senderFile.existsSync()=true');
       final p = senderFilePath.toLowerCase();
       final isValidImage =
           p.endsWith('.jpg') ||
@@ -996,7 +925,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               child: const Icon(Icons.image, size: 64, color: Colors.white54),
             );
     } else {
-      print('   🟠 SENDER: file missing (non-upload) → grey placeholder');
       senderImage = Container(
         color: Colors.grey[800],
         child: const Icon(Icons.image, size: 64, color: Colors.white54),

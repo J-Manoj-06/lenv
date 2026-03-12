@@ -41,9 +41,6 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
 
     // If child is selected and different from current, load attendance
     if (selectedChild != null && selectedChild.uid != _currentChildUid) {
-      print(
-        'DEBUG: Child changed from $_currentChildUid to ${selectedChild.uid}',
-      );
       _currentChildUid = selectedChild.uid;
       _attendanceRecords = []; // Clear old records
       _loadAttendance();
@@ -61,13 +58,9 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
     final selectedChild = parentProvider.selectedChild;
 
     if (selectedChild == null) {
-      print('DEBUG: No selected child');
       return;
     }
 
-    print(
-      'DEBUG: Loading attendance for: ${selectedChild.uid}, ${selectedChild.name}',
-    );
     setState(() => _isLoading = true);
 
     try {
@@ -75,17 +68,11 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
         selectedChild.uid,
         _selectedMonth,
       );
-      print('DEBUG: Loaded ${records.length} attendance records');
-      print('DEBUG: Records: $records');
       setState(() {
         _attendanceRecords = records;
         _isLoading = false;
       });
-      print(
-        'DEBUG: Total Present: $_totalPresent, Total Absent: $_totalAbsent, Percentage: $_attendancePercentage',
-      );
     } catch (e) {
-      print('DEBUG: Error loading attendance: $e');
       setState(() => _isLoading = false);
     }
   }

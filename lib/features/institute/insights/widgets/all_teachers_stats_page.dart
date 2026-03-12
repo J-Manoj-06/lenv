@@ -109,11 +109,7 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
       }
 
       // Debug: Print first few teachers with their UIDs
-      print('DEBUG: First 3 teachers with UIDs and assigned classes:');
       for (var teacher in teachers.take(3)) {
-        print(
-          '  - Name: "${teacher['name']}", UID: "${teacher['uid']}", Email: "${teacher['email']}", Classes: ${teacher['classesHandled']}',
-        );
       }
 
       // Fetch unique classes from students collection
@@ -122,7 +118,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
           .where('schoolCode', isEqualTo: widget.schoolCode)
           .get();
 
-      print('DEBUG: Found ${studentsSnapshot.docs.length} students');
 
       // Extract unique class names and map teachers to classes via students
       final Set<String> classNamesSet = {};
@@ -183,9 +178,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
           .where('status', isEqualTo: 'completed')
           .get();
 
-      print(
-        'DEBUG: Found ${testResultsSnapshot.docs.length} completed test results for schoolCode: ${widget.schoolCode}',
-      );
 
       // Track unique tests per teacher
       final Map<String, Set<String>> teacherTestsMap = {};
@@ -194,20 +186,10 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
       // Debug: Print sample test result structure
       if (testResultsSnapshot.docs.isNotEmpty) {
         final sampleData = testResultsSnapshot.docs.first.data();
-        print('DEBUG: Sample testResult fields: ${sampleData.keys.toList()}');
-        print('DEBUG: Sample teacherId value: "${sampleData['teacherId']}"');
-        print(
-          'DEBUG: Sample teacherEmail value: "${sampleData['teacherEmail']}"',
-        );
-        print(
-          'DEBUG: Sample teacherName value: "${sampleData['teacherName']}"',
-        );
       }
 
       // Debug: Print teacher UIDs we're looking for
-      print('DEBUG: Teacher UIDs from users collection:');
       for (var teacher in teachers.take(5)) {
-        print('  - UID: "${teacher['uid']}", Name: "${teacher['name']}"');
       }
 
       for (var result in testResultsSnapshot.docs) {
@@ -233,9 +215,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         }
       }
 
-      print(
-        'DEBUG: Unique teacherIds in testResults: ${uniqueTeacherIds.toList()}',
-      );
 
       // Update teacher test counts based on unique test IDs
       // Try multiple matching strategies: UID, docId, email
@@ -256,9 +235,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
             teacherDocId != teacherUid) {
           uniqueTests = teacherTestsMap[teacherDocId]?.length ?? 0;
           if (uniqueTests > 0) {
-            print(
-              'DEBUG: Matched teacher "${teacher['name']}" by docId: $teacherDocId',
-            );
           }
         }
 
@@ -268,9 +244,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
             // Check if this teacherId matches the email
             if (entry.key == teacherEmail) {
               uniqueTests = entry.value.length;
-              print(
-                'DEBUG: Matched teacher "${teacher['name']}" by email: $teacherEmail',
-              );
               break;
             }
           }
@@ -280,10 +253,7 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         if (uniqueTests > 0) matchedCount++;
       }
 
-      print('DEBUG: Matched $matchedCount teachers with tests');
-      print('DEBUG: Teacher test count summary:');
       for (var teacher in teachers.where((t) => (t['totalTests'] as int) > 0)) {
-        print('  - ${teacher['name']}: ${teacher['totalTests']} tests');
       }
 
       // Also get class info from scheduledTests for additional metadata
@@ -293,9 +263,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
             .where('schoolCode', isEqualTo: widget.schoolCode)
             .get();
 
-        print(
-          'DEBUG: Found ${scheduledTestsSnapshot.docs.length} scheduled tests',
-        );
 
         for (var test in scheduledTestsSnapshot.docs) {
           final testData = test.data();
@@ -322,7 +289,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
           }
         }
       } catch (e) {
-        print('DEBUG: Error fetching scheduledTests: $e');
       }
 
       // Sort teachers by test count (highest first), then by name
@@ -338,15 +304,9 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
       final teachersWithTests = teachers
           .where((t) => (t['totalTests'] as int) > 0)
           .length;
-      print(
-        'DEBUG: $teachersWithTests out of ${teachers.length} teachers have conducted tests',
-      );
 
       final standards = classNamesSet.toList()..sort();
-      print('DEBUG: Found ${standards.length} unique standards: $standards');
-      print('DEBUG: All teachers classesHandled summary:');
       for (var teacher in teachers) {
-        print('  - ${teacher['name']}: ${teacher['classesHandled']}');
       }
 
       if (mounted) {
@@ -358,7 +318,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         });
       }
     } catch (e) {
-      print('Error loading teachers: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -396,9 +355,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
           return false;
         });
       }).toList();
-      print(
-        'DEBUG: After class filter "$_selectedStandard": ${result.length} teachers',
-      );
     }
 
     // Filter by search query
@@ -410,9 +366,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
             ),
           )
           .toList();
-      print(
-        'DEBUG: After search filter "${_searchController.text}": ${result.length} teachers',
-      );
     }
 
     setState(() {

@@ -251,23 +251,13 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       } catch (_) {}
       // Mark as initialized
       _isInitialized = true;
-      print('✅ [LIFECYCLE] Community chat page initialized');
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    print(
-      '🔄 [LIFECYCLE] App state changed: $state (isInitialized: $_isInitialized)',
-    );
     if (state == AppLifecycleState.resumed && _isInitialized) {
-      print('🔄 [LIFECYCLE] App RESUMED - reloading pending messages');
-      print(
-        '   Current pending count before reload: ${_pendingMessages.length}',
-      );
       _loadPendingMessages().then((_) {
-        print('🔄 [LIFECYCLE] Pending messages reloaded');
-        print('   Pending count after reload: ${_pendingMessages.length}');
       });
     }
   }
@@ -422,16 +412,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     // Handle group upload completion
     BackgroundUploadService().onGroupComplete = (groupId) async {
-      print(
-        '🎉 Group upload complete: $groupId - Waiting for Firestore sync...',
-      );
 
       // Delete pending message from cache
       try {
         await _localRepo.deletePendingMessage(groupId);
-        print('💾 Deleted pending message from cache: $groupId');
       } catch (e) {
-        print('⚠️ Failed to delete pending message from cache: $e');
       }
 
       // DON'T remove pending message here - let Firestore sync handle it
@@ -668,16 +653,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       );
 
       if (cachedMessages.isEmpty) {
-        print('📥 No cache - fetching initial messages from Firebase...');
         await _syncService.initialSyncForChat(
           chatId: widget.communityId,
           chatType: 'community',
           limit: 50,
         );
       } else {
-        print(
-          '✅ Loaded ${cachedMessages.length} messages from cache (offline-ready)',
-        );
 
         // Sync new messages in background
         _syncService.syncNewMessages(
@@ -715,9 +696,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _pendingUploadProgress.clear();
         _localSenderMediaPaths.clear();
 
-        print(
-          '🔄 [LOAD_PENDING] Loading ${pendingMessages.length} pending messages',
-        );
 
         // Convert LocalMessage to GroupChatMessage format
         for (final msg in pendingMessages) {
@@ -745,9 +723,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
               final localPath = first['localPath'] as String?;
               final uploadProgress = first['uploadProgress'] as double? ?? 0.0;
 
-              print(
-                '   📄 [SINGLE_FILE] Restoring single file: ${first['originalFileName']}',
-              );
 
               final mediaMetadata = MediaMetadata(
                 messageId: mediaId ?? msg.messageId,
@@ -791,11 +766,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                     uploadProgress,
                   );
 
-                  print(
-                    '   📊 Restored single file: $mediaId at ${(uploadProgress * 100).toStringAsFixed(1)}%',
-                  );
                 } else {
-                  print('   ✅ Skipped completed upload: $mediaId');
                 }
               }
             } else {
@@ -847,11 +818,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       uploadProgress,
                     );
 
-                    print(
-                      '   📊 Restored progress for $mediaId: ${(uploadProgress * 100).toStringAsFixed(1)}%',
-                    );
                   } else {
-                    print('   ✅ Skipped completed upload: $mediaId');
                   }
                 }
               }
@@ -859,9 +826,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           }
         }
       });
-      print(
-        '✅ [LOAD_PENDING] Restored ${pendingMessages.length} pending messages from cache',
-      );
     }
   }
 
@@ -1020,9 +984,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
             'uploadProgress': 0.0,
           },
         ];
-        print(
-          '   ✅ Converted single attachment to multipleMedia format for storage',
-        );
       }
 
       final localMsg = LocalMessage(
@@ -1038,11 +999,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       );
 
       await _localRepo.saveMessage(localMsg);
-      print(
-        '💾 [PERSIST] Saved pending message to local DB: ${messageData['messageId']}',
-      );
     } catch (e) {
-      print('❌ [PERSIST] Failed to save pending message: $e');
     }
   }
 
@@ -1054,9 +1011,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         chatId: widget.communityId,
         messageId: messageId,
       );
-      print('✅ [CLEANUP] Marked message as uploaded in local DB: $messageId');
     } catch (e) {
-      print('❌ [CLEANUP] Failed to cleanup message: $e');
     }
   } */
 
@@ -1304,8 +1259,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       multipleMedia: mediaList.length > 1 ? mediaList : null,
     );
 
-    print('📤 Creating pending message with ${mediaList.length} images');
-    print('   Pending ID: $groupMessageId');
 
     // Save pending message to cache IMMEDIATELY (survives navigation)
     try {
@@ -1329,15 +1282,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         isPending: true,
       );
       await _localRepo.saveMessage(pendingLocalMsg);
-      print('💾 Pending message saved to cache (survives navigation)');
     } catch (e) {
-      print('⚠️ Failed to cache pending message: $e');
     }
 
     // Store local file paths BEFORE adding pending message to ensure they're available for rendering
-    print('🎯 [MULTI-IMAGE UPLOAD] Initialized:');
-    print('   Group Message ID: $groupMessageId');
-    print('   Number of images: ${mediaList.length}');
     for (int i = 0; i < mediaList.length; i++) {
       final messageId = mediaList[i].messageId;
       final localPath = localPaths[i];
@@ -1351,32 +1299,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       _progressNotifiers[messageId] = progressNotifier;
 
       final file = File(localPath);
-      print('   Image $i:');
-      print('     - messageId: $messageId');
-      print('     - localPath: $localPath');
-      print('     - exists: ${file.existsSync()}');
-      print('     - size: ${(mediaList[i].fileSize ?? 0) / 1024} KB');
     }
-    print('   Total uploadingMessageIds: ${_uploadingMessageIds.length}');
-    print('   Total localFilePaths: ${_localSenderMediaPaths.length}');
-    print('   Total pendingUploadProgress: ${_pendingUploadProgress.length}');
 
-    print('🔍 DEBUG: About to setState with pending message');
-    print('   - Message ID: ${pendingMessage.id}');
-    print('   - multipleMedia: ${pendingMessage.multipleMedia}');
-    print('   - multipleMedia length: ${pendingMessage.multipleMedia?.length}');
-    print(
-      '   - multipleMedia[0]?.localPath: ${pendingMessage.multipleMedia?.first.localPath}',
-    );
 
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
-      print('   ✅ Pending message added (count: ${_pendingMessages.length})');
-      print('   📊 Calling setState - widget should rebuild now');
-      print('   - First pending message: ${_pendingMessages.first.id}');
-      print(
-        '   - First pending multipleMedia: ${_pendingMessages.first.multipleMedia}',
-      );
     });
 
     // Add a small delay to ensure setState completes
@@ -1400,10 +1327,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           groupId: groupMessageId, // Group all images together
         );
 
-        print('✅ Image $i queued for background upload: $messageId');
       }
 
-      print('✅ [MULTI-IMAGE UPLOAD] All ${files.length} images queued');
 
       // Scroll to bottom to show new message
       _scrollToBottom(force: true);
@@ -1436,7 +1361,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
   Future<void> _pickCamera() async {
     try {
-      print('📷 Starting camera...');
 
       final image = await _imagePicker.pickImage(
         source: ImageSource.camera,
@@ -1446,14 +1370,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       );
 
       if (image == null) {
-        print('⚠️ No image captured');
         return;
       }
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUser = authProvider.currentUser;
       if (currentUser == null) {
-        print('❌ User not authenticated');
         return;
       }
 
@@ -1472,7 +1394,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       final file = File(image.path);
 
       if (!file.existsSync()) {
-        print('⚠️ File does not exist: ${image.path}');
         return;
       }
 
@@ -1491,7 +1412,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         ),
       ];
 
-      print('✅ Created pending message with camera image');
       final pendingMessage = GroupChatMessage(
         id: 'pending:$groupMessageId',
         senderId: currentUser.uid,
@@ -1523,7 +1443,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _progressNotifiers[messageId] = ValueNotifier<double>(0.01);
       });
 
-      print('📤 Queueing camera upload for $messageId');
       await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: conversationId,
@@ -1536,10 +1455,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         groupId: groupMessageId,
       );
 
-      print('✅ Camera upload queued, scrolling to bottom');
       _scrollToBottom(force: true);
     } catch (e) {
-      print('❌ Error in _pickCamera: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send camera image: $e')),
@@ -1549,12 +1466,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   }
 
   void _navigateToPollScreen() {
-    print('🔴 _navigateToPollScreen called');
     Navigator.of(context).push(
       MaterialPageRoute(
         settings: const RouteSettings(name: '/create_poll'),
         builder: (_) {
-          print('🔴 CreatePollScreen builder executing');
           return CreatePollScreen(
             chatId: widget.communityId,
             chatType: 'community',
@@ -1567,7 +1482,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
   /// Handle when a poll is sent - add it to pending messages for immediate display
   void _handlePollSent(PollModel poll, String messageId) {
-    print('✅ Poll sent! Adding to pending messages...');
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     if (currentUser == null) return;
@@ -1611,11 +1525,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       if (mounted) {
         setState(() {
           _pendingMessages.add(pendingPoll);
-          print('   ➕ Added pending poll to _pendingMessages');
         });
       }
     } catch (e) {
-      print('   ❌ Error handling poll sent: $e');
     }
   }
 
@@ -1700,7 +1612,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                   label: 'Poll',
                   color: primaryColor,
                   onTap: () {
-                    print('🔴 POLL BUTTON TAPPED');
                     Navigator.pop(bottomSheetContext);
                     _navigateToPollScreen();
                   },
@@ -1763,7 +1674,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         await _sendFileMessage(File(result.files.single.path!));
       }
     } catch (e) {
-      print('❌ Error picking document: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1783,7 +1693,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         await _sendFileMessage(File(result.files.single.path!));
       }
     } catch (e) {
-      print('❌ Error picking audio: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -1853,7 +1762,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _progressNotifiers[messageId] = ValueNotifier<double>(0.01);
       });
 
-      print('📤 Queueing file upload for $messageId');
       await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: conversationId,
@@ -1866,10 +1774,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         groupId: groupMessageId,
       );
 
-      print('✅ File upload queued, scrolling to bottom');
       _scrollToBottom(force: true);
     } catch (e) {
-      print('❌ Error sending file: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -2010,7 +1916,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _progressNotifiers[messageId] = ValueNotifier<double>(0.01);
       });
 
-      print('📤 Queueing voice message upload for $messageId');
       await BackgroundUploadService().queueUpload(
         file: file,
         conversationId: conversationId,
@@ -2023,10 +1928,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         groupId: groupMessageId,
       );
 
-      print('✅ Voice message queued');
       _scrollToBottom(force: true);
     } catch (e) {
-      print('❌ Error sending recording: $e');
       if (mounted) {
         setState(() {
           _isSendingRecording = false;
@@ -2270,17 +2173,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 return StreamBuilder<Timestamp?>(
                   stream: _lastReadAtStream,
                   builder: (context, readSnapshot) {
-                    print('🔍 StreamBuilder rebuilding:');
-                    print('   - Pending messages: ${_pendingMessages.length}');
                     for (int i = 0; i < _pendingMessages.length; i++) {
                       final msg = _pendingMessages[i];
-                      print(
-                        '     [$i] ID: ${msg.id}, multipleMedia: ${msg.multipleMedia?.length}',
-                      );
                     }
-                    print(
-                      '   - Firestore messages: ${firestoreMessages.length}',
-                    );
 
                     final hasValidData = readSnapshot.data != null;
                     final lastReadMs =
@@ -2294,9 +2189,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       ..._pendingMessages,
                       ...firestoreMessages,
                     ];
-                    print(
-                      '   - All messages after merge: ${allMessages.length}',
-                    );
                     final uploadingMessageIds = <String>{
                       ..._uploadingMessageIds,
                     };
@@ -2319,9 +2211,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                         // Check if Firestore doc ID matches our pending ID
                         if (fsMsg.id == pendingId) {
                           foundExactMatch = true;
-                          print(
-                            '✅ [EXACT_ID_MATCH] Firestore ID matches pending ID: $pendingId',
-                          );
                           break;
                         }
                       }
@@ -2633,9 +2522,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                         final message = allMessages[index];
                         if (index < 5) {
                           // Log first 5 messages
-                          print(
-                            '📩 Rendering message $index: ID=${message.id}, multipleMedia=${message.multipleMedia?.length}',
-                          );
                         }
                         final isMe = message.senderId == currentUserId;
                         final currentDate = DateTime.fromMillisecondsSinceEpoch(
@@ -2772,7 +2658,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       GestureDetector(
                         onTap: () async {
                           try {
-                            print('🗑️ Deleting recording...');
                             _recordingTimer?.cancel();
                             await _audioRecorder.stop();
 
@@ -2798,7 +2683,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                               );
                             }
                           } catch (e) {
-                            print('❌ Error deleting recording: $e');
                           }
                         },
                         child: Container(
@@ -3046,7 +2930,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                               final path =
                                   '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-                              print('🎤 Starting recording at: $path');
 
                               await _audioRecorder.start(
                                 const RecordConfig(encoder: AudioEncoder.aacLc),
@@ -3068,9 +2951,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                 },
                               );
 
-                              print('✅ Recording started successfully');
                             } catch (e) {
-                              print('❌ Error starting recording: $e');
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text('Error: $e')),
@@ -3415,13 +3296,6 @@ class _MessageBubble extends StatelessWidget {
 
     // DEBUG: Log message rendering details
     if (message.id.startsWith('pending:')) {
-      print('🎨 _MessageBubble rendering pending: ${message.id}');
-      print('   - Type: ${message.type}');
-      print('   - multipleMedia: ${message.multipleMedia?.length}');
-      print('   - multipleMedia != null: ${message.multipleMedia != null}');
-      print(
-        '   - multipleMedia!.isNotEmpty: ${message.multipleMedia?.isNotEmpty}',
-      );
     }
 
     return Padding(
@@ -3599,12 +3473,6 @@ class _MessageBubble extends StatelessWidget {
                                 message.message.isEmpty
                             ? Colors.transparent
                             : bubbleColor;
-                        print('🎨 COMMUNITY_CHAT_PAGE BUBBLE:');
-                        print(
-                          '   - hasMedia: ${message.mediaMetadata != null}',
-                        );
-                        print('   - backgroundColor: $actualBgColor');
-                        print('   - border: NONE (FIXED!)');
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

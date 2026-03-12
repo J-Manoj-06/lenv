@@ -61,7 +61,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
   Future<void> _loadAvailableOptions() async {
     // Skip if school code is empty
     if (widget.schoolCode.isEmpty) {
-      print('⚠️ Skipping load: School code is empty');
       setState(() => _isLoadingOptions = false);
       return;
     }
@@ -69,9 +68,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
     setState(() => _isLoadingOptions = true);
 
     try {
-      print(
-        '🔍 Loading standards and sections for school: ${widget.schoolCode}',
-      );
 
       // Fetch students from the school
       final snapshot = await FirebaseFirestore.instance
@@ -79,7 +75,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
           .where('schoolCode', isEqualTo: widget.schoolCode)
           .get();
 
-      print('📋 Found ${snapshot.docs.length} students');
 
       final Set<String> uniqueStandards = {};
       final Set<String> uniqueSections = {};
@@ -121,8 +116,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
         ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
       final sortedSections = uniqueSections.toList()..sort();
 
-      print('✅ Found standards: $sortedStandards');
-      print('✅ Found sections: $sortedSections');
 
       setState(() {
         _standards = ['Select', ...sortedStandards];
@@ -130,7 +123,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
         _isLoadingOptions = false;
       });
     } catch (e) {
-      print('❌ Error loading options: $e');
       setState(() => _isLoadingOptions = false);
     }
   }
@@ -175,7 +167,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
         });
       }
     } catch (e) {
-      print('❌ Error generating report: $e');
       if (mounted) {
         setState(() => _isGenerating = false);
       }

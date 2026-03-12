@@ -95,13 +95,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   Future<void> _initSchoolCode() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    print('🔍 DEBUG: Current User = ${currentUser?.name}');
-    print('🔍 DEBUG: User Role = ${currentUser?.role}');
-    print('🔍 DEBUG: User instituteId = ${currentUser?.instituteId}');
     final code = (currentUser?.instituteId?.isNotEmpty == true)
         ? (currentUser!.instituteId ?? '')
         : (_cacheManager.getLastPrincipalSchoolCode() ?? '');
-    print('🔍 DEBUG: School Code set to: "$code" (isEmpty: ${code.isEmpty})');
     if (mounted && code.isNotEmpty) {
       setState(() {
         _schoolCode = code;
@@ -137,9 +133,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   // Get real-time student count stream with offline support
   Stream<int> _getStudentCountStream(String schoolCode) {
-    print('📊 DEBUG: Getting students for schoolCode="$schoolCode"');
     if (schoolCode.isEmpty) {
-      print('⚠️ DEBUG: schoolCode is EMPTY, returning 0');
       return Stream.value(0);
     }
 
@@ -154,11 +148,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         .where('schoolCode', isEqualTo: schoolCode)
         .snapshots()
         .map((snapshot) {
-          print('📊 DEBUG: Students query returned ${snapshot.size} documents');
           if (snapshot.docs.isNotEmpty) {
-            print(
-              '📊 DEBUG: First student schoolCode: ${snapshot.docs.first.data()['schoolCode']}',
-            );
           }
 
           // Update cache
@@ -176,9 +166,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   // Get real-time staff count stream with offline support
   Stream<int> _getStaffCountStream(String schoolCode) {
-    print('👥 DEBUG: Getting staff for schoolCode="$schoolCode"');
     if (schoolCode.isEmpty) {
-      print('⚠️ DEBUG: schoolCode is EMPTY, returning 0');
       return Stream.value(0);
     }
 
@@ -194,11 +182,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         .where('schoolCode', isEqualTo: schoolCode)
         .snapshots()
         .map((snapshot) {
-          print('👥 DEBUG: Staff query returned ${snapshot.size} documents');
           if (snapshot.docs.isNotEmpty) {
-            print(
-              '👥 DEBUG: First staff schoolCode: ${snapshot.docs.first.data()['schoolCode']}',
-            );
           }
 
           // Update cache
@@ -216,9 +200,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   // Get real-time student attendance stream for today with offline support
   Stream<Map<String, dynamic>> _getStudentAttendanceStream(String schoolCode) {
-    print('📅 DEBUG: Getting attendance for schoolCode="$schoolCode"');
     if (schoolCode.isEmpty) {
-      print('⚠️ DEBUG: schoolCode is EMPTY for attendance');
       return Stream.value({'present': 0, 'total': 0, 'percent': 0.0});
     }
 
@@ -235,7 +217,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     final today = DateTime.now();
     final dateStr =
         '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-    print('📅 DEBUG: Looking for attendance date: $dateStr');
 
     // Combine attendance stream with total student count
     return FirebaseFirestore.instance
@@ -244,7 +225,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         .snapshots()
         .asyncMap((studentSnapshot) async {
           final totalStudents = studentSnapshot.size;
-          print('📅 DEBUG: Total students in school: $totalStudents');
 
           // Get attendance records for today
           final attendanceSnapshot = await FirebaseFirestore.instance
@@ -253,25 +233,15 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               .where('date', isEqualTo: dateStr)
               .get();
 
-          print(
-            '📅 DEBUG: Attendance docs found: ${attendanceSnapshot.docs.length}',
-          );
           int presentCount = 0;
 
           for (final doc in attendanceSnapshot.docs) {
             final data = doc.data();
-            print(
-              '📅 DEBUG: Doc ID: ${doc.id}, section: ${data['section']}, standard: ${data['standard']}',
-            );
             final students = data['students'] as Map<String, dynamic>?;
             if (students == null) {
-              print('⚠️ DEBUG: No students field in doc ${doc.id}');
               continue;
             }
 
-            print(
-              '📅 DEBUG: Processing ${students.length} students in doc ${doc.id}',
-            );
             for (final studentEntry in students.entries) {
               final studentData = studentEntry.value as Map<String, dynamic>?;
               if (studentData == null) continue;
@@ -288,9 +258,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               ? (presentCount / totalStudents * 100)
               : 0.0;
 
-          print(
-            '📅 DEBUG: Final attendance - Present: $presentCount, Total: $totalStudents, Percent: ${percent.toStringAsFixed(1)}%',
-          );
 
           // Update cache
           final attendanceData = {
@@ -332,9 +299,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('====================================');
-    print('DEBUG: InstituteDashboardScreen build method called');
-    print('====================================');
 
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
@@ -344,9 +308,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
             if (mounted) {
               setState(() {
                 _schoolCode = authProvider.currentUser?.instituteId ?? '';
-                print(
-                  '🔄 DEBUG: School code updated from Consumer: $_schoolCode',
-                );
               });
             }
           });
@@ -753,18 +714,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
           // DEBUG: Log announcements data
-          print('📢 Institute Dashboard - Announcements Debug:');
-          print('  Total announcements: ${allAnnouncements.length}');
           for (var ann in allAnnouncements) {
-            print('  - ID: ${ann.id}');
-            print('    Principal: ${ann.principalName}');
-            print('    hasImage: ${ann.hasImage}');
-            print('    hasText: ${ann.hasText}');
-            print('    text: "${ann.text}"');
-            print('    imageUrl: ${ann.imageUrl}');
-            print('    imageCaptions: ${ann.imageCaptions}');
             if (ann.imageCaptions != null) {
-              print('    imageCaptions count: ${ann.imageCaptions!.length}');
             }
           }
 
@@ -1011,16 +962,9 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 ..removeWhere((status) => !status.isValid)
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-          print(
-            '🎓 DEBUG: Teacher Announcements - Found ${statuses.length} valid announcements',
-          );
           for (final status in statuses) {
-            print(
-              '  - ${status.teacherName}: ${status.text.substring(0, status.text.length > 30 ? 30 : status.text.length)}..., expiresAt: ${status.expiresAt}, isValid: ${status.isValid}',
-            );
           }
         } else {
-          print('🎓 DEBUG: No teacher announcement docs found');
         }
 
         // hasTeacherAnnouncements should be based on FILTERED statuses
@@ -1037,11 +981,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
         return GestureDetector(
           onTap: () {
-            print(
-              '🎓 DEBUG: Teachers icon tapped - hasTeacherAnnouncements=$hasTeacherAnnouncements, statuses.length=${statuses.length}',
-            );
             if (hasTeacherAnnouncements) {
-              print('🎓 DEBUG: Opening teacher announcements...');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Opening ${statuses.length} announcements'),
@@ -1049,7 +989,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               );
               _openTeacherAnnouncements(statuses);
             } else {
-              print('🎓 DEBUG: No announcements to show');
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('No teacher announcements')),
               );
@@ -1573,13 +1512,11 @@ class _YesterdayAttendanceCardState extends State<_YesterdayAttendanceCard> {
   @override
   void initState() {
     super.initState();
-    print('✅ DEBUG: _YesterdayAttendanceCard initState called');
     _loadAttendance();
   }
 
   void _loadAttendance() {
     final yesterday = _getYesterdayDate();
-    print('✅ DEBUG: Loading attendance for date: $yesterday');
     _attendanceFuture = _attendanceService.getAttendanceSummary(yesterday);
   }
 
@@ -1590,17 +1527,12 @@ class _YesterdayAttendanceCardState extends State<_YesterdayAttendanceCard> {
 
   @override
   Widget build(BuildContext context) {
-    print('✅ DEBUG: Building Yesterday Attendance Card Widget');
     final yesterday = _getYesterdayDate();
 
     return FutureBuilder(
       future: _attendanceFuture,
       builder: (context, snapshot) {
-        print(
-          '✅ DEBUG: FutureBuilder state: ${snapshot.connectionState}, hasData: ${snapshot.hasData}, hasError: ${snapshot.hasError}',
-        );
         if (snapshot.hasError) {
-          print('❌ DEBUG: Error in snapshot: ${snapshot.error}');
         }
         // Always show the card, just change the content based on state
         return InkWell(
@@ -1639,7 +1571,6 @@ class _YesterdayAttendanceCardState extends State<_YesterdayAttendanceCard> {
 
   Widget _buildLoadingState() {
     // Debug: Print to console
-    print('DEBUG: Yesterday Attendance Card - Loading State');
     return Row(
       children: [
         Container(
@@ -1687,7 +1618,6 @@ class _YesterdayAttendanceCardState extends State<_YesterdayAttendanceCard> {
 
   Widget _buildErrorState() {
     // Debug: Print to console
-    print('DEBUG: Yesterday Attendance Card - Error State');
     return Row(
       children: [
         Container(
@@ -1731,9 +1661,6 @@ class _YesterdayAttendanceCardState extends State<_YesterdayAttendanceCard> {
 
   Widget _buildContentState(dynamic summary) {
     // Debug: Print to console
-    print(
-      'DEBUG: Yesterday Attendance Card - Content State: ${summary.percentage}%',
-    );
     final statusColor = summary.statusColor;
 
     return Row(

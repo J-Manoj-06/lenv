@@ -22,22 +22,16 @@ class InstituteAnnouncementCleanupService {
           .get();
 
       if (expiredQuery.docs.isEmpty) {
-        print('✅ No expired announcements to clean up');
         return;
       }
 
-      print(
-        '🗑️ Found ${expiredQuery.docs.length} expired announcements to delete',
-      );
 
       // Delete each expired announcement
       for (final doc in expiredQuery.docs) {
         await _deleteAnnouncement(doc.id, doc.data());
       }
 
-      print('✅ Cleanup completed');
     } catch (e) {
-      print('❌ Cleanup error: $e');
     }
   }
 
@@ -47,7 +41,6 @@ class InstituteAnnouncementCleanupService {
     Map<String, dynamic> data,
   ) async {
     try {
-      print('  Deleting announcement: $announcementId');
 
       // 1. Delete images from R2
       final imageCaptions = data['imageCaptions'] as List?;
@@ -80,7 +73,6 @@ class InstituteAnnouncementCleanupService {
           batch.delete(viewDoc.reference);
         }
         await batch.commit();
-        print('    🗑️  Deleted ${viewsQuery.docs.length} view records');
       }
 
       // 3. Delete main announcement document
@@ -89,9 +81,7 @@ class InstituteAnnouncementCleanupService {
           .doc(announcementId)
           .delete();
 
-      print('  ✅ Deleted announcement: $announcementId');
     } catch (e) {
-      print('  ❌ Failed to delete announcement $announcementId: $e');
     }
   }
 
@@ -113,12 +103,9 @@ class InstituteAnnouncementCleanupService {
       );
 
       if (response.statusCode == 200) {
-        print('      ✓ Deleted from R2: $key');
       } else {
-        print('      ⚠️  R2 delete failed: ${response.statusCode}');
       }
     } catch (e) {
-      print('      ⚠️  R2 delete error: $e');
       // Don't throw - image might be already deleted
     }
   }

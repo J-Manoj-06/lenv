@@ -33,8 +33,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   Future<void> _initializeAudio() async {
     _audioPlayer = AudioPlayer();
     try {
-      print('🎵 AudioPlayerScreen: Initializing audio...');
-      print('🎵 AudioPlayerScreen: audioUrl=${widget.audioUrl}');
 
       setState(() {
         _isLoading = true;
@@ -44,24 +42,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       // Check if it's a local file or remote URL
       if (widget.audioUrl.startsWith('http://') ||
           widget.audioUrl.startsWith('https://')) {
-        print('🌐 AudioPlayerScreen: Remote URL detected, using setUrl()');
         // Remote URL - use setUrl
         await _audioPlayer.setUrl(widget.audioUrl);
       } else {
         // Local file path
         final originalFile = File(widget.audioUrl);
-        print(
-          '📁 AudioPlayerScreen: Checking if file exists: ${originalFile.path}',
-        );
 
         if (!originalFile.existsSync()) {
-          print('❌ AudioPlayerScreen: File does NOT exist!');
           throw Exception('Audio file not found: ${widget.audioUrl}');
         }
 
-        print(
-          '✅ AudioPlayerScreen: File exists, size: ${originalFile.lengthSync()} bytes',
-        );
 
         // Check if file is still being written to (size changes indicate active writing)
         final initialSize = originalFile.lengthSync();
@@ -69,27 +59,19 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
         final finalSize = originalFile.lengthSync();
 
         if (initialSize != finalSize) {
-          print(
-            '⚠️ AudioPlayerScreen: File is still being written! Size changed: $initialSize → $finalSize',
-          );
           throw Exception(
             'Audio file is still being processed. Please wait a moment and try again.',
           );
         }
 
-        print('✅ AudioPlayerScreen: File size stable, ready to play');
 
         // If file is in cache directory, copy it to a stable location
         if (widget.audioUrl.contains('/cache/')) {
-          print(
-            '⚠️ AudioPlayerScreen: File is in cache directory, copying to stable location...',
-          );
 
           final appDir = await getApplicationDocumentsDirectory();
           final fileName = widget.audioUrl.split('/').last;
           final stableFile = File('${appDir.path}/$fileName');
 
-          print('📋 AudioPlayerScreen: Copying to: ${stableFile.path}');
           await originalFile.copy(stableFile.path);
 
           // Verify the copied file
@@ -97,10 +79,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           final copiedFileSize = copiedFileExists
               ? await stableFile.length()
               : 0;
-          print('✅ AudioPlayerScreen: Copy complete');
-          print(
-            '🔍 Verifying copied file: exists=$copiedFileExists, size=$copiedFileSize bytes',
-          );
 
           if (!copiedFileExists) {
             throw Exception('Copied file does not exist: ${stableFile.path}');
@@ -113,22 +91,16 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           // Small delay to ensure file system sync
           await Future.delayed(const Duration(milliseconds: 100));
 
-          print(
-            '🎵 AudioPlayerScreen: Loading from stable file: ${stableFile.path}',
-          );
           await _audioPlayer.setFilePath(stableFile.path);
         } else {
-          print('📂 AudioPlayerScreen: File not in cache, using original path');
           await _audioPlayer.setFilePath(widget.audioUrl);
         }
       }
 
-      print('✅ AudioPlayerScreen: Audio loaded successfully!');
       setState(() {
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ AudioPlayerScreen: Error loading audio: $e');
       setState(() {
         _errorMessage = 'Failed to load audio: $e';
         _isLoading = false;

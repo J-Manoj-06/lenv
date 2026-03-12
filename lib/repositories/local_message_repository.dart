@@ -33,8 +33,6 @@ class LocalMessageRepository {
       _indexBox = Hive.box<Map>(_indexBoxName);
     }
 
-    print('📦 LocalMessageRepository initialized');
-    print('   Messages count: ${_messageBox!.length}');
   }
 
   /// Save a single message to local storage
@@ -45,7 +43,6 @@ class LocalMessageRepository {
     // Use messageId as key for easy lookup
     await _messageBox!.put(message.messageId, message);
 
-    print('💾 Saved message: ${message.messageId}');
   }
 
   /// Save multiple messages in batch
@@ -59,8 +56,6 @@ class LocalMessageRepository {
 
     await _messageBox!.putAll(messageMap);
 
-    print('💾 Batch saved ${messages.length} messages');
-    print('   Total messages in DB now: ${_messageBox!.length}');
   }
 
   /// Get all messages for a specific chat
@@ -102,10 +97,6 @@ class LocalMessageRepository {
 
     final lowerQuery = query.toLowerCase();
 
-    print('🔍 Search started:');
-    print('   Query: "$query"');
-    print('   ChatId filter: ${chatId ?? "all chats"}');
-    print('   Total messages in DB: ${_messageBox!.length}');
 
     // Filter all messages
     var results = _messageBox!.values.where((msg) {
@@ -141,11 +132,7 @@ class LocalMessageRepository {
       results = results.sublist(0, limit);
     }
 
-    print('✅ Search complete: ${results.length} results found');
     if (results.isNotEmpty) {
-      print(
-        '   First result: ${results.first.messageText?.substring(0, results.first.messageText!.length > 50 ? 50 : results.first.messageText!.length)}...',
-      );
     }
 
     return results;
@@ -164,10 +151,6 @@ class LocalMessageRepository {
       return [];
     }
 
-    print('📁 File search started:');
-    print('   Query: "$query"');
-    print('   ChatId filter: ${chatId ?? "all chats"}');
-    print('   Total messages in DB: ${_messageBox!.length}');
 
     // Filter messages with attachments
     var allMessagesWithAttachments = _messageBox!.values.where((msg) {
@@ -176,17 +159,10 @@ class LocalMessageRepository {
       return msg.hasAttachment();
     }).toList();
 
-    print(
-      '   Messages with attachments in this chat: ${allMessagesWithAttachments.length}',
-    );
 
     if (allMessagesWithAttachments.isNotEmpty) {
-      print('   First 3 attachments:');
       for (var i = 0; i < allMessagesWithAttachments.take(3).length; i++) {
         final msg = allMessagesWithAttachments[i];
-        print('      [$i] File: ${msg.getFileName()}');
-        print('          Type: ${msg.attachmentType}');
-        print('          Matches search: ${msg.matchesFileSearch(query)}');
       }
     }
 
@@ -202,10 +178,7 @@ class LocalMessageRepository {
       results = results.sublist(0, limit);
     }
 
-    print('✅ File search complete: ${results.length} files found');
     if (results.isNotEmpty) {
-      print('   First result: ${results.first.getFileName()}');
-      print('   Type: ${results.first.attachmentType}');
     }
 
     return results;
@@ -269,7 +242,6 @@ class LocalMessageRepository {
     await _messageBox!.clear();
     await _indexBox!.clear();
 
-    print('🗑️ All messages cleared from local storage');
   }
 
   /// Delete messages for a specific chat
@@ -284,7 +256,6 @@ class LocalMessageRepository {
 
     await _messageBox!.deleteAll(keysToDelete);
 
-    print('🗑️ Cleared ${keysToDelete.length} messages for chat: $chatId');
   }
 
   /// Get total message count (all chats)
@@ -302,8 +273,6 @@ class LocalMessageRepository {
   }) async {
     await _ensureInitialized();
 
-    print('🔍 [DEBUG-REPO] Getting pending messages for chat: $chatId');
-    print('   Total messages in DB: ${_messageBox!.length}');
 
     final pendingMessages = _messageBox!.values.where((msg) {
       final matches =
@@ -317,9 +286,6 @@ class LocalMessageRepository {
           (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty);
 
       if (matches && !hasContent) {
-        print(
-          '   ⚠️ [DEBUG-REPO] Pending text message (no attachments): ${msg.messageId}',
-        );
       }
 
       return matches && hasContent;
@@ -328,13 +294,9 @@ class LocalMessageRepository {
     // Sort by timestamp (newest first)
     pendingMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-    print('   ✅ [DEBUG-REPO] Found ${pendingMessages.length} pending messages');
     for (final msg in pendingMessages) {
       final isMulti =
           msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty;
-      print(
-        '      - ${msg.messageId}: ${isMulti ? 'MULTI_MEDIA (${msg.multipleMedia!.length} items)' : 'SINGLE_ATTACHMENT (${msg.attachmentType})'}',
-      );
     }
 
     return pendingMessages;
@@ -348,7 +310,6 @@ class LocalMessageRepository {
     final msg = _messageBox!.get(messageId);
     if (msg != null && msg.isPending == true) {
       await _messageBox!.delete(messageId);
-      print('🗑️ Deleted pending message: $messageId');
     }
   }
 

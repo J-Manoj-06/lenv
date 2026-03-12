@@ -62,7 +62,6 @@ class _InstituteAnnouncementTargetScreenState
         _isLoading = false;
       });
     } catch (e) {
-      print('Error fetching standards: $e');
       setState(() => _isLoading = false);
     }
   }

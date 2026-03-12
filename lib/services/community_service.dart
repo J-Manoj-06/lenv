@@ -1031,7 +1031,6 @@ class CommunityService {
               }
             } catch (e) {
               // Skip messages that fail to parse (e.g., corrupted data)
-              print('⚠️ Failed to parse message ${doc.id}: $e');
             }
           }
           return messages;
@@ -1252,11 +1251,9 @@ class CommunityService {
               await r2Service.deleteFile(key: key);
             } catch (e) {
               // Continue deleting other files even if one fails
-              print('⚠️  Failed to delete R2 file $key: $e');
             }
           }
         } catch (e) {
-          print('⚠️  R2 cleanup failed: $e');
           // Continue with Firestore deletion even if R2 cleanup fails
         }
       }

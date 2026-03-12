@@ -175,9 +175,6 @@ class ParentTeacherGroupService {
         .limit(limit)
         .snapshots()
         .map((snapshot) {
-          print(
-            '🔥 [SERVICE_DEBUG] Firestore snapshot received: ${snapshot.docs.length} docs',
-          );
           final messages = <CommunityMessageModel>[];
           for (final doc in snapshot.docs) {
             try {
@@ -187,29 +184,17 @@ class ParentTeacherGroupService {
               final multiCount = hasMulti
                   ? (data['multipleMedia'] as List?)?.length ?? 0
                   : 0;
-              print(
-                '   📄 Doc ${doc.id}: createdAt=$createdAtType, type=${data['type']}, multipleMedia=$hasMulti ($multiCount items)',
-              );
 
               // Filter out documents with invalid timestamp data or deleted messages
               if (data['createdAt'] != null && !(data['isDeleted'] ?? false)) {
                 final msg = CommunityMessageModel.fromFirestore(doc);
                 messages.add(msg);
-                print(
-                  '   ✅ Parsed successfully: multiMedia=${msg.multipleMedia?.length ?? 0}',
-                );
               } else {
-                print('   ⏭️ Skipped: invalid timestamp or deleted');
               }
             } catch (e, stack) {
               // Skip messages that fail to parse (e.g., corrupted data)
-              print('⚠️ Failed to parse message ${doc.id}: $e');
-              print(
-                '   Stack: ${stack.toString().split('\n').take(3).join('\n')}',
-              );
             }
           }
-          print('🔥 [SERVICE_DEBUG] Returning ${messages.length} messages');
           return messages;
         });
   }
@@ -367,7 +352,6 @@ class ParentTeacherGroupService {
           'multipleMedia': FieldValue.delete(),
         });
       } catch (e) {
-        print('⚠️  Error processing message $messageId: $e');
       }
     }
 
@@ -382,9 +366,6 @@ class ParentTeacherGroupService {
           r2Domain: CloudflareConfig.r2Domain,
         );
 
-        print(
-          '🗑️  Deleting ${r2KeysToDelete.length} media file(s) from R2...',
-        );
         int successCount = 0;
 
         for (final key in r2KeysToDelete) {
@@ -392,16 +373,11 @@ class ParentTeacherGroupService {
             await r2Service.deleteFile(key: key);
             successCount++;
           } catch (e) {
-            print('⚠️  Failed to delete R2 file $key: $e');
             // Continue with other files
           }
         }
 
-        print(
-          '✅ R2 cleanup complete: $successCount/${r2KeysToDelete.length} files deleted',
-        );
       } catch (e) {
-        print('❌ R2 service initialization failed: $e');
       }
     }
 

@@ -123,7 +123,6 @@ class BackgroundDownloadService {
           results[index] = result.localPath!;
         }
       } catch (e) {
-        print('❌ Download failed for image $index: $e');
       }
 
       downloadedFiles++;

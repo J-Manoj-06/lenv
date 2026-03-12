@@ -29,7 +29,6 @@ class ShareReceiverService {
         }
       },
       onError: (error) {
-        print('❌ Error receiving shared media: $error');
       },
     );
 

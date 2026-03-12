@@ -35,8 +35,6 @@ class _ClassSectionsPerformersPageState
       // Extract just the number from className (e.g., "Grade 10" -> "10")
       final classNumber = widget.className.replaceAll(RegExp(r'[^0-9]'), '');
 
-      print('DEBUG: Looking for class number: $classNumber');
-      print('DEBUG: School code: ${widget.schoolCode}');
 
       // Fetch all students in this school first
       final snapshot = await FirebaseFirestore.instance
@@ -44,7 +42,6 @@ class _ClassSectionsPerformersPageState
           .where('schoolCode', isEqualTo: widget.schoolCode)
           .get();
 
-      print('DEBUG: Total students in school: ${snapshot.docs.length}');
 
       // First pass: Filter students by class and collect UIDs
       final List<StudentModel> matchingStudents = [];
@@ -70,7 +67,6 @@ class _ClassSectionsPerformersPageState
         }
       }
 
-      print('DEBUG: Found ${matchingStudents.length} matching students');
 
       // Batch fetch user data (Firestore supports up to 10 items in whereIn)
       final Map<String, Map<String, dynamic>> userDataMap = {};
@@ -89,7 +85,6 @@ class _ClassSectionsPerformersPageState
             }
           }
         } catch (e) {
-          print('DEBUG: Error fetching user batch: $e');
         }
       }
 
@@ -130,7 +125,6 @@ class _ClassSectionsPerformersPageState
         );
       }
 
-      print('DEBUG: Grouped sections: ${grouped.keys.toList()}');
 
       // Sort sections alphabetically
       final sortedSections = Map.fromEntries(

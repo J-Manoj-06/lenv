@@ -32,10 +32,8 @@ class _ParentRequestApprovalScreenState
       final repository = ref.read(rewardsRepositoryProvider);
       final cancelledCount = await repository.cancelExpiredRewardRequests();
       if (cancelledCount > 0) {
-        print('🔴 Auto-cancelled $cancelledCount expired requests');
       }
     } catch (e) {
-      print('Error checking expired requests: $e');
     }
   }
 

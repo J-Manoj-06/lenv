@@ -64,24 +64,10 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   @override
   void initState() {
     super.initState();
-    print(
-      '📋 [MindmapReviewPage] Initializing with structure keys: ${widget.initialStructure.keys}',
-    );
-    print(
-      '📋 [MindmapReviewPage] Root title: ${widget.initialStructure['title']}',
-    );
     _structure = _normalize(widget.initialStructure, widget.topic);
-    print(
-      '✅ [MindmapReviewPage] Normalized structure title: ${_structure['title']}',
-    );
-    print(
-      '✅ [MindmapReviewPage] Children count: ${(_structure['children'] as List?)?.length ?? 0}',
-    );
 
     // Auto-expand all nodes on initial load
     _expandAllNodes(_structure, 'root');
-    print('✅ [MindmapReviewPage] Expanded nodes: $_expanded');
-    print('✅ [MindmapReviewPage] Total expanded count: ${_expanded.length}');
 
     // Initialize with centered view immediately
     _initializeCenteredView();
@@ -107,16 +93,12 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
     final dy = targetRootY - _rootCenter.dy;
 
     _transformController.value = Matrix4.identity()..translate(dx, dy);
-    print('🎯 [Init] Centered view: dx=$dx, dy=$dy');
   }
 
   void _expandAllNodes(Map<String, dynamic> node, String path) {
     _expanded.add(path);
     final children =
         (node['children'] as List?)?.whereType<Map>().toList() ?? <Map>[];
-    print(
-      '📍 [MindmapReviewPage] Expanding path: $path, children: ${children.length}',
-    );
     for (int i = 0; i < children.length; i++) {
       final child = Map<String, dynamic>.from(children[i]);
       final childPath = '$path/$i';
@@ -329,8 +311,6 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
   List<_NodePos> _layout({bool applyManualOffsets = true}) {
     final nodes = <_NodePos>[];
-    print('🎨 [Layout] Starting layout calculation, _expanded: $_expanded');
-    print('🎨 [Layout] Structure title: ${_structure['title']}');
 
     void walk(
       Map<String, dynamic> node,
@@ -340,9 +320,6 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       String? parent,
       double spread,
     ) {
-      print(
-        '🚶 [Layout Walk] path: $path, title: ${node['title']}, expanded: ${_expanded.contains(path)}',
-      );
       nodes.add(
         _NodePos(
           path: path,
@@ -356,17 +333,14 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       );
 
       if (!_expanded.contains(path)) {
-        print('  ⏸️ [Layout Walk] Skipping children - not expanded');
         return;
       }
       final children =
           (node['children'] as List?)?.whereType<Map>().toList() ?? <Map>[];
       if (children.isEmpty) {
-        print('  ⏸️ [Layout Walk] Skipping - no children');
         return;
       }
 
-      print('  ➡️ [Layout Walk] Processing ${children.length} children');
       final count = children.length;
       // HORIZONTAL LAYOUT: Children expand to the RIGHT (left to right)
       final x = center.dx + 220; // Move right instead of down
@@ -388,7 +362,6 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
     // Start root node on left side, centered vertically for horizontal expansion
     walk(_structure, 'root', _rootCenter, 0, null, 260);
-    print('🎨 [Layout] Finished, total nodes: ${nodes.length}');
     return nodes;
   }
 
@@ -634,7 +607,6 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   Widget build(BuildContext context) {
     final nodes = _layout();
     final viewport = _viewportInScene().inflate(300);
-    print('🖼️ [Build] Viewport: $viewport');
     final visibleNodes = nodes.where((node) {
       final rect = Rect.fromCenter(
         center: node.center,
@@ -643,13 +615,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       );
       return rect.overlaps(viewport);
     }).toList();
-    print(
-      '👁️ [Build] Visible nodes: ${visibleNodes.length} / ${nodes.length}',
-    );
     if (visibleNodes.isEmpty && nodes.isNotEmpty) {
-      print(
-        '⚠️ [Build] WARNING: No visible nodes! First node center: ${nodes.first.center}',
-      );
     }
 
     final byPath = {for (final n in nodes) n.path: n};

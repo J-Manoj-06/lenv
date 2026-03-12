@@ -22,7 +22,6 @@ class WhatsAppChatService {
       final cleanedNumber = _cleanPhoneNumber(parentPhoneNumber);
 
       if (cleanedNumber.isEmpty) {
-        print('❌ Invalid phone number: $parentPhoneNumber');
         return false;
       }
 
@@ -38,13 +37,11 @@ class WhatsAppChatService {
           await _createContact(studentName, cleanedNumber);
         }
       } else {
-        print('⚠️ Contacts permission not granted. Skipping contact creation.');
       }
 
       // Step 4: Open WhatsApp chat
       return await _openWhatsAppChat(cleanedNumber);
     } catch (e) {
-      print('❌ Error in startParentWhatsAppChat: $e');
       return false;
     }
   }
@@ -64,7 +61,6 @@ class WhatsAppChatService {
 
       return result.isGranted;
     } catch (e) {
-      print('❌ Error checking contacts permission: $e');
       return false;
     }
   }
@@ -82,16 +78,13 @@ class WhatsAppChatService {
         for (final phone in contact.phones) {
           final contactPhone = _cleanPhoneNumber(phone.number);
           if (contactPhone == phoneNumber) {
-            print('✅ Contact exists: ${contact.displayName}');
             return true;
           }
         }
       }
 
-      print('ℹ️ Contact does not exist for: $phoneNumber');
       return false;
     } catch (e) {
-      print('❌ Error checking if contact exists: $e');
       // If we can't check, assume it doesn't exist
       return false;
     }
@@ -106,9 +99,7 @@ class WhatsAppChatService {
       );
 
       await FlutterContacts.insertContact(newContact);
-      print('✅ Contact created: $studentName Parent - $phoneNumber');
     } catch (e) {
-      print('❌ Error creating contact: $e');
       // Don't throw error, just continue to WhatsApp
     }
   }
@@ -125,14 +116,11 @@ class WhatsAppChatService {
 
       if (canLaunch) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-        print('✅ WhatsApp opened for: $phoneNumber');
         return true;
       } else {
-        print('❌ Cannot launch WhatsApp for: $phoneNumber');
         return false;
       }
     } catch (e) {
-      print('❌ Error opening WhatsApp: $e');
       return false;
     }
   }

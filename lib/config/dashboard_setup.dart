@@ -39,7 +39,6 @@ class DashboardSetup {
       Hive.registerAdapter(AttendanceSummaryAdapter());
     }
 
-    print('✅ Hive initialized successfully');
   }
 
   /// Create provider instances with proper dependency injection

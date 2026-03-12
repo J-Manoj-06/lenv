@@ -14,6 +14,7 @@ import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../services/parent_service.dart';
 import '../../utils/cache_manager.dart';
+import '../../services/leaderboard_service.dart';
 import '../../widgets/stat_ring_card.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
@@ -41,6 +42,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   // Loading state (same as teacher dashboard)
   bool _isLoading = true;
   String? _error;
+
+  // Cache topper future to avoid re-creating it on every StreamBuilder rebuild
+  Future<int>? _topperPointsFuture;
+  String? _cachedTopperStudentId;
 
   // Cache viewed status for immediate UI updates - key: announcementId, value: isViewed
   final Map<String, bool> _viewedCache = {};
@@ -817,9 +822,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     int tappedGroupIndex,
     String currentUserId,
   ) async {
-    print(
-      '🎯 _openCrossPersonAnnouncementViewer: START - tappedGroupIndex=$tappedGroupIndex',
-    );
     // Flatten all announcements starting from tapped group
     final flattenedAnnouncements = <Map<String, dynamic>>[];
 
@@ -827,14 +829,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     for (int i = tappedGroupIndex; i < allCreatorGroups.length; i++) {
       flattenedAnnouncements.addAll(allCreatorGroups[i]);
     }
-    print(
-      '🎯 _openCrossPersonAnnouncementViewer: Flattened ${flattenedAnnouncements.length} announcements',
-    );
 
     // Convert to PageView format with metadata for tracking
-    print(
-      '🎯 _openCrossPersonAnnouncementViewer: Starting conversion to PageView format...',
-    );
     final announcements = flattenedAnnouncements.map((item) {
       final type = item['type'] as String;
       final data = item['data'];
@@ -855,21 +851,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final principal = data as InstituteAnnouncementModel;
 
         // DEBUG: Log principal announcement data
-        print('📢 Student Dashboard - Principal Announcement Debug:');
-        print('  ID: ${principal.id}');
-        print('  Principal: ${principal.principalName}');
-        print('  hasImage: ${principal.hasImage}');
-        print('  hasText: ${principal.hasText}');
-        print('  text: "${principal.text}"');
-        print('  imageUrl: ${principal.imageUrl}');
-        print('  imageCaptions: ${principal.imageCaptions}');
         if (principal.imageCaptions != null) {
-          print('  imageCaptions count: ${principal.imageCaptions!.length}');
           for (int i = 0; i < principal.imageCaptions!.length; i++) {
-            print('    [$i] url: ${principal.imageCaptions![i]['url']}');
-            print(
-              '    [$i] caption: ${principal.imageCaptions![i]['caption']}',
-            );
           }
         }
 
@@ -921,12 +904,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       }
     }).toList();
 
-    print(
-      '🎯 _openCrossPersonAnnouncementViewer: Conversion complete - ${announcements.length} announcements ready',
-    );
-    print(
-      '🎯 _openCrossPersonAnnouncementViewer: Calling openAnnouncementPageView...',
-    );
 
     // Open viewer and await completion
     await openAnnouncementPageView(
@@ -978,9 +955,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       },
     );
 
-    print(
-      '🎯 _openCrossPersonAnnouncementViewer: openAnnouncementPageView returned',
-    );
 
     // StreamBuilder will automatically update the UI, no manual refresh needed
   }
@@ -1092,6 +1066,13 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       return _buildEmptyPointsCard();
     }
 
+    // Cache the future so the FutureBuilder inside the StreamBuilder builder
+    // doesn't create a new Future on every stream event.
+    if (_topperPointsFuture == null || _cachedTopperStudentId != student.uid) {
+      _cachedTopperStudentId = student.uid;
+      _topperPointsFuture = _getTopperPoints(student);
+    }
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('student_rewards')
@@ -1119,7 +1100,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
         // Get topper points from class
         return FutureBuilder<int>(
-          future: _getTopperPoints(student),
+          future: _topperPointsFuture,
           builder: (context, topperSnapshot) {
             final topperPoints = topperSnapshot.data ?? 0;
             final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1243,117 +1224,41 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Future<int> _getTopperPoints(StudentModel student) async {
     try {
-      // OPTIMIZATION: Check cache first (5-minute expiration)
-      // This reduces Firestore reads from 20-40 docs to 0 reads per dashboard load
+      final schoolCode = (student.schoolCode ?? '').trim();
+      final className = (student.className ?? '').trim();
+      final section = (student.section ?? '').trim();
+
+      if (schoolCode.isEmpty || className.isEmpty) return 0;
+
+      // Use the same cache key and service as the leaderboard screen
+      // so both screens always show the same topper.
       final cachedPoints = await CacheManager.getTopperPointsCache(
-        schoolId: student.schoolId ?? '',
-        className: student.className ?? '',
+        schoolId: schoolCode,
+        className: className,
+      );
+      if (cachedPoints != null) return cachedPoints;
+
+      // Delegate to LeaderboardService which reads users.rewardPoints —
+      // the authoritative source used by the leaderboard screen.
+      final service = LeaderboardService();
+      final entries = await service.getOverallLeaderboardForClass(
+        schoolCode: schoolCode,
+        className: className,
+        section: section.isNotEmpty ? section : null,
+        limit: 1,
       );
 
-      if (cachedPoints != null) {
-        return cachedPoints; // ✅ Return cached value (no Firestore read needed)
-      }
+      final topperPoints = entries.isNotEmpty
+          ? entries.first.score.toInt()
+          : 0;
 
-      // Cache miss or expired - fetch from Firestore
-
-      // 1) Try aggregating from student_rewards (same source as the student card)
-      //    so topper and student values stay in sync.
-      int maxPoints = 0;
-      try {
-        Query rewardsQuery = FirebaseFirestore.instance.collection(
-          'student_rewards',
-        );
-
-        if ((student.schoolId ?? '').isNotEmpty) {
-          rewardsQuery = rewardsQuery.where(
-            'schoolId',
-            isEqualTo: student.schoolId,
-          );
-        }
-        if ((student.className ?? '').isNotEmpty) {
-          rewardsQuery = rewardsQuery.where(
-            'className',
-            isEqualTo: student.className,
-          );
-        }
-
-        final rewardsSnapshot = await rewardsQuery.get();
-
-        if (rewardsSnapshot.docs.isNotEmpty) {
-          final Map<String, int> pointsByStudent = {};
-
-          for (final doc in rewardsSnapshot.docs) {
-            final data = doc.data() as Map<String, dynamic>?;
-            if (data == null) continue;
-
-            final studentId = data['studentId'] as String? ?? '';
-            if (studentId.isEmpty) continue;
-
-            final points = data['pointsEarned'];
-            final asInt = points is int
-                ? points
-                : (points is num ? points.toInt() : 0);
-
-            pointsByStudent.update(
-              studentId,
-              (value) => value + asInt,
-              ifAbsent: () => asInt,
-            );
-          }
-
-          if (pointsByStudent.isNotEmpty) {
-            maxPoints = pointsByStudent.values.fold<int>(
-              0,
-              (prev, value) => value > prev ? value : prev,
-            );
-          }
-        }
-      } catch (_) {
-        // Ignore and fall back to users collection
-      }
-
-      // 2) Fallback: use users.rewardPoints if aggregation didn't find anything
-      if (maxPoints == 0) {
-        Query usersQuery = FirebaseFirestore.instance.collection('users');
-
-        if (student.schoolId != null) {
-          usersQuery = usersQuery.where(
-            'schoolId',
-            isEqualTo: student.schoolId,
-          );
-        }
-        if (student.className != null) {
-          usersQuery = usersQuery.where(
-            'className',
-            isEqualTo: student.className,
-          );
-        }
-
-        usersQuery = usersQuery.where('role', isEqualTo: 'student');
-
-        final snapshot = await usersQuery.get();
-
-        for (final doc in snapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>?;
-          if (data != null) {
-            final points = data['rewardPoints'];
-            if (points is int && points > maxPoints) {
-              maxPoints = points;
-            } else if (points is num && points.toInt() > maxPoints) {
-              maxPoints = points.toInt();
-            }
-          }
-        }
-      }
-
-      // Cache the result for 5 minutes
       await CacheManager.cacheTopperPoints(
-        schoolId: student.schoolId ?? '',
-        className: student.className ?? '',
-        points: maxPoints,
+        schoolId: schoolCode,
+        className: className,
+        points: topperPoints,
       );
 
-      return maxPoints;
+      return topperPoints;
     } catch (e) {
       return 0;
     }

@@ -1157,7 +1157,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               .trim();
       final studentEmail = (student['email'] ?? '').toString().trim();
 
-      print('🔍 Fetching parent for student: $studentId');
 
       // Fetch parent for this student (with all available hints)
       final parentData = await messagingService.fetchParentForStudent(
@@ -1166,9 +1165,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         studentEmail: studentEmail.isEmpty ? null : studentEmail,
       );
 
-      print(
-        '📦 Parent data received: ${parentData != null ? "Found" : "Not found"}',
-      );
 
       if (!mounted) return;
 
@@ -1178,7 +1174,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (!mounted) return;
 
       if (parentData == null) {
-        print('❌ No parent found for student: ${student['name']}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('No parent found for ${student['name']}'),
@@ -1225,12 +1220,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         }
       }
 
-      print(
-        '📋 Chat params - schoolCode: $schoolCode, className: $className, section: $section',
-      );
 
       if (schoolCode.isEmpty) {
-        print('❌ School code is empty!');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('School code not available')),
         );
@@ -1242,7 +1233,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final studentName = (student['name'] ?? 'Student').toString();
 
       if (parentPhoneNumber == null || parentPhoneNumber.isEmpty) {
-        print('❌ Parent phone number not available');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Parent phone number not available'),
@@ -1253,7 +1243,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       }
 
       // Directly open WhatsApp
-      print('📱 Opening WhatsApp for: $studentName');
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1278,14 +1267,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ),
         );
       } else {
-        print('✅ WhatsApp opened successfully');
       }
     } catch (e, stackTrace) {
-      print('❌ Error in _openChat: $e');
       if (mounted) {
         Navigator.of(context).pop(); // Dismiss loading dialog
       }
-      print('📜 Stack trace: $stackTrace');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

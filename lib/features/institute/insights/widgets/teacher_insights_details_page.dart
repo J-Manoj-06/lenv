@@ -49,7 +49,6 @@ class _TeacherInsightsDetailsPageState
         });
       }
     } catch (e) {
-      print('❌ Error loading teacher details: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }

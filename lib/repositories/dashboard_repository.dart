@@ -37,12 +37,10 @@ class DashboardRepository {
         return dashboardData;
       } else {
         // API call failed - try to load from cache
-        print('API call failed, attempting to load from cache');
         return await _loadFromCache(studentId);
       }
     } else {
       // No internet - load from cache
-      print('No internet connection, loading from cache');
       return await _loadFromCache(studentId);
     }
   }
@@ -55,9 +53,7 @@ class DashboardRepository {
     try {
       final box = await Hive.openBox<StudentDashboardData>(_boxName);
       await box.put(studentId, data);
-      print('Dashboard data cached successfully for student: $studentId');
     } catch (e) {
-      print('Error caching dashboard data: $e');
     }
   }
 
@@ -68,14 +64,11 @@ class DashboardRepository {
       final cachedData = box.get(studentId);
 
       if (cachedData != null) {
-        print('Loaded cached data from: ${cachedData.cachedAt}');
         return cachedData;
       } else {
-        print('No cached data found for student: $studentId');
         return null;
       }
     } catch (e) {
-      print('Error loading from cache: $e');
       return null;
     }
   }
@@ -85,9 +78,7 @@ class DashboardRepository {
     try {
       final box = await Hive.openBox<StudentDashboardData>(_boxName);
       await box.delete(studentId);
-      print('Cache cleared for student: $studentId');
     } catch (e) {
-      print('Error clearing cache: $e');
     }
   }
 
@@ -96,9 +87,7 @@ class DashboardRepository {
     try {
       final box = await Hive.openBox<StudentDashboardData>(_boxName);
       await box.clear();
-      print('All cache cleared');
     } catch (e) {
-      print('Error clearing all cache: $e');
     }
   }
 

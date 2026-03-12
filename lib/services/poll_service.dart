@@ -15,23 +15,17 @@ class PollService {
     required PollModel poll,
     required String chatType,
   }) async {
-    print('🟣 PollService.sendPoll called');
-    print('🟣 Chat ID: $chatId');
-    print('🟣 Chat Type: $chatType');
-    print('🟣 Poll question: ${poll.question}');
     try {
       DocumentReference messageRef;
 
       // Determine the correct path based on chat type
       if (chatType == 'community') {
-        print('🟣 Using community path');
         messageRef = _firestore
             .collection('communities')
             .doc(chatId)
             .collection('messages')
             .doc();
       } else if (chatType == 'group') {
-        print('🟣 Using group path');
         // Group chat uses classes/{classId}/subjects/{subjectId}/messages
         // chatId format: classId_subjectId
         final parts = chatId.split('_');
@@ -49,21 +43,18 @@ class PollService {
           );
         }
       } else if (chatType == 'ptGroup') {
-        print('🟣 Using parent_teacher_groups path');
         messageRef = _firestore
             .collection('parent_teacher_groups')
             .doc(chatId)
             .collection('messages')
             .doc();
       } else if (chatType == 'staff_room') {
-        print('🟣 Using staff_room path');
         messageRef = _firestore
             .collection('staff_rooms')
             .doc(chatId)
             .collection('messages')
             .doc();
       } else {
-        print('🟣 Using conversations path');
         // Individual chat (conversations)
         messageRef = _firestore
             .collection('conversations')
@@ -72,25 +63,17 @@ class PollService {
             .doc();
       }
 
-      print('🟣 Message ref path: ${messageRef.path}');
       final messageData = poll.toMessageMap();
       messageData['id'] = messageRef.id;
-      print('🟣 Message data prepared, ID: ${messageRef.id}');
 
       // Write poll message
-      print('🟣 Writing to Firestore...');
       await messageRef.set(messageData);
-      print('🟣 ✅ Poll message written to Firestore');
 
       // Update last message in parent document (if needed)
-      print('🟣 Updating last message...');
       await _updateLastMessage(chatId, chatType, messageRef.id, poll.question);
-      print('🟣 ✅ Last message updated');
 
       return messageRef.id;
     } catch (e) {
-      print('🟣 ❌ Error in sendPoll: $e');
-      print('🟣 Stack trace: ${StackTrace.current}');
       throw Exception('Failed to send poll: $e');
     }
   }
@@ -140,7 +123,6 @@ class PollService {
       }
     } catch (e) {
       // Non-critical error - poll was sent successfully
-      print('Warning: Failed to update last message: $e');
     }
   }
 
@@ -416,7 +398,6 @@ class PollService {
       if (data == null || data['type'] != 'poll') return null;
       return PollModel.fromMap(data, snapshot.id);
     } catch (e) {
-      print('Error fetching poll: $e');
       return null;
     }
   }

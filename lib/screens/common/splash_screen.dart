@@ -223,7 +223,6 @@ class _SplashScreenState extends State<SplashScreen>
           return;
         }
 
-        print('Navigating to share screen with data: ${shareData.type}');
         // Clear from controller AFTER we have the data
         shareController.clearShareData();
 
@@ -241,7 +240,6 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, initialRoute as String);
     } catch (e) {
-      print('Error in _resolveAndNavigate: $e');
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/role-selection');
     }

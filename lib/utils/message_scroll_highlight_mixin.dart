@@ -78,7 +78,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     List<dynamic> messages, {
     Duration highlightDuration = const Duration(seconds: 2),
   }) async {
-    print('🎯 Scrolling to message: $messageId');
 
     // Cancel any existing highlight timer
     _highlightTimer?.cancel();
@@ -102,12 +101,10 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     });
 
     if (messageIndex == -1) {
-      print('❌ Message not found in list: $messageId');
       _clearHighlight();
       return;
     }
 
-    print('✅ Found message at index: $messageIndex');
 
     // Try key-based scroll first (most accurate when widget is rendered)
     await Future.delayed(
@@ -117,7 +114,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
 
     if (!success) {
       // Fallback to index-based scroll with improved calculations
-      print('⚠️ Key-based scroll failed, using improved index-based method');
       await _scrollByIndexImproved(messageIndex, messages.length);
     }
 
@@ -129,7 +125,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     try {
       final key = _messageKeys[messageId];
       if (key == null || key.currentContext == null) {
-        print('⚠️ Message key or context not available for: $messageId');
         return false;
       }
 
@@ -137,7 +132,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
       final renderObject = context.findRenderObject();
 
       if (renderObject == null || !renderObject.attached) {
-        print('⚠️ RenderObject not attached');
         return false;
       }
 
@@ -151,10 +145,8 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
         alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
       );
 
-      print('✅ Scrolled to message using key-based method');
       return true;
     } catch (e) {
-      print('❌ Key-based scroll error: $e');
       return false;
     }
   }
@@ -162,16 +154,12 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
   /// Improved index-based scroll with better accuracy
   Future<void> _scrollByIndexImproved(int index, int totalMessages) async {
     if (!scrollController.hasClients) {
-      print('❌ ScrollController has no clients');
       return;
     }
 
     final maxScroll = scrollController.position.maxScrollExtent;
     final viewportHeight = scrollController.position.viewportDimension;
 
-    print(
-      '📏 Viewport: $viewportHeight, MaxScroll: $maxScroll, Total: $totalMessages',
-    );
 
     // Calculate the percentage position in the list
     // For reverse list: index 0 = bottom (newest), high index = top (oldest)
@@ -184,9 +172,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     // Clamp to valid range
     final clampedOffset = targetOffset.clamp(0.0, maxScroll);
 
-    print(
-      '📍 Improved scroll: index=$index, percentage=$percentage, target=$clampedOffset',
-    );
 
     await scrollController.animateTo(
       clampedOffset,
@@ -197,7 +182,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     // Wait for animation to complete
     await Future.delayed(const Duration(milliseconds: 100));
 
-    print('✅ Scroll animation completed');
   }
 
   /// Schedule highlight clearing after duration

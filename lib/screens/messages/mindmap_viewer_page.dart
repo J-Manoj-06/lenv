@@ -53,40 +53,26 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   }
 
   Future<void> _loadMindmap() async {
-    print('📥 [ViewerPage] Loading mindmap ID: ${widget.mindmapId}');
     final model = await _mindmapService.getMindmapById(widget.mindmapId);
-    print(
-      '📥 [ViewerPage] Retrieved model: ${model != null ? "SUCCESS" : "NULL"}',
-    );
 
     if (!mounted) {
-      print('⚠️ [ViewerPage] Widget not mounted, aborting');
       return;
     }
 
     // Only expand root node initially - users can expand others by tapping
     if (model != null) {
-      print('📥 [ViewerPage] Model topic: ${model.topic}');
-      print('📥 [ViewerPage] Root node title: ${model.root.title}');
       // Only root is expanded by default (already in _expanded set)
-      print('✅ [ViewerPage] Initial expanded: $_expanded');
     } else {
-      print('❌ [ViewerPage] Model is null');
     }
 
     setState(() {
       _mindmap = model;
       _loading = false;
     });
-    print(
-      '📥 [ViewerPage] setState completed, _loading = $_loading, _mindmap = ${_mindmap != null}',
-    );
 
     // Center the viewport after loading and layout
     if (model != null) {
-      print('📥 [ViewerPage] Scheduling _centerMindmap in postFrameCallback');
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        print('🎯 [ViewerPage] PostFrameCallback executing _centerMindmap');
         _centerMindmap();
       });
     }
@@ -119,17 +105,14 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   }
 
   void _centerMindmap() {
-    print('🎯 [ViewerPage] _centerMindmap called');
     if (!mounted) return;
 
     final box = _viewerKey.currentContext?.findRenderObject() as RenderBox?;
     if (box?.hasSize != true) {
-      print('⚠️ [ViewerPage] Box not ready, skipping center');
       return;
     }
 
     final size = box!.size;
-    print('🎯 [ViewerPage] Screen size: $size');
 
     // Root node is at canvas center
     final rootX = _canvasSize / 2;
@@ -139,17 +122,12 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
     final targetScreenX = size.width * 0.20;
     final targetScreenY = size.height * 0.5;
 
-    print('🎯 [ViewerPage] Root at: ($rootX, $rootY)');
-    print(
-      '🎯 [ViewerPage] Target screen pos: ($targetScreenX, $targetScreenY)',
-    );
 
     // Create transformation that moves root to target position
     final matrix = Matrix4.identity()
       ..translate(targetScreenX - rootX, targetScreenY - rootY);
 
     _transformController.value = matrix;
-    print('✅ [ViewerPage] Viewport centered');
 
     // Force a rebuild to show the centered view
     if (mounted) {
@@ -326,9 +304,6 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
 
   @override
   Widget build(BuildContext context) {
-    print(
-      '🎨 [ViewerPage Build] _loading=$_loading, _mindmap=${_mindmap != null}',
-    );
     final topic = _mindmap?.topic ?? widget.fallbackTopic;
 
     return Scaffold(
@@ -356,15 +331,11 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   }
 
   Widget _buildCanvas(MindmapNode root) {
-    print('🎨 [ViewerPage Canvas] Building canvas for root: ${root.title}');
-    print('🎨 [ViewerPage Canvas] Expanded nodes count: ${_expanded.length}');
 
     final nodes = _computeLayout(root);
-    print('🎨 [ViewerPage Canvas] Total nodes after layout: ${nodes.length}');
 
     final byPath = {for (final n in nodes) n.path: n};
     final viewport = _viewportInScene().inflate(260);
-    print('🎨 [ViewerPage Canvas] Viewport: $viewport');
 
     final visibleNodes = nodes.where((node) {
       final rect = Rect.fromCenter(
@@ -375,13 +346,7 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       return rect.overlaps(viewport);
     }).toList();
 
-    print(
-      '🎨 [ViewerPage Canvas] Visible nodes: ${visibleNodes.length} / ${nodes.length}',
-    );
     if (visibleNodes.isEmpty && nodes.isNotEmpty) {
-      print(
-        '⚠️ [ViewerPage Canvas] NO VISIBLE NODES! First node center: ${nodes.first.center}',
-      );
     }
     return SizedBox.expand(
       key: _viewerKey,

@@ -55,7 +55,6 @@ class _AllStandardsPerformersPageState
         });
       }
     } catch (e) {
-      print('Error loading standards: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }

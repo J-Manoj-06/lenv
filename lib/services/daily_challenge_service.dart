@@ -172,7 +172,6 @@ class DailyChallengeService {
   /// Debug print helper (silenced by default)
   void debugPrint(String message) {
     if (!DailyChallengeService.verbose) return;
-    print('[DailyChallengeService] $message');
   }
 
   static bool verbose = false;

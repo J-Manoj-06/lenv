@@ -21,7 +21,6 @@ class AIInsightsReportService {
     required String metric,
   }) async {
     // Force refresh to always get latest data
-    print('🤖 Generating new AI report (force refresh)...');
 
     // Fetch metrics data with force refresh
     final metrics = await _repository.getInsightsMetrics(
@@ -32,9 +31,6 @@ class AIInsightsReportService {
     );
 
     if (metrics == null) {
-      print(
-        '⚠️ No metrics data available for AI analysis - using fallback report',
-      );
       // Create a fallback report with no-data message
       final fallbackResponse = _generateNoDataReport(metric);
 
@@ -53,19 +49,14 @@ class AIInsightsReportService {
       return report;
     }
 
-    print(
-      '📊 Metrics received: avgScore=${metrics.avgScore.toStringAsFixed(1)}%, testCount=${metrics.testCount}',
-    );
 
     // Generate new report using AI
     final aiResponse = await _callDeepSeekAPI(metrics, metric);
 
     if (aiResponse == null) {
-      print('❌ Failed to generate AI report');
       return null;
     }
 
-    print('✅ AI Response received: ${aiResponse.length} characters');
 
     // Parse response into structured report
     final reportId = '${schoolCode}_${range}_${scopeKey}_$metric';
@@ -90,7 +81,6 @@ class AIInsightsReportService {
     String metricType,
   ) async {
     final prompt = _buildPrompt(metrics, metricType);
-    print('📝 Sending prompt to AI with data: $prompt');
 
     // Metric-specific system prompts
     String systemPrompt;
@@ -103,7 +93,6 @@ class AIInsightsReportService {
     }
 
     try {
-      print('🔄 Calling DeepSeek API via Cloudflare Worker...');
       final response = await http.post(
         Uri.parse(_workerUrl),
         headers: {'Content-Type': 'application/json'},
@@ -118,21 +107,16 @@ class AIInsightsReportService {
         }),
       );
 
-      print('📡 API Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final content = data['choices'][0]['message']['content'] ?? '';
-        print('✅ AI generated report (${content.length} chars)');
         return content;
       } else {
-        print('❌ DeepSeek API error: ${response.statusCode}');
-        print('📋 Response: ${response.body}');
         // Use fallback if API fails
         return _generateFallbackReport(metrics, metricType);
       }
     } catch (e) {
-      print('❌ Error calling DeepSeek API: $e');
       // Use fallback if request fails
       return _generateFallbackReport(metrics, metricType);
     }

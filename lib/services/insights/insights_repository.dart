@@ -32,7 +32,6 @@ class InsightsRepository {
 
     try {
       final docId = cacheKey;
-      print('🔍 DEBUG: Querying insights_top_performers for docId: "$docId"');
 
       final doc = await _firestore
           .collection('insights_top_performers')
@@ -40,26 +39,17 @@ class InsightsRepository {
           .get();
 
       if (!doc.exists) {
-        print('⚠️ No top performers data for $docId');
-        print('📋 Document does not exist in Firestore');
         return null;
       }
 
-      print('✅ Found top performers data: ${doc.data()?.keys.join(', ')}');
       final data = doc.data();
-      print(
-        '📋 Standards array length: ${(data?['standards'] as List?)?.length ?? 0}',
-      );
       if (data?['standards'] != null) {
-        print('📋 Standards data: ${data!['standards']}');
       }
 
       final summary = TopPerformersSummary.fromFirestore(doc);
-      print('📋 Parsed summary standards count: ${summary.standards.length}');
       _topPerformersCache[cacheKey] = summary;
       return summary;
     } catch (e) {
-      print('❌ Error fetching top performers: $e');
       return null;
     }
   }
@@ -85,7 +75,6 @@ class InsightsRepository {
           .get();
 
       if (!doc.exists) {
-        print('⚠️ No full ranking data for $docId');
         return null;
       }
 
@@ -93,7 +82,6 @@ class InsightsRepository {
       _fullRankingCache[cacheKey] = ranking;
       return ranking;
     } catch (e) {
-      print('❌ Error fetching full ranking: $e');
       return null;
     }
   }
@@ -118,7 +106,6 @@ class InsightsRepository {
           .get();
 
       if (!doc.exists) {
-        print('⚠️ No teacher stats data for $docId');
         return null;
       }
 
@@ -126,7 +113,6 @@ class InsightsRepository {
       _teacherStatsCache[cacheKey] = stats;
       return stats;
     } catch (e) {
-      print('❌ Error fetching teacher stats: $e');
       return null;
     }
   }
@@ -145,7 +131,6 @@ class InsightsRepository {
 
     try {
       // Fetch ALL test results for this teacher (no time filtering)
-      print('📊 Fetching all-time test data for teacherId: $teacherId');
 
       // Get ALL completed test results for this teacher
       final testResultsSnapshot = await _firestore
@@ -155,12 +140,8 @@ class InsightsRepository {
           .where('status', isEqualTo: 'completed')
           .get();
 
-      print(
-        '📊 Found ${testResultsSnapshot.docs.length} test results for teacherId=$teacherId',
-      );
 
       if (testResultsSnapshot.docs.isEmpty) {
-        print('⚠️ No test results data for $teacherId in testResults');
         // Return empty detail instead of null
         return TeacherTestsDetail(
           teacherId: teacherId,
@@ -200,9 +181,6 @@ class InsightsRepository {
         testScores[testId]!.add(score);
       }
 
-      print(
-        '📊 Found ${uniqueTests.length} unique tests for teacher $teacherId',
-      );
 
       // Build TestSummary list with average scores
       final tests = uniqueTests.values.map((testData) {
@@ -237,7 +215,6 @@ class InsightsRepository {
       _teacherTestsCache[cacheKey] = detail;
       return detail;
     } catch (e) {
-      print('❌ Error fetching teacher tests: $e');
       return null;
     }
   }
@@ -257,9 +234,6 @@ class InsightsRepository {
 
     try {
       // Instead of pre-aggregated data, compute minimal metrics from last 15 days
-      print(
-        '📊 Computing minimal metrics from last 15 days for AI analysis...',
-      );
 
       final now = DateTime.now();
       var cutoffDate = now.subtract(const Duration(days: 15));
@@ -275,9 +249,6 @@ class InsightsRepository {
 
       // If no data in 15 days, try 30 days
       if (testResultsSnapshot.docs.isEmpty) {
-        print(
-          '⚠️ No test data in last 15 days for $schoolCode, trying 30 days...',
-        );
         cutoffDate = now.subtract(const Duration(days: 30));
         cutoffTimestamp = Timestamp.fromDate(cutoffDate);
 
@@ -291,9 +262,6 @@ class InsightsRepository {
 
       // If still no data, try 90 days
       if (testResultsSnapshot.docs.isEmpty) {
-        print(
-          '⚠️ No test data in last 30 days for $schoolCode, trying 90 days...',
-        );
         cutoffDate = now.subtract(const Duration(days: 90));
         cutoffTimestamp = Timestamp.fromDate(cutoffDate);
 
@@ -306,11 +274,9 @@ class InsightsRepository {
       }
 
       if (testResultsSnapshot.docs.isEmpty) {
-        print('⚠️ No test data in last 90 days for $schoolCode');
         return null;
       }
 
-      print('✅ Found ${testResultsSnapshot.docs.length} test results');
 
       // Compute minimal aggregated metrics
       double totalScore = 0;
@@ -352,12 +318,8 @@ class InsightsRepository {
       );
 
       _metricsCache[cacheKey] = metrics;
-      print(
-        '✅ Computed metrics: ${uniqueTests.length} tests, avg ${avgScore.toStringAsFixed(1)}%',
-      );
       return metrics;
     } catch (e) {
-      print('❌ Error computing metrics: $e');
       return null;
     }
   }
@@ -385,7 +347,6 @@ class InsightsRepository {
       final doc = await _firestore.collection('ai_reports').doc(docId).get();
 
       if (!doc.exists) {
-        print('⚠️ No cached AI report for $docId');
         return null;
       }
 
@@ -393,14 +354,12 @@ class InsightsRepository {
 
       // Check if fresh
       if (!report.isFresh) {
-        print('⏰ Cached report is stale, needs regeneration');
         return null;
       }
 
       _aiReportCache[cacheKey] = report;
       return report;
     } catch (e) {
-      print('❌ Error fetching AI report: $e');
       return null;
     }
   }
@@ -415,9 +374,7 @@ class InsightsRepository {
       // Update memory cache
       _aiReportCache[docId] = report;
 
-      print('✅ AI report saved: $docId');
     } catch (e) {
-      print('❌ Error saving AI report: $e');
     }
   }
 

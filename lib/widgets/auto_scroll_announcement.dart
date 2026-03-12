@@ -88,9 +88,6 @@ class _AutoScrollAnnouncementState extends State<AutoScrollAnnouncement>
       _needsReadMore = _contentHeight > widget.maxCollapsedHeight;
 
       // Debug print
-      print(
-        '📏 Content height: $_contentHeight, Max: ${widget.maxCollapsedHeight}, Needs Read More: $_needsReadMore',
-      );
 
       // Start auto-scroll if content is long
       if (_needsReadMore) {

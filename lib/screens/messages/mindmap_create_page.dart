@@ -56,7 +56,6 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
 
     setState(() => _isGenerating = true);
     try {
-      print('🎯 [MindmapCreatePage] Starting generation for topic: $topic');
       final structure = await _mindmapService.generateMindmapDraft(
         classId: widget.classId,
         subjectId: widget.subjectId,
@@ -69,9 +68,6 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
         section: widget.section,
       );
 
-      print(
-        '✅ [MindmapCreatePage] Generation successful, structure keys: ${structure.keys}',
-      );
       if (!mounted) return;
 
       await Navigator.push(
@@ -96,8 +92,6 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
         ),
       );
     } catch (e) {
-      print('❌ [MindmapCreatePage] Error: $e');
-      print('❌ [MindmapCreatePage] Stack trace: $e');
       if (!mounted) return;
       final msg = e.toString();
       ScaffoldMessenger.of(context).showSnackBar(
