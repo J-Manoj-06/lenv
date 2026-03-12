@@ -85,9 +85,6 @@ class ProfileDPService {
         'hasProfileImage': true,
       }, SetOptions(merge: true));
 
-      // Also update in students collection if exists
-      await _updateStudentProfile(userId, publicUrl);
-
       onProgress?.call(100);
       return publicUrl;
     } catch (e) {
@@ -124,9 +121,6 @@ class ProfileDPService {
         'profileImageUpdatedAt': FieldValue.serverTimestamp(),
         'hasProfileImage': false,
       }, SetOptions(merge: true));
-
-      // Also clear in students collection if exists
-      await _updateStudentProfile(userId, null);
     } catch (e) {
       debugPrint('ProfileDPService: removeProfileImage error: $e');
       rethrow;
@@ -151,48 +145,28 @@ class ProfileDPService {
 
   /// Fetch user DP URL once (non-streaming).
   Future<String?> getUserDPUrl(String userId) async {
-    try {
-      // Try users collection first
-      final doc = await _firestore.collection('users').doc(userId).get();
-      if (doc.exists) {
-        final url = doc.data()?['profileImageUrl'] as String?;
-        if (url != null && url.isNotEmpty) return url;
-      }
-
-      // Fallback: check students collection
-      final studentQuery = await _firestore
-          .collection('students')
-          .where('uid', isEqualTo: userId)
-          .limit(1)
-          .get();
-      if (studentQuery.docs.isNotEmpty) {
-        final s = studentQuery.docs.first.data();
-        return s['profileImageUrl'] as String? ?? s['photoUrl'] as String?;
-      }
-
-      return null;
-    } catch (e) {
-      debugPrint('ProfileDPService: getUserDPUrl error: $e');
-      return null;
-    }
+    final data = await getUserDPData(userId);
+    return data?['url'] as String?;
   }
 
-  /// Update student document with new profile image URL (best-effort).
-  Future<void> _updateStudentProfile(String userId, String? imageUrl) async {
+  /// Fetch user DP URL + updatedAt timestamp once (non-streaming).
+  Future<Map<String, dynamic>?> getUserDPData(String userId) async {
     try {
-      final query = await _firestore
-          .collection('students')
-          .where('uid', isEqualTo: userId)
-          .limit(1)
-          .get();
-      if (query.docs.isNotEmpty) {
-        await query.docs.first.reference.update({
-          'profileImageUrl': imageUrl,
-          'profileImageUpdatedAt': FieldValue.serverTimestamp(),
-        });
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists) {
+        final d = doc.data();
+        final url = d?['profileImageUrl'] as String?;
+        if (url != null && url.isNotEmpty) {
+          return {
+            'url': url,
+            'updatedAt': d?['profileImageUpdatedAt']?.toString(),
+          };
+        }
       }
-    } catch (_) {
-      // Best-effort; don't throw
+      return null;
+    } catch (e) {
+      debugPrint('ProfileDPService: getUserDPData error: $e');
+      return null;
     }
   }
 

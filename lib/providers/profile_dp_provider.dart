@@ -28,10 +28,13 @@ class ProfileDPProvider extends ChangeNotifier {
   // ── Other users' DP cache ─────────────────────────────────────────────────
   final Map<String, String?> _userDPCache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
+  final Map<String, String> _userDPUpdatedAt = {}; // userId → updatedAt string
   static const Duration _cacheTTL = Duration(hours: 24);
 
   // ── Group DP cache ────────────────────────────────────────────────────────
   final Map<String, String?> _groupDPCache = {};
+  final Map<String, String> _groupDPUpdatedAt =
+      {}; // groupId → updatedAt string
   final Map<String, StreamSubscription<Map<String, dynamic>?>>
   _groupDPSubscriptions = {};
 
@@ -41,6 +44,24 @@ class ProfileDPProvider extends ChangeNotifier {
   bool get isUploading => _isUploading;
   int get uploadProgress => _uploadProgress;
   String? get uploadError => _uploadError;
+
+  /// Cache key for current user's DP — unique per upload.
+  String get currentUserCacheKey =>
+      _buildUserCacheKey(_currentUserId ?? '', _currentUserDP);
+
+  /// Cache key for any user's DP for use in CachedNetworkImage.
+  String getUserCacheKey(String userId) =>
+      _buildUserCacheKey(userId, _userDPCache[userId]);
+
+  /// Cache key for a group DP.
+  String getGroupCacheKey(String groupId) =>
+      'gp_${groupId}_${_groupDPUpdatedAt[groupId] ?? _groupDPCache[groupId] ?? groupId}';
+
+  static String _buildUserCacheKey(String userId, String? url) {
+    // Use URL as key component since it already embeds an upload timestamp.
+    // Fallback to userId so the key is never empty.
+    return 'dp_${userId}_${url?.hashCode ?? 0}';
+  }
 
   // ── Initialization ────────────────────────────────────────────────────────
 
@@ -52,6 +73,10 @@ class ProfileDPProvider extends ChangeNotifier {
     _dpSubscription = _dpService.watchUserDP(userId).listen((data) {
       _currentUserDP = data?['profileImageUrl'] as String?;
       _hasProfileImage = data?['hasProfileImage'] as bool? ?? false;
+
+      // Store updatedAt for cache-key building
+      final ts = data?['profileImageUpdatedAt'];
+      if (ts != null) _userDPUpdatedAt[userId] = ts.toString();
 
       // Also update cache entry for this user
       _userDPCache[userId] = _currentUserDP;
@@ -155,9 +180,12 @@ class ProfileDPProvider extends ChangeNotifier {
     }
 
     try {
-      final url = await _dpService.getUserDPUrl(userId);
+      final data = await _dpService.getUserDPData(userId);
+      final url = data?['url'] as String?;
+      final updatedAt = data?['updatedAt'] as String?;
       _userDPCache[userId] = url;
       _cacheTimestamps[userId] = DateTime.now();
+      if (updatedAt != null) _userDPUpdatedAt[userId] = updatedAt;
       return url;
     } catch (_) {
       return null;
@@ -176,6 +204,9 @@ class ProfileDPProvider extends ChangeNotifier {
       data,
     ) {
       _groupDPCache[groupId] = data?['groupImageUrl'] as String?;
+      // Store updatedAt for cache-key building
+      final ts = data?['groupImageUpdatedAt'];
+      if (ts != null) _groupDPUpdatedAt[groupId] = ts.toString();
       notifyListeners();
     });
   }

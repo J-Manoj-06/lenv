@@ -56,9 +56,12 @@ class ProfileAvatarWidget extends StatelessWidget {
           child: hasImage
               ? CachedNetworkImage(
                   imageUrl: imageUrl!,
+                  cacheKey: imageUrl,
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
+                  fadeInDuration: const Duration(milliseconds: 250),
+                  fadeInCurve: Curves.easeIn,
                   placeholder: (context, url) =>
                       _ShimmerCircle(size: size, color: avatarColor),
                   errorWidget: (context, url, error) => _InitialsAvatar(
@@ -143,9 +146,12 @@ class ProfileDPCircle extends StatelessWidget {
                   : hasImage
                   ? CachedNetworkImage(
                       imageUrl: imageUrl!,
+                      cacheKey: imageUrl,
                       width: size,
                       height: size,
                       fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 250),
+                      fadeInCurve: Curves.easeIn,
                       placeholder: (context, url) =>
                           _ShimmerCircle(size: size, color: avatarColor),
                       errorWidget: (context, url, error) => _InitialsAvatar(
@@ -344,6 +350,7 @@ class ChatSenderAvatarWidget extends StatefulWidget {
 
 class _ChatSenderAvatarWidgetState extends State<ChatSenderAvatarWidget> {
   String? _dpUrl;
+  String? _cacheKey;
 
   @override
   void initState() {
@@ -356,6 +363,7 @@ class _ChatSenderAvatarWidgetState extends State<ChatSenderAvatarWidget> {
     super.didUpdateWidget(old);
     if (old.senderId != widget.senderId) {
       _dpUrl = null;
+      _cacheKey = null;
       _loadDP();
     }
   }
@@ -366,12 +374,20 @@ class _ChatSenderAvatarWidgetState extends State<ChatSenderAvatarWidget> {
       // Check cache first (synchronous)
       final cached = provider.getCachedUserDP(widget.senderId);
       if (cached != null || _isAlreadyCached(provider)) {
-        if (mounted) setState(() => _dpUrl = cached);
+        if (mounted)
+          setState(() {
+            _dpUrl = cached;
+            _cacheKey = provider.getUserCacheKey(widget.senderId);
+          });
         return;
       }
       // Fetch async
       final url = await provider.getUserDP(widget.senderId);
-      if (mounted) setState(() => _dpUrl = url);
+      if (mounted)
+        setState(() {
+          _dpUrl = url;
+          _cacheKey = provider.getUserCacheKey(widget.senderId);
+        });
     } catch (_) {
       // Leave _dpUrl as null — fallback initials will be shown
     }
@@ -409,9 +425,14 @@ class _ChatSenderAvatarWidgetState extends State<ChatSenderAvatarWidget> {
           child: _dpUrl != null && _dpUrl!.isNotEmpty
               ? CachedNetworkImage(
                   imageUrl: _dpUrl!,
+                  cacheKey: _cacheKey ?? _dpUrl,
                   width: size,
                   height: size,
                   fit: BoxFit.cover,
+                  fadeInDuration: const Duration(milliseconds: 200),
+                  fadeInCurve: Curves.easeIn,
+                  placeholder: (_, __) =>
+                      _ShimmerCircle(size: size, color: avatarColor),
                   errorWidget: (_, __, ___) =>
                       _buildInitials(initials, avatarColor, size),
                 )

@@ -68,9 +68,12 @@ class GroupAvatarWidget extends StatelessWidget {
                       : hasImage
                       ? CachedNetworkImage(
                           imageUrl: imageUrl,
+                          cacheKey: dpProvider.getGroupCacheKey(groupId),
                           width: size,
                           height: size,
                           fit: BoxFit.cover,
+                          fadeInDuration: const Duration(milliseconds: 250),
+                          fadeInCurve: Curves.easeIn,
                           placeholder: (_, __) => _buildShimmer(avatarColor),
                           errorWidget: (_, __, ___) =>
                               _buildFallback(avatarColor),
@@ -397,6 +400,7 @@ class _MemberTile extends StatelessWidget {
     return Consumer<ProfileDPProvider>(
       builder: (ctx, dpProvider, _) {
         final dpUrl = dpProvider.getCachedUserDP(uid);
+        final cacheKey = dpProvider.getUserCacheKey(uid);
         final avatarColor = Color(ProfileDPService.getAvatarColor(name));
         final initials = ProfileDPService.getInitials(name);
 
@@ -412,7 +416,10 @@ class _MemberTile extends StatelessWidget {
               child: dpUrl != null && dpUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: dpUrl,
+                      cacheKey: cacheKey,
                       fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 200),
+                      fadeInCurve: Curves.easeIn,
                       errorWidget: (_, __, ___) => Center(
                         child: Text(
                           initials,
