@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/daily_challenge_provider.dart';
+import '../../providers/profile_dp_provider.dart';
 import '../../providers/student_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/leaderboard_service.dart';
@@ -11,6 +12,8 @@ import '../../services/student_service.dart';
 import '../../services/firestore_service.dart';
 import '../../models/student_model.dart';
 import '../../models/performance_model.dart';
+import '../../widgets/dp_options_bottom_sheet.dart';
+import '../../widgets/profile_avatar_widget.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -47,6 +50,20 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         setState(() {
           _studentData = data;
         });
+        // Initialize DP provider for real-time photo updates
+        final uid =
+            Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            ).currentUser?.uid ??
+            data?.uid ??
+            '';
+        if (uid.isNotEmpty) {
+          context.read<ProfileDPProvider>().initForUser(
+            uid,
+            userName: data?.name ?? '',
+          );
+        }
       }
       // Start live streams (attendance and class rank) after student data loads
       _startLiveAttendanceStream();
@@ -227,36 +244,33 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Column(
         children: [
-          // Avatar
-          Container(
-            width: 128,
-            height: 128,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: theme.cardColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-              border: Border.all(color: theme.cardColor, width: 4),
-            ),
-            child: ClipOval(
-              child: imageUrl != null
-                  ? Image.network(imageUrl, fit: BoxFit.cover)
-                  : Center(
-                      child: Text(
-                        _initialsFromName(name),
-                        style: const TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFFF8A00),
-                        ),
-                      ),
-                    ),
-            ),
+          // Avatar — tappable DP circle with edit overlay
+          Consumer<ProfileDPProvider>(
+            builder: (ctx, dpProvider, _) {
+              final authProvider = Provider.of<AuthProvider>(
+                ctx,
+                listen: false,
+              );
+              final uid = authProvider.currentUser?.uid ?? '';
+              final dpUrl = dpProvider.currentUserDP ?? imageUrl;
+              return ProfileDPCircle(
+                imageUrl: dpUrl,
+                name: name,
+                size: 128,
+                showEditOverlay: true,
+                isUploading: dpProvider.isUploading,
+                uploadProgress: dpProvider.uploadProgress,
+                onTap: () {
+                  if (uid.isEmpty) return;
+                  DPOptionsBottomSheet.show(
+                    context: context,
+                    userId: uid,
+                    userName: name,
+                    currentImageUrl: dpUrl,
+                  );
+                },
+              );
+            },
           ),
           const SizedBox(height: 16),
           Text(

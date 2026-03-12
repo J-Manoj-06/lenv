@@ -7,6 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/auth_provider.dart' as local_auth;
+import 'providers/profile_dp_provider.dart';
 import 'providers/role_provider.dart';
 import 'providers/test_provider.dart';
 import 'providers/reward_provider.dart';
@@ -135,6 +136,7 @@ class MyApp extends StatelessWidget {
           ChangeNotifierProvider(create: (_) => StudentProvider()),
           ChangeNotifierProvider(create: (_) => ParentProvider()),
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
+          ChangeNotifierProvider(create: (_) => ProfileDPProvider()),
           ChangeNotifierProxyProvider<
             local_auth.AuthProvider,
             UnreadCountProvider

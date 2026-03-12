@@ -27,9 +27,12 @@ import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/profile_dp_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/user_model.dart';
+import '../../widgets/group_avatar_widget.dart';
+import '../../widgets/profile_avatar_widget.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../services/connectivity_service.dart';
@@ -1827,38 +1830,71 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                       fontWeight: FontWeight.w600,
                     ),
                   )
-                : Row(
-                    children: [
-                      Text(widget.icon, style: const TextStyle(fontSize: 20)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.subjectName,
-                              style: TextStyle(
-                                color: theme.textTheme.bodyLarge?.color,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              widget.className != null && widget.section != null
-                                  ? '${widget.className} - Section ${widget.section}'
-                                  : widget.teacherName,
-                              style: TextStyle(
-                                color: theme.textTheme.bodySmall?.color,
-                                fontSize: 12,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                : GestureDetector(
+                    onTap: () {
+                      final authProv = Provider.of<AuthProvider>(
+                        context,
+                        listen: false,
+                      );
+                      final isTeacher =
+                          authProv.currentUser?.role == UserRole.teacher;
+                      final groupId = '${widget.classId}_${widget.subjectId}';
+                      // Start watching group DP
+                      context.read<ProfileDPProvider>().watchGroupDP(groupId);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => GroupInfoScreen(
+                            groupId: groupId,
+                            groupName: widget.subjectName,
+                            subjectName: widget.subjectName,
+                            className: widget.className ?? '',
+                            section: widget.section,
+                            isTeacher: isTeacher,
+                            icon: widget.icon,
+                          ),
                         ),
-                      ),
-                    ],
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        GroupAvatarWidget(
+                          groupId: '${widget.classId}_${widget.subjectId}',
+                          groupName: widget.subjectName,
+                          size: 38,
+                          icon: widget.icon,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.subjectName,
+                                style: TextStyle(
+                                  color: theme.textTheme.bodyLarge?.color,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.className != null &&
+                                        widget.section != null
+                                    ? '${widget.className} - Section ${widget.section}'
+                                    : widget.teacherName,
+                                style: TextStyle(
+                                  color: theme.textTheme.bodySmall?.color,
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
             actions: _isSelectionMode
                 ? [
@@ -2803,7 +2839,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   Future<void> _deleteMediaFiles(List<String> keys) async {
     if (keys.isEmpty) return;
 
-
     try {
       final r2Service = CloudflareR2Service(
         accountId: CloudflareConfig.accountId,
@@ -2822,9 +2857,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
           // Continue with next file
         }
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // ─── Forward selected messages ────────────────────────────────────────────
@@ -2955,6 +2988,16 @@ class _MessageBubble extends StatelessWidget {
             : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Sender avatar for received messages
+          if (!isMe)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, right: 6),
+              child: ChatSenderAvatarWidget(
+                senderId: message.senderId,
+                senderName: message.senderName,
+                size: 32,
+              ),
+            ),
           // Message Content
           Flexible(
             child: Container(
@@ -4180,8 +4223,7 @@ class _GroupMessageSearchScreenState extends State<GroupMessageSearchScreen> {
           fileName: meta.originalFileName ?? 'Audio',
         ),
       );
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   Future<void> _openPDFWithExternalApp(String url, String fileName) async {

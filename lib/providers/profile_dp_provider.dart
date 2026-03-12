@@ -1,0 +1,252 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import '../services/profile_dp_service.dart';
+
+/// State management for profile display pictures.
+///
+/// Provides:
+/// - Current user's DP URL (reactive)
+/// - Upload / remove operations with progress tracking
+/// - Cache of other users' DP URLs (to avoid repeated fetches)
+class ProfileDPProvider extends ChangeNotifier {
+  final ProfileDPService _dpService = ProfileDPService();
+
+  // ── Current user state ────────────────────────────────────────────────────
+  String? _currentUserId;
+  String? _currentUserDP;
+  bool _hasProfileImage = false;
+
+  // Upload state
+  bool _isUploading = false;
+  int _uploadProgress = 0;
+  String? _uploadError;
+
+  // Real-time listener
+  StreamSubscription<Map<String, dynamic>?>? _dpSubscription;
+
+  // ── Other users' DP cache ─────────────────────────────────────────────────
+  final Map<String, String?> _userDPCache = {};
+  final Map<String, DateTime> _cacheTimestamps = {};
+  static const Duration _cacheTTL = Duration(hours: 24);
+
+  // ── Group DP cache ────────────────────────────────────────────────────────
+  final Map<String, String?> _groupDPCache = {};
+  final Map<String, StreamSubscription<Map<String, dynamic>?>>
+  _groupDPSubscriptions = {};
+
+  // ── Getters ───────────────────────────────────────────────────────────────
+  String? get currentUserDP => _currentUserDP;
+  bool get hasProfileImage => _hasProfileImage;
+  bool get isUploading => _isUploading;
+  int get uploadProgress => _uploadProgress;
+  String? get uploadError => _uploadError;
+
+  // ── Initialization ────────────────────────────────────────────────────────
+
+  /// Start listening to the current user's DP in real-time.
+  void initForUser(String userId, {String? userName}) {
+    if (_currentUserId == userId) return; // already listening
+    _currentUserId = userId;
+    _dpSubscription?.cancel();
+    _dpSubscription = _dpService.watchUserDP(userId).listen((data) {
+      _currentUserDP = data?['profileImageUrl'] as String?;
+      _hasProfileImage = data?['hasProfileImage'] as bool? ?? false;
+
+      // Also update cache entry for this user
+      _userDPCache[userId] = _currentUserDP;
+      _cacheTimestamps[userId] = DateTime.now();
+
+      notifyListeners();
+    });
+  }
+
+  @override
+  void dispose() {
+    _dpSubscription?.cancel();
+    for (final sub in _groupDPSubscriptions.values) {
+      sub.cancel();
+    }
+    super.dispose();
+  }
+
+  // ── Upload operations ─────────────────────────────────────────────────────
+
+  /// Upload or change profile picture.
+  ///
+  /// [userId] must be the current authenticated user's UID.
+  Future<bool> uploadProfileImage({
+    required String userId,
+    required File imageFile,
+  }) async {
+    // Validate
+    final validationError = ProfileDPService.validateImageFile(imageFile);
+    if (validationError != null) {
+      _uploadError = validationError;
+      notifyListeners();
+      return false;
+    }
+
+    _isUploading = true;
+    _uploadProgress = 0;
+    _uploadError = null;
+    notifyListeners();
+
+    try {
+      final url = await _dpService.uploadProfileImage(
+        userId: userId,
+        imageFile: imageFile,
+        onProgress: (p) {
+          _uploadProgress = p;
+          notifyListeners();
+        },
+      );
+
+      _currentUserDP = url;
+      _hasProfileImage = true;
+      _userDPCache[userId] = url;
+      _cacheTimestamps[userId] = DateTime.now();
+      _isUploading = false;
+      _uploadProgress = 100;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _uploadError = 'Upload failed. Please try again.';
+      _isUploading = false;
+      debugPrint('ProfileDPProvider: upload error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Remove the current user's profile picture.
+  Future<bool> removeProfileImage({required String userId}) async {
+    _isUploading = true;
+    _uploadError = null;
+    notifyListeners();
+
+    try {
+      await _dpService.removeProfileImage(userId: userId);
+      _currentUserDP = null;
+      _hasProfileImage = false;
+      _userDPCache[userId] = null;
+      _isUploading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _uploadError = 'Failed to remove photo. Please try again.';
+      _isUploading = false;
+      debugPrint('ProfileDPProvider: remove error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Other user DP lookup ──────────────────────────────────────────────────
+
+  /// Get a user's DP URL. Uses cache; fetches from Firestore if expired.
+  Future<String?> getUserDP(String userId) async {
+    // Check cache freshness
+    final lastFetch = _cacheTimestamps[userId];
+    if (lastFetch != null &&
+        DateTime.now().difference(lastFetch) < _cacheTTL &&
+        _userDPCache.containsKey(userId)) {
+      return _userDPCache[userId];
+    }
+
+    try {
+      final url = await _dpService.getUserDPUrl(userId);
+      _userDPCache[userId] = url;
+      _cacheTimestamps[userId] = DateTime.now();
+      return url;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Get a cached DP URL synchronously (may be null if not yet loaded).
+  String? getCachedUserDP(String userId) => _userDPCache[userId];
+
+  // ── Group DP ──────────────────────────────────────────────────────────────
+
+  /// Start listening to a group's DP in real-time.
+  void watchGroupDP(String groupId) {
+    if (_groupDPSubscriptions.containsKey(groupId)) return;
+    _groupDPSubscriptions[groupId] = _dpService.watchGroupDP(groupId).listen((
+      data,
+    ) {
+      _groupDPCache[groupId] = data?['groupImageUrl'] as String?;
+      notifyListeners();
+    });
+  }
+
+  /// Get group DP from cache.
+  String? getGroupDP(String groupId) => _groupDPCache[groupId];
+
+  /// Upload group DP (teachers only).
+  Future<bool> uploadGroupImage({
+    required String groupId,
+    required File imageFile,
+  }) async {
+    final validationError = ProfileDPService.validateImageFile(imageFile);
+    if (validationError != null) {
+      _uploadError = validationError;
+      notifyListeners();
+      return false;
+    }
+
+    _isUploading = true;
+    _uploadProgress = 0;
+    _uploadError = null;
+    notifyListeners();
+
+    try {
+      final url = await _dpService.uploadGroupImage(
+        groupId: groupId,
+        imageFile: imageFile,
+        onProgress: (p) {
+          _uploadProgress = p;
+          notifyListeners();
+        },
+      );
+
+      _groupDPCache[groupId] = url;
+      _isUploading = false;
+      _uploadProgress = 100;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _uploadError = 'Group photo upload failed. Please try again.';
+      _isUploading = false;
+      debugPrint('ProfileDPProvider: group upload error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Remove group DP.
+  Future<bool> removeGroupImage({required String groupId}) async {
+    _isUploading = true;
+    _uploadError = null;
+    notifyListeners();
+
+    try {
+      await _dpService.removeGroupImage(groupId: groupId);
+      _groupDPCache[groupId] = null;
+      _isUploading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _uploadError = 'Failed to remove group photo.';
+      _isUploading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Clear upload error.
+  void clearError() {
+    _uploadError = null;
+    notifyListeners();
+  }
+}

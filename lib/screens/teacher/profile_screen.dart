@@ -5,9 +5,13 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../utils/session_manager.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/profile_dp_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/offline_cache_manager.dart';
 import '../../services/teacher_service.dart';
+import '../../widgets/dp_options_bottom_sheet.dart';
+import '../../widgets/profile_avatar_widget.dart';
+import '../common/full_screen_dp_viewer.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -84,12 +88,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       final classesManaged = classesFormatted.length;
 
+      final resolvedUserId =
+          user?.uid ?? (teacherData!['uid'])?.toString() ?? '';
       setState(() {
         _teacherData = teacherData;
         _classesManaged = classesManaged;
-        _currentUserId = user?.uid ?? (teacherData!['uid'])?.toString() ?? '';
+        _currentUserId = resolvedUserId;
         _isLoading = false;
       });
+
+      // Initialize DP provider for real-time profile picture updates
+      if (resolvedUserId.isNotEmpty && mounted) {
+        final teacherName =
+            teacherData?['teacherName']?.toString() ?? user?.name ?? '';
+        context.read<ProfileDPProvider>().initForUser(
+          resolvedUserId,
+          userName: teacherName,
+        );
+      }
     } catch (e) {
       // ignore: avoid_print
       setState(() {
@@ -298,27 +314,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Avatar
-          Container(
-            width: 128,
-            height: 128,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _primary.withOpacity(0.12),
-              border: Border.all(color: _primary.withOpacity(0.3), width: 2),
-            ),
-            child: ClipOval(
-              child: (profileImage != null && profileImage.isNotEmpty)
-                  ? Image.network(
-                      profileImage,
-                      width: 128,
-                      height: 128,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) =>
-                          _buildInitialsAvatar(initials),
-                    )
-                  : _buildInitialsAvatar(initials),
-            ),
+          // Avatar — tappable DP circle with edit overlay
+          Consumer<ProfileDPProvider>(
+            builder: (ctx, dpProvider, _) {
+              final dpUrl = dpProvider.currentUserDP ?? profileImage;
+              return ProfileDPCircle(
+                imageUrl: dpUrl,
+                name: displayName,
+                size: 128,
+                showEditOverlay: true,
+                isUploading: dpProvider.isUploading,
+                uploadProgress: dpProvider.uploadProgress,
+                onTap: () {
+                  final userId = _currentUserId;
+                  if (userId == null || userId.isEmpty) return;
+                  DPOptionsBottomSheet.show(
+                    context: context,
+                    userId: userId,
+                    userName: displayName,
+                    currentImageUrl: dpUrl,
+                  );
+                },
+              );
+            },
           ),
           const SizedBox(height: 16),
           // Name
