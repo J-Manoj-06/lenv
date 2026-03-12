@@ -251,7 +251,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
       decoration: BoxDecoration(
         color: _allCached ? Colors.transparent : Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.withOpacity(0.35), width: 1),
+        border: Border.all(color: Colors.grey.withOpacity(0.5), width: 2.5),
       ),
       padding: EdgeInsets.zero,
       child: Stack(
@@ -305,33 +305,76 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
               child: IgnorePointer(
                 ignoring: false,
                 child: Center(
-                  child: Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
+                  child: widget.imageUrls.length == 2
+                      ? Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.5),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _downloadAllImages,
+                              customBorder: const CircleBorder(),
+                              child: const Icon(
+                                Icons.cloud_download,
+                                size: 36,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: _downloadAllImages,
+                                  customBorder: const CircleBorder(),
+                                  child: const Icon(
+                                    Icons.cloud_download,
+                                    size: 36,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Tap to download',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _downloadAllImages,
-                        customBorder: const CircleBorder(),
-                        child: const Icon(
-                          Icons.cloud_download,
-                          size: 36,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ),
