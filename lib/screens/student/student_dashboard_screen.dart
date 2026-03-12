@@ -852,8 +852,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
         // DEBUG: Log principal announcement data
         if (principal.imageCaptions != null) {
-          for (int i = 0; i < principal.imageCaptions!.length; i++) {
-          }
+          for (int i = 0; i < principal.imageCaptions!.length; i++) {}
         }
 
         // Get image URL - prefer imageCaptions[0] if available, fallback to imageUrl
@@ -904,7 +903,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       }
     }).toList();
 
-
     // Open viewer and await completion
     await openAnnouncementPageView(
       context,
@@ -954,7 +952,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         }
       },
     );
-
 
     // StreamBuilder will automatically update the UI, no manual refresh needed
   }
@@ -1248,9 +1245,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         limit: 1,
       );
 
-      final topperPoints = entries.isNotEmpty
-          ? entries.first.score.toInt()
-          : 0;
+      final topperPoints = entries.isNotEmpty ? entries.first.score.toInt() : 0;
 
       await CacheManager.cacheTopperPoints(
         schoolId: schoolCode,
