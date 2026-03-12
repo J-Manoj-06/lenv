@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/profile_dp_provider.dart';
 import '../services/profile_dp_service.dart';
 import '../screens/common/full_screen_dp_viewer.dart';
+import '../screens/common/image_crop_screen.dart';
 
 /// Bottom sheet for DP management actions.
 ///
@@ -139,48 +139,33 @@ class DPOptionsBottomSheet extends StatelessWidget {
     BuildContext context, {
     required bool fromCamera,
   }) async {
-    // Capture references BEFORE popping (context becomes unmounted after pop)
+    // Capture all context-dependent refs BEFORE popping the sheet
     final dpProvider = context.read<ProfileDPProvider>();
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop(); // close bottom sheet
+    final navigator = Navigator.of(context);
+    navigator.pop(); // close bottom sheet
 
+    // 1. Pick image from gallery / camera
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: fromCamera ? ImageSource.camera : ImageSource.gallery,
-      imageQuality: 90,
+      imageQuality: 95,
     );
 
     if (picked == null) return;
 
-    // Crop to square
-    final croppedFile = await ImageCropper().cropImage(
-      sourcePath: picked.path,
-      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-      uiSettings: [
-        AndroidUiSettings(
-          toolbarTitle: 'Crop Photo',
-          toolbarColor: const Color(0xFF1A1A1A),
-          toolbarWidgetColor: Colors.white,
-          activeControlsWidgetColor: const Color(0xFFF2800D),
-          backgroundColor: const Color(0xFF1A1A1A),
-          lockAspectRatio: true,
-          cropStyle: CropStyle.circle,
-          hideBottomControls: false,
-          showCropGrid: false,
-        ),
-        IOSUiSettings(
-          title: 'Crop Photo',
-          aspectRatioLockEnabled: true,
-          resetAspectRatioEnabled: false,
-          cropStyle: CropStyle.circle,
-        ),
-      ],
+    // 2. Open custom square crop screen (pure Flutter — works with hot reload)
+    final File? croppedFile = await navigator.push<File?>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => ImageCropScreen(imageFile: File(picked.path)),
+      ),
     );
 
     if (croppedFile == null) return; // user cancelled crop
 
-    final file = File(croppedFile.path);
-    final validationError = ProfileDPService.validateImageFile(file);
+    // 3. Validate
+    final validationError = ProfileDPService.validateImageFile(croppedFile);
     if (validationError != null) {
       scaffoldMessenger.showSnackBar(
         SnackBar(content: Text(validationError), backgroundColor: Colors.red),
@@ -188,16 +173,17 @@ class DPOptionsBottomSheet extends StatelessWidget {
       return;
     }
 
+    // 4. Upload
     bool success;
     if (isGroupDP && groupId != null) {
       success = await dpProvider.uploadGroupImage(
         groupId: groupId!,
-        imageFile: file,
+        imageFile: croppedFile,
       );
     } else {
       success = await dpProvider.uploadProfileImage(
         userId: userId,
-        imageFile: file,
+        imageFile: croppedFile,
       );
     }
 

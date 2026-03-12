@@ -90,7 +90,6 @@ dependencies:
   excel: ^4.0.3
 
   path: any
-  image_cropper: ^11.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
