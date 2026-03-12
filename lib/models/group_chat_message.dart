@@ -57,9 +57,16 @@ class GroupChatMessage {
           ? MediaMetadata.fromFirestore(data['mediaMetadata'])
           : null,
       multipleMedia: data['multipleMedia'] != null
-          ? (data['multipleMedia'] as List)
-                .map((m) => MediaMetadata.fromFirestore(m))
-                .toList()
+          ? (() {
+              try {
+                return (data['multipleMedia'] as List)
+                    .whereType<Map<String, dynamic>>()
+                    .map((m) => MediaMetadata.fromFirestore(m))
+                    .toList();
+              } catch (_) {
+                return null;
+              }
+            })()
           : null,
       timestamp: timestampValue,
       deletedFor: data['deletedFor'] != null

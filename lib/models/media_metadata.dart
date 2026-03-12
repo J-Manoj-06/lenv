@@ -32,6 +32,18 @@ class MediaMetadata {
     this.originalFileName,
   });
 
+  /// Parse a timestamp field that may be a Firestore [Timestamp], an [int]
+  /// (milliseconds since epoch), or null.
+  static DateTime _parseTimestamp(dynamic value, DateTime fallback) {
+    if (value is Timestamp) return value.toDate();
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    if (value is String) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+    return fallback;
+  }
+
   /// Create from Firestore document
   factory MediaMetadata.fromFirestore(Map<String, dynamic> data) {
     return MediaMetadata(
@@ -44,11 +56,11 @@ class MediaMetadata {
       serverStatus: ServerStatus.fromString(
         data['serverStatus'] as String? ?? 'available',
       ),
-      expiresAt:
-          (data['expiresAt'] as Timestamp?)?.toDate() ??
-          DateTime.now().add(const Duration(days: 30)),
-      uploadedAt:
-          (data['uploadedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      expiresAt: _parseTimestamp(
+        data['expiresAt'],
+        DateTime.now().add(const Duration(days: 30)),
+      ),
+      uploadedAt: _parseTimestamp(data['uploadedAt'], DateTime.now()),
       fileSize: data['fileSize'] as int?,
       mimeType: data['mimeType'] as String?,
       originalFileName: data['originalFileName'] as String?,

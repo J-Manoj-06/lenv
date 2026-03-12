@@ -439,6 +439,16 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                 ? msg.messageId
                 : 'pending:${msg.messageId}';
 
+            // ✅ CRITICAL: Skip if this message is already in _pendingMessages
+            // This prevents duplication when an upload is still in progress
+            // (activeUploadIds logic keeps it alive, then restore loop would add it again)
+            if (_pendingMessages.any((m) => m.messageId == messageId)) {
+              print(
+                '⏭️ [RESTORE] Skipping $messageId - already present in pending list (upload in progress)',
+              );
+              continue;
+            }
+
             final pendingMessage = CommunityMessageModel(
               messageId: messageId,
               communityId: widget.groupId,
@@ -472,7 +482,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             for (int i = 0; i < mediaList.length; i++) {
               final media = mediaList[i];
               if (media.localPath != null && media.localPath!.isNotEmpty) {
+                // ✅ FIX: Map by BOTH messageId AND r2Key so URL lookup always finds it
                 _localSenderMediaPaths[media.messageId] = media.localPath!;
+                if (media.r2Key.isNotEmpty) {
+                  _localSenderMediaPaths[media.r2Key] = media.localPath!;
+                }
               }
               // Check if progress was saved in the cached multipleMedia
               final cachedMedia = msg.multipleMedia?[i];
@@ -1392,13 +1406,20 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                 }
 
                 // ✅ COMBINE: pending + Firestore + preserved cache + older paginated messages
-                // IMPORTANT: Sort by timestamp DESC for proper display order
-                final allMessages = [
+                // Deduplicate by messageId to prevent any source of duplication
+                final seenIds = <String>{};
+                final allMessages = <CommunityMessageModel>[];
+                for (final msg in [
                   ...filteredPendingMessages,
                   ...cachedFirestoreMessages,
                   ...olderCachedMessages,
                   ..._olderMessages,
-                ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                ]) {
+                  if (seenIds.add(msg.messageId)) {
+                    allMessages.add(msg);
+                  }
+                }
+                allMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
                 // Update last document from stream if available
                 if (cachedFirestoreMessages.isNotEmpty &&
@@ -1781,33 +1802,24 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                               imageUrls: msg
                                                                   .multipleMedia!
                                                                   .map((m) {
-                                                                    // Priority: publicUrl > localPath > thumbnail
-                                                                    if (m
-                                                                        .publicUrl
-                                                                        .isNotEmpty) {
-                                                                      return m
-                                                                          .publicUrl; // Uploaded image
+                                                                    // Priority 1: publicUrl (Firestore/uploaded)
+                                                                    if (m.publicUrl.isNotEmpty) {
+                                                                      return m.publicUrl;
                                                                     }
-                                                                    final localPath =
-                                                                        _localSenderMediaPaths[m
-                                                                            .r2Key];
-                                                                    if (localPath !=
-                                                                            null &&
-                                                                        localPath
-                                                                            .isNotEmpty) {
-                                                                      return localPath; // Pending upload
+                                                                    // Priority 2: local path by r2Key
+                                                                    final byR2Key = _localSenderMediaPaths[m.r2Key];
+                                                                    if (byR2Key != null && byR2Key.isNotEmpty) {
+                                                                      return byR2Key;
                                                                     }
-                                                                    // Fallback to thumbnail (local path stored during pending)
-                                                                    return m
-                                                                            .thumbnail
-                                                                            .isNotEmpty
-                                                                        ? m.thumbnail
-                                                                        : '';
+                                                                    // Priority 3: local path by messageId (set during initial upload)
+                                                                    final byMsgId = _localSenderMediaPaths[m.messageId];
+                                                                    if (byMsgId != null && byMsgId.isNotEmpty) {
+                                                                      return byMsgId;
+                                                                    }
+                                                                    // Priority 4: thumbnail (local file path stored in pending metadata)
+                                                                    return m.thumbnail.isNotEmpty ? m.thumbnail : '';
                                                                   })
-                                                                  .where(
-                                                                    (url) => url
-                                                                        .isNotEmpty,
-                                                                  ) // Filter empty URLs
+                                                                  .where((url) => url.isNotEmpty)
                                                                   .toList(),
                                                               isMe:
                                                                   isCurrentUser,
@@ -3106,9 +3118,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   final mediaWithProgress = mediaList.map((m) {
                     final mId = m.messageId;
                     final progress = _pendingUploadNotifiers[mId]?.value ?? 0.0;
+                    // ✅ FIX: Include thumbnail (local file path) so it survives cache restore
+                    final localPath = _localSenderMediaPaths[mId] ?? m.thumbnail;
                     return {
                       'messageId': mId,
-                      'localPath': _localSenderMediaPaths[mId],
+                      'localPath': localPath,
+                      'thumbnail': localPath, // ✅ Preserve local path as thumbnail
                       'uploadProgress': progress / 100.0,
                       'r2Key': m.r2Key,
                       'publicUrl': m.publicUrl,
@@ -4738,7 +4753,8 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   late int _currentIndex;
   late Map<int, TransformationController> _transformationControllers;
   late Map<int, bool> _zoomStates;
-  final Map<int, Offset> _doubleTapPositions = {}; // Per-image double-tap position
+  final Map<int, Offset> _doubleTapPositions =
+      {}; // Per-image double-tap position
   bool _isInteracting = false; // Track if user is zooming
   int _pointerCount = 0; // Track number of fingers on screen
 
@@ -4963,7 +4979,10 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           transformationController: _transformationControllers[index],
           minScale: 1.0, // No zoom out below original size
           maxScale: 5.0, // Max 5x zoom
-          panEnabled: (_zoomStates[index] ?? false) || _pointerCount >= 2, // Pan with 1 finger when zoomed, or 2+ fingers
+          panEnabled:
+              (_zoomStates[index] ?? false) ||
+              _pointerCount >=
+                  2, // Pan with 1 finger when zoomed, or 2+ fingers
           scaleEnabled: true, // Enable pinch zoom
           boundaryMargin: const EdgeInsets.all(double.infinity),
           clipBehavior: Clip.none,

@@ -140,16 +140,22 @@ class GroupMessagingService {
         .limit(limit) // ✅ OPTIMIZATION: Limit messages loaded
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
-              .where((doc) {
-                // Filter out documents with invalid data
-                final data = doc.data();
-                // ✅ FIXED: Also filter out deleted messages
-                return data['timestamp'] != null &&
-                    !(data['isDeleted'] ?? false);
-              })
-              .map((doc) => GroupChatMessage.fromFirestore(doc.data(), doc.id))
-              .toList();
+          final messages = <GroupChatMessage>[];
+          for (final doc in snapshot.docs) {
+            try {
+              final data = doc.data();
+              // Filter out documents with invalid data or deleted messages
+              if (data['timestamp'] == null || (data['isDeleted'] ?? false)) {
+                continue;
+              }
+              messages.add(GroupChatMessage.fromFirestore(data, doc.id));
+            } catch (e) {
+              // Skip corrupted message documents so one bad doc can't
+              // error the entire stream (which would show "Error loading messages")
+              debugPrint('⚠️ Skipping malformed message doc ${doc.id}: $e');
+            }
+          }
+          return messages;
         });
   }
 

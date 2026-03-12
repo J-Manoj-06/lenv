@@ -86,8 +86,35 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     _checkAllCacheStatus();
   }
 
+  @override
+  void didUpdateWidget(MultiImageMessageBubble oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-check cache whenever imageUrls change (e.g., pending → Firestore message)
+    if (oldWidget.imageUrls.length != widget.imageUrls.length ||
+        !_listEquals(oldWidget.imageUrls, widget.imageUrls)) {
+      _cachedStatus.clear();
+      _cachedPaths.clear();
+      _allCached = false;
+      _checkAllCacheStatus();
+    }
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   /// Check cache status for all images
   Future<void> _checkAllCacheStatus() async {
+    // Guard: nothing to check
+    if (widget.imageUrls.isEmpty) {
+      if (mounted) setState(() => _allCached = false);
+      return;
+    }
+
     bool allCached = true;
 
     for (int i = 0; i < widget.imageUrls.length; i++) {

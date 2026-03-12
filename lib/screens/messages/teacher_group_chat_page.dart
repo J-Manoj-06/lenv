@@ -821,12 +821,16 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         // Update centralized unread tracker (this updates Firestore)
         await _markChatAsReadForUser();
 
-        // Update legacy group doc for backward compatibility
-        await _messagingService.markGroupAsRead(
-          widget.classId,
-          widget.subjectId,
-          currentUser.uid,
-        );
+        // Update legacy group doc for backward compatibility.
+        // Only teachers have write permission on the subjects document;
+        // calling this as a student causes PERMISSION_DENIED.
+        if (currentUser.role == UserRole.teacher) {
+          await _messagingService.markGroupAsRead(
+            widget.classId,
+            widget.subjectId,
+            currentUser.uid,
+          );
+        }
       }
     } catch (e) {}
   }
@@ -1919,6 +1923,10 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
                     if (snapshot.hasError) {
                       // ✅ Show pending messages even if Firestore has error
+                      debugPrint(
+                        '❌ Firestore stream error for '
+                        '${widget.classId}/${widget.subjectId}: ${snapshot.error}',
+                      );
                       if (_pendingMessages.isEmpty) {
                         return Center(
                           child: Text(

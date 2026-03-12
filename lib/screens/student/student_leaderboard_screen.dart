@@ -56,8 +56,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     super.initState();
     // Wait for auth to initialize before loading leaderboard data
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       final auth = Provider.of<AuthProvider>(context, listen: false);
       await auth.ensureInitialized();
+      if (!mounted) return;
       await _initContextAndOverall();
     });
   }
@@ -739,6 +741,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   }
 
   Future<void> _initContextAndOverall() async {
+    if (!mounted) return;
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final uid = auth.currentUser?.uid;
     final email = auth.currentUser?.email;
@@ -753,6 +756,9 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         .collection('students')
         .doc(uid)
         .get();
+
+    if (!mounted) return;
+
     Map<String, dynamic>? st;
     if (stDoc.exists) {
       st = stDoc.data();
@@ -762,9 +768,12 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           .where('email', isEqualTo: email)
           .limit(1)
           .get();
+
+      if (!mounted) return;
+
       if (q.docs.isNotEmpty) {
         st = q.docs.first.data();
-      } else {}
+      }
     }
 
     _schoolCode = (st?['schoolCode'] as String?)?.trim();
@@ -776,11 +785,13 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     if (_className != null && _className!.isEmpty) _className = null;
     if (_section != null && _section!.isEmpty) _section = null;
 
+    if (!mounted) return;
+
     if (_schoolCode != null && _className != null) {
       setState(() {
         _overallStream = _buildOverallStream();
       });
-    } else {}
+    }
   }
 
   Future<void> _ensureTestsLoaded() async {
