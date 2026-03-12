@@ -158,7 +158,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   }
 
   void _open() {
-
     // Block playback if still uploading
     if (widget.uploading) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -187,7 +186,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
       _download(); // Re-download the file
       return;
     }
-
 
     if (_isDocument) {
       // Open documents with system app picker
@@ -218,12 +216,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   Future<void> _openFromR2() async {
     if (!_isDocument && !_isAudio) return;
 
-
     // Check if already downloaded locally and file still exists
     if (_isDownloaded && _localPath != null) {
       final file = File(_localPath!);
       final fileExists = await file.exists();
-
 
       if (fileExists) {
         // Open immediately without downloading
@@ -259,7 +255,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
     // Not downloaded yet or file deleted - download first then open
     try {
-
       // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -277,14 +272,12 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         r2Key: widget.r2Key,
         fileName: widget.fileName,
         mimeType: widget.mimeType,
-        onProgress: (progress) {
-        },
+        onProgress: (progress) {},
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
-
 
       // Check if download succeeded
       if (result.success && result.localPath != null) {
@@ -295,7 +288,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         if (!fileExists) {
           throw Exception('Downloaded file not found: ${result.localPath}');
         }
-
 
         // Update state
         setState(() {
@@ -451,7 +443,6 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 
   @override
   Widget build(BuildContext context) {
-
     // For IMAGES: Show WhatsApp-style preview (image with tap to expand)
     if (_isImage) {
       return _buildImagePreview();
@@ -666,9 +657,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           width: 260,
           height: 260,
           decoration: BoxDecoration(
-            color: borderColor,
+            color: borderColor.withOpacity(0.25),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: borderColor, width: 1.5),
+            border: Border.all(color: borderColor.withOpacity(0.45), width: 1),
           ),
           padding: const EdgeInsets.all(3),
           child: ClipRRect(

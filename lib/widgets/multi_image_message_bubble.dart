@@ -249,11 +249,11 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
 
     final bubbleContent = Container(
       decoration: BoxDecoration(
-        color: _getBorderColor(),
+        color: _allCached ? Colors.transparent : Colors.black,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _getBorderColor(), width: 1.5),
+        border: Border.all(color: Colors.grey.withOpacity(0.35), width: 1),
       ),
-      padding: const EdgeInsets.all(3),
+      padding: EdgeInsets.zero,
       child: Stack(
         children: [
           ClipRRect(borderRadius: BorderRadius.circular(7), child: content),
@@ -833,13 +833,12 @@ class _ImageTileState extends State<_ImageTile>
   @override
   Widget build(BuildContext context) {
     super.build(context); // Must call super for AutomaticKeepAliveClientMixin
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: widget.margin,
       decoration: BoxDecoration(
+        color: Colors.black,
         borderRadius: BorderRadius.circular(widget.radius),
-        border: Border.all(color: widget.borderColor, width: 0.5),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(widget.radius),
@@ -855,9 +854,7 @@ class _ImageTileState extends State<_ImageTile>
                 opacity: _loaded ? 0.0 : 1.0,
                 duration: const Duration(milliseconds: 250),
                 child: Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-                  ),
+                  decoration: const BoxDecoration(color: Colors.black),
                   child: const Center(
                     child: SizedBox(
                       width: 24,
@@ -1045,9 +1042,6 @@ class _ImageTileState extends State<_ImageTile>
 
   Widget _downloadPromptFallback() {
     _markLoadedAsync();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
-    );
+    return const SizedBox.expand();
   }
 }
