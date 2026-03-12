@@ -12,10 +12,12 @@ import '../../models/institute_announcement_model.dart';
 import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
+import '../../providers/profile_dp_provider.dart';
 import '../../services/parent_service.dart';
 import '../../utils/cache_manager.dart';
 import '../../services/leaderboard_service.dart';
 import '../../widgets/stat_ring_card.dart';
+import '../../widgets/profile_avatar_widget.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import '../ai/ai_chat_page.dart';
@@ -142,6 +144,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       }
 
       final resolvedUserId = userId;
+
+      // Initialise profile DP provider for real-time avatar updates
+      if (mounted) {
+        final studentName =
+            Provider.of<StudentProvider>(
+              context,
+              listen: false,
+            ).currentStudent?.name ??
+            '';
+        context.read<ProfileDPProvider>().initForUser(
+          resolvedUserId,
+          userName: studentName,
+        );
+      }
 
       // Force auth token propagation to Firestore SDK before creating any streams.
       // This prevents the "permission denied" race condition where Firestore streams
@@ -484,29 +500,73 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   Widget _buildProfileIcon() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
+    return Consumer<ProfileDPProvider>(
+      builder: (context, dpProvider, _) {
+        final studentProvider = Provider.of<StudentProvider>(
           context,
-          MaterialPageRoute(builder: (context) => const StudentProfileScreen()),
+          listen: false,
+        );
+        final studentName = studentProvider.currentStudent?.name ?? 'Student';
+        final imageUrl = dpProvider.currentUserDP;
+
+        // Show real avatar if we have a DP, otherwise show icon button
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          return GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const StudentProfileScreen(),
+              ),
+            ),
+            child: ProfileAvatarWidget(
+              imageUrl: imageUrl,
+              name: studentName,
+              size: 44,
+              showBorder: true,
+              borderColor: const Color(0xFFF2800D),
+              borderWidth: 2,
+            ),
+          );
+        }
+
+        // Fallback: initials avatar (no photo yet)
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const StudentProfileScreen(),
+            ),
+          ),
+          child: studentName.isNotEmpty
+              ? ProfileAvatarWidget(
+                  name: studentName,
+                  size: 44,
+                  showBorder: true,
+                  borderColor: isDark
+                      ? const Color(0xFF2C2C2E)
+                      : Colors.grey.shade300,
+                  borderWidth: 1.5,
+                )
+              : Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1C1C1E) : _surface(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF2C2C2E)
+                          : Colors.grey.shade300,
+                      width: 1,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.person_outline,
+                    color: isDark ? Colors.white : Colors.black87,
+                    size: 24,
+                  ),
+                ),
         );
       },
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1C1C1E) : _surface(context),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark ? const Color(0xFF2C2C2E) : Colors.grey.shade300,
-            width: 1,
-          ),
-        ),
-        child: Icon(
-          Icons.person_outline,
-          color: isDark ? Colors.white : Colors.black87,
-          size: 24,
-        ),
-      ),
     );
   }
 

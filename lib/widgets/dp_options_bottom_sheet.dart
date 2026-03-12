@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../providers/profile_dp_provider.dart';
@@ -138,6 +139,9 @@ class DPOptionsBottomSheet extends StatelessWidget {
     BuildContext context, {
     required bool fromCamera,
   }) async {
+    // Capture references BEFORE popping (context becomes unmounted after pop)
+    final dpProvider = context.read<ProfileDPProvider>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop(); // close bottom sheet
 
     final picker = ImagePicker();
@@ -148,19 +152,41 @@ class DPOptionsBottomSheet extends StatelessWidget {
 
     if (picked == null) return;
 
-    final file = File(picked.path);
+    // Crop to square
+    final croppedFile = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Photo',
+          toolbarColor: const Color(0xFF1A1A1A),
+          toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: const Color(0xFFF2800D),
+          backgroundColor: const Color(0xFF1A1A1A),
+          lockAspectRatio: true,
+          cropStyle: CropStyle.circle,
+          hideBottomControls: false,
+          showCropGrid: false,
+        ),
+        IOSUiSettings(
+          title: 'Crop Photo',
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+          cropStyle: CropStyle.circle,
+        ),
+      ],
+    );
+
+    if (croppedFile == null) return; // user cancelled crop
+
+    final file = File(croppedFile.path);
     final validationError = ProfileDPService.validateImageFile(file);
     if (validationError != null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(validationError), backgroundColor: Colors.red),
-        );
-      }
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text(validationError), backgroundColor: Colors.red),
+      );
       return;
     }
-
-    if (!context.mounted) return;
-    final dpProvider = context.read<ProfileDPProvider>();
 
     bool success;
     if (isGroupDP && groupId != null) {
@@ -175,20 +201,21 @@ class DPOptionsBottomSheet extends StatelessWidget {
       );
     }
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success ? 'Photo updated successfully!' : 'Failed to upload photo.',
-          ),
-          backgroundColor: success ? Colors.green : Colors.red,
-          duration: const Duration(seconds: 2),
+    scaffoldMessenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          success ? 'Photo updated successfully!' : 'Failed to upload photo.',
         ),
-      );
-    }
+        backgroundColor: success ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _confirmRemove(BuildContext context) async {
+    // Capture references BEFORE popping
+    final dpProvider = context.read<ProfileDPProvider>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop(); // close bottom sheet
 
     final confirmed = await showDialog<bool>(
@@ -215,9 +242,8 @@ class DPOptionsBottomSheet extends StatelessWidget {
       ),
     );
 
-    if (confirmed != true || !context.mounted) return;
+    if (confirmed != true) return;
 
-    final dpProvider = context.read<ProfileDPProvider>();
     bool success;
     if (isGroupDP && groupId != null) {
       success = await dpProvider.removeGroupImage(groupId: groupId!);
@@ -225,15 +251,13 @@ class DPOptionsBottomSheet extends StatelessWidget {
       success = await dpProvider.removeProfileImage(userId: userId);
     }
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Photo removed.' : 'Failed to remove photo.'),
-          backgroundColor: success ? null : Colors.red,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
+    scaffoldMessenger.showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Photo removed.' : 'Failed to remove photo.'),
+        backgroundColor: success ? null : Colors.red,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 }
 

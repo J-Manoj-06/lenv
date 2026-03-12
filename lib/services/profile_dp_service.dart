@@ -53,7 +53,6 @@ class ProfileDPService {
 
       // 2. Generate unique image ID
       final imageId = 'dp_${DateTime.now().millisecondsSinceEpoch}';
-      final key = 'profile_pictures/$userId/$imageId.jpg';
 
       // 3. Generate signed upload URL
       final signedUrlData = await _r2Service.generateSignedUploadUrl(
@@ -63,12 +62,13 @@ class ProfileDPService {
       );
       onProgress?.call(30);
 
-      // 4. Build correct key with profile_pictures prefix
+      // 4. Upload — use the URL and key that R2 actually assigned
       final signedUrl = signedUrlData['url'] as String;
-      final r2Domain = CloudflareConfig.r2Domain;
+      final actualKey =
+          signedUrlData['key'] as String; // e.g. media/ts/dp_123.jpg
 
-      // Upload with signed URL
-      await _r2Service.uploadFileWithSignedUrl(
+      // uploadFileWithSignedUrl returns the real public URL built from the signed path
+      final publicUrl = await _r2Service.uploadFileWithSignedUrl(
         fileBytes: compressedBytes,
         signedUrl: signedUrl,
         contentType: 'image/jpeg',
@@ -76,14 +76,11 @@ class ProfileDPService {
       );
       onProgress?.call(80);
 
-      // Build public URL using profile_pictures path
-      final publicUrl = '$r2Domain/$key';
-
-      // 5. Save metadata in Firestore
+      // 5. Save metadata in Firestore — store the actual R2 key for future deletion
       await _firestore.collection('users').doc(userId).set({
         'profileImageUrl': publicUrl,
         'profileImageId': imageId,
-        'profileImageKey': key,
+        'profileImageKey': actualKey,
         'profileImageUpdatedAt': FieldValue.serverTimestamp(),
         'hasProfileImage': true,
       }, SetOptions(merge: true));
@@ -224,8 +221,6 @@ class ProfileDPService {
 
       // 2. Generate unique image ID
       final imageId = 'group_dp_${DateTime.now().millisecondsSinceEpoch}';
-      final key = 'group_images/$groupId/$imageId.jpg';
-      final r2Domain = CloudflareConfig.r2Domain;
 
       // 3. Generate signed upload URL
       final signedUrlData = await _r2Service.generateSignedUploadUrl(
@@ -235,8 +230,9 @@ class ProfileDPService {
       );
       onProgress?.call(30);
 
-      // 4. Upload to R2
-      await _r2Service.uploadFileWithSignedUrl(
+      // 4. Upload — use the URL and key that R2 actually assigned
+      final actualGroupKey = signedUrlData['key'] as String;
+      final publicUrl = await _r2Service.uploadFileWithSignedUrl(
         fileBytes: compressedBytes,
         signedUrl: signedUrlData['url'] as String,
         contentType: 'image/jpeg',
@@ -244,13 +240,11 @@ class ProfileDPService {
       );
       onProgress?.call(80);
 
-      final publicUrl = '$r2Domain/$key';
-
-      // 5. Save metadata in Firestore groups collection
+      // 5. Save metadata in Firestore groups collection — store actual R2 key
       await _firestore.collection('groups').doc(groupId).set({
         'groupImageUrl': publicUrl,
         'groupImageId': imageId,
-        'groupImageKey': key,
+        'groupImageKey': actualGroupKey,
         'groupImageUpdatedAt': FieldValue.serverTimestamp(),
         'hasGroupImage': true,
       }, SetOptions(merge: true));
@@ -375,10 +369,16 @@ class ProfileDPService {
 
   /// Get user initials from name (up to 2 characters).
   static String getInitials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return '?';
+    final parts = trimmed
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) {
-      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+      final p = parts[0];
+      return p.substring(0, p.length >= 2 ? 2 : 1).toUpperCase();
     }
     return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
   }
