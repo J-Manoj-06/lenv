@@ -184,7 +184,9 @@ class ImageViewerActionService {
 
         if (path != null) {
           final mimeType =
-              item.mimeType ?? lookupMimeType(path) ?? 'application/octet-stream';
+              item.mimeType ??
+              lookupMimeType(path) ??
+              'application/octet-stream';
           final fileName =
               (item.fileName != null && item.fileName!.trim().isNotEmpty)
               ? item.fileName!.trim()

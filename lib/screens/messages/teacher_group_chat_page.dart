@@ -37,6 +37,7 @@ import '../../widgets/media_preview_card.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/image_viewer_action_service.dart';
+import '../../services/media_availability_service.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
@@ -94,6 +95,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   }
 
   final GroupMessagingService _messagingService = GroupMessagingService();
+  final MediaAvailabilityService _mediaAvailabilityService =
+      MediaAvailabilityService();
   final TextEditingController _messageController = TextEditingController();
   String? _lastTopMessageId;
   final FocusNode _messageFocusNode = FocusNode();
@@ -1954,6 +1957,17 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                     ),
                     IconButton(
                       icon: const Icon(
+                        Icons.share_rounded,
+                        color: Colors.white70,
+                        size: 24,
+                      ),
+                      tooltip: 'Share',
+                      onPressed: _selectedMessages.isEmpty
+                          ? null
+                          : _shareSelectedMessages,
+                    ),
+                    IconButton(
+                      icon: const Icon(
                         Icons.delete_outline,
                         color: Colors.redAccent,
                         size: 24,
@@ -2950,6 +2964,119 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         builder: (_) => ForwardSelectionScreen(messages: forwardData),
       ),
     );
+  }
+
+  Future<String?> _resolveDownloadedLocalPath(
+    Map<String, dynamic> media,
+  ) async {
+    final directPath = media['localPath'] as String?;
+    if (directPath != null && directPath.isNotEmpty) {
+      final file = File(directPath);
+      if (await file.exists()) return directPath;
+    }
+
+    final r2Key = media['r2Key'] as String?;
+    if (r2Key == null || r2Key.isEmpty) return null;
+
+    return _mediaAvailabilityService.getCachedFilePath(r2Key);
+  }
+
+  Future<void> _shareSelectedMessages() async {
+    final ids = _selectedMessages.toList();
+    if (ids.isEmpty) return;
+
+    final items = <ShareMediaItem>[];
+
+    for (final id in ids) {
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('classes')
+            .doc(widget.classId)
+            .collection('subjects')
+            .doc(widget.subjectId)
+            .collection('messages')
+            .doc(id)
+            .get();
+        if (!doc.exists) continue;
+        final data = doc.data()!;
+
+        final mediaMetaRaw = data['mediaMetadata'];
+        if (mediaMetaRaw is Map) {
+          final media = Map<String, dynamic>.from(mediaMetaRaw as Map);
+          final localPath = await _resolveDownloadedLocalPath(media);
+          if (localPath == null) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Download selected media first to share'),
+              ),
+            );
+            return;
+          }
+
+          items.add(
+            ShareMediaItem(
+              localPath: localPath,
+              fileName: media['originalFileName'] as String?,
+              mimeType: media['mimeType'] as String?,
+            ),
+          );
+        }
+
+        final multipleMediaRaw = data['multipleMedia'];
+        if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
+          for (final m in multipleMediaRaw) {
+            if (m is! Map) continue;
+            final media = Map<String, dynamic>.from(m);
+            final localPath = await _resolveDownloadedLocalPath(media);
+            if (localPath == null) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Download selected media first to share'),
+                ),
+              );
+              return;
+            }
+
+            items.add(
+              ShareMediaItem(
+                localPath: localPath,
+                fileName: media['originalFileName'] as String?,
+                mimeType: media['mimeType'] as String?,
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (items.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select media messages to share')),
+      );
+      return;
+    }
+
+    final ok = await ImageViewerActionService.shareMediaFiles(
+      items: items,
+      text: items.length > 1 ? 'Shared from New Reward' : null,
+      requireLocalOnly: true,
+    );
+
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Android share failed')));
+      return;
+    }
+
+    setState(() {
+      _isSelectionMode = false;
+      _selectedMessages.clear();
+    });
   }
 
   void _showDeleteDialog() {

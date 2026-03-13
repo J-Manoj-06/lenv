@@ -617,7 +617,9 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                         borderRadius: BorderRadius.circular(8),
                         child: InkWell(
                           borderRadius: BorderRadius.circular(8),
-                          onTap: widget.selectionMode ? null : _shareCurrentMedia,
+                          onTap: widget.selectionMode
+                              ? null
+                              : _shareCurrentMedia,
                           child: const SizedBox(
                             width: 44,
                             height: 44,

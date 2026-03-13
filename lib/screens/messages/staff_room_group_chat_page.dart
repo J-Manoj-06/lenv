@@ -2179,23 +2179,16 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                   ? null
                                   : _forwardSelectedMessages,
                             ),
-                            FutureBuilder<bool>(
-                              future: _canShareSelectedMessages(
-                                selectedMessages,
+                            IconButton(
+                              icon: const Icon(
+                                Icons.share_rounded,
+                                color: Colors.white70,
+                                size: 24,
                               ),
-                              builder: (context, snapshot) {
-                                final canShare = snapshot.data == true;
-                                if (!canShare) return const SizedBox.shrink();
-                                return IconButton(
-                                  icon: const Icon(
-                                    Icons.share_rounded,
-                                    color: Colors.white70,
-                                    size: 24,
-                                  ),
-                                  tooltip: 'Share',
-                                  onPressed: _shareSelectedMessages,
-                                );
-                              },
+                              tooltip: 'Share',
+                              onPressed: selectedMessages.isEmpty
+                                  ? null
+                                  : _shareSelectedMessages,
                             ),
                             IconButton(
                               icon: const Icon(
@@ -3265,7 +3258,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     return data;
   }
 
-  Future<String?> _resolveDownloadedLocalPath(Map<String, dynamic> media) async {
+  Future<String?> _resolveDownloadedLocalPath(
+    Map<String, dynamic> media,
+  ) async {
     final directPath = media['localPath'] as String?;
     if (directPath != null && directPath.isNotEmpty) {
       final file = File(directPath);
@@ -3289,7 +3284,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
       final mediaMetaRaw = data['mediaMetadata'];
       if (mediaMetaRaw is Map) {
-        final media = Map<String, dynamic>.from(mediaMetaRaw as Map);
+        final media = Map<String, dynamic>.from(mediaMetaRaw);
         final localPath = await _resolveDownloadedLocalPath(media);
         if (localPath == null) return [];
 
@@ -3306,7 +3301,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
         for (final m in multipleMediaRaw) {
           if (m is! Map) continue;
-          final media = Map<String, dynamic>.from(m as Map);
+          final media = Map<String, dynamic>.from(m);
           final localPath = await _resolveDownloadedLocalPath(media);
           if (localPath == null) return [];
 
