@@ -3307,6 +3307,15 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       if (await file.exists()) return directPath;
     }
 
+    final urlCandidates = <String?>[
+      media['publicUrl'] as String?,
+      media['url'] as String?,
+      media['imageUrl'] as String?,
+      media['attachmentUrl'] as String?,
+      media['downloadUrl'] as String?,
+      media['fileUrl'] as String?,
+    ];
+
     final keyCandidates = <String?>[
       media['r2Key'] as String?,
       media['key'] as String?,
@@ -3314,8 +3323,45 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       media['path'] as String?,
     ];
 
+    final normalizedKeys = <String>{};
+
+    void addKeyCandidate(String? raw) {
+      if (raw == null || raw.trim().isEmpty) return;
+      final trimmed = raw.trim();
+      normalizedKeys.add(trimmed);
+
+      var noLeadingSlash = trimmed;
+      while (noLeadingSlash.startsWith('/')) {
+        noLeadingSlash = noLeadingSlash.substring(1);
+      }
+      if (noLeadingSlash.isNotEmpty) normalizedKeys.add(noLeadingSlash);
+
+      final uri = Uri.tryParse(trimmed);
+      if (uri != null && uri.path.isNotEmpty) {
+        var path = uri.path;
+        while (path.startsWith('/')) {
+          path = path.substring(1);
+        }
+        if (path.isNotEmpty) {
+          normalizedKeys.add(path);
+          final decoded = Uri.decodeFull(path);
+          if (decoded.isNotEmpty) normalizedKeys.add(decoded);
+          final slashIndex = path.indexOf('/');
+          if (slashIndex > 0 && slashIndex < path.length - 1) {
+            normalizedKeys.add(path.substring(slashIndex + 1));
+          }
+        }
+      }
+    }
+
     for (final key in keyCandidates) {
-      if (key == null || key.isEmpty) continue;
+      addKeyCandidate(key);
+    }
+    for (final url in urlCandidates) {
+      addKeyCandidate(url);
+    }
+
+    for (final key in normalizedKeys) {
       final path = await _mediaAvailabilityService.getCachedFilePath(key);
       if (path != null && path.isNotEmpty) return path;
     }
@@ -3330,15 +3376,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         }
       }
     }
-
-    final urlCandidates = <String?>[
-      media['publicUrl'] as String?,
-      media['url'] as String?,
-      media['imageUrl'] as String?,
-      media['attachmentUrl'] as String?,
-      media['downloadUrl'] as String?,
-      media['fileUrl'] as String?,
-    ];
 
     for (final url in urlCandidates) {
       if (url == null || url.isEmpty) continue;
@@ -3371,7 +3408,24 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           (fileUrl != null && fileUrl.isNotEmpty);
       if (mediaMetaRaw is Map) {
         final media = Map<String, dynamic>.from(mediaMetaRaw);
-        final localPath = await _resolveDownloadedLocalPath(media);
+        String? localPath = await _resolveDownloadedLocalPath(media);
+        if (localPath == null && hasLegacyMediaUrl) {
+          final fallbackMedia = <String, dynamic>{
+            ...media,
+            'localPath': data['localPath'] ?? media['localPath'],
+            'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+            'imageUrl': imageUrl,
+            'attachmentUrl': attachmentUrl,
+            'fileUrl': fileUrl,
+            'originalFileName':
+                media['originalFileName'] ??
+                data['attachmentName'] ??
+                data['fileName'],
+            'mimeType':
+                media['mimeType'] ?? data['attachmentType'] ?? data['mimeType'],
+          };
+          localPath = await _resolveDownloadedLocalPath(fallbackMedia);
+        }
         if (localPath == null) return [];
 
         items.add(
