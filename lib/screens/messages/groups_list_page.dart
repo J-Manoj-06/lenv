@@ -37,6 +37,8 @@ class _GroupsListPageState extends State<GroupsListPage>
       {}; // Store listeners for cleanup
   final Map<String, dynamic> _subjectListeners =
       {}; // Track subject doc listeners for lastActivity updates
+  final Set<String> _messageErrorLogged = <String>{};
+  final Set<String> _subjectErrorLogged = <String>{};
 
   int _toMillis(dynamic raw) {
     if (raw is int) return raw;
@@ -125,28 +127,46 @@ class _GroupsListPageState extends State<GroupsListPage>
         .orderBy('timestamp', descending: true);
 
     // Store the listener so we can cancel it on dispose
-    _messageListeners[chatId] = query.snapshots().listen((snapshot) {
-      if (snapshot.docs.isNotEmpty && mounted) {
-        final rawTs = snapshot.docs.first.data()['timestamp'];
-        final newTs = _toMillis(rawTs);
+    _messageListeners[chatId] = query.snapshots().listen(
+      (snapshot) {
+        if (snapshot.docs.isNotEmpty && mounted) {
+          final rawTs = snapshot.docs.first.data()['timestamp'];
+          final newTs = _toMillis(rawTs);
 
-        // Update timestamp and resort immediately
-        _lastMessageTs[chatId] = newTs;
-        _resortGroups();
+          // Update timestamp and resort immediately
+          _lastMessageTs[chatId] = newTs;
+          _resortGroups();
 
-        // Refresh unread count for this chat
-        try {
-          final unread = Provider.of<UnreadCountProvider>(
-            context,
-            listen: false,
-          );
-          unread.loadUnreadCount(
-            chatId: chatId,
-            chatType: ChatTypeConfig.groupChat,
-          );
-        } catch (_) {}
-      }
-    }, onError: (e) => print('Error listening to messages for $chatId: $e'));
+          // Refresh unread count for this chat
+          try {
+            final unread = Provider.of<UnreadCountProvider>(
+              context,
+              listen: false,
+            );
+            unread.loadUnreadCount(
+              chatId: chatId,
+              chatType: ChatTypeConfig.groupChat,
+            );
+          } catch (_) {}
+        }
+      },
+      onError: (e) {
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('permission-denied') ||
+            msg.contains('permission denied') ||
+            msg.contains('insufficient permissions')) {
+          if (_messageErrorLogged.add(chatId)) {
+            debugPrint('Permission denied listening messages for $chatId');
+          }
+          _messageListeners[chatId]?.cancel?.call();
+          _messageListeners.remove(chatId);
+          return;
+        }
+        if (_messageErrorLogged.add('other:$chatId')) {
+          debugPrint('Error listening to messages for $chatId: $e');
+        }
+      },
+    );
   }
 
   void _listenForSubjectActivity(String classId, GroupSubject subject) {
@@ -157,18 +177,36 @@ class _GroupsListPageState extends State<GroupsListPage>
         .collection('subjects')
         .doc(subject.id);
 
-    _subjectListeners[chatId] = docRef.snapshots().listen((doc) {
-      if (!mounted || !doc.exists) return;
-      final data = doc.data();
-      final activityTs = (data?['lastActivity'] as int?) ?? 0;
-      if (activityTs == 0) return;
+    _subjectListeners[chatId] = docRef.snapshots().listen(
+      (doc) {
+        if (!mounted || !doc.exists) return;
+        final data = doc.data();
+        final activityTs = (data?['lastActivity'] as int?) ?? 0;
+        if (activityTs == 0) return;
 
-      final previous = _lastMessageTs[chatId] ?? 0;
-      if (activityTs > previous) {
-        _lastMessageTs[chatId] = activityTs;
-        _resortGroups();
-      }
-    }, onError: (e) => debugPrint('Error listening to subject $chatId: $e'));
+        final previous = _lastMessageTs[chatId] ?? 0;
+        if (activityTs > previous) {
+          _lastMessageTs[chatId] = activityTs;
+          _resortGroups();
+        }
+      },
+      onError: (e) {
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('permission-denied') ||
+            msg.contains('permission denied') ||
+            msg.contains('insufficient permissions')) {
+          if (_subjectErrorLogged.add(chatId)) {
+            debugPrint('Permission denied listening subject for $chatId');
+          }
+          _subjectListeners[chatId]?.cancel?.call();
+          _subjectListeners.remove(chatId);
+          return;
+        }
+        if (_subjectErrorLogged.add('other:$chatId')) {
+          debugPrint('Error listening to subject $chatId: $e');
+        }
+      },
+    );
   }
 
   void _resortGroups() {

@@ -130,18 +130,32 @@ class ProfileDPService {
 
   /// Get current user DP metadata as a stream (real-time updates).
   Stream<Map<String, dynamic>?> watchUserDP(String userId) {
-    return _firestore.collection('users').doc(userId).snapshots().map((snap) {
-      if (!snap.exists) return null;
-      final d = snap.data();
-      if (d == null) return null;
-      return {
-        'profileImageUrl': d['profileImageUrl'],
-        'profileImageId': d['profileImageId'],
-        'profileImageUpdatedAt': d['profileImageUpdatedAt'],
-        'hasProfileImage': d['hasProfileImage'] ?? false,
-        'name': d['name'] ?? '',
-      };
-    });
+    return _firestore
+        .collection('users')
+        .doc(userId)
+        .snapshots()
+        .handleError((e) {
+          final msg = e.toString().toLowerCase();
+          if (msg.contains('permission-denied') ||
+              msg.contains('permission denied') ||
+              msg.contains('insufficient permissions')) {
+            debugPrint('ProfileDPService watchUserDP denied for $userId');
+            return;
+          }
+          throw e;
+        })
+        .map((snap) {
+          if (!snap.exists) return null;
+          final d = snap.data();
+          if (d == null) return null;
+          return {
+            'profileImageUrl': d['profileImageUrl'],
+            'profileImageId': d['profileImageId'],
+            'profileImageUpdatedAt': d['profileImageUpdatedAt'],
+            'hasProfileImage': d['hasProfileImage'] ?? false,
+            'name': d['name'] ?? '',
+          };
+        });
   }
 
   /// Fetch user DP URL once (non-streaming).
@@ -267,18 +281,32 @@ class ProfileDPService {
 
   /// Get group DP metadata as a stream.
   Stream<Map<String, dynamic>?> watchGroupDP(String groupId) {
-    return _firestore.collection('groups').doc(groupId).snapshots().map((snap) {
-      if (!snap.exists) return null;
-      final d = snap.data();
-      if (d == null) return null;
-      return {
-        'groupImageUrl': d['groupImageUrl'],
-        'groupImageId': d['groupImageId'],
-        'groupImageUpdatedAt': d['groupImageUpdatedAt'],
-        'hasGroupImage': d['hasGroupImage'] ?? false,
-        'groupName': d['groupName'] ?? '',
-      };
-    });
+    return _firestore
+        .collection('groups')
+        .doc(groupId)
+        .snapshots()
+        .handleError((e) {
+          final msg = e.toString().toLowerCase();
+          if (msg.contains('permission-denied') ||
+              msg.contains('permission denied') ||
+              msg.contains('insufficient permissions')) {
+            debugPrint('ProfileDPService watchGroupDP denied for $groupId');
+            return;
+          }
+          throw e;
+        })
+        .map((snap) {
+          if (!snap.exists) return null;
+          final d = snap.data();
+          if (d == null) return null;
+          return {
+            'groupImageUrl': d['groupImageUrl'],
+            'groupImageId': d['groupImageId'],
+            'groupImageUpdatedAt': d['groupImageUpdatedAt'],
+            'hasGroupImage': d['hasGroupImage'] ?? false,
+            'groupName': d['groupName'] ?? '',
+          };
+        });
   }
 
   /// Fetch group DP URL once.
@@ -377,18 +405,30 @@ class ProfileDPService {
 
   /// Staff-room DP stream.
   Stream<Map<String, dynamic>?> watchStaffRoomDP(String roomId) {
-    return _firestore.collection('staff_rooms').doc(roomId).snapshots().map((
-      snap,
-    ) {
-      if (!snap.exists) return null;
-      final d = snap.data();
-      if (d == null) return null;
-      return {
-        'staffRoomImageUrl': d['staffRoomImageUrl'],
-        'staffRoomImageUpdatedAt': d['staffRoomImageUpdatedAt'],
-        'hasStaffRoomImage': d['hasStaffRoomImage'] ?? false,
-      };
-    });
+    return _firestore
+        .collection('staff_rooms')
+        .doc(roomId)
+        .snapshots()
+        .handleError((e) {
+          final msg = e.toString().toLowerCase();
+          if (msg.contains('permission-denied') ||
+              msg.contains('permission denied') ||
+              msg.contains('insufficient permissions')) {
+            debugPrint('ProfileDPService watchStaffRoomDP denied for $roomId');
+            return;
+          }
+          throw e;
+        })
+        .map((snap) {
+          if (!snap.exists) return null;
+          final d = snap.data();
+          if (d == null) return null;
+          return {
+            'staffRoomImageUrl': d['staffRoomImageUrl'],
+            'staffRoomImageUpdatedAt': d['staffRoomImageUpdatedAt'],
+            'hasStaffRoomImage': d['hasStaffRoomImage'] ?? false,
+          };
+        });
   }
 
   /// Fetch staff-room DP URL once.

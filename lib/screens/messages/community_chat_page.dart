@@ -3762,10 +3762,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
 
   void _setImageReady(int index, bool ready) {
     if (_imageReady[index] == ready || !mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _imageReady[index] == ready) return;
-      setState(() => _imageReady[index] = ready);
-    });
+    setState(() => _imageReady[index] = ready);
   }
 
   void _showMessage(String message) {

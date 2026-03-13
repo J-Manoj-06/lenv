@@ -121,38 +121,89 @@ class ImageViewerActionService {
     String? publicUrl,
     String? fileNameHint,
   }) async {
+    final imagePath = await ensureImageFile(
+      localPath: localPath,
+      publicUrl: publicUrl,
+    );
+    if (imagePath == null) return false;
+
+    await Share.shareXFiles([
+      XFile(imagePath, mimeType: lookupMimeType(imagePath) ?? 'image/jpeg'),
+    ], text: fileNameHint ?? 'Image');
+    return true;
+  }
+
+  static Future<String?> ensureMediaFile({
+    String? localPath,
+    String? publicUrl,
+  }) async {
+    if (localPath != null && localPath.isNotEmpty) {
+      final localFile = File(localPath);
+      if (await localFile.exists()) {
+        return localFile.path;
+      }
+    }
+
+    if (publicUrl == null || publicUrl.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.tryParse(publicUrl);
+    if (uri == null || !(uri.isScheme('http') || uri.isScheme('https'))) {
+      return null;
+    }
+
+    if (_sessionCacheByUrl.containsKey(publicUrl)) {
+      final path = _sessionCacheByUrl[publicUrl]!;
+      if (await File(path).exists()) return path;
+    }
+
+    final file = await DefaultCacheManager().getSingleFile(publicUrl);
+    _sessionCacheByUrl[publicUrl] = file.path;
+    return file.path;
+  }
+
+  static Future<bool> shareMediaFiles({
+    required List<ShareMediaItem> items,
+    String? text,
+    bool requireLocalOnly = false,
+  }) async {
+    if (items.isEmpty) return false;
+
     try {
-      final imagePath = await ensureImageFile(
-        localPath: localPath,
-        publicUrl: publicUrl,
-      );
+      final files = <XFile>[];
+      final fallbackUrls = <String>[];
 
-      if (imagePath != null) {
-        final file = File(imagePath);
-        if (await file.exists()) {
-          final mimeType = lookupMimeType(imagePath) ?? 'image/jpeg';
+      for (final item in items) {
+        final path = requireLocalOnly
+            ? await _existingLocalPath(item.localPath)
+            : await ensureMediaFile(
+                localPath: item.localPath,
+                publicUrl: item.publicUrl,
+              );
+
+        if (path != null) {
+          final mimeType =
+              item.mimeType ?? lookupMimeType(path) ?? 'application/octet-stream';
           final fileName =
-              (fileNameHint != null && fileNameHint.trim().isNotEmpty)
-              ? fileNameHint.trim()
-              : p.basename(imagePath);
-
-          try {
-            await Share.shareXFiles([
-              XFile(imagePath, mimeType: mimeType, name: fileName),
-            ], text: fileNameHint ?? 'Image');
-            return true;
-          } catch (_) {
-            final bytes = await file.readAsBytes();
-            await Share.shareXFiles([
-              XFile.fromData(bytes, mimeType: mimeType, name: fileName),
-            ], text: fileNameHint ?? 'Image');
-            return true;
-          }
+              (item.fileName != null && item.fileName!.trim().isNotEmpty)
+              ? item.fileName!.trim()
+              : p.basename(path);
+          files.add(XFile(path, mimeType: mimeType, name: fileName));
+        } else if (!requireLocalOnly &&
+            item.publicUrl != null &&
+            item.publicUrl!.isNotEmpty) {
+          fallbackUrls.add(item.publicUrl!);
         }
       }
 
-      if (publicUrl != null && publicUrl.isNotEmpty) {
-        await Share.share(publicUrl, subject: fileNameHint ?? 'Image');
+      if (files.isNotEmpty) {
+        await Share.shareXFiles(files, text: text);
+        return true;
+      }
+
+      if (!requireLocalOnly && fallbackUrls.isNotEmpty) {
+        await Share.share(fallbackUrls.join('\n'), subject: text ?? 'Media');
         return true;
       }
 
@@ -160,6 +211,13 @@ class ImageViewerActionService {
     } catch (_) {
       return false;
     }
+  }
+
+  static Future<String?> _existingLocalPath(String? localPath) async {
+    if (localPath == null || localPath.isEmpty) return null;
+    final file = File(localPath);
+    if (await file.exists()) return file.path;
+    return null;
   }
 
   static String _resolveExtension(String path, String? fileNameHint) {
@@ -176,4 +234,18 @@ class ImageViewerActionService {
 
     return 'jpg';
   }
+}
+
+class ShareMediaItem {
+  final String? localPath;
+  final String? publicUrl;
+  final String? fileName;
+  final String? mimeType;
+
+  const ShareMediaItem({
+    this.localPath,
+    this.publicUrl,
+    this.fileName,
+    this.mimeType,
+  });
 }

@@ -166,6 +166,39 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     }
   }
 
+  Future<void> _shareCurrentMedia() async {
+    if (!_isDownloaded || _localPath == null || _localPath!.isEmpty) return;
+
+    final file = File(_localPath!);
+    if (!await file.exists()) {
+      if (mounted) {
+        setState(() {
+          _isDownloaded = false;
+          _localPath = null;
+        });
+      }
+      return;
+    }
+
+    final ok = await ImageViewerActionService.shareMediaFiles(
+      items: [
+        ShareMediaItem(
+          localPath: _localPath,
+          fileName: widget.fileName,
+          mimeType: widget.mimeType,
+        ),
+      ],
+      text: widget.fileName,
+      requireLocalOnly: true,
+    );
+
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Android share failed')));
+    }
+  }
+
   void _open() {
     // Block playback if still uploading
     if (widget.uploading) {
@@ -546,36 +579,57 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     ],
                   )
                 else if (_isDownloaded)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: widget.selectionMode ? null : _open,
-                      icon: Icon(
-                        _isDocument
-                            ? Icons.open_in_new
-                            : _isAudio
-                            ? Icons.play_arrow
-                            : _isImage
-                            ? Icons.image
-                            : Icons.play_arrow,
-                      ),
-                      label: Text(
-                        _isDocument
-                            ? 'View Document'
-                            : _isAudio
-                            ? 'Play Audio'
-                            : _isImage
-                            ? 'View Image'
-                            : 'View',
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _accentColor,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: widget.selectionMode ? null : _open,
+                          icon: Icon(
+                            _isDocument
+                                ? Icons.open_in_new
+                                : _isAudio
+                                ? Icons.play_arrow
+                                : _isImage
+                                ? Icons.image
+                                : Icons.play_arrow,
+                          ),
+                          label: Text(
+                            _isDocument
+                                ? 'View Document'
+                                : _isAudio
+                                ? 'Play Audio'
+                                : _isImage
+                                ? 'View Image'
+                                : 'View',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _accentColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: _accentColor,
+                        borderRadius: BorderRadius.circular(8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: widget.selectionMode ? null : _shareCurrentMedia,
+                          child: const SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Icon(
+                              Icons.share_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   )
                 else
                   // Not downloaded yet - show Download button for both sender and receiver

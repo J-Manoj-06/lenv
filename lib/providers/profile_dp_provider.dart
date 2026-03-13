@@ -11,6 +11,20 @@ import '../services/profile_dp_service.dart';
 /// - Cache of other users' DP URLs (to avoid repeated fetches)
 class ProfileDPProvider extends ChangeNotifier {
   final ProfileDPService _dpService = ProfileDPService();
+  final Set<String> _loggedPermissionErrors = <String>{};
+
+  bool _isPermissionDeniedError(Object error) {
+    final msg = error.toString().toLowerCase();
+    return msg.contains('permission-denied') ||
+        msg.contains('permission denied') ||
+        msg.contains('insufficient permissions');
+  }
+
+  void _logPermissionErrorOnce(String key, Object error) {
+    if (_loggedPermissionErrors.add(key)) {
+      debugPrint('ProfileDPProvider permission denied [$key]: $error');
+    }
+  }
 
   static String _friendlyErrorMessage(Object error, String fallback) {
     final message = error.toString();
@@ -99,20 +113,36 @@ class ProfileDPProvider extends ChangeNotifier {
     if (_currentUserId == userId) return; // already listening
     _currentUserId = userId;
     _dpSubscription?.cancel();
-    _dpSubscription = _dpService.watchUserDP(userId).listen((data) {
-      _currentUserDP = data?['profileImageUrl'] as String?;
-      _hasProfileImage = data?['hasProfileImage'] as bool? ?? false;
+    _dpSubscription = _dpService
+        .watchUserDP(userId)
+        .listen(
+          (data) {
+            _currentUserDP = data?['profileImageUrl'] as String?;
+            _hasProfileImage = data?['hasProfileImage'] as bool? ?? false;
 
-      // Store updatedAt for cache-key building
-      final ts = data?['profileImageUpdatedAt'];
-      if (ts != null) _userDPUpdatedAt[userId] = ts.toString();
+            // Store updatedAt for cache-key building
+            final ts = data?['profileImageUpdatedAt'];
+            if (ts != null) _userDPUpdatedAt[userId] = ts.toString();
 
-      // Also update cache entry for this user
-      _userDPCache[userId] = _currentUserDP;
-      _cacheTimestamps[userId] = DateTime.now();
+            // Also update cache entry for this user
+            _userDPCache[userId] = _currentUserDP;
+            _cacheTimestamps[userId] = DateTime.now();
 
-      notifyListeners();
-    });
+            notifyListeners();
+          },
+          onError: (error) {
+            if (_isPermissionDeniedError(error)) {
+              _logPermissionErrorOnce('user:$userId', error);
+              _currentUserDP = null;
+              _hasProfileImage = false;
+              _dpSubscription?.cancel();
+              _dpSubscription = null;
+              notifyListeners();
+              return;
+            }
+            debugPrint('ProfileDPProvider user dp stream error: $error');
+          },
+        );
   }
 
   @override
@@ -238,15 +268,26 @@ class ProfileDPProvider extends ChangeNotifier {
   /// Start listening to a group's DP in real-time.
   void watchGroupDP(String groupId) {
     if (_groupDPSubscriptions.containsKey(groupId)) return;
-    _groupDPSubscriptions[groupId] = _dpService.watchGroupDP(groupId).listen((
-      data,
-    ) {
-      _groupDPCache[groupId] = data?['groupImageUrl'] as String?;
-      // Store updatedAt for cache-key building
-      final ts = data?['groupImageUpdatedAt'];
-      if (ts != null) _groupDPUpdatedAt[groupId] = ts.toString();
-      notifyListeners();
-    });
+    _groupDPSubscriptions[groupId] = _dpService
+        .watchGroupDP(groupId)
+        .listen(
+          (data) {
+            _groupDPCache[groupId] = data?['groupImageUrl'] as String?;
+            // Store updatedAt for cache-key building
+            final ts = data?['groupImageUpdatedAt'];
+            if (ts != null) _groupDPUpdatedAt[groupId] = ts.toString();
+            notifyListeners();
+          },
+          onError: (error) {
+            if (_isPermissionDeniedError(error)) {
+              _logPermissionErrorOnce('group:$groupId', error);
+              _groupDPSubscriptions[groupId]?.cancel();
+              _groupDPSubscriptions.remove(groupId);
+              return;
+            }
+            debugPrint('ProfileDPProvider group dp stream error: $error');
+          },
+        );
   }
 
   /// Get group DP from cache.
@@ -329,12 +370,23 @@ class ProfileDPProvider extends ChangeNotifier {
     if (_staffRoomDPSubscriptions.containsKey(roomId)) return;
     _staffRoomDPSubscriptions[roomId] = _dpService
         .watchStaffRoomDP(roomId)
-        .listen((data) {
-          _staffRoomDPCache[roomId] = data?['staffRoomImageUrl'] as String?;
-          final ts = data?['staffRoomImageUpdatedAt'];
-          if (ts != null) _staffRoomDPUpdatedAt[roomId] = ts.toString();
-          notifyListeners();
-        });
+        .listen(
+          (data) {
+            _staffRoomDPCache[roomId] = data?['staffRoomImageUrl'] as String?;
+            final ts = data?['staffRoomImageUpdatedAt'];
+            if (ts != null) _staffRoomDPUpdatedAt[roomId] = ts.toString();
+            notifyListeners();
+          },
+          onError: (error) {
+            if (_isPermissionDeniedError(error)) {
+              _logPermissionErrorOnce('staffRoom:$roomId', error);
+              _staffRoomDPSubscriptions[roomId]?.cancel();
+              _staffRoomDPSubscriptions.remove(roomId);
+              return;
+            }
+            debugPrint('ProfileDPProvider staff room dp stream error: $error');
+          },
+        );
   }
 
   /// Get staff-room DP from cache.

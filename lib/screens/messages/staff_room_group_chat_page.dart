@@ -34,6 +34,7 @@ import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
 import '../../services/background_upload_service.dart';
 import '../../services/image_viewer_action_service.dart';
+import '../../services/media_availability_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/forward_message_data.dart';
@@ -116,6 +117,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
   // Message cache to maintain stable Map instances (prevents flickering)
   final Map<String, Map<String, dynamic>> _messageCache = {};
+  final MediaAvailabilityService _mediaAvailabilityService =
+      MediaAvailabilityService();
 
   // Cached stream to prevent StreamBuilder recreating stream on every build
   Stream<QuerySnapshot>? _messagesStream;
@@ -2176,6 +2179,24 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                   ? null
                                   : _forwardSelectedMessages,
                             ),
+                            FutureBuilder<bool>(
+                              future: _canShareSelectedMessages(
+                                selectedMessages,
+                              ),
+                              builder: (context, snapshot) {
+                                final canShare = snapshot.data == true;
+                                if (!canShare) return const SizedBox.shrink();
+                                return IconButton(
+                                  icon: const Icon(
+                                    Icons.share_rounded,
+                                    color: Colors.white70,
+                                    size: 24,
+                                  ),
+                                  tooltip: 'Share',
+                                  onPressed: _shareSelectedMessages,
+                                );
+                              },
+                            ),
                             IconButton(
                               icon: const Icon(
                                 Icons.delete_outline,
@@ -3225,6 +3246,121 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         builder: (_) => ForwardSelectionScreen(messages: forwardData),
       ),
     );
+  }
+
+  Future<Map<String, dynamic>?> _getMessageDataById(String id) async {
+    final cached = _messageCache[id];
+    if (cached != null) return cached;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('staff_rooms')
+        .doc(widget.instituteId)
+        .collection('messages')
+        .doc(id)
+        .get();
+    if (!doc.exists) return null;
+
+    final data = <String, dynamic>{...?(doc.data()), 'id': doc.id};
+    _messageCache[id] = data;
+    return data;
+  }
+
+  Future<String?> _resolveDownloadedLocalPath(Map<String, dynamic> media) async {
+    final directPath = media['localPath'] as String?;
+    if (directPath != null && directPath.isNotEmpty) {
+      final file = File(directPath);
+      if (await file.exists()) return directPath;
+    }
+
+    final r2Key = media['r2Key'] as String?;
+    if (r2Key == null || r2Key.isEmpty) return null;
+
+    return _mediaAvailabilityService.getCachedFilePath(r2Key);
+  }
+
+  Future<List<ShareMediaItem>> _buildShareItemsFromSelection(
+    Set<String> selectedIds,
+  ) async {
+    final items = <ShareMediaItem>[];
+
+    for (final id in selectedIds) {
+      final data = await _getMessageDataById(id);
+      if (data == null) return [];
+
+      final mediaMetaRaw = data['mediaMetadata'];
+      if (mediaMetaRaw is Map) {
+        final media = Map<String, dynamic>.from(mediaMetaRaw as Map);
+        final localPath = await _resolveDownloadedLocalPath(media);
+        if (localPath == null) return [];
+
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: media['originalFileName'] as String?,
+            mimeType: media['mimeType'] as String?,
+          ),
+        );
+      }
+
+      final multipleMediaRaw = data['multipleMedia'];
+      if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
+        for (final m in multipleMediaRaw) {
+          if (m is! Map) continue;
+          final media = Map<String, dynamic>.from(m as Map);
+          final localPath = await _resolveDownloadedLocalPath(media);
+          if (localPath == null) return [];
+
+          items.add(
+            ShareMediaItem(
+              localPath: localPath,
+              fileName: media['originalFileName'] as String?,
+              mimeType: media['mimeType'] as String?,
+            ),
+          );
+        }
+      }
+    }
+
+    return items;
+  }
+
+  Future<bool> _canShareSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+    final items = await _buildShareItemsFromSelection(selectedIds);
+    return items.isNotEmpty;
+  }
+
+  Future<void> _shareSelectedMessages() async {
+    final selectedIds = _selectedMessages.value;
+    if (selectedIds.isEmpty) return;
+
+    final items = await _buildShareItemsFromSelection(selectedIds);
+    if (items.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Download selected media first to enable sharing'),
+        ),
+      );
+      return;
+    }
+
+    final ok = await ImageViewerActionService.shareMediaFiles(
+      items: items,
+      text: items.length > 1 ? 'Shared from New Reward' : null,
+      requireLocalOnly: true,
+    );
+
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Android share failed')));
+      return;
+    }
+
+    _isSelectionMode.value = false;
+    _selectedMessages.value = {};
   }
 
   void _showDeleteDialog() {
