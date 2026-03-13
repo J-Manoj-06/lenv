@@ -111,7 +111,7 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
         }
       } else {
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       setState(() {
         _isSearching = false;
       });

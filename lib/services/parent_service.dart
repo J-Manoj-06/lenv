@@ -1922,15 +1922,9 @@ class ParentService {
       String? schoolCode = studentData?['schoolCode'] as String?;
 
       // If className not found, try alternates
-      if (className == null) {
-        className = studentData?['class'] as String?;
-      }
-      if (className == null) {
-        className = studentData?['standard'] as String?;
-      }
-      if (schoolCode == null) {
-        schoolCode = studentData?['school'] as String?;
-      }
+      className ??= studentData?['class'] as String?;
+      className ??= studentData?['standard'] as String?;
+      schoolCode ??= studentData?['school'] as String?;
 
 
       if (className == null || schoolCode == null || schoolCode.isEmpty) {
@@ -2025,7 +2019,7 @@ class ParentService {
       }
 
       return records;
-    } catch (e, st) {
+    } catch (e) {
       return [];
     }
   }

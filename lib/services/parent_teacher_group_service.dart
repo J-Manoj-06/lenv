@@ -191,7 +191,7 @@ class ParentTeacherGroupService {
                 messages.add(msg);
               } else {
               }
-            } catch (e, stack) {
+            } catch (e) {
               // Skip messages that fail to parse (e.g., corrupted data)
             }
           }

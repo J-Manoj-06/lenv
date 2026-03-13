@@ -169,6 +169,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   // Optimistic pending uploads (parity with student group chat)
   final List<GroupChatMessage> _pendingMessages = [];
   final Set<String> _uploadingMessageIds = {};
+  final Set<String> _failedMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localSenderMediaPaths = {};
   DateTime? _lastMarkedMessageAt;
@@ -257,8 +258,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _isInitialized) {
-      _loadPendingMessages().then((_) {
-      });
+      _loadPendingMessages().then((_) {});
     }
   }
 
@@ -336,6 +336,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
             _activeUploads++;
           }
           _uploadingMessageIds.add(messageId);
+          _failedMessageIds.remove(messageId);
           _pendingUploadProgress[messageId] = progress;
 
           // Update cache with progress so it survives navigation
@@ -348,6 +349,13 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           }
           _uploadingMessageIds.remove(messageId);
           _pendingUploadProgress.remove(messageId);
+
+          // Detect upload failure: isUploading=false and progress=0.0
+          if (progress == 0.0) {
+            _failedMessageIds.add(messageId);
+          } else {
+            _failedMessageIds.remove(messageId);
+          }
 
           // ✅ Dispose ValueNotifier when upload complete
           _progressNotifiers[messageId]?.dispose();
@@ -412,12 +420,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     // Handle group upload completion
     BackgroundUploadService().onGroupComplete = (groupId) async {
-
       // Delete pending message from cache
       try {
         await _localRepo.deletePendingMessage(groupId);
-      } catch (e) {
-      }
+      } catch (e) {}
 
       // DON'T remove pending message here - let Firestore sync handle it
       // Clean up tracking data only
@@ -659,7 +665,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           limit: 50,
         );
       } else {
-
         // Sync new messages in background
         _syncService.syncNewMessages(
           chatId: widget.communityId,
@@ -675,6 +680,17 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         userId: currentUser.uid,
       );
     }
+  }
+
+  void _retryUpload(String mediaId) {
+    if (!mounted) return;
+    setState(() {
+      _failedMessageIds.remove(mediaId);
+      _uploadingMessageIds.add(mediaId);
+      _pendingUploadProgress[mediaId] = 0.0;
+      _progressNotifiers[mediaId] = ValueNotifier<double>(0.0);
+    });
+    BackgroundUploadService().retryUpload(mediaId);
   }
 
   Future<void> _loadPendingMessages() async {
@@ -695,7 +711,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         _uploadingMessageIds.clear();
         _pendingUploadProgress.clear();
         _localSenderMediaPaths.clear();
-
 
         // Convert LocalMessage to GroupChatMessage format
         for (final msg in pendingMessages) {
@@ -722,7 +737,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
               final mediaId = first['messageId'] as String?;
               final localPath = first['localPath'] as String?;
               final uploadProgress = first['uploadProgress'] as double? ?? 0.0;
-
 
               final mediaMetadata = MediaMetadata(
                 messageId: mediaId ?? msg.messageId,
@@ -765,9 +779,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                   _progressNotifiers[mediaId] = ValueNotifier<double>(
                     uploadProgress,
                   );
-
-                } else {
-                }
+                } else {}
               }
             } else {
               // ✅ Multi-media message
@@ -817,9 +829,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                     _progressNotifiers[mediaId] = ValueNotifier<double>(
                       uploadProgress,
                     );
-
-                  } else {
-                  }
+                  } else {}
                 }
               }
             }
@@ -999,8 +1009,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       );
 
       await _localRepo.saveMessage(localMsg);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Cleanup completed upload from pending state (Reserved for future use)
@@ -1259,7 +1268,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       multipleMedia: mediaList.length > 1 ? mediaList : null,
     );
 
-
     // Save pending message to cache IMMEDIATELY (survives navigation)
     try {
       final pendingLocalMsg = LocalMessage(
@@ -1282,8 +1290,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         isPending: true,
       );
       await _localRepo.saveMessage(pendingLocalMsg);
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Store local file paths BEFORE adding pending message to ensure they're available for rendering
     for (int i = 0; i < mediaList.length; i++) {
@@ -1300,7 +1307,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
       final file = File(localPath);
     }
-
 
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
@@ -1326,9 +1332,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           messageId: messageId,
           groupId: groupMessageId, // Group all images together
         );
-
       }
-
 
       // Scroll to bottom to show new message
       _scrollToBottom(force: true);
@@ -1361,7 +1365,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
   Future<void> _pickCamera() async {
     try {
-
       final image = await _imagePicker.pickImage(
         source: ImageSource.camera,
         maxWidth: 1920,
@@ -1527,8 +1530,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           _pendingMessages.add(pendingPoll);
         });
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   void _showAttachmentPicker() {
@@ -2618,6 +2620,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                           isSelected: isSelected,
                                           communityId: widget.communityId,
                                           userRole: userRole,
+                                          failedMessageIds: _failedMessageIds,
+                                          onRetry: _retryUpload,
                                         ),
                                       ),
                                     ),
@@ -2682,8 +2686,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                 ),
                               );
                             }
-                          } catch (e) {
-                          }
+                          } catch (e) {}
                         },
                         child: Container(
                           width: 52,
@@ -2930,7 +2933,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                               final path =
                                   '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
-
                               await _audioRecorder.start(
                                 const RecordConfig(encoder: AudioEncoder.aacLc),
                                 path: path,
@@ -2950,7 +2952,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                   }
                                 },
                               );
-
                             } catch (e) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -3268,6 +3269,8 @@ class _MessageBubble extends StatelessWidget {
   final bool isSelected;
   final String communityId;
   final UserRole? userRole;
+  final Set<String> failedMessageIds;
+  final void Function(String)? onRetry;
 
   const _MessageBubble({
     required this.message,
@@ -3281,6 +3284,8 @@ class _MessageBubble extends StatelessWidget {
     this.isSelected = false,
     required this.communityId,
     required this.userRole,
+    required this.failedMessageIds,
+    this.onRetry,
   });
 
   @override
@@ -3295,8 +3300,7 @@ class _MessageBubble extends StatelessWidget {
     final textColor = Colors.white;
 
     // DEBUG: Log message rendering details
-    if (message.id.startsWith('pending:')) {
-    }
+    if (message.id.startsWith('pending:')) {}
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
@@ -3576,6 +3580,10 @@ class _MessageBubble extends StatelessWidget {
       uploading: isUploading,
       uploadProgress: uploadProgressVal,
       themeColor: themeColor,
+      failed: failedMessageIds.contains(metadata.messageId),
+      onRetry: failedMessageIds.contains(metadata.messageId)
+          ? () => onRetry?.call(metadata.messageId)
+          : null,
     );
   }
 

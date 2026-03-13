@@ -38,13 +38,13 @@ class ApiService {
       } else {
         return null;
       }
-    } on TimeoutException catch (e) {
+    } on TimeoutException {
       return null;
-    } on SocketException catch (e) {
+    } on SocketException {
       return null;
-    } on HttpException catch (e) {
+    } on HttpException {
       return null;
-    } on FormatException catch (e) {
+    } on FormatException {
       return null;
     } catch (e) {
       return null;

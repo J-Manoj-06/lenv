@@ -104,11 +104,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   late final LocalMessageRepository _localRepo;
   late final FirebaseMessageSyncService _syncService;
 
-  bool _isUploading = false;
+  final bool _isUploading = false;
   bool _isRecording = false;
   bool _isOnline = true;
   StreamSubscription<bool>? _connectivitySub;
-  String _uploadingMediaType =
+  final String _uploadingMediaType =
       ''; // Track what type of media is uploading: 'image', 'pdf', 'audio'
   bool _showEmojiPicker = false;
   String? _recordingPath;
@@ -127,6 +127,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   final Set<String> _uploadingMessageIds = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
+  // Track upload failures for retry UI
+  final Set<String> _failedMessageIds = {};
+
   // Stream lastReadAt dynamically for real-time splitter updates
   late Stream<Timestamp?> _lastReadAtStream;
   bool _initializedFirstSnapshot = false;
@@ -283,6 +286,26 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       return value.map((k, v) => MapEntry(k, _stripTimestamps(v)));
     }
     return value;
+  }
+
+  /// Retry a failed upload: clears the failed flag and re-queues via BackgroundUploadService.
+  void _retryUpload(String mediaId) {
+    if (!mounted) return;
+    setState(() {
+      _failedMessageIds.remove(mediaId);
+      _uploadingMessageIds.add(mediaId);
+      _pendingUploadProgress[mediaId] = 0.0;
+      _progressNotifiers[mediaId] = ValueNotifier<double>(0.0);
+    });
+    BackgroundUploadService().retryUpload(mediaId).catchError((e) {
+      if (mounted) {
+        setState(() {
+          _failedMessageIds.add(mediaId);
+          _uploadingMessageIds.remove(mediaId);
+          _pendingUploadProgress.remove(mediaId);
+        });
+      }
+    });
   }
 
   /// Rehydrate any in-flight background uploads into visible pending bubbles.
@@ -584,6 +607,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         pendingUploadProgress: _pendingUploadProgress,
                         classId: widget.classId,
                         subjectId: widget.subjectId,
+                        failedMessageIds: _failedMessageIds,
+                        onRetry: _retryUpload,
                         key: ValueKey('bubble-${message.id}'),
                       ),
                     ),
@@ -732,6 +757,46 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
             // ✅ Dispose ValueNotifier when upload complete
             _progressNotifiers[messageId]?.dispose();
             _progressNotifiers.remove(messageId);
+          }
+        });
+        // Cache progress updates
+        _cachePendingMessages();
+      }
+    };
+    uploadService.onUploadProgress = (messageId, isUploading, progress) {
+      if (mounted) {
+        // ✅ Update ValueNotifier for smooth progress (milestone-based)
+        final milestones = [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0];
+        if (_progressNotifiers[messageId] != null) {
+          final currentValue = _progressNotifiers[messageId]!.value;
+          // Only update on significant changes to prevent excessive redraws
+          if ((progress - currentValue).abs() > 0.05 ||
+              milestones.any((m) => (progress - m).abs() < 0.01)) {
+            _progressNotifiers[messageId]!.value = progress;
+          }
+        } else if (isUploading) {
+          // Create notifier if it doesn't exist
+          _progressNotifiers[messageId] = ValueNotifier<double>(progress);
+        }
+
+        setState(() {
+          if (isUploading) {
+            _uploadingMessageIds.add(messageId);
+            _pendingUploadProgress[messageId] = progress;
+            // Clear failure flag when retrying
+            _failedMessageIds.remove(messageId);
+          } else {
+            _uploadingMessageIds.remove(messageId);
+            _pendingUploadProgress.remove(messageId);
+            _progressNotifiers[messageId]?.dispose();
+            _progressNotifiers.remove(messageId);
+            // Detect failure: backend signals failure with progress == 0.0
+            if (progress == 0.0) {
+              _failedMessageIds.add(messageId);
+            } else {
+              // Successful upload — clear any previous failure flag
+              _failedMessageIds.remove(messageId);
+            }
           }
         });
         // Cache progress updates
@@ -1127,23 +1192,64 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         return;
       }
 
-      // Queue upload in background service
+      final conversationId = '${widget.classId}_${widget.subjectId}';
       final file = File(image.path);
+      if (!file.existsSync()) return;
+
+      final baseTimestamp = DateTime.now().millisecondsSinceEpoch;
+      final groupMessageId =
+          'upload_${baseTimestamp}_${currentUserId.hashCode}';
+      final messageId = '${groupMessageId}_0';
+
+      // Create pending MediaMetadata with local path for instant preview
+      final pendingMetadata = MediaMetadata(
+        messageId: messageId,
+        r2Key: 'pending/$messageId',
+        publicUrl: '',
+        thumbnail: file.path,
+        localPath: file.path,
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+        uploadedAt: DateTime.now(),
+        originalFileName: file.path.split('/').last,
+        fileSize: await file.length(),
+        mimeType: 'image/jpeg',
+      );
+
+      // Pending message — appears immediately in chat
+      final pendingMessage = GroupChatMessage(
+        id: 'pending:$groupMessageId',
+        senderId: currentUserId,
+        senderName: currentUserName,
+        message: '',
+        timestamp: baseTimestamp,
+        mediaMetadata: pendingMetadata,
+      );
+
+      await _bumpLastActivity(baseTimestamp);
+
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
+        _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = file.path;
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
+      });
+      _cachePendingMessages();
+
+      // Queue background upload
       await BackgroundUploadService().queueUpload(
         file: file,
-        conversationId: '${widget.classId}_${widget.subjectId}',
+        conversationId: conversationId,
         senderId: currentUserId,
-        senderRole: 'teacher',
+        senderRole: 'group',
         mediaType: 'message',
         chatType: 'group',
         senderName: currentUserName,
+        messageId: messageId,
+        groupId: groupMessageId,
       );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image queued for upload')),
-        );
-      }
+      _scrollToBottom(force: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -1501,9 +1607,15 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
+      final currentUserName = authProvider.currentUser?.name ?? 'You';
 
       if (currentUserId == null) {
-        throw Exception('User not authenticated');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User not authenticated')),
+          );
+        }
+        return;
       }
 
       // Stop recording FIRST
@@ -1511,152 +1623,82 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         try {
           await _audioRecorder.stop();
         } catch (e) {}
-
         _recordingTimer?.cancel();
       }
 
-      // Optimistic pending message for recorded audio
-      final messageId = DateTime.now().millisecondsSinceEpoch.toString();
-      final pendingMetadata = MediaMetadata(
-        messageId: messageId,
-        r2Key: 'pending/$messageId',
-        publicUrl: '',
-        localPath: _recordingPath,
-        thumbnail: '',
-        deletedLocally: false,
-        serverStatus: ServerStatus.available,
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: _recordingPath != null
-            ? await File(_recordingPath!).length()
-            : null,
-        mimeType: 'audio/aac',
-        originalFileName: _recordingPath != null
-            ? Uri.file(_recordingPath!).pathSegments.last
-            : null,
-      );
-      final pendingMsg = GroupChatMessage(
+      final recordingPath = _recordingPath;
+      if (recordingPath == null) return;
+
+      final file = File(recordingPath);
+      if (!await file.exists()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Recording file not found')),
+          );
+        }
+        return;
+      }
+
+      final conversationId = '${widget.classId}_${widget.subjectId}';
+      final messageId =
+          'upload_${DateTime.now().millisecondsSinceEpoch}_${currentUserId.hashCode}';
+
+      // Create pending message for immediate display
+      final pendingMessage = GroupChatMessage(
         id: 'pending:$messageId',
         senderId: currentUserId,
-        senderName: authProvider.currentUser?.name ?? 'You',
+        senderName: currentUserName,
         message: '',
         imageUrl: null,
-        mediaMetadata: pendingMetadata,
         timestamp: DateTime.now().millisecondsSinceEpoch,
+        mediaMetadata: MediaMetadata(
+          messageId: messageId,
+          r2Key: 'pending/$messageId',
+          publicUrl: '',
+          localPath: recordingPath,
+          thumbnail: '',
+          expiresAt: DateTime.now().add(const Duration(days: 30)),
+          uploadedAt: DateTime.now(),
+          originalFileName: recordingPath.split('/').last,
+          fileSize: await file.length(),
+          mimeType: 'audio/aac',
+        ),
       );
 
-      await _bumpLastActivity(pendingMsg.timestamp);
+      await _bumpLastActivity(pendingMessage.timestamp);
 
       setState(() {
         _isRecording = false;
-        _isUploading = true;
-        _uploadingMediaType = 'audio';
-        _pendingMessages.insert(0, pendingMsg);
+        _recordingPath = null;
+        _recordingDuration.value = 0;
+        _slideOffsetX = 0;
+        _isCancelled = false;
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(messageId);
         _pendingUploadProgress[messageId] = 0.0;
+        _localSenderMediaPaths[messageId] = recordingPath;
+        _progressNotifiers[messageId] = ValueNotifier<double>(0.0);
       });
-      _scrollToLatest();
-
-      // Upload to Cloudflare R2 using MediaUploadService
-      final conversationId = '${widget.classId}_${widget.subjectId}';
-
-      final mediaMessage = await _mediaUploadService.uploadMedia(
-        file: File(_recordingPath!),
-        conversationId: conversationId,
-        senderId: currentUserId,
-        senderRole: 'student',
-        mediaType: 'message',
-        onProgress: (progress) {
-          final doubleVal = (progress as num).toDouble();
-          final normalized = doubleVal > 1 ? (doubleVal / 100.0) : doubleVal;
-          setState(() {
-            _pendingUploadProgress[messageId] = normalized;
-          });
-        },
-      );
-
-      final r2Key = _extractR2Key(mediaMessage.r2Url);
-
-      // Copy the recorded audio to app directory so sender can play immediately
-      String? cachedPath;
-      try {
-        final appDir = await getApplicationDocumentsDirectory();
-        final cacheDir = Directory('${appDir.path}/audio_cache');
-        if (!await cacheDir.exists()) {
-          await cacheDir.create(recursive: true);
-        }
-
-        final fileName = r2Key.split('/').last;
-        final cachedFile = File('${cacheDir.path}/$fileName');
-        await File(_recordingPath!).copy(cachedFile.path);
-        cachedPath = cachedFile.path;
-      } catch (e) {
-        // Continue anyway - user will download if needed
-      }
-
-      final metadata = MediaMetadata(
-        messageId: mediaMessage.id,
-        r2Key: r2Key,
-        publicUrl: mediaMessage.r2Url,
-        thumbnail: '',
-        expiresAt: DateTime.now().add(const Duration(days: 365)),
-        uploadedAt: DateTime.now(),
-        fileSize: mediaMessage.fileSize,
-        mimeType: mediaMessage.fileType,
-        localPath: cachedPath, // Include local path for immediate playback
-        originalFileName: mediaMessage.fileName,
-      );
-
-      await _sendMessage(mediaMetadata: metadata);
-      setState(() {
-        _pendingMessages.removeWhere(
-          (m) => m.mediaMetadata?.messageId == messageId,
-        );
-        _pendingUploadProgress.remove(messageId);
-      });
-      // Cache after removal
       _cachePendingMessages();
 
-      // Now safe to delete temp recording file (we have it cached)
-      try {
-        final file = File(_recordingPath!);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (e) {}
+      // Queue background upload – non-blocking
+      await BackgroundUploadService().queueUpload(
+        file: file,
+        conversationId: conversationId,
+        senderId: currentUserId,
+        senderRole: 'group',
+        mediaType: 'message',
+        chatType: 'group',
+        senderName: currentUserName,
+        messageId: messageId,
+      );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Audio sent successfully'),
-            duration: Duration(seconds: 1),
-          ),
-        );
-      }
-
-      if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _recordingPath = null;
-          _recordingDuration.value = 0;
-          _slideOffsetX = 0;
-          _isCancelled = false;
-        });
-      }
+      _scrollToBottom(force: true);
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isUploading = false;
-          _isRecording = false;
-        });
-        setState(() {
-          _pendingMessages.removeWhere((m) => m.id.startsWith('pending:'));
-          _pendingUploadProgress.clear();
-        });
-        // Cache after clear
-        _cachePendingMessages();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send audio: $e'),
+            content: Text('Failed to queue audio: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -2955,6 +2997,8 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, double> pendingUploadProgress;
   final String classId;
   final String subjectId;
+  final Set<String> failedMessageIds;
+  final void Function(String)? onRetry;
 
   const _MessageBubble({
     super.key,
@@ -2968,6 +3012,8 @@ class _MessageBubble extends StatelessWidget {
     required this.pendingUploadProgress,
     required this.classId,
     required this.subjectId,
+    required this.failedMessageIds,
+    this.onRetry,
   });
 
   @override
@@ -3303,6 +3349,7 @@ class _MessageBubble extends StatelessWidget {
     final isUploading = uploadingMessageIds.contains(metadata.messageId);
     final uploadProgressVal = pendingUploadProgress[metadata.messageId];
 
+    final isFailed = failedMessageIds.contains(metadata.messageId);
     return MediaPreviewCard(
       key: ValueKey('media-${metadata.messageId}-${metadata.r2Key}'),
       r2Key: metadata.r2Key,
@@ -3316,6 +3363,8 @@ class _MessageBubble extends StatelessWidget {
       uploading: isUploading,
       uploadProgress: uploadProgressVal,
       selectionMode: selectionMode,
+      failed: isFailed,
+      onRetry: isFailed ? () => onRetry?.call(metadata.messageId) : null,
     );
   }
 

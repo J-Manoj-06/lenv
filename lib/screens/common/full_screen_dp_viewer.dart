@@ -34,7 +34,7 @@ class FullScreenDPViewer extends StatefulWidget {
     return PageRouteBuilder<void>(
       opaque: false,
       barrierColor: Colors.transparent,
-      pageBuilder: (_, __, ___) => FullScreenDPViewer(
+      pageBuilder: (_, _, _) => FullScreenDPViewer(
         imageUrl: imageUrl,
         userName: userName,
         showViewProfileOption: showViewProfileOption,

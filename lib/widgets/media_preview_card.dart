@@ -30,6 +30,8 @@ class MediaPreviewCard extends StatefulWidget {
   final bool selectionMode; // Disable gestures when in selection mode
   final Color? themeColor; // Optional theme color for border and buttons
   final String? userRole; // User role to determine default theme color
+  final bool failed; // True when upload has permanently failed
+  final VoidCallback? onRetry; // Callback to retry a failed upload
 
   const MediaPreviewCard({
     super.key,
@@ -45,6 +47,8 @@ class MediaPreviewCard extends StatefulWidget {
     this.selectionMode = false,
     this.themeColor,
     this.userRole,
+    this.failed = false,
+    this.onRetry,
   });
 
   @override
@@ -594,6 +598,84 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // Show overlay when uploading - parent will remove pending message when complete
     if (!widget.uploading) return card;
 
+    // Show failed overlay when upload failed - allows user to retry
+    if (widget.failed && !widget.uploading) {
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          ColorFiltered(
+            colorFilter: const ColorFilter.mode(
+              Colors.black45,
+              BlendMode.darken,
+            ),
+            child: card,
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.50),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.cloud_off_rounded,
+                      color: Colors.redAccent,
+                      size: 32,
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Failed to send',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: widget.onRetry,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.refresh,
+                              size: 16,
+                              color: Colors.black87,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Retry',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Stack(
       alignment: Alignment.center,
       children: [
@@ -964,11 +1046,78 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               ),
             ],
           )
+        : widget.failed
+        ? Stack(
+            fit: StackFit.expand,
+            children: [
+              ColorFiltered(
+                colorFilter: const ColorFilter.mode(
+                  Colors.black45,
+                  BlendMode.darken,
+                ),
+                child: senderImage,
+              ),
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.cloud_off_rounded,
+                      color: Colors.redAccent,
+                      size: 36,
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Failed to send',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: widget.onRetry,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.refresh,
+                              size: 16,
+                              color: Colors.black87,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Retry',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          )
         : senderImage;
 
     return shell(
       senderContent,
-      onTap: widget.uploading
+      onTap: (widget.uploading || widget.failed)
           ? null
           : () {
               final p = widget.localPath ?? _localPath;

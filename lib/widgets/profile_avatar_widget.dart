@@ -374,20 +374,22 @@ class _ChatSenderAvatarWidgetState extends State<ChatSenderAvatarWidget> {
       // Check cache first (synchronous)
       final cached = provider.getCachedUserDP(widget.senderId);
       if (cached != null || _isAlreadyCached(provider)) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _dpUrl = cached;
             _cacheKey = provider.getUserCacheKey(widget.senderId);
           });
+        }
         return;
       }
       // Fetch async
       final url = await provider.getUserDP(widget.senderId);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _dpUrl = url;
           _cacheKey = provider.getUserCacheKey(widget.senderId);
         });
+      }
     } catch (_) {
       // Leave _dpUrl as null — fallback initials will be shown
     }
@@ -431,9 +433,9 @@ class _ChatSenderAvatarWidgetState extends State<ChatSenderAvatarWidget> {
                   fit: BoxFit.cover,
                   fadeInDuration: const Duration(milliseconds: 200),
                   fadeInCurve: Curves.easeIn,
-                  placeholder: (_, __) =>
+                  placeholder: (_, _) =>
                       _ShimmerCircle(size: size, color: avatarColor),
-                  errorWidget: (_, __, ___) =>
+                  errorWidget: (_, _, _) =>
                       _buildInitials(initials, avatarColor, size),
                 )
               : _buildInitials(initials, avatarColor, size),

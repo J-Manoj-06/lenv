@@ -38,6 +38,34 @@ class _GroupsListPageState extends State<GroupsListPage>
   final Map<String, dynamic> _subjectListeners =
       {}; // Track subject doc listeners for lastActivity updates
 
+  int _toMillis(dynamic raw) {
+    if (raw is int) return raw;
+    if (raw is Timestamp) return raw.millisecondsSinceEpoch;
+    if (raw is num) return raw.toInt();
+    if (raw is DateTime) return raw.millisecondsSinceEpoch;
+    return 0;
+  }
+
+  String _chatIdForSubject(String subjectId) {
+    return '$_classId|$subjectId';
+  }
+
+  int _compareSubjectsByRecent(GroupSubject a, GroupSubject b) {
+    final at = _lastMessageTs[_chatIdForSubject(a.id)] ?? 0;
+    final bt = _lastMessageTs[_chatIdForSubject(b.id)] ?? 0;
+    final recentCmp = bt.compareTo(at);
+    if (recentCmp != 0) return recentCmp;
+
+    final nameCmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    if (nameCmp != 0) return nameCmp;
+
+    return a.id.compareTo(b.id);
+  }
+
+  void _sortSubjectsByRecent() {
+    _subjects.sort(_compareSubjectsByRecent);
+  }
+
   @override
   bool get wantKeepAlive => true;
 
@@ -100,9 +128,7 @@ class _GroupsListPageState extends State<GroupsListPage>
     _messageListeners[chatId] = query.snapshots().listen((snapshot) {
       if (snapshot.docs.isNotEmpty && mounted) {
         final rawTs = snapshot.docs.first.data()['timestamp'];
-        final newTs = rawTs is int
-            ? rawTs
-            : (rawTs is Timestamp ? rawTs.millisecondsSinceEpoch : 0);
+        final newTs = _toMillis(rawTs);
 
         // Update timestamp and resort immediately
         _lastMessageTs[chatId] = newTs;
@@ -148,11 +174,7 @@ class _GroupsListPageState extends State<GroupsListPage>
   void _resortGroups() {
     if (mounted) {
       setState(() {
-        _subjects.sort((a, b) {
-          final at = _lastMessageTs['$_classId|${a.id}'] ?? 0;
-          final bt = _lastMessageTs['$_classId|${b.id}'] ?? 0;
-          return bt.compareTo(at);
-        });
+        _sortSubjectsByRecent();
       });
     }
   }
@@ -200,12 +222,7 @@ class _GroupsListPageState extends State<GroupsListPage>
         }
 
         // Sort by cached timestamps
-        _subjects.sort((a, b) {
-          if (_classId == null) return 0;
-          final at = _lastMessageTs['$_classId|${a.id}'] ?? 0;
-          final bt = _lastMessageTs['$_classId|${b.id}'] ?? 0;
-          return bt.compareTo(at);
-        });
+        _sortSubjectsByRecent();
       }
       debugPrint('✅ Loaded ${cachedSubjects.length} groups from cache');
     } else {
@@ -330,7 +347,7 @@ class _GroupsListPageState extends State<GroupsListPage>
               .limit(1)
               .get();
           if (snap.docs.isNotEmpty) {
-            final ts = (snap.docs.first.data()['timestamp'] as int?) ?? 0;
+            final ts = _toMillis(snap.docs.first.data()['timestamp']);
             _lastMessageTs[chatId] = ts;
             // ✅ Cache timestamp for offline sorting
             await _offlineService.cacheLastMessageTimestamp(
@@ -346,11 +363,7 @@ class _GroupsListPageState extends State<GroupsListPage>
       }
       if (mounted) {
         setState(() {
-          _subjects.sort((a, b) {
-            final at = _lastMessageTs['$_classId|${a.id}'] ?? 0;
-            final bt = _lastMessageTs['$_classId|${b.id}'] ?? 0;
-            return bt.compareTo(at);
-          });
+          _sortSubjectsByRecent();
         });
       }
 

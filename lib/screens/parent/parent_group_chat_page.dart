@@ -138,7 +138,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
   // ✅ NEW: Use ValueNotifier for loading state to avoid full rebuilds
   final ValueNotifier<bool> _isLoadingMoreNotifier = ValueNotifier<bool>(false);
-  int _messageLoadCount = 0; // Debug counter
+  final int _messageLoadCount = 0; // Debug counter
 
   // ✅ CRITICAL: Message cache to maintain stable Map instances (prevents widget recreation)
   // This cache ensures Flutter recognizes the same message object and doesn't rebuild widgets
@@ -274,7 +274,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _offlineReady = true;
       } else {
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
     }
   }
 
@@ -480,7 +480,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         }
       });
 
-    } catch (e, stackTrace) {
+    } catch (e) {
     }
   }
 

@@ -90,6 +90,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   // Pending uploads tracking (like community chat)
   final List<Map<String, dynamic>> _pendingMessages = [];
   final Set<String> _uploadingMessageIds = {};
+  final Set<String> _failedMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
   final Map<String, String> _localFilePaths = {};
   final Map<String, ValueNotifier<double>> _progressNotifiers = {};
@@ -400,6 +401,17 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       // - This would auto-download images without user consent
       // - Wasted bandwidth and storage on images user might not want
     });
+  }
+
+  void _retryUpload(String mediaId) {
+    if (!mounted) return;
+    setState(() {
+      _failedMessageIds.remove(mediaId);
+      _uploadingMessageIds.add(mediaId);
+      _pendingUploadProgress[mediaId] = 0.0;
+      _progressNotifiers[mediaId] = ValueNotifier<double>(0.0);
+    });
+    BackgroundUploadService().retryUpload(mediaId);
   }
 
   Future<void> _loadPendingMessages() async {
@@ -776,6 +788,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             _activeUploads++;
           }
           _uploadingMessageIds.add(messageId);
+          _failedMessageIds.remove(messageId);
           _pendingUploadProgress[messageId] = progress;
 
           // Update progress notifier for smooth UI updates
@@ -792,6 +805,12 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           }
           _uploadingMessageIds.remove(messageId);
           _pendingUploadProgress.remove(messageId);
+          // Detect upload failure: isUploading=false and progress=0.0
+          if (progress == 0.0) {
+            _failedMessageIds.add(messageId);
+          } else {
+            _failedMessageIds.remove(messageId);
+          }
           // Keep _localFilePaths[messageId] until Firestore sync
           // Note: Pending message will be auto-removed when Firestore message arrives
           // because merging logic filters out pending messages with same timestamp
@@ -2705,6 +2724,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                               selectionMode: isSelectionMode,
                               isSelected: selectedMessages.contains(messageId),
                               staffRoomId: widget.instituteId,
+                              failedMessageIds: _failedMessageIds,
+                              onRetry: _retryUpload,
                             ),
                           );
                         },
@@ -2769,6 +2790,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                               selectionMode: isSelectionMode,
                               isSelected: isSelected,
                               staffRoomId: widget.instituteId,
+                              failedMessageIds: _failedMessageIds,
+                              onRetry: _retryUpload,
                             ),
                           ),
                         );
@@ -3442,6 +3465,8 @@ class _MessageBubble extends StatefulWidget {
   final bool selectionMode;
   final bool isSelected;
   final String staffRoomId;
+  final Set<String> failedMessageIds;
+  final void Function(String)? onRetry;
 
   const _MessageBubble({
     super.key,
@@ -3455,6 +3480,8 @@ class _MessageBubble extends StatefulWidget {
     this.selectionMode = false,
     this.isSelected = false,
     required this.staffRoomId,
+    required this.failedMessageIds,
+    this.onRetry,
   });
 
   @override
@@ -3962,6 +3989,7 @@ class _MessageBubbleState extends State<_MessageBubble>
 
     final isUploading = widget.uploadingMessageIds.contains(messageId);
     final progressNotifier = widget.progressNotifiers[messageId];
+    final isFailed = widget.failedMessageIds.contains(messageId);
 
     // Use ValueListenableBuilder for smooth progress updates without rebuilding parent
     if (isUploading && progressNotifier != null) {
@@ -3994,6 +4022,8 @@ class _MessageBubbleState extends State<_MessageBubble>
       isMe: widget.isMe,
       selectionMode: widget.selectionMode,
       uploading: false,
+      failed: isFailed,
+      onRetry: isFailed ? () => widget.onRetry?.call(messageId) : null,
     );
   }
 

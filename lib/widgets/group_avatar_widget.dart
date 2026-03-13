@@ -74,8 +74,8 @@ class GroupAvatarWidget extends StatelessWidget {
                           fit: BoxFit.cover,
                           fadeInDuration: const Duration(milliseconds: 250),
                           fadeInCurve: Curves.easeIn,
-                          placeholder: (_, __) => _buildShimmer(avatarColor),
-                          errorWidget: (_, __, ___) =>
+                          placeholder: (_, _) => _buildShimmer(avatarColor),
+                          errorWidget: (_, _, _) =>
                               _buildFallback(avatarColor),
                         )
                       : _buildFallback(avatarColor),
@@ -193,7 +193,7 @@ class _ShimmerBoxState extends State<_ShimmerBox>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) => Container(
+      builder: (_, _) => Container(
         width: widget.width,
         height: widget.height,
         color: widget.color.withOpacity(_anim.value),
@@ -420,7 +420,7 @@ class _MemberTile extends StatelessWidget {
                       fit: BoxFit.cover,
                       fadeInDuration: const Duration(milliseconds: 200),
                       fadeInCurve: Curves.easeIn,
-                      errorWidget: (_, __, ___) => Center(
+                      errorWidget: (_, _, _) => Center(
                         child: Text(
                           initials,
                           style: TextStyle(

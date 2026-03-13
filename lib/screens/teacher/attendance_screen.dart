@@ -1268,7 +1268,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
       } else {
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       if (mounted) {
         Navigator.of(context).pop(); // Dismiss loading dialog
       }

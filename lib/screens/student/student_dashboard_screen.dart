@@ -15,7 +15,6 @@ import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/profile_dp_provider.dart';
 import '../../services/parent_service.dart';
 import '../../utils/cache_manager.dart';
-import '../../services/leaderboard_service.dart';
 import '../../widgets/stat_ring_card.dart';
 import '../../widgets/profile_avatar_widget.dart';
 import 'daily_challenge_screen.dart';
@@ -394,8 +393,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   children: [
                     _buildStreakBadge(),
                     const SizedBox(width: 10),
-                    _buildUserIdButton(),
-                    const SizedBox(width: 10),
                     _buildProfileIcon(),
                   ],
                 ),
@@ -444,60 +441,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  Widget _buildUserIdButton() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final userId = FirebaseAuth.instance.currentUser?.uid ?? 'Not logged in';
-
-    return GestureDetector(
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Your User ID'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Copy this ID for testing notifications:'),
-                const SizedBox(height: 12),
-                SelectableText(
-                  userId,
-                  style: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1C1C1E) : _surface(context),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark ? const Color(0xFF2C2C2E) : Colors.grey.shade300,
-            width: 1,
-          ),
-        ),
-        child: Icon(
-          Icons.info_outline,
-          color: isDark ? Colors.white : Colors.black87,
-          size: 24,
-        ),
-      ),
-    );
-  }
-
   Widget _buildProfileIcon() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Consumer<ProfileDPProvider>(
@@ -542,10 +485,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   name: studentName,
                   size: 44,
                   showBorder: true,
-                  borderColor: isDark
-                      ? const Color(0xFF2C2C2E)
-                      : Colors.grey.shade300,
-                  borderWidth: 1.5,
+                  borderColor: const Color(0xFFF2800D),
+                  borderWidth: 2,
                 )
               : Container(
                   padding: const EdgeInsets.all(10),
@@ -1287,29 +1228,57 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
       if (schoolCode.isEmpty || className.isEmpty) return 0;
 
-      // Use the same cache key and service as the leaderboard screen
-      // so both screens always show the same topper.
+      // Section-aware cache key so different sections don't share stale data
+      final cacheClassName =
+          section.isNotEmpty ? '$className|$section' : className;
+
       final cachedPoints = await CacheManager.getTopperPointsCache(
         schoolId: schoolCode,
-        className: className,
+        className: cacheClassName,
       );
       if (cachedPoints != null) return cachedPoints;
 
-      // Delegate to LeaderboardService which reads users.rewardPoints —
-      // the authoritative source used by the leaderboard screen.
-      final service = LeaderboardService();
-      final entries = await service.getOverallLeaderboardForClass(
-        schoolCode: schoolCode,
-        className: className,
-        section: section.isNotEmpty ? section : null,
-        limit: 1,
-      );
+      // Step 1: Get all student UIDs in this class/section
+      var q = FirebaseFirestore.instance
+          .collection('students')
+          .where('schoolCode', isEqualTo: schoolCode)
+          .where('className', isEqualTo: className);
+      if (section.isNotEmpty) {
+        q = q.where('section', isEqualTo: section);
+      }
+      final studentsSnap = await q.get();
+      if (studentsSnap.docs.isEmpty) return 0;
 
-      final topperPoints = entries.isNotEmpty ? entries.first.score.toInt() : 0;
+      final uids = studentsSnap.docs
+          .map((d) => d.data()['uid'] as String?)
+          .whereType<String>()
+          .toList();
+      if (uids.isEmpty) return 0;
+
+      // Step 2: Aggregate student_rewards pointsEarned for each student.
+      // This uses the exact same data source as the studentPoints displayed in the UI,
+      // so the topper value is always consistent with what each student sees for themselves.
+      int topperPoints = 0;
+      for (final uid in uids) {
+        final rewardsSnap = await FirebaseFirestore.instance
+            .collection('student_rewards')
+            .where('studentId', isEqualTo: uid)
+            .get();
+        int points = 0;
+        for (final doc in rewardsSnap.docs) {
+          final val = doc.data()['pointsEarned'];
+          if (val is int) {
+            points += val;
+          } else if (val is num) {
+            points += val.toInt();
+          }
+        }
+        if (points > topperPoints) topperPoints = points;
+      }
 
       await CacheManager.cacheTopperPoints(
         schoolId: schoolCode,
-        className: className,
+        className: cacheClassName,
         points: topperPoints,
       );
 

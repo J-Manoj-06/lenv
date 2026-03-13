@@ -226,7 +226,7 @@ class RewardsRepository {
       } catch (parseError) {
         rethrow;
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       rethrow;
     }
   }

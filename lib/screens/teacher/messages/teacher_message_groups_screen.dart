@@ -69,6 +69,58 @@ class MessageGroup {
 class MessageGroupsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  int _toMillis(dynamic raw) {
+    if (raw is int) return raw;
+    if (raw is Timestamp) return raw.millisecondsSinceEpoch;
+    if (raw is num) return raw.toInt();
+    if (raw is DateTime) return raw.millisecondsSinceEpoch;
+    return 0;
+  }
+
+  int _compareMessageGroups(MessageGroup a, MessageGroup b) {
+    if (a.lastMessageTime == null && b.lastMessageTime == null) {
+      final subjectCmp = a.subjectName.toLowerCase().compareTo(
+        b.subjectName.toLowerCase(),
+      );
+      if (subjectCmp != 0) return subjectCmp;
+
+      final classCmp = a.className.toLowerCase().compareTo(
+        b.className.toLowerCase(),
+      );
+      if (classCmp != 0) return classCmp;
+
+      final sectionCmp = a.sectionName.toLowerCase().compareTo(
+        b.sectionName.toLowerCase(),
+      );
+      if (sectionCmp != 0) return sectionCmp;
+
+      return a.groupId.compareTo(b.groupId);
+    }
+
+    if (a.lastMessageTime == null) return 1;
+    if (b.lastMessageTime == null) return -1;
+
+    final timeComparison = b.lastMessageTime!.compareTo(a.lastMessageTime!);
+    if (timeComparison != 0) return timeComparison;
+
+    final subjectCmp = a.subjectName.toLowerCase().compareTo(
+      b.subjectName.toLowerCase(),
+    );
+    if (subjectCmp != 0) return subjectCmp;
+
+    final classCmp = a.className.toLowerCase().compareTo(
+      b.className.toLowerCase(),
+    );
+    if (classCmp != 0) return classCmp;
+
+    final sectionCmp = a.sectionName.toLowerCase().compareTo(
+      b.sectionName.toLowerCase(),
+    );
+    if (sectionCmp != 0) return sectionCmp;
+
+    return a.groupId.compareTo(b.groupId);
+  }
+
   // ✅ NEW: Cache for message groups (5 minute TTL)
   final Map<String, MessageGroup> _groupCache = {};
 
@@ -220,9 +272,9 @@ class MessageGroupsService {
         final lastMsg = messagesSnapshot.docs.first.data();
         lastMessage =
             lastMsg['message'] as String?; // ✅ Fixed: Use 'message' field name
-        final timestamp = lastMsg['timestamp'] as int?;
-        if (timestamp != null) {
-          lastMessageTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+        final timestampMs = _toMillis(lastMsg['timestamp']);
+        if (timestampMs > 0) {
+          lastMessageTime = DateTime.fromMillisecondsSinceEpoch(timestampMs);
         }
       }
 
@@ -263,23 +315,8 @@ class MessageGroupsService {
       groups.add(group);
     }
 
-    // Sort by last message time (most recent first), then by subject name
-    groups.sort((a, b) {
-      // First sort by last message time (most recent first)
-      if (a.lastMessageTime == null && b.lastMessageTime == null) {
-        // If both have no messages, sort by subject name
-        return a.subjectName.compareTo(b.subjectName);
-      }
-      if (a.lastMessageTime == null) return 1;
-      if (b.lastMessageTime == null) return -1;
-      final timeComparison = b.lastMessageTime!.compareTo(a.lastMessageTime!);
-
-      // If same time, sort by subject name
-      if (timeComparison == 0) {
-        return a.subjectName.compareTo(b.subjectName);
-      }
-      return timeComparison;
-    });
+    // Sort by latest activity descending, with deterministic tie-breakers.
+    groups.sort(_compareMessageGroups);
 
     return groups;
   }

@@ -61,8 +61,8 @@ class StaffRoomAvatarWidget extends StatelessWidget {
                           height: size,
                           fadeInDuration: const Duration(milliseconds: 250),
                           fadeInCurve: Curves.easeIn,
-                          placeholder: (_, __) => _buildFallback(),
-                          errorWidget: (_, __, ___) => _buildFallback(),
+                          placeholder: (_, _) => _buildFallback(),
+                          errorWidget: (_, _, _) => _buildFallback(),
                         )
                       : _buildFallback(),
                 ),

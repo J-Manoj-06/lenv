@@ -46,12 +46,15 @@ class AuthService {
           try {
             if (schoolCodeValue != null) {
               final updates = <String, dynamic>{};
-              if (data['schoolCode'] == null)
+              if (data['schoolCode'] == null) {
                 updates['schoolCode'] = schoolCodeValue;
-              if (data['schoolId'] == null)
+              }
+              if (data['schoolId'] == null) {
                 updates['schoolId'] = schoolCodeValue;
-              if (data['instituteId'] == null)
+              }
+              if (data['instituteId'] == null) {
                 updates['instituteId'] = schoolCodeValue;
+              }
               if (updates.isNotEmpty) {
                 await _firestore.collection('users').doc(uid).update(updates);
               }

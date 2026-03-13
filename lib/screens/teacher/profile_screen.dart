@@ -11,7 +11,6 @@ import '../../services/offline_cache_manager.dart';
 import '../../services/teacher_service.dart';
 import '../../widgets/dp_options_bottom_sheet.dart';
 import '../../widgets/profile_avatar_widget.dart';
-import '../common/full_screen_dp_viewer.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -89,7 +88,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final classesManaged = classesFormatted.length;
 
       final resolvedUserId =
-          user?.uid ?? (teacherData!['uid'])?.toString() ?? '';
+          user?.uid ?? (teacherData['uid'])?.toString() ?? '';
       setState(() {
         _teacherData = teacherData;
         _classesManaged = classesManaged;
@@ -100,7 +99,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // Initialize DP provider for real-time profile picture updates
       if (resolvedUserId.isNotEmpty && mounted) {
         final teacherName =
-            teacherData?['teacherName']?.toString() ?? user?.name ?? '';
+            teacherData['teacherName']?.toString() ?? user?.name ?? '';
         context.read<ProfileDPProvider>().initForUser(
           resolvedUserId,
           userName: teacherName,
