@@ -60,6 +60,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   static const double _maxScale = 2.5;
   static const Offset _rootCenter = Offset(220, _canvasSize / 2);
   static const Size _miniMapSize = Size(140, 100);
+  static const Color _teacherThemeColor = Color(0xFF355872);
 
   @override
   void initState() {
@@ -458,52 +459,111 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
   }
 
   Future<void> _editNode(_NodePos nodePos) async {
+    final currentNode = _nodeByPath(_structure, nodePos.path);
+    if (currentNode == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open selected node.')),
+      );
+      return;
+    }
+
     final titleCtrl = TextEditingController(
-      text: (nodePos.node['title'] ?? '').toString(),
+      text: (currentNode['title'] ?? '').toString(),
     );
     final action = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: const Color(0xFF191922),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: 'Node title'),
-              ),
-              const SizedBox(height: 12),
-              Row(
+        final bottomInset = MediaQuery.of(ctx).viewInsets.bottom;
+        final navBarHeight = MediaQuery.of(ctx).padding.bottom;
+        final themed = Theme.of(ctx).copyWith(
+          colorScheme: Theme.of(ctx).colorScheme.copyWith(
+            primary: _teacherThemeColor,
+            secondary: _teacherThemeColor,
+          ),
+          textSelectionTheme: const TextSelectionThemeData(
+            cursorColor: _teacherThemeColor,
+            selectionColor: Color(0x55355872),
+            selectionHandleColor: _teacherThemeColor,
+          ),
+          inputDecorationTheme: const InputDecorationTheme(
+            labelStyle: TextStyle(color: Colors.white70),
+            floatingLabelStyle: TextStyle(color: _teacherThemeColor),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF4A4A56)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: _teacherThemeColor, width: 2),
+            ),
+          ),
+        );
+
+        return Theme(
+          data: themed,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              16 + bottomInset + navBarHeight,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx, 'add'),
-                      child: const Text('Add Child'),
-                    ),
+                  TextField(
+                    controller: titleCtrl,
+                    autofocus: true,
+                    cursorColor: _teacherThemeColor,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(labelText: 'Node title'),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: nodePos.path == 'root'
-                          ? null
-                          : () => Navigator.pop(ctx, 'delete'),
-                      child: const Text('Delete'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _teacherThemeColor,
+                            side: const BorderSide(color: _teacherThemeColor),
+                          ),
+                          onPressed: () => Navigator.pop(ctx, 'add'),
+                          child: const Text('Add Child'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _teacherThemeColor,
+                            side: const BorderSide(color: _teacherThemeColor),
+                          ),
+                          onPressed: nodePos.path == 'root'
+                              ? null
+                              : () => Navigator.pop(ctx, 'delete'),
+                          child: const Text('Delete'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _teacherThemeColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () => Navigator.pop(ctx, 'save'),
+                      child: const Text('Save'),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx, 'save'),
-                  child: const Text('Save'),
-                ),
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -536,71 +596,41 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
 
   Map<String, dynamic>? _nodeByPath(Map<String, dynamic> root, String path) {
     if (path == 'root') return root;
-    final parts = path.split('/').skip(1).map(int.parse).toList();
+    final parts = path.split('/').skip(1).map((p) => int.tryParse(p)).toList();
     Map<String, dynamic> current = root;
     for (final idx in parts) {
-      final children =
-          (current['children'] as List?)?.whereType<Map>().toList() ?? <Map>[];
-      if (idx < 0 || idx >= children.length) return null;
-      current = Map<String, dynamic>.from(children[idx]);
-      _writeNodeByPath(
-        root,
-        path.split('/').take(parts.indexOf(idx) + 2).join('/'),
-        current,
-      );
+      if (idx == null) return null;
+      final children = current['children'] as List?;
+      if (children == null || idx < 0 || idx >= children.length) return null;
+      final child = children[idx];
+      if (child is! Map) return null;
+      current = Map<String, dynamic>.from(child);
+      children[idx] = current;
     }
-    return _writeNodeByPath(root, path, current);
-  }
-
-  Map<String, dynamic>? _writeNodeByPath(
-    Map<String, dynamic> root,
-    String path,
-    Map<String, dynamic> replacement,
-  ) {
-    if (path == 'root') {
-      root
-        ..clear()
-        ..addAll(replacement);
-      return root;
-    }
-    final parts = path.split('/').skip(1).map(int.parse).toList();
-    Map<String, dynamic> current = root;
-    for (int i = 0; i < parts.length; i++) {
-      final idx = parts[i];
-      final children =
-          (current['children'] as List?) ?? <Map<String, dynamic>>[];
-      if (idx < 0 || idx >= children.length) return null;
-      if (i == parts.length - 1) {
-        children[idx] = replacement;
-      } else {
-        current = Map<String, dynamic>.from(children[idx]);
-      }
-      current['children'] = children;
-    }
-    return replacement;
+    return current;
   }
 
   void _deleteNode(Map<String, dynamic> root, String path) {
-    final parts = path.split('/').skip(1).map(int.parse).toList();
+    final parts = path.split('/').skip(1).map((p) => int.tryParse(p)).toList();
     if (parts.isEmpty) return;
 
     Map<String, dynamic> parent = root;
     for (int i = 0; i < parts.length - 1; i++) {
-      final children =
-          (parent['children'] as List?)?.whereType<Map>().toList() ?? <Map>[];
-      parent = Map<String, dynamic>.from(children[parts[i]]);
+      final idx = parts[i];
+      if (idx == null) return;
+      final children = parent['children'] as List?;
+      if (children == null || idx < 0 || idx >= children.length) return;
+      final child = children[idx];
+      if (child is! Map) return;
+      parent = Map<String, dynamic>.from(child);
+      children[idx] = parent;
     }
 
-    final children = (parent['children'] as List?) ?? <Map<String, dynamic>>[];
-    children.removeAt(parts.last);
-    parent['children'] = children;
-    _writeNodeByPath(
-      root,
-      path.split('/').take(parts.length).join('/').isEmpty
-          ? 'root'
-          : path.split('/').take(parts.length).join('/'),
-      parent,
-    );
+    final last = parts.last;
+    if (last == null) return;
+    final children = parent['children'] as List?;
+    if (children == null || last < 0 || last >= children.length) return;
+    children.removeAt(last);
   }
 
   @override
@@ -615,8 +645,7 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
       );
       return rect.overlaps(viewport);
     }).toList();
-    if (visibleNodes.isEmpty && nodes.isNotEmpty) {
-    }
+    if (visibleNodes.isEmpty && nodes.isNotEmpty) {}
 
     final byPath = {for (final n in nodes) n.path: n};
     return Scaffold(
@@ -822,38 +851,55 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
               ),
             ),
           ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 14),
-            color: const Color(0xFF12121A),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _isWorking ? null : _regenerate,
-                        child: const Text('Regenerate'),
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              color: const Color(0xFF12121A),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _teacherThemeColor,
+                        side: const BorderSide(color: _teacherThemeColor),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
+                      onPressed: _isWorking ? null : _regenerate,
+                      child: const Text('Regenerate'),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _isWorking ? null : _send,
-                        child: _isWorking
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _teacherThemeColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _isWorking ? null : _send,
+                      child: _isWorking
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
                                 ),
-                              )
-                            : const Text('Send to Students'),
-                      ),
+                              ),
+                            )
+                          : const Text('Send to Students'),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 0),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],

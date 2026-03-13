@@ -754,7 +754,7 @@ service cloud.firestore {
     
     match /group_mindmaps/{mindmapId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isTeacher() || isStudent());
+      allow write: if isSignedIn();
     }
     
     match /revision_error_vaults/{vaultId} {
