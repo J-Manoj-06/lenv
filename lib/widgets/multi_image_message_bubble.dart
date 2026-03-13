@@ -854,6 +854,7 @@ class _ImageTile extends StatefulWidget {
 class _ImageTileState extends State<_ImageTile>
     with AutomaticKeepAliveClientMixin {
   bool _loaded = false;
+  static final Set<String> _loggedMissingCacheUrls = <String>{};
 
   @override
   bool get wantKeepAlive => true;
@@ -996,7 +997,9 @@ class _ImageTileState extends State<_ImageTile>
 
     // NOT cached locally - show download prompt WITHOUT attempting network load
     if (!widget.isCached) {
-      debugPrint('⚪ Image NOT in local cache, showing download button: $url');
+      if (_loggedMissingCacheUrls.add(url)) {
+        debugPrint('⚪ Image NOT in local cache, showing download button: $url');
+      }
       return _downloadPromptFallback();
     }
 

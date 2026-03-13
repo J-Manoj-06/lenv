@@ -4202,12 +4202,17 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
 
   void _setImageReady(int index, bool ready) {
     if (_imageReady[index] == ready || !mounted) return;
-    setState(() => _imageReady[index] = ready);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _imageReady[index] == ready) return;
+      setState(() => _imageReady[index] = ready);
+    });
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _downloadCurrentImage() async {
@@ -4437,11 +4442,13 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
           },
           errorWidget: (context, url, error) {
             _setImageReady(index, false);
-            return _buildFallbackImage(onRetry: () {
-              setState(() {
-                _retryToken[index] = (_retryToken[index] ?? 0) + 1;
-              });
-            });
+            return _buildFallbackImage(
+              onRetry: () {
+                setState(() {
+                  _retryToken[index] = (_retryToken[index] ?? 0) + 1;
+                });
+              },
+            );
           },
         ),
       );
@@ -4545,7 +4552,10 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
         children: [
           const Icon(Icons.image, size: 64, color: Colors.white54),
           const SizedBox(height: 16),
-          const Text('Image not available', style: TextStyle(color: Colors.white70)),
+          const Text(
+            'Image not available',
+            style: TextStyle(color: Colors.white70),
+          ),
           if (onRetry != null) ...[
             const SizedBox(height: 12),
             ElevatedButton.icon(
