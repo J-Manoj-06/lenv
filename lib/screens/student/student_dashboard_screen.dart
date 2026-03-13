@@ -487,6 +487,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   showBorder: true,
                   borderColor: const Color(0xFFF2800D),
                   borderWidth: 2,
+                  circleBackgroundColor: const Color(0xFF3D3D3D),
+                  initialsColor: const Color(0xFFF2800D),
                 )
               : Container(
                   padding: const EdgeInsets.all(10),

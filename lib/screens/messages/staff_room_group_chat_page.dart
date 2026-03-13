@@ -33,6 +33,7 @@ import '../../services/firebase_message_sync_service.dart';
 import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
 import '../../services/background_upload_service.dart';
+import '../../services/image_viewer_action_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/forward_message_data.dart';
@@ -3721,6 +3722,15 @@ class _MessageBubbleState extends State<_MessageBubble>
                                       mediaList: updatedMediaList,
                                       initialIndex: index,
                                       isPending: isPending,
+                                      forwardMessage: _buildForwardData(
+                                        messageId,
+                                        text,
+                                        multipleMedia,
+                                        attachmentUrl,
+                                        attachmentType,
+                                        attachmentName,
+                                        attachmentSize,
+                                      ),
                                     ),
                                   ),
                                 );
@@ -4007,6 +4017,17 @@ class _MessageBubbleState extends State<_MessageBubble>
             selectionMode: widget.selectionMode,
             uploading: true,
             uploadProgress: progress,
+            forwardMessage: _buildForwardData(
+              messageId,
+              widget.message['text'] as String? ?? '',
+              (widget.message['multipleMedia'] is List)
+                  ? widget.message['multipleMedia'] as List<dynamic>
+                  : null,
+              widget.message['attachmentUrl'] as String?,
+              widget.message['attachmentType'] as String?,
+              widget.message['attachmentName'] as String?,
+              widget.message['attachmentSize'] as int?,
+            ),
           );
         },
       );
@@ -4024,6 +4045,67 @@ class _MessageBubbleState extends State<_MessageBubble>
       uploading: false,
       failed: isFailed,
       onRetry: isFailed ? () => widget.onRetry?.call(messageId) : null,
+      forwardMessage: _buildForwardData(
+        messageId,
+        widget.message['text'] as String? ?? '',
+        (widget.message['multipleMedia'] is List)
+            ? widget.message['multipleMedia'] as List<dynamic>
+            : null,
+        widget.message['attachmentUrl'] as String?,
+        widget.message['attachmentType'] as String?,
+        widget.message['attachmentName'] as String?,
+        widget.message['attachmentSize'] as int?,
+      ),
+    );
+  }
+
+  ForwardMessageData _buildForwardData(
+    String messageId,
+    String text,
+    List<dynamic>? multipleMedia,
+    String? attachmentUrl,
+    String? attachmentType,
+    String? attachmentName,
+    int? attachmentSize,
+  ) {
+    String msgType = 'text';
+    List<String>? multiImageUrls;
+    if (multipleMedia != null && multipleMedia.isNotEmpty) {
+      msgType = 'multi_image';
+      multiImageUrls = multipleMedia
+          .map((m) {
+            final mediaMap = m is Map<String, dynamic>
+                ? m
+                : (m as Map).cast<String, dynamic>();
+            return mediaMap['publicUrl'] as String? ?? '';
+          })
+          .where((url) => url.isNotEmpty)
+          .toList();
+    } else if (attachmentUrl != null && attachmentUrl.isNotEmpty) {
+      final mt = attachmentType ?? '';
+      if (mt.startsWith('audio/')) {
+        msgType = 'audio';
+      } else if (mt.startsWith('image/')) {
+        msgType = 'image';
+      } else {
+        msgType = 'file';
+      }
+    }
+
+    return ForwardMessageData(
+      originalMessageId: messageId,
+      originalSenderId: widget.message['senderId'] as String? ?? '',
+      originalSenderName: widget.message['senderName'] as String? ?? '',
+      messageType: msgType,
+      text: text,
+      mediaUrl: attachmentUrl,
+      fileName: attachmentName,
+      mimeType: attachmentType,
+      fileSize: attachmentSize,
+      multipleImageUrls: multiImageUrls,
+      wasAlreadyForwarded:
+          widget.message['forwarded'] == true ||
+          widget.message['isForwarded'] == true,
     );
   }
 
@@ -4041,11 +4123,13 @@ class _ImageGalleryViewer extends StatefulWidget {
   final List<dynamic> mediaList;
   final int initialIndex;
   final bool isPending;
+  final ForwardMessageData? forwardMessage;
 
   const _ImageGalleryViewer({
     required this.mediaList,
     required this.initialIndex,
     required this.isPending,
+    this.forwardMessage,
   });
 
   @override
@@ -4061,6 +4145,10 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
   bool _isInteracting =
       false; // Track if user is currently interacting with zoom
   int _pointerCount = 0; // Track number of fingers on screen
+  bool _showTopBar = true;
+  bool _isActionBusy = false;
+  final Map<int, bool> _imageReady = {};
+  final Map<int, int> _retryToken = {};
 
   @override
   void initState() {
@@ -4075,6 +4163,8 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
       final controller = TransformationController();
       _transformationControllers[i] = controller;
       _zoomStates[i] = false;
+      _imageReady[i] = false;
+      _retryToken[i] = 0;
 
       // Listen to transformation changes
       controller.addListener(() {
@@ -4100,6 +4190,87 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
 
   bool get _shouldDisableScroll =>
       _isInteracting || (_zoomStates[_currentIndex] ?? false);
+
+  bool get _isCurrentImageReady => _imageReady[_currentIndex] == true;
+
+  Map<String, dynamic> get _currentMediaMap {
+    final media = widget.mediaList[_currentIndex];
+    return media is Map<String, dynamic>
+        ? media
+        : (media as Map).cast<String, dynamic>();
+  }
+
+  void _setImageReady(int index, bool ready) {
+    if (_imageReady[index] == ready || !mounted) return;
+    setState(() => _imageReady[index] = ready);
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _downloadCurrentImage() async {
+    if (_isActionBusy || !_isCurrentImageReady) return;
+    setState(() => _isActionBusy = true);
+    try {
+      final media = _currentMediaMap;
+      final localPath = media['localPath'] as String?;
+      final publicUrl = media['publicUrl'] as String?;
+      final r2Key = media['r2Key'] as String?;
+      final fileName = media['originalFileName'] as String?;
+
+      final saved = await ImageViewerActionService.saveImageToGallery(
+        localPath: localPath,
+        publicUrl: publicUrl,
+        sourceKey: (r2Key != null && r2Key.isNotEmpty)
+            ? r2Key
+            : (publicUrl ?? localPath),
+        fileNameHint: fileName,
+      );
+      _showMessage(
+        saved != null
+            ? 'Image saved to gallery'
+            : 'Storage permission denied or save failed',
+      );
+    } catch (_) {
+      _showMessage('Download interrupted. Please retry.');
+    } finally {
+      if (mounted) setState(() => _isActionBusy = false);
+    }
+  }
+
+  Future<void> _shareCurrentImage() async {
+    if (_isActionBusy || !_isCurrentImageReady) return;
+    setState(() => _isActionBusy = true);
+    try {
+      final media = _currentMediaMap;
+      final ok = await ImageViewerActionService.shareImage(
+        localPath: media['localPath'] as String?,
+        publicUrl: media['publicUrl'] as String?,
+        fileNameHint: media['originalFileName'] as String?,
+      );
+      if (!ok) _showMessage('Android share failed');
+    } catch (_) {
+      _showMessage('Android share failed');
+    } finally {
+      if (mounted) setState(() => _isActionBusy = false);
+    }
+  }
+
+  Future<void> _forwardCurrentImageGroup() async {
+    if (_isActionBusy) return;
+    final forwardMessage = widget.forwardMessage;
+    if (forwardMessage == null) {
+      _showMessage('Forward unavailable for this image');
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ForwardSelectionScreen(messages: [forwardMessage]),
+      ),
+    );
+  }
 
   void _animateZoom(TransformationController controller, Matrix4 targetMatrix) {
     final begin = controller.value;
@@ -4131,42 +4302,83 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          '${_currentIndex + 1} / ${widget.mediaList.length}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        centerTitle: true,
-      ),
-      body: PageView.builder(
-        controller: _pageController,
-        scrollDirection: Axis.horizontal,
-        physics: _shouldDisableScroll
-            ? const NeverScrollableScrollPhysics()
-            : const AlwaysScrollableScrollPhysics(),
-        onPageChanged: (index) {
-          // Reset transformation of previous image when switching
-          if (_transformationControllers[_currentIndex] != null) {
-            _transformationControllers[_currentIndex]!.value =
-                Matrix4.identity();
-          }
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        itemCount: widget.mediaList.length,
-        itemBuilder: (context, index) {
-          final media = widget.mediaList[index];
-          final localPath = media['localPath'] as String?;
-          final publicUrl = media['publicUrl'] as String?;
+      body: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            scrollDirection: Axis.horizontal,
+            physics: _shouldDisableScroll
+                ? const NeverScrollableScrollPhysics()
+                : const AlwaysScrollableScrollPhysics(),
+            onPageChanged: (index) {
+              if (_transformationControllers[_currentIndex] != null) {
+                _transformationControllers[_currentIndex]!.value =
+                    Matrix4.identity();
+              }
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            itemCount: widget.mediaList.length,
+            itemBuilder: (context, index) {
+              final media = widget.mediaList[index];
+              final mediaMap = media is Map<String, dynamic>
+                  ? media
+                  : (media as Map).cast<String, dynamic>();
+              final localPath = mediaMap['localPath'] as String?;
+              final publicUrl = mediaMap['publicUrl'] as String?;
 
-          return _buildImageViewer(index, localPath, publicUrl);
-        },
+              return _buildImageViewer(index, localPath, publicUrl);
+            },
+          ),
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 180),
+            top: _showTopBar ? 0 : -120,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Container(
+                color: Colors.black54,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Row(
+                  children: [
+                    _circleIcon(
+                      icon: Icons.close,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_currentIndex + 1} / ${widget.mediaList.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    _circleIcon(
+                      icon: Icons.download_rounded,
+                      onTap: (_isCurrentImageReady && !_isActionBusy)
+                          ? _downloadCurrentImage
+                          : null,
+                    ),
+                    _circleIcon(
+                      icon: Icons.forward_rounded,
+                      onTap: _isActionBusy ? null : _forwardCurrentImageGroup,
+                    ),
+                    _circleIcon(
+                      icon: Icons.share_rounded,
+                      onTap: (_isCurrentImageReady && !_isActionBusy)
+                          ? _shareCurrentImage
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -4181,6 +4393,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
     Widget imageWidget;
 
     if (hasLocalFile) {
+      _setImageReady(index, true);
       imageWidget = RepaintBoundary(
         child: Image.file(
           file,
@@ -4194,7 +4407,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
       imageWidget = RepaintBoundary(
         child: CachedNetworkImage(
           imageUrl: publicUrl,
-          key: ValueKey(publicUrl),
+          key: ValueKey('${publicUrl}_${_retryToken[index]}'),
           cacheKey: publicUrl,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
@@ -4203,23 +4416,37 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
           fadeInDuration: const Duration(milliseconds: 0),
           fadeOutDuration: const Duration(milliseconds: 0),
           useOldImageOnUrlChange: true,
-          imageBuilder: (context, imageProvider) => Image(
-            image: imageProvider,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
-            gaplessPlayback: true,
-          ),
-          placeholder: (context, url) => const Center(
-            child: SizedBox(
-              width: 36,
-              height: 36,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-          ),
-          errorWidget: (context, url, error) => _buildFallbackImage(),
+          imageBuilder: (context, imageProvider) {
+            _setImageReady(index, true);
+            return Image(
+              image: imageProvider,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              gaplessPlayback: true,
+            );
+          },
+          placeholder: (context, url) {
+            _setImageReady(index, false);
+            return const Center(
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              ),
+            );
+          },
+          errorWidget: (context, url, error) {
+            _setImageReady(index, false);
+            return _buildFallbackImage(onRetry: () {
+              setState(() {
+                _retryToken[index] = (_retryToken[index] ?? 0) + 1;
+              });
+            });
+          },
         ),
       );
     } else {
+      _setImageReady(index, false);
       imageWidget = _buildFallbackImage();
     }
 
@@ -4264,6 +4491,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
         });
       },
       child: GestureDetector(
+        onTap: () => setState(() => _showTopBar = !_showTopBar),
         onDoubleTapDown: (details) {
           // Store tap position for zoom target
           final controller = _transformationControllers[index]!;
@@ -4291,6 +4519,11 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
         onDoubleTap: () {
           // Required for onDoubleTapDown to work
         },
+        onVerticalDragEnd: (details) {
+          if ((details.primaryVelocity ?? 0) > 700) {
+            Navigator.of(context).pop();
+          }
+        },
         child: InteractiveViewer(
           transformationController: _transformationControllers[index],
           minScale: 1.0,
@@ -4305,15 +4538,37 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
     );
   }
 
-  Widget _buildFallbackImage() {
-    return const Center(
+  Widget _buildFallbackImage({VoidCallback? onRetry}) {
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.image, size: 64, color: Colors.white54),
-          SizedBox(height: 16),
-          Text('Image not available', style: TextStyle(color: Colors.white70)),
+          const Icon(Icons.image, size: 64, color: Colors.white54),
+          const SizedBox(height: 16),
+          const Text('Image not available', style: TextStyle(color: Colors.white70)),
+          if (onRetry != null) ...[
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _circleIcon({required IconData icon, required VoidCallback? onTap}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.16),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        onPressed: onTap,
+        icon: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/media_repository.dart';
 import '../services/media_availability_service.dart';
+import '../services/image_viewer_action_service.dart';
 import '../screens/audio_player_screen.dart';
+import '../screens/messages/forward_selection_screen.dart';
+import '../models/forward_message_data.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';
 import 'dart:io';
@@ -32,6 +35,7 @@ class MediaPreviewCard extends StatefulWidget {
   final String? userRole; // User role to determine default theme color
   final bool failed; // True when upload has permanently failed
   final VoidCallback? onRetry; // Callback to retry a failed upload
+  final ForwardMessageData? forwardMessage;
 
   const MediaPreviewCard({
     super.key,
@@ -49,6 +53,7 @@ class MediaPreviewCard extends StatefulWidget {
     this.userRole,
     this.failed = false,
     this.onRetry,
+    this.forwardMessage,
   });
 
   @override
@@ -209,6 +214,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           builder: (_) => _FullImageViewer(
             imagePath: _localPath!,
             fileName: widget.fileName,
+            forwardMessage: widget.forwardMessage,
           ),
         ),
       );
@@ -1127,6 +1133,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     builder: (_) => _FullImageViewer(
                       imagePath: p,
                       fileName: widget.fileName,
+                      forwardMessage: widget.forwardMessage,
                     ),
                   ),
                 );
@@ -1142,35 +1149,198 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
 class _FullImageViewer extends StatelessWidget {
   final String imagePath;
   final String fileName;
+  final ForwardMessageData? forwardMessage;
 
-  const _FullImageViewer({required this.imagePath, required this.fileName});
+  const _FullImageViewer({
+    required this.imagePath,
+    required this.fileName,
+    this.forwardMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _SingleImageViewerBody(
+      imagePath: imagePath,
+      fileName: fileName,
+      forwardMessage: forwardMessage,
+    );
+  }
+}
+
+class _SingleImageViewerBody extends StatefulWidget {
+  final String imagePath;
+  final String fileName;
+  final ForwardMessageData? forwardMessage;
+
+  const _SingleImageViewerBody({
+    required this.imagePath,
+    required this.fileName,
+    this.forwardMessage,
+  });
+
+  @override
+  State<_SingleImageViewerBody> createState() => _SingleImageViewerBodyState();
+}
+
+class _SingleImageViewerBodyState extends State<_SingleImageViewerBody> {
+  bool _showTopBar = true;
+  bool _isBusy = false;
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _downloadCurrentImage() async {
+    if (_isBusy) return;
+    setState(() => _isBusy = true);
+    try {
+      final savedPath = await ImageViewerActionService.saveImageToGallery(
+        localPath: widget.imagePath,
+        sourceKey: widget.imagePath,
+        fileNameHint: widget.fileName,
+      );
+      if (!mounted) return;
+      if (savedPath != null) {
+        _showMessage('Image saved to gallery');
+      } else {
+        _showMessage('Storage permission denied or save failed');
+      }
+    } catch (_) {
+      _showMessage('Download interrupted. Please retry.');
+    } finally {
+      if (mounted) {
+        setState(() => _isBusy = false);
+      }
+    }
+  }
+
+  Future<void> _shareCurrentImage() async {
+    if (_isBusy) return;
+    setState(() => _isBusy = true);
+    try {
+      final ok = await ImageViewerActionService.shareImage(
+        localPath: widget.imagePath,
+        fileNameHint: widget.fileName,
+      );
+      if (!ok) {
+        _showMessage('Unable to share image');
+      }
+    } catch (_) {
+      _showMessage('Android share failed');
+    } finally {
+      if (mounted) {
+        setState(() => _isBusy = false);
+      }
+    }
+  }
+
+  Future<void> _forwardImage() async {
+    final data = widget.forwardMessage;
+    if (data == null) {
+      _showMessage('Forward unavailable for this image');
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ForwardSelectionScreen(messages: [data]),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black87,
-        title: Text(
-          fileName,
-          style: const TextStyle(fontSize: 16, color: Colors.white),
-          overflow: TextOverflow.ellipsis,
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: imagePath.isNotEmpty
-          ? PhotoView(
-              imageProvider: FileImage(File(imagePath)),
-              minScale: PhotoViewComputedScale.contained,
-              maxScale: PhotoViewComputedScale.covered * 2,
-              backgroundDecoration: const BoxDecoration(color: Colors.black),
-            )
-          : Center(
-              child: Icon(Icons.broken_image, size: 64, color: Colors.white54),
+      body: Stack(
+        children: [
+          GestureDetector(
+            onTap: () => setState(() => _showTopBar = !_showTopBar),
+            onVerticalDragEnd: (details) {
+              if ((details.primaryVelocity ?? 0) > 700) {
+                Navigator.of(context).pop();
+              }
+            },
+            child: widget.imagePath.isNotEmpty
+                ? PhotoView(
+                    imageProvider: FileImage(File(widget.imagePath)),
+                    minScale: PhotoViewComputedScale.contained,
+                    maxScale: PhotoViewComputedScale.covered * 3,
+                    backgroundDecoration: const BoxDecoration(
+                      color: Colors.black,
+                    ),
+                  )
+                : const Center(
+                    child: Icon(
+                      Icons.broken_image,
+                      size: 64,
+                      color: Colors.white54,
+                    ),
+                  ),
+          ),
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 180),
+            top: _showTopBar ? 0 : -100,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Container(
+                color: Colors.black54,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                child: Row(
+                  children: [
+                    _circleIcon(
+                      icon: Icons.close,
+                      onTap: () => Navigator.of(context).pop(),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        widget.fileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    _circleIcon(
+                      icon: Icons.download_rounded,
+                      onTap: _isBusy ? null : _downloadCurrentImage,
+                    ),
+                    _circleIcon(
+                      icon: Icons.forward_rounded,
+                      onTap: _isBusy ? null : _forwardImage,
+                    ),
+                    _circleIcon(
+                      icon: Icons.share_rounded,
+                      onTap: _isBusy ? null : _shareCurrentImage,
+                    ),
+                  ],
+                ),
+              ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _circleIcon({required IconData icon, required VoidCallback? onTap}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.16),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white, size: 20),
+        onPressed: onTap,
+      ),
     );
   }
 }

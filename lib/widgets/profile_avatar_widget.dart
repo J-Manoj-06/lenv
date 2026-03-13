@@ -20,6 +20,8 @@ class ProfileAvatarWidget extends StatelessWidget {
   final bool showBorder;
   final Color? borderColor;
   final double borderWidth;
+  final Color? circleBackgroundColor;
+  final Color? initialsColor;
 
   const ProfileAvatarWidget({
     super.key,
@@ -30,12 +32,16 @@ class ProfileAvatarWidget extends StatelessWidget {
     this.showBorder = false,
     this.borderColor,
     this.borderWidth = 2,
+    this.circleBackgroundColor,
+    this.initialsColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
     final avatarColor = Color(ProfileDPService.getAvatarColor(name));
+    final bgColor = circleBackgroundColor ?? avatarColor;
+    final txtColor = initialsColor ?? avatarColor;
     final initials = ProfileDPService.getInitials(name);
     final avatarWidget = GestureDetector(
       onTap: onTap,
@@ -44,10 +50,12 @@ class ProfileAvatarWidget extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: avatarColor.withOpacity(0.15),
+          color: bgColor.withOpacity(
+            circleBackgroundColor != null ? 1.0 : 0.15,
+          ),
           border: showBorder
               ? Border.all(
-                  color: borderColor ?? avatarColor.withOpacity(0.5),
+                  color: borderColor ?? bgColor.withOpacity(0.5),
                   width: borderWidth,
                 )
               : null,
@@ -67,13 +75,15 @@ class ProfileAvatarWidget extends StatelessWidget {
                   errorWidget: (context, url, error) => _InitialsAvatar(
                     initials: initials,
                     size: size,
-                    color: avatarColor,
+                    color: bgColor,
+                    textColor: txtColor,
                   ),
                 )
               : _InitialsAvatar(
                   initials: initials,
                   size: size,
-                  color: avatarColor,
+                  color: bgColor,
+                  textColor: txtColor,
                 ),
         ),
       ),
