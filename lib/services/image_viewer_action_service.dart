@@ -121,16 +121,45 @@ class ImageViewerActionService {
     String? publicUrl,
     String? fileNameHint,
   }) async {
-    final imagePath = await ensureImageFile(
-      localPath: localPath,
-      publicUrl: publicUrl,
-    );
-    if (imagePath == null) return false;
+    try {
+      final imagePath = await ensureImageFile(
+        localPath: localPath,
+        publicUrl: publicUrl,
+      );
 
-    await Share.shareXFiles([
-      XFile(imagePath, mimeType: lookupMimeType(imagePath) ?? 'image/jpeg'),
-    ], text: fileNameHint ?? 'Image');
-    return true;
+      if (imagePath != null) {
+        final file = File(imagePath);
+        if (await file.exists()) {
+          final mimeType = lookupMimeType(imagePath) ?? 'image/jpeg';
+          final fileName =
+              (fileNameHint != null && fileNameHint.trim().isNotEmpty)
+              ? fileNameHint.trim()
+              : p.basename(imagePath);
+
+          try {
+            await Share.shareXFiles([
+              XFile(imagePath, mimeType: mimeType, name: fileName),
+            ], text: fileNameHint ?? 'Image');
+            return true;
+          } catch (_) {
+            final bytes = await file.readAsBytes();
+            await Share.shareXFiles([
+              XFile.fromData(bytes, mimeType: mimeType, name: fileName),
+            ], text: fileNameHint ?? 'Image');
+            return true;
+          }
+        }
+      }
+
+      if (publicUrl != null && publicUrl.isNotEmpty) {
+        await Share.share(publicUrl, subject: fileNameHint ?? 'Image');
+        return true;
+      }
+
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
   static String _resolveExtension(String path, String? fileNameHint) {
