@@ -19,6 +19,8 @@ class DPOptionsBottomSheet extends StatelessWidget {
   final String? currentImageUrl;
   final bool isGroupDP;
   final String? groupId;
+  final bool isStaffRoomDP;
+  final String? staffRoomId;
 
   const DPOptionsBottomSheet({
     super.key,
@@ -27,6 +29,8 @@ class DPOptionsBottomSheet extends StatelessWidget {
     this.currentImageUrl,
     this.isGroupDP = false,
     this.groupId,
+    this.isStaffRoomDP = false,
+    this.staffRoomId,
   });
 
   /// Show the bottom sheet and return when dismissed.
@@ -37,6 +41,8 @@ class DPOptionsBottomSheet extends StatelessWidget {
     String? currentImageUrl,
     bool isGroupDP = false,
     String? groupId,
+    bool isStaffRoomDP = false,
+    String? staffRoomId,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -48,6 +54,8 @@ class DPOptionsBottomSheet extends StatelessWidget {
         currentImageUrl: currentImageUrl,
         isGroupDP: isGroupDP,
         groupId: groupId,
+        isStaffRoomDP: isStaffRoomDP,
+        staffRoomId: staffRoomId,
       ),
     );
   }
@@ -82,7 +90,9 @@ class DPOptionsBottomSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text(
-              isGroupDP ? 'Group Photo' : 'Profile Photo',
+              isStaffRoomDP
+                  ? 'Staff Room Photo'
+                  : (isGroupDP ? 'Group Photo' : 'Profile Photo'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -96,7 +106,9 @@ class DPOptionsBottomSheet extends StatelessWidget {
           if (hasImage)
             _OptionTile(
               icon: Icons.visibility_outlined,
-              label: isGroupDP ? 'View Group Photo' : 'View Photo',
+              label: isStaffRoomDP
+                  ? 'View Staff Room Photo'
+                  : (isGroupDP ? 'View Group Photo' : 'View Photo'),
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
@@ -110,7 +122,9 @@ class DPOptionsBottomSheet extends StatelessWidget {
           // Change Photo
           _OptionTile(
             icon: Icons.camera_alt_outlined,
-            label: isGroupDP ? 'Change Group Photo' : 'Change Photo',
+            label: isStaffRoomDP
+                ? 'Change Staff Room Photo'
+                : (isGroupDP ? 'Change Group Photo' : 'Change Photo'),
             onTap: () => _pickAndUpload(context, fromCamera: false),
           ),
           _OptionTile(
@@ -123,7 +137,9 @@ class DPOptionsBottomSheet extends StatelessWidget {
             const Divider(height: 1),
             _OptionTile(
               icon: Icons.delete_outline,
-              label: isGroupDP ? 'Remove Group Photo' : 'Remove Photo',
+              label: isStaffRoomDP
+                  ? 'Remove Staff Room Photo'
+                  : (isGroupDP ? 'Remove Group Photo' : 'Remove Photo'),
               labelColor: Colors.red,
               iconColor: Colors.red,
               onTap: () => _confirmRemove(context),
@@ -175,7 +191,12 @@ class DPOptionsBottomSheet extends StatelessWidget {
 
     // 4. Upload
     bool success;
-    if (isGroupDP && groupId != null) {
+    if (isStaffRoomDP && staffRoomId != null) {
+      success = await dpProvider.uploadStaffRoomImage(
+        roomId: staffRoomId!,
+        imageFile: croppedFile,
+      );
+    } else if (isGroupDP && groupId != null) {
       success = await dpProvider.uploadGroupImage(
         groupId: groupId!,
         imageFile: croppedFile,
@@ -190,7 +211,9 @@ class DPOptionsBottomSheet extends StatelessWidget {
     scaffoldMessenger.showSnackBar(
       SnackBar(
         content: Text(
-          success ? 'Photo updated successfully!' : 'Failed to upload photo.',
+          success
+              ? 'Photo updated successfully!'
+              : (dpProvider.uploadError ?? 'Failed to upload photo.'),
         ),
         backgroundColor: success ? Colors.green : Colors.red,
         duration: const Duration(seconds: 2),
@@ -208,12 +231,16 @@ class DPOptionsBottomSheet extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          isGroupDP ? 'Remove Group Photo?' : 'Remove Profile Photo?',
+          isStaffRoomDP
+              ? 'Remove Staff Room Photo?'
+              : (isGroupDP ? 'Remove Group Photo?' : 'Remove Profile Photo?'),
         ),
         content: Text(
-          isGroupDP
-              ? 'The group photo will be removed.'
-              : 'Your profile photo will be removed.',
+          isStaffRoomDP
+              ? 'The staff room photo will be removed.'
+              : (isGroupDP
+                    ? 'The group photo will be removed.'
+                    : 'Your profile photo will be removed.'),
         ),
         actions: [
           TextButton(
@@ -231,7 +258,9 @@ class DPOptionsBottomSheet extends StatelessWidget {
     if (confirmed != true) return;
 
     bool success;
-    if (isGroupDP && groupId != null) {
+    if (isStaffRoomDP && staffRoomId != null) {
+      success = await dpProvider.removeStaffRoomImage(roomId: staffRoomId!);
+    } else if (isGroupDP && groupId != null) {
       success = await dpProvider.removeGroupImage(groupId: groupId!);
     } else {
       success = await dpProvider.removeProfileImage(userId: userId);
@@ -239,7 +268,11 @@ class DPOptionsBottomSheet extends StatelessWidget {
 
     scaffoldMessenger.showSnackBar(
       SnackBar(
-        content: Text(success ? 'Photo removed.' : 'Failed to remove photo.'),
+        content: Text(
+          success
+              ? 'Photo removed.'
+              : (dpProvider.uploadError ?? 'Failed to remove photo.'),
+        ),
         backgroundColor: success ? null : Colors.red,
         duration: const Duration(seconds: 2),
       ),

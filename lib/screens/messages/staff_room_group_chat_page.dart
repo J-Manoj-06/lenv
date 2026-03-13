@@ -10,12 +10,16 @@ import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
 import '../../providers/auth_provider.dart';
+import '../../providers/profile_dp_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../config/cloudflare_config.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
+import '../../widgets/staff_room_avatar_widget.dart';
+import '../../widgets/dp_options_bottom_sheet.dart';
+import '../common/full_screen_dp_viewer.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../core/constants/app_colors.dart';
@@ -149,8 +153,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _isInitialized) {
-      _loadPendingMessages().then((_) {
-      });
+      _loadPendingMessages().then((_) {});
     }
   }
 
@@ -406,13 +409,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       return;
     }
 
-
     // Load pending messages for this chat from cache
     final pendingMessages = await _localRepo.getPendingMessages(
       chatId: widget.instituteId,
       senderId: currentUser.uid,
     );
-
 
     if (pendingMessages.isEmpty || !mounted) {
       // ✅ Clear pending messages if no pending uploads
@@ -438,7 +439,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       }
 
       setState(() {
-
         // ✅ CRITICAL FIX: Clear old pending messages before reloading
         // This prevents the duplicate detection from skipping messages on navigation
         _pendingMessages.clear();
@@ -457,8 +457,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               : (isSingleAttachment ? 'SINGLE_ATTACHMENT' : 'TEXT_ONLY');
 
           if (isMultiMedia) {
-          } else if (isSingleAttachment) {
-          }
+          } else if (isSingleAttachment) {}
 
           // Check if this message is already uploaded to Firestore
           bool isAlreadyUploaded = false;
@@ -612,7 +611,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               // Treat as single attachment for upload tracking
               final isStillUploading = msg.attachmentUrl == 'pending';
 
-
               if (isStillUploading) {
                 if (!_uploadingMessageIds.contains(msg.messageId)) {
                   _uploadingMessageIds.add(msg.messageId);
@@ -660,7 +658,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                       cachedProgress ?? 0.01,
                     );
                   }
-
                 }
               }
             } else if (msg.attachmentUrl != null &&
@@ -668,7 +665,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               // ✅ FIXED: Handle BOTH uploaded and still-uploading single attachments
               // Show loading for pending, hide for uploaded
               final isStillUploading = msg.attachmentUrl == 'pending';
-
 
               // ✅ CRITICAL: Add to uploading set if still pending
               if (isStillUploading) {
@@ -873,7 +869,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               if (!_uploadingMessageIds.contains(mediaId)) {
                 hasIncompleteUploads = true;
 
-
                 // Store local path for upload
                 _localFilePaths[mediaId] = localPath;
                 _uploadingMessageIds.add(mediaId);
@@ -893,18 +888,15 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                   );
 
                   requeuedCount++;
-                } catch (e) {
-                }
+                } catch (e) {}
               }
             }
           }
         }
 
-        if (hasIncompleteUploads) {
-        }
+        if (hasIncompleteUploads) {}
       }
     }
-
   }
 
   Future<void> _showUploadNotification(double progress) async {
@@ -1314,7 +1306,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         return;
       }
 
-
       // ✅ CRITICAL: Preserve single attachment metadata in multipleMedia structure
       // This way when we reload, we can extract the name and size
       List<dynamic>? metadataList = multipleMedia;
@@ -1349,14 +1340,12 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         multipleMedia: metadataList,
       );
 
-
       await _localRepo.saveMessage(localMessage);
 
       // Verify it was saved
       final saved = await _localRepo.getMessageById(messageId);
       if (saved != null) {
-      } else {
-      }
+      } else {}
     } catch (e) {
       // Don't fail the upload just because local save failed
     }
@@ -1366,7 +1355,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   /// This allows them to appear in the regular message stream instead of pending list
   Future<void> _cleanupUploadedMessage(LocalMessage originalMsg) async {
     try {
-
       // Create a new message with isPending: false (since isPending is final)
       final updatedMessage = LocalMessage(
         messageId: originalMsg.messageId,
@@ -1384,8 +1372,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
       // Save the updated message
       await _localRepo.saveMessage(updatedMessage);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Upload multiple images as a single message
@@ -1453,7 +1440,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       'isPending': true,
     };
 
-
     // Save pending message to cache IMMEDIATELY (survives navigation)
     try {
       final pendingLocalMsg = LocalMessage(
@@ -1468,8 +1454,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         isPending: true,
       );
       await _localRepo.saveMessage(pendingLocalMsg);
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Store local file paths BEFORE adding pending message to ensure they're available for rendering
     for (int i = 0; i < mediaList.length; i++) {
@@ -1511,9 +1496,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           messageId: messageId,
           groupId: groupMessageId, // Group all images together
         );
-
       }
-
 
       // Scroll to bottom only if user hasn't scrolled away
       if (!_userHasScrolled) {
@@ -1615,7 +1598,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final progressNotifier = ValueNotifier<double>(0.01);
     _progressNotifiers[messageId] = progressNotifier;
 
-
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
     });
@@ -1638,7 +1620,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         senderName: currentUser.name,
         messageId: messageId, // Use our pending messageId for progress tracking
       );
-
 
       // Scroll to bottom only if user hasn't scrolled away
       if (!_userHasScrolled) {
@@ -1773,10 +1754,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           isPending: true,
         );
         _localRepo.saveMessage(localMsg);
-      } catch (e) {
-      }
-    } catch (e) {
-    }
+      } catch (e) {}
+    } catch (e) {}
   }
 
   void _showAttachmentPicker() {
@@ -1955,7 +1934,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             final progressNotifier = ValueNotifier<double>(0.01);
             _progressNotifiers[messageId] = progressNotifier;
 
-
             setState(() {
               _pendingMessages.insert(0, pendingMessage);
             });
@@ -1983,7 +1961,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               messageId:
                   messageId, // Use our pending messageId for progress tracking
             );
-
 
             // Scroll to bottom only if user hasn't scrolled away
             if (!_userHasScrolled) {
@@ -2103,12 +2080,55 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                           fontWeight: FontWeight.w600,
                         ),
                       )
-                    : Text(
-                        widget.isTeacher ? 'Teacher Group Chat' : 'Staff Room',
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    : Row(
+                        children: [
+                          StaffRoomAvatarWidget(
+                            roomId: widget.instituteId,
+                            roomName: 'Staff Room',
+                            size: 34,
+                            canEdit: !widget.isTeacher,
+                            onTap: () {
+                              final dpProvider = context
+                                  .read<ProfileDPProvider>();
+                              final currentImageUrl = dpProvider.getStaffRoomDP(
+                                widget.instituteId,
+                              );
+
+                              if (widget.isTeacher) {
+                                if (currentImageUrl != null &&
+                                    currentImageUrl.isNotEmpty) {
+                                  Navigator.of(context).push(
+                                    FullScreenDPViewer.route(
+                                      imageUrl: currentImageUrl,
+                                      userName: 'Staff Room',
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+
+                              DPOptionsBottomSheet.show(
+                                context: context,
+                                userId: widget.instituteId,
+                                userName: 'Staff Room',
+                                currentImageUrl: currentImageUrl,
+                                isStaffRoomDP: true,
+                                staffRoomId: widget.instituteId,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Staff Room',
+                              style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       );
               },
             );
@@ -2815,8 +2835,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                               ),
                             );
                           }
-                        } catch (e) {
-                        }
+                        } catch (e) {}
                       },
                       child: Container(
                         width: 52,
@@ -3065,9 +3084,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                             _recordingDuration.value++;
                                           },
                                         );
-
-                                      } catch (e) {
-                                      }
+                                      } catch (e) {}
                                     },
                               child: Container(
                                 width: 48,
@@ -3293,8 +3310,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               if (key.isNotEmpty && !mediaToDelete.contains(key)) {
                 mediaToDelete.add(key);
               }
-            } catch (e) {
-            }
+            } catch (e) {}
           }
         }
 
@@ -3310,8 +3326,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               if (key.isNotEmpty && !mediaToDelete.contains(key)) {
                 mediaToDelete.add(key);
               }
-            } catch (e) {
-            }
+            } catch (e) {}
           }
         }
 
@@ -3368,7 +3383,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   void _deleteMediaFiles(List<String> keys) async {
     if (keys.isEmpty) return;
 
-
     try {
       final r2Service = CloudflareR2Service(
         accountId: CloudflareConfig.accountId,
@@ -3390,13 +3404,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           final stillExists = await _checkFileExistsInR2(r2Service, key);
 
           successCount++;
-          if (stillExists) {
-          }
+          if (stillExists) {}
         } catch (e) {
           // Continue with next file
         }
       }
-
     } catch (e) {
       // Non-critical error - don't show to user
     }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../config/cloudflare_config.dart';
@@ -294,25 +295,131 @@ class ProfileDPService {
     }
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // STAFF ROOM DP (PRINCIPAL / INSTITUTE)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /// Upload a staff-room display picture.
+  Future<String> uploadStaffRoomImage({
+    required String roomId,
+    required File imageFile,
+    Function(int progress)? onProgress,
+  }) async {
+    try {
+      onProgress?.call(5);
+      final compressedBytes = await _compressionService.compressImage(
+        imageFile,
+        customMaxWidth: 512,
+        customQuality: 80,
+      );
+      onProgress?.call(20);
+
+      final imageId = 'staff_room_dp_${DateTime.now().millisecondsSinceEpoch}';
+
+      final signedUrlData = await _r2Service.generateSignedUploadUrl(
+        fileName: '$imageId.jpg',
+        fileType: 'image/jpeg',
+        validFor: const Duration(hours: 1),
+      );
+      onProgress?.call(30);
+
+      final publicUrl = await _r2Service.uploadFileWithSignedUrl(
+        fileBytes: compressedBytes,
+        signedUrl: signedUrlData['url'] as String,
+        contentType: 'image/jpeg',
+        onProgress: (p) => onProgress?.call(30 + (p * 0.5).toInt()),
+      );
+      onProgress?.call(80);
+
+      await _firestore.collection('staff_rooms').doc(roomId).set({
+        'staffRoomImageUrl': publicUrl,
+        'staffRoomImageId': imageId,
+        'staffRoomImageKey': signedUrlData['key'] as String,
+        'staffRoomImageUpdatedAt': FieldValue.serverTimestamp(),
+        'hasStaffRoomImage': true,
+      }, SetOptions(merge: true));
+
+      onProgress?.call(100);
+      return publicUrl;
+    } catch (e) {
+      debugPrint('ProfileDPService: uploadStaffRoomImage error: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove staff-room display picture.
+  Future<void> removeStaffRoomImage({required String roomId}) async {
+    try {
+      final doc = await _firestore.collection('staff_rooms').doc(roomId).get();
+      final data = doc.data();
+      final imageKey = data?['staffRoomImageKey'] as String?;
+
+      if (imageKey != null && imageKey.isNotEmpty) {
+        try {
+          await _r2Service.deleteFile(key: imageKey);
+        } catch (e) {
+          debugPrint('ProfileDPService: R2 staff room delete warning: $e');
+        }
+      }
+
+      await _firestore.collection('staff_rooms').doc(roomId).set({
+        'staffRoomImageUrl': null,
+        'staffRoomImageId': null,
+        'staffRoomImageKey': null,
+        'staffRoomImageUpdatedAt': FieldValue.serverTimestamp(),
+        'hasStaffRoomImage': false,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('ProfileDPService: removeStaffRoomImage error: $e');
+      rethrow;
+    }
+  }
+
+  /// Staff-room DP stream.
+  Stream<Map<String, dynamic>?> watchStaffRoomDP(String roomId) {
+    return _firestore.collection('staff_rooms').doc(roomId).snapshots().map((
+      snap,
+    ) {
+      if (!snap.exists) return null;
+      final d = snap.data();
+      if (d == null) return null;
+      return {
+        'staffRoomImageUrl': d['staffRoomImageUrl'],
+        'staffRoomImageUpdatedAt': d['staffRoomImageUpdatedAt'],
+        'hasStaffRoomImage': d['hasStaffRoomImage'] ?? false,
+      };
+    });
+  }
+
+  /// Fetch staff-room DP URL once.
+  Future<String?> getStaffRoomDPUrl(String roomId) async {
+    try {
+      final doc = await _firestore.collection('staff_rooms').doc(roomId).get();
+      if (doc.exists) {
+        return doc.data()?['staffRoomImageUrl'] as String?;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('ProfileDPService: getStaffRoomDPUrl error: $e');
+      return null;
+    }
+  }
+
   /// Update teacher_groups entries when group DP changes (best-effort).
   Future<void> _updateTeacherGroupImage(
     String groupId,
     String? imageUrl,
   ) async {
     try {
-      // teacher_groups is indexed by teacherId; find all that reference [groupId]
-      final snapshot = await _firestore
-          .collection('teacher_groups')
-          .where('groups.$groupId', isNull: false)
-          .get();
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      if (currentUserId == null || currentUserId.isEmpty) return;
 
-      for (final doc in snapshot.docs) {
-        await doc.reference.set({
-          'groups': {
-            groupId: {'groupImageUrl': imageUrl},
-          },
-        }, SetOptions(merge: true));
-      }
+      // Update only current teacher's index doc to avoid cross-doc permission issues.
+      await _firestore.collection('teacher_groups').doc(currentUserId).set({
+        'groups': {
+          groupId: {'groupImageUrl': imageUrl},
+        },
+      }, SetOptions(merge: true));
     } catch (_) {
       // Best-effort
     }

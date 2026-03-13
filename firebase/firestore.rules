@@ -93,6 +93,34 @@ service cloud.firestore {
               ? teacherInstituteIdFromDoc()
               : principalInstituteIdFromDoc());
     }
+
+    function teacherGroupsDocPath() {
+      return /databases/$(database)/documents/teacher_groups/$(request.auth.uid);
+    }
+
+    function hasTeacherGroupAssignment(groupId) {
+      return isSignedIn()
+        && exists(teacherGroupsDocPath())
+        && (
+          (
+            get(teacherGroupsDocPath()).data.groupIds != null
+            && get(teacherGroupsDocPath()).data.groupIds.hasAny([groupId])
+          )
+          || (
+            get(teacherGroupsDocPath()).data.groups != null
+            && get(teacherGroupsDocPath()).data.groups[groupId] != null
+          )
+        );
+    }
+
+    function canManageGroupById(groupId) {
+      return isSignedIn() && (
+        isTeacher()
+        || isPrincipal()
+        || isAdmin()
+        || hasTeacherGroupAssignment(groupId)
+      );
+    }
     
     function hasRole(role) {
       return isSignedIn() && userRole() == role;
@@ -364,7 +392,7 @@ service cloud.firestore {
       
       match /subjects/{subjectId} {
         allow read: if isSignedIn();
-        allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+        allow write: if canManageGroupById(classId + '_' + subjectId);
         
         match /messages/{messageId} {
           allow read, create: if isSignedIn();
@@ -375,6 +403,20 @@ service cloud.firestore {
     
     match /teacher_groups/{teacherId} {
       allow read, write: if isSignedIn() && (uidIs(teacherId) || isAdmin());
+    }
+
+    match /groups/{groupId} {
+      // Group photo metadata is stored here and is visible to all signed-in users.
+      allow read: if isSignedIn();
+      allow create, update, delete: if canManageGroupById(groupId);
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isSignedIn() && (
+          resource.data.senderId == request.auth.uid || isAdmin()
+        );
+      }
     }
     
     match /user_communities/{userId} {
@@ -462,7 +504,7 @@ service cloud.firestore {
     
     match /staff_rooms/{roomId} {
       allow read: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
-      allow write: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
+      allow write: if isSignedIn() && (isPrincipal() || isInstitute() || isAdmin());
       
       match /messages/{messageId} {
         allow read: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);

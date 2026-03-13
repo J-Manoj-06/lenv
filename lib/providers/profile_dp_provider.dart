@@ -12,6 +12,25 @@ import '../services/profile_dp_service.dart';
 class ProfileDPProvider extends ChangeNotifier {
   final ProfileDPService _dpService = ProfileDPService();
 
+  static String _friendlyErrorMessage(Object error, String fallback) {
+    final message = error.toString();
+    final lower = message.toLowerCase();
+
+    if (lower.contains('permission-denied') ||
+        lower.contains('permission denied') ||
+        lower.contains('insufficient permissions')) {
+      return 'Permission denied. Check Firestore access for this photo.';
+    }
+
+    if (lower.contains('network') ||
+        lower.contains('socketexception') ||
+        lower.contains('unavailable')) {
+      return 'Network error. Check your internet connection and try again.';
+    }
+
+    return fallback;
+  }
+
   // ── Current user state ────────────────────────────────────────────────────
   String? _currentUserId;
   String? _currentUserDP;
@@ -38,6 +57,12 @@ class ProfileDPProvider extends ChangeNotifier {
   final Map<String, StreamSubscription<Map<String, dynamic>?>>
   _groupDPSubscriptions = {};
 
+  // ── Staff room DP cache ──────────────────────────────────────────────────
+  final Map<String, String?> _staffRoomDPCache = {};
+  final Map<String, String> _staffRoomDPUpdatedAt = {};
+  final Map<String, StreamSubscription<Map<String, dynamic>?>>
+  _staffRoomDPSubscriptions = {};
+
   // ── Getters ───────────────────────────────────────────────────────────────
   String? get currentUserDP => _currentUserDP;
   bool get hasProfileImage => _hasProfileImage;
@@ -56,6 +81,10 @@ class ProfileDPProvider extends ChangeNotifier {
   /// Cache key for a group DP.
   String getGroupCacheKey(String groupId) =>
       'gp_${groupId}_${_groupDPUpdatedAt[groupId] ?? _groupDPCache[groupId] ?? groupId}';
+
+  /// Cache key for a staff-room DP.
+  String getStaffRoomCacheKey(String roomId) =>
+      'sr_${roomId}_${_staffRoomDPUpdatedAt[roomId] ?? _staffRoomDPCache[roomId] ?? roomId}';
 
   static String _buildUserCacheKey(String userId, String? url) {
     // Use URL as key component since it already embeds an upload timestamp.
@@ -90,6 +119,9 @@ class ProfileDPProvider extends ChangeNotifier {
   void dispose() {
     _dpSubscription?.cancel();
     for (final sub in _groupDPSubscriptions.values) {
+      sub.cancel();
+    }
+    for (final sub in _staffRoomDPSubscriptions.values) {
       sub.cancel();
     }
     super.dispose();
@@ -136,7 +168,10 @@ class ProfileDPProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _uploadError = 'Upload failed. Please try again.';
+      _uploadError = _friendlyErrorMessage(
+        e,
+        'Upload failed. Please try again.',
+      );
       _isUploading = false;
       debugPrint('ProfileDPProvider: upload error: $e');
       notifyListeners();
@@ -159,7 +194,10 @@ class ProfileDPProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _uploadError = 'Failed to remove photo. Please try again.';
+      _uploadError = _friendlyErrorMessage(
+        e,
+        'Failed to remove photo. Please try again.',
+      );
       _isUploading = false;
       debugPrint('ProfileDPProvider: remove error: $e');
       notifyListeners();
@@ -247,7 +285,10 @@ class ProfileDPProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _uploadError = 'Group photo upload failed. Please try again.';
+      _uploadError = _friendlyErrorMessage(
+        e,
+        'Group photo upload failed. Please try again.',
+      );
       _isUploading = false;
       debugPrint('ProfileDPProvider: group upload error: $e');
       notifyListeners();
@@ -268,7 +309,7 @@ class ProfileDPProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _uploadError = 'Failed to remove group photo.';
+      _uploadError = _friendlyErrorMessage(e, 'Failed to remove group photo.');
       _isUploading = false;
       notifyListeners();
       return false;
@@ -279,5 +320,90 @@ class ProfileDPProvider extends ChangeNotifier {
   void clearError() {
     _uploadError = null;
     notifyListeners();
+  }
+
+  // ── Staff room DP ────────────────────────────────────────────────────────
+
+  /// Start listening to a staff-room DP in real-time.
+  void watchStaffRoomDP(String roomId) {
+    if (_staffRoomDPSubscriptions.containsKey(roomId)) return;
+    _staffRoomDPSubscriptions[roomId] = _dpService
+        .watchStaffRoomDP(roomId)
+        .listen((data) {
+          _staffRoomDPCache[roomId] = data?['staffRoomImageUrl'] as String?;
+          final ts = data?['staffRoomImageUpdatedAt'];
+          if (ts != null) _staffRoomDPUpdatedAt[roomId] = ts.toString();
+          notifyListeners();
+        });
+  }
+
+  /// Get staff-room DP from cache.
+  String? getStaffRoomDP(String roomId) => _staffRoomDPCache[roomId];
+
+  /// Upload staff-room DP (principal / institute only).
+  Future<bool> uploadStaffRoomImage({
+    required String roomId,
+    required File imageFile,
+  }) async {
+    final validationError = ProfileDPService.validateImageFile(imageFile);
+    if (validationError != null) {
+      _uploadError = validationError;
+      notifyListeners();
+      return false;
+    }
+
+    _isUploading = true;
+    _uploadProgress = 0;
+    _uploadError = null;
+    notifyListeners();
+
+    try {
+      final url = await _dpService.uploadStaffRoomImage(
+        roomId: roomId,
+        imageFile: imageFile,
+        onProgress: (p) {
+          _uploadProgress = p;
+          notifyListeners();
+        },
+      );
+
+      _staffRoomDPCache[roomId] = url;
+      _isUploading = false;
+      _uploadProgress = 100;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _uploadError = _friendlyErrorMessage(
+        e,
+        'Staff room photo upload failed. Please try again.',
+      );
+      _isUploading = false;
+      debugPrint('ProfileDPProvider: staff room upload error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Remove staff-room DP.
+  Future<bool> removeStaffRoomImage({required String roomId}) async {
+    _isUploading = true;
+    _uploadError = null;
+    notifyListeners();
+
+    try {
+      await _dpService.removeStaffRoomImage(roomId: roomId);
+      _staffRoomDPCache[roomId] = null;
+      _isUploading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _uploadError = _friendlyErrorMessage(
+        e,
+        'Failed to remove staff room photo.',
+      );
+      _isUploading = false;
+      notifyListeners();
+      return false;
+    }
   }
 }

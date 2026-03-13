@@ -8,6 +8,8 @@ import '../../messages/teacher_group_chat_page.dart';
 import '../../../services/group_messaging_service.dart';
 import '../../messages/staff_room_group_chat_page.dart';
 import '../../../services/offline_data_service.dart';
+import '../../../widgets/group_avatar_widget.dart';
+import '../../../widgets/staff_room_avatar_widget.dart';
 
 /// Models
 class TeachingContext {
@@ -848,6 +850,11 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   Widget _buildStaffRoomCard(bool isDark) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final roomId = _instituteId.isNotEmpty
+        ? _instituteId
+        : (authProvider.currentUser?.instituteId ?? '');
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Container(
@@ -864,10 +871,6 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           color: Colors.transparent,
           child: InkWell(
             onTap: () {
-              final authProvider = Provider.of<AuthProvider>(
-                context,
-                listen: false,
-              );
               // ✅ Use cached _instituteId so this works offline too
               final instituteId =
                   authProvider.currentUser?.instituteId ?? _instituteId;
@@ -906,26 +909,11 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                 ),
                 const SizedBox(width: 14),
 
-                // Icon with building emoji
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFFF97316).withOpacity(0.2),
-                        const Color(0xFFFB923C).withOpacity(0.15),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: const Color(0xFFF97316).withOpacity(0.4),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: const Center(
-                    child: Text('🏫', style: TextStyle(fontSize: 28)),
-                  ),
+                StaffRoomAvatarWidget(
+                  roomId: roomId,
+                  roomName: 'Staff Room',
+                  size: 56,
+                  canEdit: false,
                 ),
                 const SizedBox(width: 14),
 
@@ -936,7 +924,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Teacher Group Chat',
+                        'Staff Room',
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
@@ -1134,33 +1122,11 @@ class _MessageGroupTileState extends State<MessageGroupTile>
                   ),
                   const SizedBox(width: 14),
 
-                  // Subject Icon with gradient background
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF355872).withOpacity(0.2),
-                          const Color(0xFF4A7A99).withOpacity(0.15),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFF355872).withOpacity(0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        widget.group.subjectName.substring(0, 1).toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF355872),
-                        ),
-                      ),
-                    ),
+                  GroupAvatarWidget(
+                    groupId: widget.group.groupId,
+                    groupName: widget.group.subjectName,
+                    size: 56,
+                    isTeacher: false,
                   ),
                   const SizedBox(width: 14),
 

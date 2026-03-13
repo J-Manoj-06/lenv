@@ -19,6 +19,7 @@ import '../../services/network_service.dart';
 import '../../services/offline_cache_manager.dart';
 import '../../services/pending_announcement_service.dart';
 import '../../widgets/attendance_speedometer_gauge.dart';
+import '../../widgets/staff_room_avatar_widget.dart';
 
 class InstituteDashboardScreen extends StatefulWidget {
   const InstituteDashboardScreen({super.key});
@@ -148,8 +149,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         .where('schoolCode', isEqualTo: schoolCode)
         .snapshots()
         .map((snapshot) {
-          if (snapshot.docs.isNotEmpty) {
-          }
+          if (snapshot.docs.isNotEmpty) {}
 
           // Update cache
           if (_cachedStats != null) {
@@ -182,8 +182,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         .where('schoolCode', isEqualTo: schoolCode)
         .snapshots()
         .map((snapshot) {
-          if (snapshot.docs.isNotEmpty) {
-          }
+          if (snapshot.docs.isNotEmpty) {}
 
           // Update cache
           if (_cachedStats != null) {
@@ -258,7 +257,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
               ? (presentCount / totalStudents * 100)
               : 0.0;
 
-
           // Update cache
           final attendanceData = {
             'present': presentCount,
@@ -299,7 +297,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         // Update school code when auth provider has user data
@@ -715,8 +712,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
           // DEBUG: Log announcements data
           for (var ann in allAnnouncements) {
-            if (ann.imageCaptions != null) {
-            }
+            if (ann.imageCaptions != null) {}
           }
 
           // Segregate: My announcements vs Other Principals
@@ -962,10 +958,8 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 ..removeWhere((status) => !status.isValid)
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-          for (final status in statuses) {
-          }
-        } else {
-        }
+          for (final status in statuses) {}
+        } else {}
 
         // hasTeacherAnnouncements should be based on FILTERED statuses
         final hasTeacherAnnouncements = statuses.isNotEmpty;
@@ -1532,8 +1526,7 @@ class _YesterdayAttendanceCardState extends State<_YesterdayAttendanceCard> {
     return FutureBuilder(
       future: _attendanceFuture,
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-        }
+        if (snapshot.hasError) {}
         // Always show the card, just change the content based on state
         return InkWell(
           onTap: snapshot.hasData
@@ -1762,9 +1755,13 @@ class _QuickActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final roomId = schoolCode.isNotEmpty
+        ? schoolCode
+        : (authProvider.currentUser?.instituteId ?? '');
+
     return GestureDetector(
       onTap: () {
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
         final instituteId = schoolCode.isNotEmpty
             ? schoolCode
             : (authProvider.currentUser?.instituteId ?? '');
@@ -1792,14 +1789,11 @@ class _QuickActionCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconBgColor,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.business, color: tealColor),
+            StaffRoomAvatarWidget(
+              roomId: roomId,
+              roomName: 'Staff Room',
+              size: 48,
+              canEdit: false,
             ),
             const SizedBox(width: 12),
             Expanded(
