@@ -260,6 +260,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 showEditOverlay: true,
                 isUploading: dpProvider.isUploading,
                 uploadProgress: dpProvider.uploadProgress,
+                circleBackgroundColor: const Color(0xFF3D3D3D),
+                initialsColor: const Color(0xFFF2800D),
                 onTap: () {
                   if (uid.isEmpty) return;
                   DPOptionsBottomSheet.show(

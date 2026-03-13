@@ -95,6 +95,12 @@ class ProfileDPCircle extends StatelessWidget {
   final bool isUploading;
   final int uploadProgress;
 
+  /// Optional override for the circle background colour (replaces name-hash colour).
+  final Color? circleBackgroundColor;
+
+  /// Optional override for the initials text colour.
+  final Color? initialsColor;
+
   const ProfileDPCircle({
     super.key,
     this.imageUrl,
@@ -104,6 +110,8 @@ class ProfileDPCircle extends StatelessWidget {
     this.showEditOverlay = false,
     this.isUploading = false,
     this.uploadProgress = 0,
+    this.circleBackgroundColor,
+    this.initialsColor,
   });
 
   @override
@@ -111,6 +119,9 @@ class ProfileDPCircle extends StatelessWidget {
     final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
     final avatarColor = Color(ProfileDPService.getAvatarColor(name));
     final initials = ProfileDPService.getInitials(name);
+    // Use overrides when provided, otherwise fall back to name-hash colour.
+    final bgColor = circleBackgroundColor ?? avatarColor;
+    final txtColor = initialsColor ?? avatarColor;
 
     return GestureDetector(
       onTap: onTap,
@@ -123,9 +134,13 @@ class ProfileDPCircle extends StatelessWidget {
             height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: avatarColor.withOpacity(0.15),
+              color: bgColor.withOpacity(
+                circleBackgroundColor != null ? 1.0 : 0.15,
+              ),
               border: Border.all(
-                color: avatarColor.withOpacity(0.4),
+                color: bgColor.withOpacity(
+                  circleBackgroundColor != null ? 0.6 : 0.4,
+                ),
                 width: 2.5,
               ),
               boxShadow: [
@@ -157,13 +172,15 @@ class ProfileDPCircle extends StatelessWidget {
                       errorWidget: (context, url, error) => _InitialsAvatar(
                         initials: initials,
                         size: size,
-                        color: avatarColor,
+                        color: bgColor,
+                        textColor: txtColor,
                       ),
                     )
                   : _InitialsAvatar(
                       initials: initials,
                       size: size,
-                      color: avatarColor,
+                      color: bgColor,
+                      textColor: txtColor,
                     ),
             ),
           ),
@@ -177,7 +194,7 @@ class ProfileDPCircle extends StatelessWidget {
                 height: size * 0.28,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: avatarColor,
+                  color: txtColor,
                   border: Border.all(
                     color: Theme.of(context).scaffoldBackgroundColor,
                     width: 2,
@@ -204,11 +221,13 @@ class _InitialsAvatar extends StatelessWidget {
   final String initials;
   final double size;
   final Color color;
+  final Color? textColor;
 
   const _InitialsAvatar({
     required this.initials,
     required this.size,
     required this.color,
+    this.textColor,
   });
 
   @override
@@ -223,7 +242,7 @@ class _InitialsAvatar extends StatelessWidget {
         style: TextStyle(
           fontSize: size * 0.33,
           fontWeight: FontWeight.bold,
-          color: color,
+          color: textColor ?? color,
           letterSpacing: 1.0,
         ),
       ),
