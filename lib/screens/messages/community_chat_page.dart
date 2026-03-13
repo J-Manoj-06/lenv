@@ -7,6 +7,7 @@ import 'package:record/record.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
@@ -40,6 +41,7 @@ import '../../services/network_service.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/image_viewer_action_service.dart';
 import '../../services/media_availability_service.dart';
+import '../../services/media_storage_helper.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
 
@@ -64,6 +66,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final GroupMessagingService _messagingService = GroupMessagingService();
   final MediaAvailabilityService _mediaAvailabilityService =
       MediaAvailabilityService();
+  final MediaStorageHelper _mediaStorageHelper = MediaStorageHelper();
   final CommunityService _communityService = CommunityService();
   final NetworkService _networkService = NetworkService();
   final TextEditingController _messageController = TextEditingController();
@@ -193,6 +196,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   // Selection mode for delete (ValueNotifiers for flicker-free updates)
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
+  String? _shareEligibilitySelectionKey;
+  Future<bool>? _shareEligibilityFuture;
 
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
@@ -257,6 +262,30 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       // Mark as initialized
       _isInitialized = true;
     });
+  }
+
+  String _buildSelectionKey(Set<String> selectedIds) {
+    if (selectedIds.isEmpty) return '';
+    final sorted = selectedIds.toList()..sort();
+    return sorted.join('|');
+  }
+
+  void _invalidateShareEligibilityCache() {
+    _shareEligibilitySelectionKey = null;
+    _shareEligibilityFuture = null;
+  }
+
+  Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_shareEligibilityFuture != null &&
+        _shareEligibilitySelectionKey == nextKey) {
+      return _shareEligibilityFuture!;
+    }
+    _shareEligibilitySelectionKey = nextKey;
+    _shareEligibilityFuture = _canShareSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _shareEligibilityFuture!;
   }
 
   @override
@@ -1985,6 +2014,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 if (isSelectionMode) {
                   _isSelectionMode.value = false;
                   _selectedMessages.value = {};
+                  _invalidateShareEligibilityCache();
                 } else {
                   Navigator.pop(context);
                 }
@@ -2064,16 +2094,23 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                   ? null
                                   : _forwardSelectedMessages,
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.share_rounded,
-                                color: Colors.white70,
-                                size: 24,
+                            FutureBuilder<bool>(
+                              future: _getShareEligibilityFuture(
+                                selectedMessages,
                               ),
-                              tooltip: 'Share',
-                              onPressed: selectedMessages.isEmpty
-                                  ? null
-                                  : _shareSelectedMessages,
+                              builder: (context, snapshot) {
+                                final canShare = snapshot.data == true;
+                                if (!canShare) return const SizedBox.shrink();
+                                return IconButton(
+                                  icon: const Icon(
+                                    Icons.share_rounded,
+                                    color: Colors.white70,
+                                    size: 24,
+                                  ),
+                                  tooltip: 'Share',
+                                  onPressed: _shareSelectedMessages,
+                                );
+                              },
                             ),
                             IconButton(
                               icon: const Icon(
@@ -2598,6 +2635,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                             ...selectedMessages,
                                             message.id,
                                           };
+                                          _invalidateShareEligibilityCache();
                                         },
                                         onTap: isSelectionMode
                                             ? () {
@@ -2618,6 +2656,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                                     message.id,
                                                   };
                                                 }
+                                                _invalidateShareEligibilityCache();
                                               }
                                             : null,
                                         child: _MessageBubble(
@@ -3030,6 +3069,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Exit selection mode right away for better UX
     _isSelectionMode.value = false;
     _selectedMessages.value = {};
+    _invalidateShareEligibilityCache();
 
     // Fetch each selected message from Firestore to get full data
     final forwardData = <ForwardMessageData>[];
@@ -3078,10 +3118,129 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       if (await file.exists()) return directPath;
     }
 
-    final r2Key = media['r2Key'] as String?;
-    if (r2Key == null || r2Key.isEmpty) return null;
+    final keyCandidates = <String?>[
+      media['r2Key'] as String?,
+      media['key'] as String?,
+      media['mediaKey'] as String?,
+      media['path'] as String?,
+    ];
 
-    return _mediaAvailabilityService.getCachedFilePath(r2Key);
+    for (final key in keyCandidates) {
+      if (key == null || key.isEmpty) continue;
+      final path = await _mediaAvailabilityService.getCachedFilePath(key);
+      if (path != null && path.isNotEmpty) return path;
+    }
+
+    final fileName = media['originalFileName'] as String?;
+    if (fileName != null && fileName.isNotEmpty) {
+      final all = await _mediaStorageHelper.getAllMediaMetadata();
+      for (final entry in all.values) {
+        if (entry.fileName == fileName) {
+          final file = File(entry.localPath);
+          if (await file.exists()) return entry.localPath;
+        }
+      }
+    }
+
+    final urlCandidates = <String?>[
+      media['publicUrl'] as String?,
+      media['url'] as String?,
+      media['imageUrl'] as String?,
+      media['attachmentUrl'] as String?,
+      media['downloadUrl'] as String?,
+      media['fileUrl'] as String?,
+    ];
+
+    for (final url in urlCandidates) {
+      if (url == null || url.isEmpty) continue;
+      final cached = await fcm.DefaultCacheManager().getFileFromCache(url);
+      final file = cached?.file;
+      if (file != null && await file.exists()) {
+        return file.path;
+      }
+    }
+
+    return null;
+  }
+
+  Future<bool> _canShareSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+
+    final items = <ShareMediaItem>[];
+
+    for (final id in selectedIds) {
+      final doc = await FirebaseFirestore.instance
+          .collection('communities')
+          .doc(widget.communityId)
+          .collection('messages')
+          .doc(id)
+          .get();
+      if (!doc.exists) return false;
+
+      final data = doc.data()!;
+      final mediaMetaRaw = data['mediaMetadata'];
+      final imageUrl = data['imageUrl'] as String?;
+      final attachmentUrl = data['attachmentUrl'] as String?;
+      final fileUrl = data['fileUrl'] as String?;
+      final hasLegacyMediaUrl =
+          (imageUrl != null && imageUrl.isNotEmpty) ||
+          (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+          (fileUrl != null && fileUrl.isNotEmpty);
+      if (mediaMetaRaw is Map) {
+        final media = Map<String, dynamic>.from(mediaMetaRaw);
+        final localPath = await _resolveDownloadedLocalPath(media);
+        if (localPath == null) return false;
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: media['originalFileName'] as String?,
+            mimeType: media['mimeType'] as String?,
+          ),
+        );
+      }
+
+      final multipleMediaRaw = data['multipleMedia'];
+      if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
+        for (final m in multipleMediaRaw) {
+          if (m is! Map) continue;
+          final media = Map<String, dynamic>.from(m);
+          final localPath = await _resolveDownloadedLocalPath(media);
+          if (localPath == null) return false;
+          items.add(
+            ShareMediaItem(
+              localPath: localPath,
+              fileName: media['originalFileName'] as String?,
+              mimeType: media['mimeType'] as String?,
+            ),
+          );
+        }
+      }
+
+      if (mediaMetaRaw is! Map &&
+          !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+          hasLegacyMediaUrl) {
+        final legacyMedia = <String, dynamic>{
+          'localPath': data['localPath'],
+          'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+          'originalFileName': data['attachmentName'] ?? data['fileName'],
+          'mimeType': data['attachmentType'] ?? data['mimeType'],
+          'imageUrl': imageUrl,
+          'attachmentUrl': attachmentUrl,
+          'fileUrl': fileUrl,
+        };
+        final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+        if (localPath == null) return false;
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: legacyMedia['originalFileName'] as String?,
+            mimeType: legacyMedia['mimeType'] as String?,
+          ),
+        );
+      }
+    }
+
+    return items.isNotEmpty;
   }
 
   Future<void> _shareSelectedMessages() async {
@@ -3102,8 +3261,15 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         final data = doc.data()!;
 
         final mediaMetaRaw = data['mediaMetadata'];
+        final imageUrl = data['imageUrl'] as String?;
+        final attachmentUrl = data['attachmentUrl'] as String?;
+        final fileUrl = data['fileUrl'] as String?;
+        final hasLegacyMediaUrl =
+            (imageUrl != null && imageUrl.isNotEmpty) ||
+            (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+            (fileUrl != null && fileUrl.isNotEmpty);
         if (mediaMetaRaw is Map) {
-          final media = Map<String, dynamic>.from(mediaMetaRaw as Map);
+          final media = Map<String, dynamic>.from(mediaMetaRaw);
           final localPath = await _resolveDownloadedLocalPath(media);
           if (localPath == null) {
             if (!mounted) return;
@@ -3149,6 +3315,37 @@ class _CommunityChatPageState extends State<CommunityChatPage>
             );
           }
         }
+
+        if (mediaMetaRaw is! Map &&
+            !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+            hasLegacyMediaUrl) {
+          final legacyMedia = <String, dynamic>{
+            'localPath': data['localPath'],
+            'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+            'originalFileName': data['attachmentName'] ?? data['fileName'],
+            'mimeType': data['attachmentType'] ?? data['mimeType'],
+            'imageUrl': imageUrl,
+            'attachmentUrl': attachmentUrl,
+            'fileUrl': fileUrl,
+          };
+          final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+          if (localPath == null) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Download selected media first to share'),
+              ),
+            );
+            return;
+          }
+          items.add(
+            ShareMediaItem(
+              localPath: localPath,
+              fileName: legacyMedia['originalFileName'] as String?,
+              mimeType: legacyMedia['mimeType'] as String?,
+            ),
+          );
+        }
       } catch (_) {}
     }
 
@@ -3176,6 +3373,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     _isSelectionMode.value = false;
     _selectedMessages.value = {};
+    _invalidateShareEligibilityCache();
   }
 
   void _showDeleteDialog() {
@@ -3271,6 +3469,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
       _selectedMessages.value = {};
       _isSelectionMode.value = false;
+      _invalidateShareEligibilityCache();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
@@ -35,6 +36,7 @@ import 'offline_message_search_page.dart';
 import '../../services/background_upload_service.dart';
 import '../../services/image_viewer_action_service.dart';
 import '../../services/media_availability_service.dart';
+import '../../services/media_storage_helper.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/forward_message_data.dart';
@@ -100,6 +102,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   // Selection mode for delete (ValueNotifiers for flicker-free updates)
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
+  String? _shareEligibilitySelectionKey;
+  Future<bool>? _shareEligibilityFuture;
 
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
@@ -119,6 +123,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   final Map<String, Map<String, dynamic>> _messageCache = {};
   final MediaAvailabilityService _mediaAvailabilityService =
       MediaAvailabilityService();
+  final MediaStorageHelper _mediaStorageHelper = MediaStorageHelper();
 
   // Cached stream to prevent StreamBuilder recreating stream on every build
   Stream<QuerySnapshot>? _messagesStream;
@@ -153,6 +158,30 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
     // Initialize background upload service
     _initBackgroundUploadService();
+  }
+
+  String _buildSelectionKey(Set<String> selectedIds) {
+    if (selectedIds.isEmpty) return '';
+    final sorted = selectedIds.toList()..sort();
+    return sorted.join('|');
+  }
+
+  void _invalidateShareEligibilityCache() {
+    _shareEligibilitySelectionKey = null;
+    _shareEligibilityFuture = null;
+  }
+
+  Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_shareEligibilityFuture != null &&
+        _shareEligibilitySelectionKey == nextKey) {
+      return _shareEligibilityFuture!;
+    }
+    _shareEligibilitySelectionKey = nextKey;
+    _shareEligibilityFuture = _canShareSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _shareEligibilityFuture!;
   }
 
   @override
@@ -2081,6 +2110,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                 if (isSelectionMode) {
                   _isSelectionMode.value = false;
                   _selectedMessages.value = {};
+                  _invalidateShareEligibilityCache();
                 } else {
                   Navigator.pop(context);
                 }
@@ -2179,16 +2209,23 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                   ? null
                                   : _forwardSelectedMessages,
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.share_rounded,
-                                color: Colors.white70,
-                                size: 24,
+                            FutureBuilder<bool>(
+                              future: _getShareEligibilityFuture(
+                                selectedMessages,
                               ),
-                              tooltip: 'Share',
-                              onPressed: selectedMessages.isEmpty
-                                  ? null
-                                  : _shareSelectedMessages,
+                              builder: (context, snapshot) {
+                                final canShare = snapshot.data == true;
+                                if (!canShare) return const SizedBox.shrink();
+                                return IconButton(
+                                  icon: const Icon(
+                                    Icons.share_rounded,
+                                    color: Colors.white70,
+                                    size: 24,
+                                  ),
+                                  tooltip: 'Share',
+                                  onPressed: _shareSelectedMessages,
+                                );
+                              },
                             ),
                             IconButton(
                               icon: const Icon(
@@ -2771,6 +2808,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                               ...selectedMessages,
                               messageId,
                             };
+                            _invalidateShareEligibilityCache();
                           },
                           onTap: isSelectionMode
                               ? () {
@@ -2788,6 +2826,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                       messageId,
                                     };
                                   }
+                                  _invalidateShareEligibilityCache();
                                 }
                               : null,
                           child: HighlightedMessageWrapper(
@@ -3169,6 +3208,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
     _isSelectionMode.value = false;
     _selectedMessages.value = {};
+    _invalidateShareEligibilityCache();
 
     final forwardData = <ForwardMessageData>[];
     for (final id in ids) {
@@ -3267,10 +3307,49 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       if (await file.exists()) return directPath;
     }
 
-    final r2Key = media['r2Key'] as String?;
-    if (r2Key == null || r2Key.isEmpty) return null;
+    final keyCandidates = <String?>[
+      media['r2Key'] as String?,
+      media['key'] as String?,
+      media['mediaKey'] as String?,
+      media['path'] as String?,
+    ];
 
-    return _mediaAvailabilityService.getCachedFilePath(r2Key);
+    for (final key in keyCandidates) {
+      if (key == null || key.isEmpty) continue;
+      final path = await _mediaAvailabilityService.getCachedFilePath(key);
+      if (path != null && path.isNotEmpty) return path;
+    }
+
+    final fileName = media['originalFileName'] as String?;
+    if (fileName != null && fileName.isNotEmpty) {
+      final all = await _mediaStorageHelper.getAllMediaMetadata();
+      for (final entry in all.values) {
+        if (entry.fileName == fileName) {
+          final file = File(entry.localPath);
+          if (await file.exists()) return entry.localPath;
+        }
+      }
+    }
+
+    final urlCandidates = <String?>[
+      media['publicUrl'] as String?,
+      media['url'] as String?,
+      media['imageUrl'] as String?,
+      media['attachmentUrl'] as String?,
+      media['downloadUrl'] as String?,
+      media['fileUrl'] as String?,
+    ];
+
+    for (final url in urlCandidates) {
+      if (url == null || url.isEmpty) continue;
+      final cached = await fcm.DefaultCacheManager().getFileFromCache(url);
+      final file = cached?.file;
+      if (file != null && await file.exists()) {
+        return file.path;
+      }
+    }
+
+    return null;
   }
 
   Future<List<ShareMediaItem>> _buildShareItemsFromSelection(
@@ -3283,6 +3362,13 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       if (data == null) return [];
 
       final mediaMetaRaw = data['mediaMetadata'];
+      final imageUrl = data['imageUrl'] as String?;
+      final attachmentUrl = data['attachmentUrl'] as String?;
+      final fileUrl = data['fileUrl'] as String?;
+      final hasLegacyMediaUrl =
+          (imageUrl != null && imageUrl.isNotEmpty) ||
+          (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+          (fileUrl != null && fileUrl.isNotEmpty);
       if (mediaMetaRaw is Map) {
         final media = Map<String, dynamic>.from(mediaMetaRaw);
         final localPath = await _resolveDownloadedLocalPath(media);
@@ -3313,6 +3399,29 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             ),
           );
         }
+      }
+
+      if (mediaMetaRaw is! Map &&
+          !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+          hasLegacyMediaUrl) {
+        final legacyMedia = <String, dynamic>{
+          'localPath': data['localPath'],
+          'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+          'originalFileName': data['attachmentName'] ?? data['fileName'],
+          'mimeType': data['attachmentType'] ?? data['mimeType'],
+          'imageUrl': imageUrl,
+          'attachmentUrl': attachmentUrl,
+          'fileUrl': fileUrl,
+        };
+        final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+        if (localPath == null) return [];
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: legacyMedia['originalFileName'] as String?,
+            mimeType: legacyMedia['mimeType'] as String?,
+          ),
+        );
       }
     }
 
@@ -3356,6 +3465,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
     _isSelectionMode.value = false;
     _selectedMessages.value = {};
+    _invalidateShareEligibilityCache();
   }
 
   void _showDeleteDialog() {
@@ -3512,6 +3622,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
       _selectedMessages.value = {};
       _isSelectionMode.value = false;
+      _invalidateShareEligibilityCache();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

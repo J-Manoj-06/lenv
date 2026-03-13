@@ -16,6 +16,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import '../../utils/link_utils.dart';
 import '../../models/group_chat_message.dart';
 import '../../models/media_metadata.dart';
@@ -38,6 +39,7 @@ import '../../widgets/modern_attachment_sheet.dart';
 import '../../services/connectivity_service.dart';
 import '../../services/image_viewer_action_service.dart';
 import '../../services/media_availability_service.dart';
+import '../../services/media_storage_helper.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
@@ -97,6 +99,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   final GroupMessagingService _messagingService = GroupMessagingService();
   final MediaAvailabilityService _mediaAvailabilityService =
       MediaAvailabilityService();
+  final MediaStorageHelper _mediaStorageHelper = MediaStorageHelper();
   final TextEditingController _messageController = TextEditingController();
   String? _lastTopMessageId;
   final FocusNode _messageFocusNode = FocusNode();
@@ -122,6 +125,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+  String? _shareEligibilitySelectionKey;
+  Future<bool>? _shareEligibilityFuture;
 
   // Optimistic UI: pending messages added locally before Firestore confirms
   final List<GroupChatMessage> _pendingMessages = [];
@@ -166,6 +171,30 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     super.didChangeDependencies();
     // Cache provider reference to avoid context lookup in dispose
     _unreadRef ??= Provider.of<UnreadCountProvider>(context, listen: false);
+  }
+
+  String _buildSelectionKey(Set<String> selectedIds) {
+    if (selectedIds.isEmpty) return '';
+    final sorted = selectedIds.toList()..sort();
+    return sorted.join('|');
+  }
+
+  void _invalidateShareEligibilityCache() {
+    _shareEligibilitySelectionKey = null;
+    _shareEligibilityFuture = null;
+  }
+
+  Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_shareEligibilityFuture != null &&
+        _shareEligibilitySelectionKey == nextKey) {
+      return _shareEligibilityFuture!;
+    }
+    _shareEligibilitySelectionKey = nextKey;
+    _shareEligibilityFuture = _canShareSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _shareEligibilityFuture!;
   }
 
   // ===== Pending messages persistence =====
@@ -581,6 +610,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                   setState(() {
                     _isSelectionMode = true;
                     _selectedMessages.add(message.id);
+                    _invalidateShareEligibilityCache();
                   });
                 },
                 onTap: _isSelectionMode
@@ -594,6 +624,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                           } else {
                             _selectedMessages.add(message.id);
                           }
+                          _invalidateShareEligibilityCache();
                         });
                       }
                     : null,
@@ -1861,6 +1892,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                   setState(() {
                     _isSelectionMode = false;
                     _selectedMessages.clear();
+                    _invalidateShareEligibilityCache();
                   });
                 } else {
                   Navigator.pop(context);
@@ -1955,16 +1987,21 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                           ? null
                           : _forwardSelectedMessages,
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.share_rounded,
-                        color: Colors.white70,
-                        size: 24,
-                      ),
-                      tooltip: 'Share',
-                      onPressed: _selectedMessages.isEmpty
-                          ? null
-                          : _shareSelectedMessages,
+                    FutureBuilder<bool>(
+                      future: _getShareEligibilityFuture(_selectedMessages),
+                      builder: (context, snapshot) {
+                        final canShare = snapshot.data == true;
+                        if (!canShare) return const SizedBox.shrink();
+                        return IconButton(
+                          icon: const Icon(
+                            Icons.share_rounded,
+                            color: Colors.white70,
+                            size: 24,
+                          ),
+                          tooltip: 'Share',
+                          onPressed: _shareSelectedMessages,
+                        );
+                      },
                     ),
                     IconButton(
                       icon: const Icon(
@@ -2870,6 +2907,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       setState(() {
         _selectedMessages.clear();
         _isSelectionMode = false;
+        _invalidateShareEligibilityCache();
       });
 
       if (mounted) {
@@ -2925,6 +2963,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     setState(() {
       _isSelectionMode = false;
       _selectedMessages.clear();
+      _invalidateShareEligibilityCache();
     });
 
     final forwardData = <ForwardMessageData>[];
@@ -2975,10 +3014,131 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       if (await file.exists()) return directPath;
     }
 
-    final r2Key = media['r2Key'] as String?;
-    if (r2Key == null || r2Key.isEmpty) return null;
+    final keyCandidates = <String?>[
+      media['r2Key'] as String?,
+      media['key'] as String?,
+      media['mediaKey'] as String?,
+      media['path'] as String?,
+    ];
 
-    return _mediaAvailabilityService.getCachedFilePath(r2Key);
+    for (final key in keyCandidates) {
+      if (key == null || key.isEmpty) continue;
+      final path = await _mediaAvailabilityService.getCachedFilePath(key);
+      if (path != null && path.isNotEmpty) return path;
+    }
+
+    final fileName = media['originalFileName'] as String?;
+    if (fileName != null && fileName.isNotEmpty) {
+      final all = await _mediaStorageHelper.getAllMediaMetadata();
+      for (final entry in all.values) {
+        if (entry.fileName == fileName) {
+          final file = File(entry.localPath);
+          if (await file.exists()) return entry.localPath;
+        }
+      }
+    }
+
+    final urlCandidates = <String?>[
+      media['publicUrl'] as String?,
+      media['url'] as String?,
+      media['imageUrl'] as String?,
+      media['attachmentUrl'] as String?,
+      media['downloadUrl'] as String?,
+      media['fileUrl'] as String?,
+    ];
+
+    for (final url in urlCandidates) {
+      if (url == null || url.isEmpty) continue;
+      final cached = await fcm.DefaultCacheManager().getFileFromCache(url);
+      final file = cached?.file;
+      if (file != null && await file.exists()) {
+        return file.path;
+      }
+    }
+
+    return null;
+  }
+
+  Future<bool> _canShareSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+
+    final items = <ShareMediaItem>[];
+
+    for (final id in selectedIds) {
+      final doc = await FirebaseFirestore.instance
+          .collection('classes')
+          .doc(widget.classId)
+          .collection('subjects')
+          .doc(widget.subjectId)
+          .collection('messages')
+          .doc(id)
+          .get();
+      if (!doc.exists) return false;
+
+      final data = doc.data()!;
+      final mediaMetaRaw = data['mediaMetadata'];
+      final imageUrl = data['imageUrl'] as String?;
+      final attachmentUrl = data['attachmentUrl'] as String?;
+      final fileUrl = data['fileUrl'] as String?;
+      final hasLegacyMediaUrl =
+          (imageUrl != null && imageUrl.isNotEmpty) ||
+          (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+          (fileUrl != null && fileUrl.isNotEmpty);
+      if (mediaMetaRaw is Map) {
+        final media = Map<String, dynamic>.from(mediaMetaRaw);
+        final localPath = await _resolveDownloadedLocalPath(media);
+        if (localPath == null) return false;
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: media['originalFileName'] as String?,
+            mimeType: media['mimeType'] as String?,
+          ),
+        );
+      }
+
+      final multipleMediaRaw = data['multipleMedia'];
+      if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
+        for (final m in multipleMediaRaw) {
+          if (m is! Map) continue;
+          final media = Map<String, dynamic>.from(m);
+          final localPath = await _resolveDownloadedLocalPath(media);
+          if (localPath == null) return false;
+          items.add(
+            ShareMediaItem(
+              localPath: localPath,
+              fileName: media['originalFileName'] as String?,
+              mimeType: media['mimeType'] as String?,
+            ),
+          );
+        }
+      }
+
+      if (mediaMetaRaw is! Map &&
+          !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+          hasLegacyMediaUrl) {
+        final legacyMedia = <String, dynamic>{
+          'localPath': data['localPath'],
+          'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+          'originalFileName': data['attachmentName'] ?? data['fileName'],
+          'mimeType': data['attachmentType'] ?? data['mimeType'],
+          'imageUrl': imageUrl,
+          'attachmentUrl': attachmentUrl,
+          'fileUrl': fileUrl,
+        };
+        final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+        if (localPath == null) return false;
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: legacyMedia['originalFileName'] as String?,
+            mimeType: legacyMedia['mimeType'] as String?,
+          ),
+        );
+      }
+    }
+
+    return items.isNotEmpty;
   }
 
   Future<void> _shareSelectedMessages() async {
@@ -3001,8 +3161,15 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         final data = doc.data()!;
 
         final mediaMetaRaw = data['mediaMetadata'];
+        final imageUrl = data['imageUrl'] as String?;
+        final attachmentUrl = data['attachmentUrl'] as String?;
+        final fileUrl = data['fileUrl'] as String?;
+        final hasLegacyMediaUrl =
+            (imageUrl != null && imageUrl.isNotEmpty) ||
+            (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+            (fileUrl != null && fileUrl.isNotEmpty);
         if (mediaMetaRaw is Map) {
-          final media = Map<String, dynamic>.from(mediaMetaRaw as Map);
+          final media = Map<String, dynamic>.from(mediaMetaRaw);
           final localPath = await _resolveDownloadedLocalPath(media);
           if (localPath == null) {
             if (!mounted) return;
@@ -3048,6 +3215,37 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
             );
           }
         }
+
+        if (mediaMetaRaw is! Map &&
+            !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+            hasLegacyMediaUrl) {
+          final legacyMedia = <String, dynamic>{
+            'localPath': data['localPath'],
+            'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+            'originalFileName': data['attachmentName'] ?? data['fileName'],
+            'mimeType': data['attachmentType'] ?? data['mimeType'],
+            'imageUrl': imageUrl,
+            'attachmentUrl': attachmentUrl,
+            'fileUrl': fileUrl,
+          };
+          final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+          if (localPath == null) {
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Download selected media first to share'),
+              ),
+            );
+            return;
+          }
+          items.add(
+            ShareMediaItem(
+              localPath: localPath,
+              fileName: legacyMedia['originalFileName'] as String?,
+              mimeType: legacyMedia['mimeType'] as String?,
+            ),
+          );
+        }
       } catch (_) {}
     }
 
@@ -3076,6 +3274,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     setState(() {
       _isSelectionMode = false;
       _selectedMessages.clear();
+      _invalidateShareEligibilityCache();
     });
   }
 
