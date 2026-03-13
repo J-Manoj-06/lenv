@@ -1229,8 +1229,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       if (schoolCode.isEmpty || className.isEmpty) return 0;
 
       // Section-aware cache key so different sections don't share stale data
-      final cacheClassName =
-          section.isNotEmpty ? '$className|$section' : className;
+      final cacheClassName = section.isNotEmpty
+          ? '$className|$section'
+          : className;
 
       final cachedPoints = await CacheManager.getTopperPointsCache(
         schoolId: schoolCode,
