@@ -1,9 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'cloudflare_r2_service.dart';
-import 'cloudflare_notification_service.dart';
 import '../config/cloudflare_config.dart';
 
 class ChatService {
@@ -75,12 +73,10 @@ class ChatService {
         .collection('messages')
         .doc();
     final convRef = _db.collection('conversations').doc(conversationId);
-    Map<String, dynamic>? conversationData;
 
     await _db.runTransaction((tx) async {
       // 1) READS first
       final convSnap = await tx.get(convRef);
-      conversationData = convSnap.data();
       final isParent = senderRole == 'parent';
       int unreadParent = 0;
       int unreadTeacher = 0;
@@ -126,29 +122,7 @@ class ChatService {
       });
     });
 
-    final recipientId = senderRole == 'parent'
-        ? (conversationData?['teacherId'])?.toString() ?? ''
-        : (conversationData?['parentId'])?.toString() ?? '';
-    final senderId = senderRole == 'parent'
-        ? (conversationData?['parentId'])?.toString() ?? ''
-        : (conversationData?['teacherId'])?.toString() ?? '';
-
-    if (recipientId.isNotEmpty && senderId.isNotEmpty) {
-      unawaited(
-        CloudflareNotificationService.sendDirectChatNotification(
-          messageId: msgRef.id,
-          senderId: senderId,
-          recipientId: recipientId,
-          text: text,
-          messageType: mediaMetadata == null ? 'text' : 'media',
-          deepLinkRoute: '/messages',
-          metadata: {'conversationId': conversationId, 'chatType': 'direct'},
-        ).catchError((Object error) {
-          debugPrint('Cloudflare chat notification failed: $error');
-          return false;
-        }),
-      );
-    }
+    // Direct teacher-parent chat notifications are disabled.
   }
 
   Future<void> markDelivered({

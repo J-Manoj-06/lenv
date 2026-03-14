@@ -301,17 +301,6 @@ class FirebaseMessageSyncService {
       await _localRepo.saveMessage(localMessage);
 
       switch (chatType) {
-        case 'private':
-          unawaited(
-            _notifyPrivateMessage(
-              chatId: chatId,
-              messageId: docRef.id,
-              senderId: senderId,
-              text: messageText ?? '',
-              messageType: attachmentType ?? 'text',
-            ),
-          );
-          break;
         case 'parent_group':
           unawaited(
             _notifyParentGroupMessage(
@@ -339,38 +328,6 @@ class FirebaseMessageSyncService {
       }
     } catch (e) {
       rethrow;
-    }
-  }
-
-  Future<void> _notifyPrivateMessage({
-    required String chatId,
-    required String messageId,
-    required String senderId,
-    required String text,
-    required String messageType,
-  }) async {
-    try {
-      final conversation = await _firestore
-          .collection('conversations')
-          .doc(chatId)
-          .get();
-      final data = conversation.data() ?? const <String, dynamic>{};
-      final teacherId = (data['teacherId'] ?? '').toString();
-      final parentId = (data['parentId'] ?? '').toString();
-      final recipientId = senderId == teacherId ? parentId : teacherId;
-      if (recipientId.isEmpty) return;
-
-      await CloudflareNotificationService.sendDirectChatNotification(
-        messageId: messageId,
-        senderId: senderId,
-        recipientId: recipientId,
-        text: text,
-        messageType: messageType,
-        deepLinkRoute: '/messages',
-        metadata: {'conversationId': chatId, 'chatType': 'direct'},
-      );
-    } catch (e) {
-      debugPrint('Cloudflare private sync notification failed: $e');
     }
   }
 
