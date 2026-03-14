@@ -37,6 +37,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   List<SchoolModel> _schools = [];
   bool _isLoadingSchools = true;
   String? _schoolLoadError;
+  bool _schoolLoadIsWarning = false;
 
   @override
   void dispose() {
@@ -55,6 +56,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     setState(() {
       _isLoadingSchools = true;
       _schoolLoadError = null;
+      _schoolLoadIsWarning = false;
     });
 
     try {
@@ -63,19 +65,31 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         setState(() {
           _schools = schools;
           _isLoadingSchools = false;
+
+          if (_schoolService.lastFetchUsedCache && schools.isNotEmpty) {
+            _schoolLoadError =
+                'Offline mode: showing previously loaded schools.';
+            _schoolLoadIsWarning = true;
+          }
         });
 
         if (schools.isEmpty) {
           setState(() {
             _schoolLoadError = 'No schools found. Please contact admin.';
+            _schoolLoadIsWarning = false;
           });
         }
       }
     } catch (e) {
       if (mounted) {
+        final bool isNetworkIssue =
+            e is SchoolFetchException && e.isNetworkIssue;
         setState(() {
           _isLoadingSchools = false;
-          _schoolLoadError = 'Failed to load schools: $e';
+          _schoolLoadError = e is SchoolFetchException
+              ? e.message
+              : 'Failed to load schools. Please try again.';
+          _schoolLoadIsWarning = isNetworkIssue;
         });
       }
     }
@@ -314,9 +328,34 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
         if (_schoolLoadError != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              _schoolLoadError!,
-              style: const TextStyle(color: Colors.red, fontSize: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _schoolLoadError!,
+                  style: TextStyle(
+                    color: _schoolLoadIsWarning ? Colors.orange : Colors.red,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _isLoadingSchools ? null : _loadSchools,
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Retry'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: brandOrange,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         Container(
