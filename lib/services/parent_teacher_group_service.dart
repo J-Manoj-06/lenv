@@ -171,7 +171,7 @@ class ParentTeacherGroupService {
         .collection('parent_teacher_groups')
         .doc(groupId)
         .collection('messages')
-        .orderBy('createdAt', descending: true)
+        .orderBy('timestamp', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {
@@ -185,12 +185,13 @@ class ParentTeacherGroupService {
                   ? (data['multipleMedia'] as List?)?.length ?? 0
                   : 0;
 
-              // Filter out documents with invalid timestamp data or deleted messages
-              if (data['createdAt'] != null && !(data['isDeleted'] ?? false)) {
+              // Keep messages when either timestamp field is present.
+              final hasAnyTimestamp =
+                  data['createdAt'] != null || data['timestamp'] != null;
+              if (hasAnyTimestamp && !(data['isDeleted'] ?? false)) {
                 final msg = CommunityMessageModel.fromFirestore(doc);
                 messages.add(msg);
-              } else {
-              }
+              } else {}
             } catch (e) {
               // Skip messages that fail to parse (e.g., corrupted data)
             }
@@ -210,7 +211,7 @@ class ParentTeacherGroupService {
           .collection('parent_teacher_groups')
           .doc(groupId)
           .collection('messages')
-          .orderBy('createdAt', descending: true)
+          .orderBy('timestamp', descending: true)
           .limit(limit);
 
       if (startAfter != null) {
@@ -221,7 +222,9 @@ class ParentTeacherGroupService {
       return snapshot.docs
           .map((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            if (data['createdAt'] == null) return null;
+            if (data['createdAt'] == null && data['timestamp'] == null) {
+              return null;
+            }
             return CommunityMessageModel.fromFirestore(doc);
           })
           .whereType<CommunityMessageModel>()
@@ -351,8 +354,7 @@ class ParentTeacherGroupService {
           'mediaMetadata': null,
           'multipleMedia': FieldValue.delete(),
         });
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     // Delete files from R2 storage
@@ -376,9 +378,7 @@ class ParentTeacherGroupService {
             // Continue with other files
           }
         }
-
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     // Commit soft-delete batch

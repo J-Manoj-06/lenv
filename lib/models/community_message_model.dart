@@ -60,6 +60,19 @@ class CommunityMessageModel {
   factory CommunityMessageModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
+    DateTime? parseDate(dynamic value) {
+      if (value == null) return null;
+      if (value is Timestamp) return value.toDate();
+      if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+      if (value is num) {
+        return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+      }
+      if (value is String) {
+        return DateTime.tryParse(value);
+      }
+      return null;
+    }
+
     // Parse reactions map
     Map<String, List<String>> reactionsMap = {};
     if (data['reactions'] != null) {
@@ -111,16 +124,11 @@ class CommunityMessageModel {
       fileName: data['fileName'] ?? '',
       mediaMetadata: parsedMediaMetadata,
       multipleMedia: parsedMultipleMedia,
-      createdAt: data['createdAt'] != null
-          ? (data['createdAt'] is Timestamp
-                ? (data['createdAt'] as Timestamp).toDate()
-                : DateTime.fromMillisecondsSinceEpoch(data['createdAt'] as int))
-          : DateTime.now(),
-      updatedAt: data['updatedAt'] != null
-          ? (data['updatedAt'] is Timestamp
-                ? (data['updatedAt'] as Timestamp).toDate()
-                : DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] as int))
-          : null,
+      createdAt:
+          parseDate(data['createdAt']) ??
+          parseDate(data['timestamp']) ??
+          DateTime.now(),
+      updatedAt: parseDate(data['updatedAt']),
       isEdited: data['isEdited'] ?? false,
       isDeleted: data['isDeleted'] ?? false,
       isPinned: data['isPinned'] ?? false,

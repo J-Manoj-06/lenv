@@ -764,6 +764,19 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     return 'file';
   }
 
+  ForwardMessageData _buildForwardDataForMessage(CommunityMessageModel msg) {
+    return ForwardMessageData.fromRaw(
+      messageId: msg.messageId,
+      senderId: msg.senderId,
+      senderName: msg.senderName,
+      rawData: msg.documentSnapshot?.data() as Map<String, dynamic>?,
+      imageUrl: msg.imageUrl,
+      message: msg.content,
+      mediaMetadata: msg.mediaMetadata,
+      multipleMedia: msg.multipleMedia,
+    );
+  }
+
   void _onEmojiSelected(Emoji emoji) {
     _controller.text += emoji.emoji;
   }
@@ -1782,45 +1795,57 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                               imageUrls: msg
                                                                   .multipleMedia!
                                                                   .map((m) {
-                                                                    // Priority 1: publicUrl (Firestore/uploaded)
+                                                                    if (isPending) {
+                                                                      // Staff-room style: pending items should render from local paths.
+                                                                      final byR2Key =
+                                                                          _localSenderMediaPaths[m
+                                                                              .r2Key];
+                                                                      if (byR2Key !=
+                                                                              null &&
+                                                                          byR2Key
+                                                                              .isNotEmpty) {
+                                                                        return byR2Key;
+                                                                      }
+
+                                                                      final byMsgId =
+                                                                          _localSenderMediaPaths[m
+                                                                              .messageId];
+                                                                      if (byMsgId !=
+                                                                              null &&
+                                                                          byMsgId
+                                                                              .isNotEmpty) {
+                                                                        return byMsgId;
+                                                                      }
+
+                                                                      if (m.localPath !=
+                                                                              null &&
+                                                                          m.localPath!.isNotEmpty) {
+                                                                        return m
+                                                                            .localPath!;
+                                                                      }
+
+                                                                      return m
+                                                                              .thumbnail
+                                                                              .isNotEmpty
+                                                                          ? m.thumbnail
+                                                                          : '';
+                                                                    }
+
+                                                                    // Staff-room style: sent items should render from public URL.
                                                                     if (m
                                                                         .publicUrl
                                                                         .isNotEmpty) {
                                                                       return m
                                                                           .publicUrl;
                                                                     }
-                                                                    // Priority 2: derive URL from r2Key for legacy/partial metadata
+
                                                                     if (m
                                                                         .r2Key
                                                                         .isNotEmpty) {
                                                                       return '${CloudflareConfig.r2Domain}/${m.r2Key}';
                                                                     }
-                                                                    // Priority 3: local path by r2Key
-                                                                    final byR2Key =
-                                                                        _localSenderMediaPaths[m
-                                                                            .r2Key];
-                                                                    if (byR2Key !=
-                                                                            null &&
-                                                                        byR2Key
-                                                                            .isNotEmpty) {
-                                                                      return byR2Key;
-                                                                    }
-                                                                    // Priority 4: local path by messageId (set during initial upload)
-                                                                    final byMsgId =
-                                                                        _localSenderMediaPaths[m
-                                                                            .messageId];
-                                                                    if (byMsgId !=
-                                                                            null &&
-                                                                        byMsgId
-                                                                            .isNotEmpty) {
-                                                                      return byMsgId;
-                                                                    }
-                                                                    // Priority 5: thumbnail (local file path stored in pending metadata)
-                                                                    return m
-                                                                            .thumbnail
-                                                                            .isNotEmpty
-                                                                        ? m.thumbnail
-                                                                        : '';
+
+                                                                    return '';
                                                                   })
                                                                   .where(
                                                                     (url) => url
@@ -1978,6 +2003,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                               uploading: false,
                                                                               uploadProgress: null,
                                                                               selectionMode: _selectionMode,
+                                                                              forwardMessage: _buildForwardDataForMessage(
+                                                                                msg,
+                                                                              ),
                                                                             ),
                                                                             Positioned.fill(
                                                                               child: Container(
@@ -2085,6 +2113,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                             progress,
                                                                         selectionMode:
                                                                             _selectionMode,
+                                                                        forwardMessage:
+                                                                            _buildForwardDataForMessage(
+                                                                              msg,
+                                                                            ),
                                                                       );
                                                                     },
                                                                   )
@@ -2119,6 +2151,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                         null,
                                                                     selectionMode:
                                                                         _selectionMode,
+                                                                    forwardMessage:
+                                                                        _buildForwardDataForMessage(
+                                                                          msg,
+                                                                        ),
                                                                   ),
                                                           ),
                                                           if (msg
