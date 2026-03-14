@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/local_message.dart';
 import '../repositories/local_message_repository.dart';
+import 'cloudflare_notification_service.dart';
 
 /// Firebase sync service - ONLY for syncing, NOT for search
 /// WHY: Separation of concerns - Firebase handles sync, local DB handles everything else
@@ -26,7 +28,6 @@ class FirebaseMessageSyncService {
     if (_activeListeners.containsKey(chatId)) {
       return;
     }
-
 
     // Get the appropriate collection path based on chat type
     final Query messagesQuery = _getMessagesQuery(chatId, chatType);
@@ -85,8 +86,7 @@ class FirebaseMessageSyncService {
     int limit = 100, // Fetch last 100 messages
     bool forceResync = false, // Force re-fetch even if messages exist
   }) async {
-    if (forceResync) {
-    }
+    if (forceResync) {}
 
     try {
       // First try with ordering
@@ -116,7 +116,6 @@ class FirebaseMessageSyncService {
           final media = data['mediaMetadata'] as Map<String, dynamic>?;
         }
 
-
         // Only save if not already in local DB (or force resync)
         final exists = await _localRepo.hasMessage(doc.id);
         if (!exists || forceResync) {
@@ -143,8 +142,7 @@ class FirebaseMessageSyncService {
 
       if (messages.isNotEmpty) {
         await _localRepo.saveMessages(messages);
-      } else {
-      }
+      } else {}
     } catch (e) {
       if (e is FirebaseException && e.code == 'permission-denied') {
         return;
@@ -168,7 +166,6 @@ class FirebaseMessageSyncService {
     required int lastTimestamp,
   }) async {
     try {
-
       final Query messagesQuery = _getMessagesQuery(chatId, chatType)
           .where('createdAt', isGreaterThan: lastTimestamp)
           .orderBy('createdAt', descending: false)
@@ -199,8 +196,7 @@ class FirebaseMessageSyncService {
       if (newMessages.isNotEmpty) {
         await _localRepo.saveMessages(newMessages);
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Load older messages (pagination)
@@ -212,7 +208,6 @@ class FirebaseMessageSyncService {
     int limit = 50,
   }) async {
     try {
-
       final Query messagesQuery = _getMessagesQuery(chatId, chatType)
           .where('createdAt', isLessThan: beforeTimestamp)
           .orderBy('createdAt', descending: true)
@@ -305,9 +300,213 @@ class FirebaseMessageSyncService {
 
       await _localRepo.saveMessage(localMessage);
 
+      switch (chatType) {
+        case 'private':
+          unawaited(
+            _notifyPrivateMessage(
+              chatId: chatId,
+              messageId: docRef.id,
+              senderId: senderId,
+              text: messageText ?? '',
+              messageType: attachmentType ?? 'text',
+            ),
+          );
+          break;
+        case 'parent_group':
+          unawaited(
+            _notifyParentGroupMessage(
+              groupId: chatId,
+              messageId: docRef.id,
+              senderId: senderId,
+              senderName: senderName,
+              content: messageText ?? '',
+              messageType: attachmentType ?? 'text',
+            ),
+          );
+          break;
+        case 'community':
+          unawaited(
+            _notifyCommunityMessage(
+              communityId: chatId,
+              messageId: docRef.id,
+              senderId: senderId,
+              senderName: senderName,
+              content: messageText ?? '',
+              messageType: attachmentType ?? 'text',
+            ),
+          );
+          break;
+      }
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<void> _notifyPrivateMessage({
+    required String chatId,
+    required String messageId,
+    required String senderId,
+    required String text,
+    required String messageType,
+  }) async {
+    try {
+      final conversation = await _firestore
+          .collection('conversations')
+          .doc(chatId)
+          .get();
+      final data = conversation.data() ?? const <String, dynamic>{};
+      final teacherId = (data['teacherId'] ?? '').toString();
+      final parentId = (data['parentId'] ?? '').toString();
+      final recipientId = senderId == teacherId ? parentId : teacherId;
+      if (recipientId.isEmpty) return;
+
+      await CloudflareNotificationService.sendDirectChatNotification(
+        messageId: messageId,
+        senderId: senderId,
+        recipientId: recipientId,
+        text: text,
+        messageType: messageType,
+        deepLinkRoute: '/messages',
+        metadata: {'conversationId': chatId, 'chatType': 'direct'},
+      );
+    } catch (e) {
+      debugPrint('Cloudflare private sync notification failed: $e');
+    }
+  }
+
+  Future<void> _notifyParentGroupMessage({
+    required String groupId,
+    required String messageId,
+    required String senderId,
+    required String senderName,
+    required String content,
+    required String messageType,
+  }) async {
+    try {
+      final groupSnapshot = await _firestore
+          .collection('parent_teacher_groups')
+          .doc(groupId)
+          .get();
+      final groupData = groupSnapshot.data() ?? const <String, dynamic>{};
+      final schoolCode =
+          (groupData['schoolCode'] ??
+                  groupData['schoolId'] ??
+                  groupData['instituteId'] ??
+                  '')
+              .toString();
+      final className = (groupData['className'] ?? '').toString();
+      final section = (groupData['section'] ?? '').toString();
+      final normalizedClass = _normalizeClassName(className).toLowerCase();
+
+      final usersSnapshot = await _firestore.collection('users').get();
+      final recipientIds = usersSnapshot.docs
+          .where((doc) {
+            if (doc.id == senderId) return false;
+            final data = doc.data();
+            final role = (data['role'] ?? '').toString().toLowerCase();
+            if (role != 'parent' && role != 'teacher') return false;
+
+            final userSchool =
+                (data['schoolCode'] ??
+                        data['schoolId'] ??
+                        data['instituteId'] ??
+                        '')
+                    .toString();
+            if (schoolCode.isNotEmpty && userSchool != schoolCode) return false;
+
+            final userClass = _normalizeClassName(
+              (data['className'] ?? data['class'] ?? data['standard'] ?? '')
+                  .toString(),
+            ).toLowerCase();
+            if (normalizedClass.isNotEmpty && userClass != normalizedClass) {
+              return false;
+            }
+
+            final userSection = (data['section'] ?? '').toString();
+            if (section.isNotEmpty && userSection != section) return false;
+            return true;
+          })
+          .map((doc) => doc.id)
+          .toList();
+
+      if (recipientIds.isEmpty) return;
+
+      await CloudflareNotificationService.sendGroupMessageNotification(
+        messageId: messageId,
+        senderId: senderId,
+        senderName: senderName,
+        senderRole: '',
+        groupType: 'parent_teacher_group',
+        groupId: groupId,
+        recipientIds: recipientIds,
+        content: content,
+        messageType: messageType,
+        groupName: groupData['name']?.toString(),
+        deepLinkRoute: '/notifications',
+        metadata: {
+          'className': className,
+          'section': section,
+          'schoolCode': schoolCode,
+        },
+      );
+    } catch (e) {
+      debugPrint('Cloudflare parent group sync notification failed: $e');
+    }
+  }
+
+  Future<void> _notifyCommunityMessage({
+    required String communityId,
+    required String messageId,
+    required String senderId,
+    required String senderName,
+    required String content,
+    required String messageType,
+  }) async {
+    try {
+      final membersSnapshot = await _firestore
+          .collection('communities')
+          .doc(communityId)
+          .collection('members')
+          .where('status', isEqualTo: 'active')
+          .get();
+      final recipientIds = membersSnapshot.docs
+          .map((doc) => doc.data()['userId']?.toString() ?? doc.id)
+          .where((userId) => userId.isNotEmpty && userId != senderId)
+          .toSet()
+          .toList();
+      if (recipientIds.isEmpty) return;
+
+      await CloudflareNotificationService.sendGroupMessageNotification(
+        messageId: messageId,
+        senderId: senderId,
+        senderName: senderName,
+        senderRole: '',
+        groupType: 'community',
+        groupId: communityId,
+        recipientIds: recipientIds,
+        content: content,
+        messageType: messageType,
+        deepLinkRoute: '/notifications',
+        metadata: {'communityId': communityId},
+      );
+    } catch (e) {
+      debugPrint('Cloudflare community sync notification failed: $e');
+    }
+  }
+
+  String _normalizeClassName(String className) {
+    final trimmed = className.trim();
+    if (trimmed.isEmpty) return '';
+
+    final digitMatch = RegExp(r'\d+').firstMatch(trimmed);
+    if (digitMatch != null) {
+      return digitMatch.group(0)!;
+    }
+
+    return trimmed
+        .replaceAll(RegExp(r'(?i)grade\s+'), '')
+        .replaceAll(RegExp(r'(?i)class\s+'), '')
+        .trim();
   }
 
   /// Get the messages query based on chat type

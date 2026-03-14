@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,6 +31,8 @@ import 'models/local_message.dart';
 import 'share/share_controller.dart';
 import 'share/share_receiver_service.dart';
 import 'config/dashboard_setup.dart';
+
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 // Initial route is always '/' (Splash) which will resolve and redirect.
 
@@ -102,8 +105,41 @@ Future<void> _initializeServicesAsync() async {
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  StreamSubscription<Map<String, dynamic>>? _notificationTapSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationTapSub = NotificationService().notificationTapStream.listen(
+      _handleNotificationTap,
+    );
+  }
+
+  @override
+  void dispose() {
+    _notificationTapSub?.cancel();
+    super.dispose();
+  }
+
+  void _handleNotificationTap(Map<String, dynamic> payload) {
+    final navigator = appNavigatorKey.currentState;
+    if (navigator == null) return;
+
+    final route = payload['deepLinkRoute']?.toString();
+    final targetRoute = (route != null && route.isNotEmpty)
+        ? route
+        : '/notifications';
+
+    navigator.pushNamed(targetRoute, arguments: payload);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +205,7 @@ class MyApp extends StatelessWidget {
             return MaterialApp(
               title: 'LenV - Educational Ecosystem',
               debugShowCheckedModeBanner: false,
+              navigatorKey: appNavigatorKey,
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               themeMode: themeProvider.themeMode,

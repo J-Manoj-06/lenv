@@ -6,12 +6,14 @@ class NotificationCard extends StatelessWidget {
   final NotificationModel notification;
   final VoidCallback onTap;
   final VoidCallback? onDismiss;
+  final VoidCallback? onMarkRead;
 
   const NotificationCard({
     super.key,
     required this.notification,
     required this.onTap,
     this.onDismiss,
+    this.onMarkRead,
   });
 
   @override
@@ -55,9 +57,9 @@ class NotificationCard extends StatelessWidget {
                 // Left: Icon Avatar
                 CircleAvatar(
                   radius: 24,
-                  backgroundColor: _getColorForType(notification.type),
+                  backgroundColor: _getColorForType(notification.category),
                   child: Icon(
-                    _getIconForType(notification.type),
+                    _getIconForType(notification.category),
                     color: Colors.white,
                     size: 24,
                   ),
@@ -107,7 +109,7 @@ class NotificationCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            _formatTimestamp(notification.timestamp),
+                            _formatTimestamp(notification.createdAt),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[500],
@@ -122,16 +124,16 @@ class NotificationCard extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: _getColorForType(
-                                notification.type,
+                                notification.category,
                               ).withOpacity(0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              _getTypeLabel(notification.type),
+                              _getTypeLabel(notification.category),
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: _getColorForType(notification.type),
+                                color: _getColorForType(notification.category),
                               ),
                             ),
                           ),
@@ -142,16 +144,45 @@ class NotificationCard extends StatelessWidget {
                 ),
 
                 // Right: Unread indicator
-                if (!notification.isRead)
-                  Container(
-                    width: 10,
-                    height: 10,
-                    margin: const EdgeInsets.only(left: 8, top: 4),
-                    decoration: BoxDecoration(
-                      color: theme.primaryColor,
-                      shape: BoxShape.circle,
+                Column(
+                  children: [
+                    if (!notification.isRead)
+                      Container(
+                        width: 10,
+                        height: 10,
+                        margin: const EdgeInsets.only(left: 8, top: 4),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    PopupMenuButton<String>(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: Colors.grey[500],
+                        size: 18,
+                      ),
+                      onSelected: (value) {
+                        if (value == 'read') {
+                          onMarkRead?.call();
+                        } else if (value == 'delete') {
+                          onDismiss?.call();
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (!notification.isRead)
+                          const PopupMenuItem<String>(
+                            value: 'read',
+                            child: Text('Mark as read'),
+                          ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Delete'),
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -160,41 +191,59 @@ class NotificationCard extends StatelessWidget {
     );
   }
 
-  Color _getColorForType(NotificationType type) {
+  Color _getColorForType(NotificationCategory type) {
     switch (type) {
-      case NotificationType.chat:
+      case NotificationCategory.messaging:
         return Colors.blue;
-      case NotificationType.assignment:
+      case NotificationCategory.tests:
         return Colors.orange;
-      case NotificationType.announcement:
-        return Colors.purple;
-      case NotificationType.general:
+      case NotificationCategory.rewards:
+        return Colors.green;
+      case NotificationCategory.announcements:
+        return Colors.indigo;
+      case NotificationCategory.academic:
+        return Colors.teal;
+      case NotificationCategory.alerts:
+        return Colors.red;
+      case NotificationCategory.general:
         return Colors.grey;
     }
   }
 
-  IconData _getIconForType(NotificationType type) {
+  IconData _getIconForType(NotificationCategory type) {
     switch (type) {
-      case NotificationType.chat:
+      case NotificationCategory.messaging:
         return Icons.chat_bubble;
-      case NotificationType.assignment:
-        return Icons.assignment;
-      case NotificationType.announcement:
+      case NotificationCategory.tests:
+        return Icons.quiz;
+      case NotificationCategory.rewards:
+        return Icons.workspace_premium;
+      case NotificationCategory.announcements:
         return Icons.campaign;
-      case NotificationType.general:
+      case NotificationCategory.academic:
+        return Icons.school;
+      case NotificationCategory.alerts:
+        return Icons.warning_amber;
+      case NotificationCategory.general:
         return Icons.notifications;
     }
   }
 
-  String _getTypeLabel(NotificationType type) {
+  String _getTypeLabel(NotificationCategory type) {
     switch (type) {
-      case NotificationType.chat:
-        return 'CHAT';
-      case NotificationType.assignment:
-        return 'ASSIGNMENT';
-      case NotificationType.announcement:
+      case NotificationCategory.messaging:
+        return 'MESSAGING';
+      case NotificationCategory.tests:
+        return 'TESTS';
+      case NotificationCategory.rewards:
+        return 'REWARDS';
+      case NotificationCategory.announcements:
         return 'ANNOUNCEMENT';
-      case NotificationType.general:
+      case NotificationCategory.academic:
+        return 'ACADEMIC';
+      case NotificationCategory.alerts:
+        return 'ALERT';
+      case NotificationCategory.general:
         return 'GENERAL';
     }
   }

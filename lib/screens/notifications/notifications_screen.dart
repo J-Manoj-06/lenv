@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/notification_model.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/notification_card.dart';
@@ -14,25 +12,31 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final NotificationService _notificationService = NotificationService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  final List<_FilterTab> _tabs = const [
+    _FilterTab(label: 'All'),
+    _FilterTab(label: 'Unread', unreadOnly: true),
+    _FilterTab(label: 'Messaging', category: NotificationCategory.messaging),
+    _FilterTab(label: 'Tests', category: NotificationCategory.tests),
+    _FilterTab(label: 'Rewards', category: NotificationCategory.rewards),
+    _FilterTab(
+      label: 'Announcements',
+      category: NotificationCategory.announcements,
+    ),
+    _FilterTab(label: 'Academic', category: NotificationCategory.academic),
+    _FilterTab(label: 'Alerts', category: NotificationCategory.alerts),
+  ];
+
+  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    final user = _auth.currentUser;
-
-    if (user == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Notifications')),
-        body: const Center(child: Text('Please log in to view notifications')),
-      );
-    }
+    final tab = _tabs[_selectedIndex];
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notifications'),
-        elevation: 0,
         actions: [
-          // Unread count badge
           StreamBuilder<int>(
             stream: _notificationService.unreadCountStream(),
             builder: (context, snapshot) {
@@ -41,14 +45,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
               return Center(
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 16),
+                  padding: const EdgeInsets.only(right: 12),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      color: const Color(0xFFD32F2F),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -56,7 +60,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -72,12 +76,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 _showClearAllDialog();
               }
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
+            itemBuilder: (context) => const [
+              PopupMenuItem(
                 value: 'mark_all_read',
                 child: Text('Mark all as read'),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'clear_all',
                 child: Text('Clear all notifications'),
               ),
@@ -85,161 +89,152 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('notifications')
-            .where('userId', isEqualTo: user.uid)
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
-                ],
-              ),
-            );
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final notifications = snapshot.data?.docs ?? [];
-
-          if (notifications.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.notifications_off_outlined,
-                    size: 64,
-                    color: Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No notifications yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'You\'ll be notified about messages,\nassignments, and announcements',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              // Refresh is automatic with StreamBuilder
-              await Future.delayed(const Duration(milliseconds: 500));
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: notifications.length,
+      body: Column(
+        children: [
+          SizedBox(
+            height: 58,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              scrollDirection: Axis.horizontal,
               itemBuilder: (context, index) {
-                final notificationDoc = notifications[index];
-                final notification = NotificationModel.fromFirestore(
-                  notificationDoc,
+                final item = _tabs[index];
+                return ChoiceChip(
+                  label: Text(item.label),
+                  selected: _selectedIndex == index,
+                  onSelected: (_) {
+                    setState(() => _selectedIndex = index);
+                  },
                 );
+              },
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemCount: _tabs.length,
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: StreamBuilder<List<NotificationModel>>(
+              stream: _notificationService.notificationsStream(
+                category: tab.category,
+                unreadOnly: tab.unreadOnly,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
 
-                return NotificationCard(
-                  notification: notification,
-                  onTap: () => _handleNotificationTap(notification),
-                  onDismiss: () =>
-                      _deleteNotification(notification.notificationId),
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final notifications =
+                    snapshot.data ?? const <NotificationModel>[];
+
+                if (notifications.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.notifications_off_outlined,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No notifications yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'You\'ll see role-based updates for messages, tests, rewards and alerts.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    await Future.delayed(const Duration(milliseconds: 500));
+                  },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: notifications.length,
+                    itemBuilder: (context, index) {
+                      final notification = notifications[index];
+                      return NotificationCard(
+                        notification: notification,
+                        onTap: () => _handleNotificationTap(notification),
+                        onMarkRead: () => _markRead(notification),
+                        onDismiss: () =>
+                            _deleteNotification(notification.notificationId),
+                      );
+                    },
+                  ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
-  void _handleNotificationTap(NotificationModel notification) async {
-    // Mark as read
-    if (!notification.isRead) {
-      await _notificationService.markAsRead(notification.notificationId);
-    }
+  Future<void> _handleNotificationTap(NotificationModel notification) async {
+    await _markRead(notification);
 
-    // Navigate based on notification type
     if (!mounted) return;
 
-    switch (notification.type) {
-      case NotificationType.chat:
-        _navigateToChat(notification);
+    if (notification.deepLinkRoute != null &&
+        notification.deepLinkRoute!.isNotEmpty) {
+      try {
+        Navigator.pushNamed(
+          context,
+          notification.deepLinkRoute!,
+          arguments: notification.metadata,
+        );
+        return;
+      } catch (_) {
+        // Fall through to category fallback.
+      }
+    }
+
+    switch (notification.category) {
+      case NotificationCategory.messaging:
+        Navigator.pushNamed(
+          context,
+          '/messages',
+          arguments: notification.metadata,
+        );
         break;
-      case NotificationType.assignment:
-        _navigateToAssignment(notification);
+      case NotificationCategory.tests:
+      case NotificationCategory.academic:
+        Navigator.pushNamed(context, '/student-tests');
         break;
-      case NotificationType.announcement:
-        _navigateToAnnouncement(notification);
+      case NotificationCategory.rewards:
+        Navigator.pushNamed(context, '/student-rewards');
         break;
-      default:
+      case NotificationCategory.announcements:
+      case NotificationCategory.alerts:
+      case NotificationCategory.general:
+        // Already on notification center; keep user on this screen.
         break;
     }
   }
 
-  void _navigateToChat(NotificationModel notification) {
-    final senderId = notification.data?['senderId'];
-    if (senderId != null) {
-      Navigator.pushNamed(context, '/chat', arguments: {'userId': senderId});
-    }
-  }
-
-  void _navigateToAssignment(NotificationModel notification) {
-    final assignmentId = notification.referenceId;
-    if (assignmentId != null) {
-      Navigator.pushNamed(
-        context,
-        '/assignment_detail',
-        arguments: {'assignmentId': assignmentId},
-      );
-    }
-  }
-
-  void _navigateToAnnouncement(NotificationModel notification) {
-    final announcementId = notification.referenceId;
-    if (announcementId != null) {
-      Navigator.pushNamed(
-        context,
-        '/announcement_detail',
-        arguments: {'announcementId': announcementId},
-      );
-    }
+  Future<void> _markRead(NotificationModel notification) async {
+    if (notification.isRead) return;
+    await _notificationService.markAsRead(notification.notificationId);
   }
 
   Future<void> _markAllAsRead() async {
     try {
-      final user = _auth.currentUser;
-      if (user == null) return;
-
-      final snapshot = await FirebaseFirestore.instance
-          .collection('notifications')
-          .where('userId', isEqualTo: user.uid)
-          .where('isRead', isEqualTo: false)
-          .get();
-
-      final batch = FirebaseFirestore.instance.batch();
-      for (var doc in snapshot.docs) {
-        batch.update(doc.reference, {'isRead': true});
-      }
-
-      await batch.commit();
-
+      await _notificationService.markAllAsRead();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('All notifications marked as read')),
@@ -283,7 +278,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _clearAllNotifications() async {
     try {
       await _notificationService.clearAllNotifications();
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('All notifications cleared')),
@@ -301,7 +295,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _deleteNotification(String notificationId) async {
     try {
       await _notificationService.deleteNotification(notificationId);
-
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -315,4 +308,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     }
   }
+}
+
+class _FilterTab {
+  final String label;
+  final NotificationCategory? category;
+  final bool unreadOnly;
+
+  const _FilterTab({
+    required this.label,
+    this.category,
+    this.unreadOnly = false,
+  });
 }

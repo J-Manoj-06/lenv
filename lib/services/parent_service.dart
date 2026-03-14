@@ -6,6 +6,7 @@ import '../models/student_model.dart';
 import '../models/test_result_model.dart';
 import '../models/reward_request_model.dart';
 import '../models/attendance_record.dart';
+import 'cloudflare_notification_service.dart';
 
 class ParentService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -1273,6 +1274,11 @@ class ParentService {
     String? parentNote,
   }) async {
     try {
+      final requestSnap = await _firestore
+          .collection('reward_requests')
+          .doc(requestId)
+          .get();
+      final requestData = requestSnap.data() ?? const <String, dynamic>{};
       final updateData = {
         'status': status,
         'parentApprovedAt': FieldValue.serverTimestamp(),
@@ -1286,6 +1292,32 @@ class ParentService {
           .collection('reward_requests')
           .doc(requestId)
           .update(updateData);
+
+      final studentId =
+          (requestData['studentId'] ?? requestData['student_id'] ?? '')
+              .toString();
+      final parentId = (requestData['parentId'] ?? '').toString();
+      final productName =
+          (requestData['productName'] ??
+                  requestData['rewardTitle'] ??
+                  'Reward request')
+              .toString();
+
+      if (studentId.isNotEmpty) {
+        unawaited(
+          CloudflareNotificationService.sendRewardStatusNotification(
+            requestId: requestId,
+            status: status,
+            productName: productName,
+            studentId: studentId,
+            parentId: parentId,
+            metadata: {'parentNote': parentNote ?? ''},
+          ).catchError((Object error) {
+            debugPrint('Cloudflare reward notification failed: $error');
+            return false;
+          }),
+        );
+      }
 
       return true;
     } catch (e) {
@@ -1899,7 +1931,6 @@ class ParentService {
     DateTime month,
   ) async {
     try {
-
       // Try to get student details from students collection first, then users
       DocumentSnapshot<Map<String, dynamic>> studentDoc;
 
@@ -1925,7 +1956,6 @@ class ParentService {
       className ??= studentData?['class'] as String?;
       className ??= studentData?['standard'] as String?;
       schoolCode ??= studentData?['school'] as String?;
-
 
       if (className == null || schoolCode == null || schoolCode.isEmpty) {
         return [];
@@ -1961,11 +1991,9 @@ class ParentService {
         return [];
       }
 
-
       // Query attendance records for the specified month
       final startOfMonth = DateTime(month.year, month.month, 1);
       final endOfMonth = DateTime(month.year, month.month + 1, 0);
-
 
       // Query without section first to see all attendance docs for this grade
       var query = _firestore
@@ -2007,15 +2035,13 @@ class ParentService {
           continue;
         }
 
-
         // Check if this student has an attendance record for this date
         final studentInfo = students[studentId] as Map<String, dynamic>?;
         if (studentInfo != null) {
           final status =
               studentInfo['status']?.toString().toLowerCase() ?? 'present';
           records.add(AttendanceRecord(date: docDate, status: status));
-        } else {
-        }
+        } else {}
       }
 
       return records;

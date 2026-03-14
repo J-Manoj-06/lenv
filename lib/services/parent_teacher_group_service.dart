@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/parent_teacher_group.dart';
 import '../models/community_message_model.dart';
 import '../models/student_model.dart';
 import '../models/media_metadata.dart';
 import 'cloudflare_r2_service.dart';
+import 'cloudflare_notification_service.dart';
 import '../config/cloudflare_config.dart';
 
 class ParentTeacherGroupService {
@@ -269,6 +273,8 @@ class ParentTeacherGroupService {
     final groupRef = _firestore
         .collection('parent_teacher_groups')
         .doc(groupId);
+    final groupSnapshot = await groupRef.get();
+    final groupData = groupSnapshot.data() ?? const <String, dynamic>{};
     // Derive a friendly last message
     final lastMessage = hasMedia
         ? _lastMessageLabel(mediaType, mediaMetadata)
@@ -283,6 +289,88 @@ class ParentTeacherGroupService {
     }, SetOptions(merge: true));
 
     await batch.commit();
+
+    final recipientIds = await _resolveNotificationRecipients(
+      schoolCode: groupData['schoolCode']?.toString() ?? '',
+      className: groupData['className']?.toString() ?? '',
+      section: groupData['section']?.toString() ?? '',
+      excludeUserId: senderId,
+    );
+
+    if (recipientIds.isNotEmpty) {
+      unawaited(
+        CloudflareNotificationService.sendGroupMessageNotification(
+          messageId: messageRef.id,
+          senderId: senderId,
+          senderName: senderName,
+          senderRole: senderRole,
+          groupType: 'parent_teacher_group',
+          groupId: groupId,
+          recipientIds: recipientIds,
+          content: lastMessage,
+          messageType: mediaType,
+          groupName: groupData['name']?.toString(),
+          deepLinkRoute: '/notifications',
+          metadata: {
+            'className': groupData['className']?.toString() ?? '',
+            'section': groupData['section']?.toString() ?? '',
+            'schoolCode': groupData['schoolCode']?.toString() ?? '',
+          },
+        ).catchError((Object error) {
+          debugPrint(
+            'Cloudflare parent-teacher group notification failed: $error',
+          );
+          return false;
+        }),
+      );
+    }
+  }
+
+  Future<List<String>> _resolveNotificationRecipients({
+    required String schoolCode,
+    required String className,
+    required String section,
+    required String excludeUserId,
+  }) async {
+    try {
+      final usersSnapshot = await _firestore.collection('users').get();
+      final normalizedClass = _normalizeClassName(className).toLowerCase();
+
+      return usersSnapshot.docs
+          .where((doc) {
+            if (doc.id == excludeUserId) return false;
+
+            final data = doc.data();
+            final role = (data['role'] ?? '').toString().toLowerCase();
+            if (role != 'parent' && role != 'teacher') return false;
+
+            final userSchool =
+                (data['schoolCode'] ??
+                        data['schoolId'] ??
+                        data['instituteId'] ??
+                        '')
+                    .toString();
+            if (schoolCode.isNotEmpty && userSchool != schoolCode) return false;
+
+            final userClass = _normalizeClassName(
+              (data['className'] ?? data['class'] ?? data['standard'] ?? '')
+                  .toString(),
+            ).toLowerCase();
+            if (normalizedClass.isNotEmpty && userClass != normalizedClass) {
+              return false;
+            }
+
+            final userSection = (data['section'] ?? '').toString();
+            if (section.isNotEmpty && userSection != section) return false;
+
+            return true;
+          })
+          .map((doc) => doc.id)
+          .toList();
+    } catch (e) {
+      debugPrint('Failed to resolve parent-teacher group recipients: $e');
+      return const [];
+    }
   }
 
   String _lastMessageLabel(String mediaType, MediaMetadata? metadata) {

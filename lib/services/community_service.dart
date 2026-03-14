@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/community_model.dart';
 import '../models/community_member_model.dart';
 import '../models/community_message_model.dart';
 import '../models/student_model.dart';
 import '../models/media_metadata.dart';
 import 'cloudflare_r2_service.dart';
+import 'cloudflare_notification_service.dart';
 import '../config/cloudflare_config.dart';
 
 class MessageSearchPage {
@@ -930,6 +934,43 @@ class CommunityService {
       });
 
       await batch.commit();
+
+      final membersSnapshot = await _firestore
+          .collection('communities')
+          .doc(communityId)
+          .collection('members')
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      final recipientIds = membersSnapshot.docs
+          .map((doc) => doc.data()['userId']?.toString() ?? doc.id)
+          .where((userId) => userId.isNotEmpty && userId != senderId)
+          .toSet()
+          .toList();
+
+      if (recipientIds.isNotEmpty) {
+        unawaited(
+          CloudflareNotificationService.sendGroupMessageNotification(
+            messageId: messageRef.id,
+            senderId: senderId,
+            senderName: senderName,
+            senderRole: senderRole,
+            groupType: 'community',
+            groupId: communityId,
+            recipientIds: recipientIds,
+            content: preview,
+            messageType: messageType,
+            deepLinkRoute: '/notifications',
+            metadata: {
+              'communityId': communityId,
+              'replyToId': replyToId ?? '',
+            },
+          ).catchError((Object error) {
+            debugPrint('Cloudflare community notification failed: $error');
+            return false;
+          }),
+        );
+      }
 
       // ✅ OPTIMIZATION: Update user_communities for all members (async, non-blocking)
       _updateUserCommunitiesAfterMessage(

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'cloudflare_notification_service.dart';
 import 'connectivity_service.dart';
 
 /// WhatsApp-style pending announcement queue.
@@ -86,13 +87,58 @@ class PendingAnnouncementService {
             if (dt != null) data['expiresAt'] = Timestamp.fromDate(dt);
           }
 
-          await FirebaseFirestore.instance
+          final collection =
+              data['_collection'] as String? ?? 'class_highlights';
+
+          final docRef = await FirebaseFirestore.instance
               .collection(data['_collection'] as String? ?? 'class_highlights')
               .add(
                 data
                   ..remove('_collection')
                   ..remove('_createViewsPlaceholder'),
               );
+
+          final schoolId =
+              (data['schoolId'] ??
+                      data['schoolCode'] ??
+                      data['instituteId'] ??
+                      '')
+                  .toString();
+          final text = (data['text'] ?? data['description'] ?? '').toString();
+          final createdBy =
+              (data['principalId'] ??
+                      data['teacherId'] ??
+                      data['createdBy'] ??
+                      '')
+                  .toString();
+
+          if (schoolId.isNotEmpty && text.isNotEmpty && createdBy.isNotEmpty) {
+            try {
+              await CloudflareNotificationService.sendAudienceAnnouncementNotification(
+                announcementId: docRef.id,
+                collection: collection,
+                createdBy: createdBy,
+                text: text,
+                audienceType: (data['audienceType'] ?? 'school').toString(),
+                schoolId: schoolId,
+                standards: (data['standards'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList(),
+                sections: (data['sections'] as List?)
+                    ?.map((e) => e.toString())
+                    .toList(),
+                title: (data['title'] ?? '').toString(),
+                metadata: {
+                  'imageUrl': (data['imageUrl'] ?? '').toString(),
+                  'className': (data['className'] ?? '').toString(),
+                },
+              );
+            } catch (notificationError) {
+              debugPrint(
+                '⚠️ [PendingAnnouncement] Worker notification failed: $notificationError',
+              );
+            }
+          }
 
           debugPrint('✅ [PendingAnnouncement] Flushed queued announcement');
         } catch (e) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +11,7 @@ import '../models/test_result_model.dart';
 import '../models/product_model.dart';
 import '../models/reward_points_model.dart';
 import '../models/reward_request_model.dart';
+import 'cloudflare_notification_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -257,6 +260,7 @@ class FirestoreService {
       var batch = _db.batch();
       var batchCount = 0;
       final batches = <WriteBatch>[];
+      final notifiedStudentIds = <String>[];
 
       // Extract test data once
       final duration = testData['duration'] ?? 60;
@@ -333,6 +337,7 @@ class FirestoreService {
         final assignmentRef = _db.collection('testResults').doc();
         batch.set(assignmentRef, assignmentDoc);
         batchCount++;
+        notifiedStudentIds.add(student['studentId']!);
 
         // Update user counters - use set with merge to avoid errors if doc doesn't exist
         final userDocRef = _db.collection('users').doc(student['studentId']);
@@ -357,6 +362,29 @@ class FirestoreService {
 
       // Commit all batches
       await Future.wait(batches.map((b) => b.commit()));
+
+      if (notifiedStudentIds.isNotEmpty) {
+        unawaited(
+          CloudflareNotificationService.sendTestAssignmentNotification(
+            testId: testId,
+            title: testTitle.toString(),
+            subject: subject.toString(),
+            teacherId: teacherAuthUid,
+            className: targetClassName,
+            section: targetSection,
+            schoolCode: schoolCode,
+            studentIds: notifiedStudentIds,
+            teacherName: teacherName.toString(),
+            deepLinkRoute: '/student-tests',
+            metadata: {'startTime': startTime.toString(), 'date': dateStr},
+          ).catchError((Object error) {
+            debugPrint(
+              'Cloudflare test assignment notification failed: $error',
+            );
+            return false;
+          }),
+        );
+      }
     } catch (e) {
       rethrow;
     }

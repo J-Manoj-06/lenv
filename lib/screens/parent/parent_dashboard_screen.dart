@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
+import '../../widgets/notification_bell_button.dart';
 import '../../widgets/pending_reward_popup.dart';
 import '../common/announcement_pageview_screen.dart';
 import 'parent_reward_request_detail_screen.dart';
@@ -522,20 +523,27 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           ),
 
           // Profile Icon
-          IconButton(
-            icon: Icon(
-              Icons.person,
-              size: 28,
-              color: isDark ? Colors.white : _onBackground(context),
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ParentProfileScreen(),
+          Row(
+            children: [
+              NotificationBellButton(
+                iconColor: isDark ? Colors.white : _onBackground(context),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.person,
+                  size: 28,
+                  color: isDark ? Colors.white : _onBackground(context),
                 ),
-              );
-            },
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ParentProfileScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ],
       ),

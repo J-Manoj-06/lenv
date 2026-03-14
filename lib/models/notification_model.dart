@@ -1,101 +1,221 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum NotificationType { chat, assignment, announcement, general }
+enum NotificationCategory {
+  messaging,
+  tests,
+  rewards,
+  announcements,
+  academic,
+  alerts,
+  general,
+}
+
+enum NotificationPriority { low, normal, high, critical }
 
 class NotificationModel {
   final String notificationId;
   final String userId;
+  final String role;
+  final String schoolId;
+  final NotificationCategory category;
   final String title;
   final String body;
-  final NotificationType type;
-  final String? referenceId; // messageId, assignmentId, or announcementId
+  final String iconType;
+  final NotificationPriority priority;
+  final bool soundEnabled;
+  final bool vibrationEnabled;
   final bool isRead;
-  final DateTime timestamp;
-  final Map<String, dynamic>? data; // Additional data for navigation
+  final DateTime createdAt;
+  final String? targetType;
+  final String? targetId;
+  final String? deepLinkRoute;
+  final Map<String, dynamic>? metadata;
+  final String? dedupeKey;
 
   NotificationModel({
     required this.notificationId,
     required this.userId,
+    required this.role,
+    required this.schoolId,
+    required this.category,
     required this.title,
     required this.body,
-    required this.type,
-    this.referenceId,
+    required this.iconType,
+    required this.priority,
+    this.soundEnabled = false,
+    this.vibrationEnabled = false,
     required this.isRead,
-    required this.timestamp,
-    this.data,
+    required this.createdAt,
+    this.targetType,
+    this.targetId,
+    this.deepLinkRoute,
+    this.metadata,
+    this.dedupeKey,
   });
 
   // Create from Firestore document
   factory NotificationModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final metadata = _safeMap(data['metadata'] ?? data['data']);
+
     return NotificationModel(
       notificationId: doc.id,
       userId: data['userId'] ?? '',
+      role: (data['role'] ?? '').toString(),
+      schoolId: (data['schoolId'] ?? '').toString(),
+      category: _parseNotificationCategory(data['category'] ?? data['type']),
       title: data['title'] ?? '',
       body: data['body'] ?? '',
-      type: _parseNotificationType(data['type']),
-      referenceId: data['referenceId'],
+      iconType: (data['iconType'] ?? data['type'] ?? 'notifications')
+          .toString(),
+      priority: _parsePriority(data['priority']),
+      soundEnabled: data['soundEnabled'] == true,
+      vibrationEnabled: data['vibrationEnabled'] == true,
       isRead: data['isRead'] ?? false,
-      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      data: data['data'] as Map<String, dynamic>?,
+      createdAt:
+          (data['createdAt'] as Timestamp?)?.toDate() ??
+          (data['timestamp'] as Timestamp?)?.toDate() ??
+          DateTime.now(),
+      targetType: data['targetType']?.toString(),
+      targetId: data['targetId']?.toString() ?? data['referenceId']?.toString(),
+      deepLinkRoute:
+          data['deepLinkRoute']?.toString() ??
+          metadata?['deepLinkRoute']?.toString(),
+      metadata: metadata,
+      dedupeKey: data['dedupeKey']?.toString(),
     );
   }
 
   // Convert to Firestore document
   Map<String, dynamic> toFirestore() {
     return {
+      'notificationId': notificationId,
       'userId': userId,
+      'role': role,
+      'schoolId': schoolId,
+      'category': category.name,
       'title': title,
       'body': body,
-      'type': type.name,
-      'referenceId': referenceId,
+      'iconType': iconType,
+      'priority': priority.name,
+      'soundEnabled': soundEnabled,
+      'vibrationEnabled': vibrationEnabled,
       'isRead': isRead,
-      'timestamp': Timestamp.fromDate(timestamp),
-      'data': data,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'targetType': targetType,
+      'targetId': targetId,
+      'deepLinkRoute': deepLinkRoute,
+      'metadata': metadata,
+      'dedupeKey': dedupeKey,
+
+      // Backward-compatible fields
+      'type': category.name,
+      'referenceId': targetId,
+      'timestamp': Timestamp.fromDate(createdAt),
+      'data': metadata,
     };
   }
 
-  // Parse notification type from string
-  static NotificationType _parseNotificationType(String? typeString) {
+  static NotificationCategory _parseNotificationCategory(dynamic raw) {
+    final typeString = (raw ?? '').toString().toLowerCase();
     switch (typeString) {
       case 'chat':
-        return NotificationType.chat;
+      case 'message':
+      case 'messaging':
+      case 'teacher_group_message':
+        return NotificationCategory.messaging;
       case 'assignment':
-        return NotificationType.assignment;
+      case 'test':
+      case 'tests':
+      case 'result':
+      case 'deadline':
+      case 'learning':
+        return NotificationCategory.tests;
+      case 'reward':
+      case 'rewards':
+      case 'gamification':
+        return NotificationCategory.rewards;
       case 'announcement':
-        return NotificationType.announcement;
+      case 'announcements':
+        return NotificationCategory.announcements;
+      case 'academic':
+        return NotificationCategory.academic;
+      case 'alert':
+      case 'alerts':
+        return NotificationCategory.alerts;
       default:
-        return NotificationType.general;
+        return NotificationCategory.general;
     }
+  }
+
+  static NotificationPriority _parsePriority(dynamic raw) {
+    final priority = (raw ?? '').toString().toLowerCase();
+    switch (priority) {
+      case 'critical':
+        return NotificationPriority.critical;
+      case 'high':
+        return NotificationPriority.high;
+      case 'low':
+      case 'silent':
+        return NotificationPriority.low;
+      default:
+        return NotificationPriority.normal;
+    }
+  }
+
+  static Map<String, dynamic>? _safeMap(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) {
+      return value.map((key, v) => MapEntry(key.toString(), v));
+    }
+    return null;
   }
 
   // Copy with method for updating fields
   NotificationModel copyWith({
     String? notificationId,
     String? userId,
+    String? role,
+    String? schoolId,
+    NotificationCategory? category,
     String? title,
     String? body,
-    NotificationType? type,
-    String? referenceId,
+    String? iconType,
+    NotificationPriority? priority,
+    bool? soundEnabled,
+    bool? vibrationEnabled,
     bool? isRead,
-    DateTime? timestamp,
-    Map<String, dynamic>? data,
+    DateTime? createdAt,
+    String? targetType,
+    String? targetId,
+    String? deepLinkRoute,
+    Map<String, dynamic>? metadata,
+    String? dedupeKey,
   }) {
     return NotificationModel(
       notificationId: notificationId ?? this.notificationId,
       userId: userId ?? this.userId,
+      role: role ?? this.role,
+      schoolId: schoolId ?? this.schoolId,
+      category: category ?? this.category,
       title: title ?? this.title,
       body: body ?? this.body,
-      type: type ?? this.type,
-      referenceId: referenceId ?? this.referenceId,
+      iconType: iconType ?? this.iconType,
+      priority: priority ?? this.priority,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      vibrationEnabled: vibrationEnabled ?? this.vibrationEnabled,
       isRead: isRead ?? this.isRead,
-      timestamp: timestamp ?? this.timestamp,
-      data: data ?? this.data,
+      createdAt: createdAt ?? this.createdAt,
+      targetType: targetType ?? this.targetType,
+      targetId: targetId ?? this.targetId,
+      deepLinkRoute: deepLinkRoute ?? this.deepLinkRoute,
+      metadata: metadata ?? this.metadata,
+      dedupeKey: dedupeKey ?? this.dedupeKey,
     );
   }
 
   @override
   String toString() {
-    return 'NotificationModel(notificationId: $notificationId, title: $title, type: ${type.name}, isRead: $isRead)';
+    return 'NotificationModel(notificationId: $notificationId, title: $title, category: ${category.name}, isRead: $isRead)';
   }
 }

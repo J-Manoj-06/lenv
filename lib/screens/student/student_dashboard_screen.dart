@@ -17,6 +17,7 @@ import '../../services/parent_service.dart';
 import '../../utils/cache_manager.dart';
 import '../../widgets/stat_ring_card.dart';
 import '../../widgets/profile_avatar_widget.dart';
+import '../../widgets/notification_bell_button.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import '../ai/ai_chat_page.dart';
@@ -393,6 +394,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   children: [
                     _buildStreakBadge(),
                     const SizedBox(width: 10),
+                    NotificationBellButton(
+                      iconColor: isDark ? Colors.white : Colors.black87,
+                    ),
+                    const SizedBox(width: 2),
                     _buildProfileIcon(),
                   ],
                 ),

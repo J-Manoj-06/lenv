@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../models/notification_model.dart';
 
 // Top-level function for background message handler
 @pragma('vm:entry-point')
@@ -40,6 +42,16 @@ class NotificationService {
   static const int _communityUploadNotificationId = 700001;
   int? _lastCommunityUploadPercent;
 
+  static const String _highPriorityChannel = 'lenv_high_priority';
+  static const String _defaultChannel = 'lenv_default';
+  static const String _silentChannel = 'lenv_silent';
+
+  static const Set<String> _highPriorityCategories = {
+    'messaging',
+    'alerts',
+    'rewards',
+  };
+
   /// Initialize the notification service
   Future<void> initialize() async {
     if (_isInitialized) {
@@ -53,6 +65,14 @@ class NotificationService {
 
       // Initialize local notifications
       await _initializeLocalNotifications();
+
+      // Ensure iOS foreground presentation
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
 
       // Get and save FCM token
       await _initializeFCMToken();
@@ -115,6 +135,46 @@ class NotificationService {
       onDidReceiveNotificationResponse: _handleNotificationTap,
     );
 
+    if (!kIsWeb && Platform.isAndroid) {
+      final androidPlugin = _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _highPriorityChannel,
+          'High Priority Alerts',
+          description: 'Critical alerts with sound and vibration',
+          importance: Importance.max,
+          playSound: true,
+          enableVibration: true,
+        ),
+      );
+
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _defaultChannel,
+          'Lenv Notifications',
+          description: 'General notifications',
+          importance: Importance.defaultImportance,
+          playSound: true,
+          enableVibration: false,
+        ),
+      );
+
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _silentChannel,
+          'Silent Updates',
+          description: 'Background and low-priority updates',
+          importance: Importance.low,
+          playSound: false,
+          enableVibration: false,
+        ),
+      );
+    }
+
     debugPrint('Local notifications initialized');
   }
 
@@ -157,9 +217,38 @@ class NotificationService {
         return;
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-        {'fcmToken': token, 'fcmTokenUpdatedAt': FieldValue.serverTimestamp()},
-      );
+      final usersRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final userSnap = await usersRef.get();
+      final userData = userSnap.data() ?? <String, dynamic>{};
+      final role = (userData['role'] ?? 'student').toString();
+      final schoolId =
+          (userData['schoolId'] ??
+                  userData['schoolCode'] ??
+                  userData['instituteId'] ??
+                  '')
+              .toString();
+      final platform = defaultTargetPlatform.name;
+      final tokenDocId = '${user.uid}_${token.hashCode.abs()}';
+
+      await usersRef.set({
+        'fcmToken': token,
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      await FirebaseFirestore.instance
+          .collection('user_device_tokens')
+          .doc(tokenDocId)
+          .set({
+            'userId': user.uid,
+            'role': role,
+            'schoolId': schoolId,
+            'deviceToken': token,
+            'platform': platform,
+            'lastUpdated': FieldValue.serverTimestamp(),
+            'active': true,
+          }, SetOptions(merge: true));
 
       debugPrint('FCM token saved to Firestore for user: ${user.uid}');
     } catch (e) {
@@ -186,8 +275,12 @@ class NotificationService {
     // Save to Firestore
     await _saveNotificationToFirestore(message);
 
-    // Show local notification
-    await _showLocalNotification(message);
+    // Show local notification for non-silent notifications
+    final shouldShow =
+        message.data['silent']?.toString().toLowerCase() != 'true';
+    if (shouldShow) {
+      await _showLocalNotification(message);
+    }
   }
 
   /// Handle message when app opened from background
@@ -211,23 +304,60 @@ class NotificationService {
 
   /// Show local notification
   Future<void> _showLocalNotification(RemoteMessage message) async {
-    const AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
-          'lenv_channel',
-          'Lenv Notifications',
-          channelDescription: 'Notifications for Lenv education app',
-          importance: Importance.high,
-          priority: Priority.high,
-          showWhen: true,
-        );
+    final category =
+        (message.data['category'] ?? message.data['type'] ?? 'general')
+            .toString()
+            .toLowerCase();
+    final priority =
+        (message.data['priority'] ??
+                (_highPriorityCategories.contains(category)
+                    ? 'high'
+                    : 'normal'))
+            .toString()
+            .toLowerCase();
+    final soundEnabled =
+        message.data['soundEnabled']?.toString().toLowerCase() == 'true' ||
+        priority == 'high' ||
+        priority == 'critical';
+    final vibrationEnabled =
+        message.data['vibrationEnabled']?.toString().toLowerCase() == 'true' ||
+        priority == 'high' ||
+        priority == 'critical';
 
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
+    final androidChannel = priority == 'low' || !soundEnabled
+        ? _silentChannel
+        : (priority == 'high' || priority == 'critical'
+              ? _highPriorityChannel
+              : _defaultChannel);
+
+    final androidDetails = AndroidNotificationDetails(
+      androidChannel,
+      androidChannel == _highPriorityChannel
+          ? 'High Priority Alerts'
+          : androidChannel == _silentChannel
+          ? 'Silent Updates'
+          : 'Lenv Notifications',
+      channelDescription: 'Notifications for Lenv education app',
+      importance: (priority == 'high' || priority == 'critical')
+          ? Importance.max
+          : (priority == 'low' ? Importance.low : Importance.defaultImportance),
+      priority: (priority == 'high' || priority == 'critical')
+          ? Priority.high
+          : (priority == 'low' ? Priority.low : Priority.defaultPriority),
+      playSound: soundEnabled,
+      enableVibration: vibrationEnabled,
+      showWhen: true,
+      icon: '@mipmap/ic_launcher',
+      category: AndroidNotificationCategory.message,
     );
 
-    const NotificationDetails notificationDetails = NotificationDetails(
+    final iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: soundEnabled,
+    );
+
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
@@ -270,16 +400,43 @@ class NotificationService {
         return;
       }
 
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'userId': userId,
-        'title': message.notification?.title ?? '',
-        'body': message.notification?.body ?? '',
-        'type': message.data['type'] ?? 'general',
-        'referenceId': message.data['referenceId'],
-        'isRead': false,
-        'timestamp': FieldValue.serverTimestamp(),
-        'data': message.data,
-      });
+      final category =
+          (message.data['category'] ?? message.data['type'] ?? 'general')
+              .toString();
+      final targetId = (message.data['targetId'] ?? message.data['referenceId'])
+          ?.toString();
+      final notificationId =
+          message.data['notificationId']?.toString().trim().isNotEmpty == true
+          ? message.data['notificationId']!.toString().trim()
+          : 'n_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
+
+      await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(notificationId)
+          .set({
+            'notificationId': notificationId,
+            'userId': userId,
+            'role': message.data['role'] ?? '',
+            'schoolId': message.data['schoolId'] ?? '',
+            'category': category,
+            'title': message.notification?.title ?? '',
+            'body': message.notification?.body ?? '',
+            'iconType': message.data['iconType'] ?? category,
+            'priority': message.data['priority'] ?? 'normal',
+            'soundEnabled': message.data['soundEnabled']?.toString() == 'true',
+            'vibrationEnabled':
+                message.data['vibrationEnabled']?.toString() == 'true',
+            'isRead': false,
+            'createdAt': FieldValue.serverTimestamp(),
+            'timestamp': FieldValue.serverTimestamp(),
+            'targetType': message.data['targetType'],
+            'targetId': targetId,
+            'referenceId': targetId,
+            'deepLinkRoute': message.data['deepLinkRoute'],
+            'metadata': message.data,
+            'data': message.data,
+            'dedupeKey': message.data['dedupeKey'],
+          }, SetOptions(merge: true));
 
       debugPrint('Notification saved to Firestore');
     } catch (e) {
@@ -342,6 +499,61 @@ class NotificationService {
         .where('isRead', isEqualTo: false)
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
+  }
+
+  Stream<List<NotificationModel>> notificationsStream({
+    NotificationCategory? category,
+    bool unreadOnly = false,
+    int limit = 150,
+  }) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value(const <NotificationModel>[]);
+
+    Query query = FirebaseFirestore.instance
+        .collection('notifications')
+        .where('userId', isEqualTo: user.uid);
+
+    if (unreadOnly) {
+      query = query.where('isRead', isEqualTo: false);
+    }
+
+    if (category != null) {
+      query = query.where('category', isEqualTo: category.name);
+    }
+
+    return query
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => NotificationModel.fromFirestore(doc))
+              .toList(),
+        );
+  }
+
+  Future<void> markAllAsRead() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final unreadDocs = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('userId', isEqualTo: user.uid)
+          .where('isRead', isEqualTo: false)
+          .limit(500)
+          .get();
+
+      if (unreadDocs.docs.isEmpty) return;
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final doc in unreadDocs.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error marking all notifications as read: $e');
+    }
   }
 
   /// Delete notification
