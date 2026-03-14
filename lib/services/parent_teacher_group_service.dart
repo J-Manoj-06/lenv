@@ -171,7 +171,7 @@ class ParentTeacherGroupService {
         .collection('parent_teacher_groups')
         .doc(groupId)
         .collection('messages')
-        .orderBy('timestamp', descending: true)
+        .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {
@@ -179,19 +179,8 @@ class ParentTeacherGroupService {
           for (final doc in snapshot.docs) {
             try {
               final data = doc.data();
-              final createdAtType = data['createdAt']?.runtimeType;
-              final hasMulti = data['multipleMedia'] != null;
-              final multiCount = hasMulti
-                  ? (data['multipleMedia'] as List?)?.length ?? 0
-                  : 0;
-
-              // Keep messages when either timestamp field is present.
-              final hasAnyTimestamp =
-                  data['createdAt'] != null || data['timestamp'] != null;
-              if (hasAnyTimestamp && !(data['isDeleted'] ?? false)) {
-                final msg = CommunityMessageModel.fromFirestore(doc);
-                messages.add(msg);
-              } else {}
+              if (data['isDeleted'] == true) continue;
+              messages.add(CommunityMessageModel.fromFirestore(doc));
             } catch (e) {
               // Skip messages that fail to parse (e.g., corrupted data)
             }
@@ -211,7 +200,7 @@ class ParentTeacherGroupService {
           .collection('parent_teacher_groups')
           .doc(groupId)
           .collection('messages')
-          .orderBy('timestamp', descending: true)
+          .orderBy('createdAt', descending: true)
           .limit(limit);
 
       if (startAfter != null) {
@@ -222,9 +211,7 @@ class ParentTeacherGroupService {
       return snapshot.docs
           .map((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            if (data['createdAt'] == null && data['timestamp'] == null) {
-              return null;
-            }
+            if (data['isDeleted'] == true) return null;
             return CommunityMessageModel.fromFirestore(doc);
           })
           .whereType<CommunityMessageModel>()

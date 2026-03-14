@@ -73,12 +73,46 @@ class CommunityMessageModel {
       return null;
     }
 
-    // Parse reactions map
-    Map<String, List<String>> reactionsMap = {};
-    if (data['reactions'] != null) {
-      final reactionsData = data['reactions'] as Map<String, dynamic>;
+    String asString(dynamic value) {
+      if (value == null) return '';
+      if (value is String) return value;
+      return value.toString();
+    }
+
+    bool asBool(dynamic value, {bool fallback = false}) {
+      if (value is bool) return value;
+      if (value is String) {
+        final v = value.toLowerCase().trim();
+        if (v == 'true') return true;
+        if (v == 'false') return false;
+      }
+      return fallback;
+    }
+
+    int asInt(dynamic value, {int fallback = 0}) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? fallback;
+      return fallback;
+    }
+
+    // Parse reactions map safely
+    final reactionsMap = <String, List<String>>{};
+    if (data['reactions'] is Map) {
+      final reactionsData = Map<dynamic, dynamic>.from(
+        data['reactions'] as Map,
+      );
       reactionsData.forEach((key, value) {
-        reactionsMap[key] = List<String>.from(value ?? []);
+        final emoji = asString(key);
+        if (emoji.isEmpty) return;
+        if (value is List) {
+          reactionsMap[emoji] = value
+              .map((v) => asString(v))
+              .where((v) => v.isNotEmpty)
+              .toList();
+        } else {
+          reactionsMap[emoji] = <String>[];
+        }
       });
     }
 
@@ -112,16 +146,18 @@ class CommunityMessageModel {
 
     return CommunityMessageModel(
       messageId: doc.id,
-      communityId: data['communityId'] ?? '',
-      senderId: data['senderId'] ?? '',
-      senderName: data['senderName'] ?? '',
-      senderRole: data['senderRole'] ?? 'student',
-      senderAvatar: data['senderAvatar'] ?? '',
-      type: data['type'] ?? 'text',
-      content: data['content'] ?? '',
-      imageUrl: data['imageUrl'] ?? '',
-      fileUrl: data['fileUrl'] ?? '',
-      fileName: data['fileName'] ?? '',
+      communityId: asString(data['communityId']),
+      senderId: asString(data['senderId']),
+      senderName: asString(data['senderName']),
+      senderRole: asString(data['senderRole']).isNotEmpty
+          ? asString(data['senderRole'])
+          : 'student',
+      senderAvatar: asString(data['senderAvatar']),
+      type: asString(data['type']).isNotEmpty ? asString(data['type']) : 'text',
+      content: asString(data['content']),
+      imageUrl: asString(data['imageUrl']),
+      fileUrl: asString(data['fileUrl']),
+      fileName: asString(data['fileName']),
       mediaMetadata: parsedMediaMetadata,
       multipleMedia: parsedMultipleMedia,
       createdAt:
@@ -129,16 +165,19 @@ class CommunityMessageModel {
           parseDate(data['timestamp']) ??
           DateTime.now(),
       updatedAt: parseDate(data['updatedAt']),
-      isEdited: data['isEdited'] ?? false,
-      isDeleted: data['isDeleted'] ?? false,
-      isPinned: data['isPinned'] ?? false,
+      isEdited: asBool(data['isEdited']),
+      isDeleted: asBool(data['isDeleted']),
+      isPinned: asBool(data['isPinned']),
       reactions: reactionsMap,
-      replyTo: data['replyTo'] ?? '',
-      replyCount: data['replyCount'] ?? 0,
-      isReported: data['isReported'] ?? false,
-      reportCount: data['reportCount'] ?? 0,
-      deletedFor: data['deletedFor'] != null
-          ? List<String>.from(data['deletedFor'])
+      replyTo: asString(data['replyTo']),
+      replyCount: asInt(data['replyCount']),
+      isReported: asBool(data['isReported']),
+      reportCount: asInt(data['reportCount']),
+      deletedFor: data['deletedFor'] is List
+          ? (data['deletedFor'] as List)
+                .map((v) => asString(v))
+                .where((v) => v.isNotEmpty)
+                .toList()
           : null,
       documentSnapshot: doc, // ✅ Store for pagination
     );

@@ -73,6 +73,10 @@ class ParentGroupChatPage extends StatefulWidget {
 
 class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     with AutomaticKeepAliveClientMixin, MessageScrollAndHighlightMixin {
+  static const bool _debugMultiImageGrid = true;
+  static const int _initialRealtimeMessageLimit = 500;
+  static const int _initialOfflineSyncLimit = 300;
+
   // ✅ NEW THEME COLORS - Modern dark design
   static const Color primaryBackground = Color(0xFF0F1113);
   static const Color secondaryBackground = Color(0xFF16181A);
@@ -252,7 +256,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     _startProgressPolling();
 
     // ✅ Cache stream once (same as staff room) to prevent re-creation
-    _messagesStream = _service.getMessagesStream(widget.groupId);
+    _messagesStream = _service.getMessagesStream(
+      widget.groupId,
+      limit: _initialRealtimeMessageLimit,
+    );
 
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -284,14 +291,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       // Load from cache first
       final cachedMessages = await _localRepo.getMessagesForChat(
         chatId,
-        limit: 50,
+        limit: _initialOfflineSyncLimit,
       );
 
       if (cachedMessages.isEmpty) {
         await _syncService.initialSyncForChat(
           chatId: chatId,
           chatType: 'parent_group',
-          limit: 50,
+          limit: _initialOfflineSyncLimit,
         );
       } else {
         // Debug: Check what senders are in the cache
@@ -777,6 +784,397 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     );
   }
 
+  MediaMetadata _normalizeMediaMetadata(MediaMetadata media) {
+    final normalizedPublicUrl = media.publicUrl.isNotEmpty
+        ? media.publicUrl
+        : (media.r2Key.isNotEmpty
+              ? '${CloudflareConfig.r2Domain}/${media.r2Key}'
+              : '');
+
+    return MediaMetadata(
+      messageId: media.messageId,
+      r2Key: media.r2Key,
+      publicUrl: normalizedPublicUrl,
+      localPath: media.localPath,
+      thumbnail: media.thumbnail,
+      deletedLocally: media.deletedLocally,
+      serverStatus: media.serverStatus,
+      expiresAt: media.expiresAt,
+      uploadedAt: media.uploadedAt,
+      fileSize: media.fileSize,
+      mimeType: media.mimeType,
+      originalFileName: media.originalFileName,
+    );
+  }
+
+  String _resolvedMediaDisplaySource(
+    MediaMetadata media, {
+    required bool isPending,
+  }) {
+    final localByKey = media.r2Key.isNotEmpty
+        ? _localSenderMediaPaths[media.r2Key]
+        : null;
+    final localByMessageId = media.messageId.isNotEmpty
+        ? _localSenderMediaPaths[media.messageId]
+        : null;
+
+    final candidates = <String?>[
+      if (isPending) localByKey,
+      if (isPending) localByMessageId,
+      media.localPath,
+      media.publicUrl,
+      if (media.r2Key.isNotEmpty) '${CloudflareConfig.r2Domain}/${media.r2Key}',
+      media.thumbnail,
+    ];
+
+    for (final candidate in candidates) {
+      final value = (candidate ?? '').trim();
+      if (value.isEmpty) continue;
+      if (value.startsWith('/')) return value;
+      if (value.startsWith('http://') || value.startsWith('https://')) {
+        return value;
+      }
+      if (value.startsWith('data:image/')) return value;
+    }
+
+    return '';
+  }
+
+  String _messageMediaFingerprint(CommunityMessageModel msg) {
+    final parts = <String>[
+      msg.type,
+      msg.content,
+      msg.imageUrl,
+      msg.fileUrl,
+      msg.fileName,
+      '${msg.createdAt.millisecondsSinceEpoch}',
+      '${msg.updatedAt?.millisecondsSinceEpoch ?? -1}',
+    ];
+
+    if (msg.mediaMetadata != null) {
+      final media = _normalizeMediaMetadata(msg.mediaMetadata!);
+      parts.addAll([
+        media.messageId,
+        media.r2Key,
+        media.publicUrl,
+        media.localPath ?? '',
+        media.thumbnail,
+        media.mimeType ?? '',
+        media.originalFileName ?? '',
+        '${media.fileSize ?? -1}',
+      ]);
+    }
+
+    for (final media in _effectiveMultipleMedia(msg)) {
+      final normalized = _normalizeMediaMetadata(media);
+      parts.addAll([
+        normalized.messageId,
+        normalized.r2Key,
+        normalized.publicUrl,
+        normalized.localPath ?? '',
+        normalized.thumbnail,
+        normalized.mimeType ?? '',
+        normalized.originalFileName ?? '',
+        '${normalized.fileSize ?? -1}',
+      ]);
+    }
+
+    return parts.join('|');
+  }
+
+  String? _legacyMultiImageGroupKey(CommunityMessageModel msg) {
+    if (msg.multipleMedia != null && msg.multipleMedia!.length > 1) {
+      return null;
+    }
+
+    final media = msg.mediaMetadata;
+    if (media == null || !_isImageMime(media.mimeType)) return null;
+
+    final rawId = media.messageId.trim();
+    if (rawId.isEmpty) return null;
+
+    final match = RegExp(r'^(.+)_\d+$').firstMatch(rawId);
+    if (match == null) return null;
+
+    final prefix = match.group(1)?.trim();
+    if (prefix == null || prefix.isEmpty) return null;
+    if (!(prefix.startsWith('upload_') || prefix.startsWith('pending_'))) {
+      return null;
+    }
+
+    return '${msg.senderId}|$prefix';
+  }
+
+  bool _isStandaloneImageMessage(CommunityMessageModel msg) {
+    final media = msg.mediaMetadata;
+    if (media == null || !_isImageMime(media.mimeType)) return false;
+    if (msg.multipleMedia != null && msg.multipleMedia!.length > 1) {
+      return false;
+    }
+    if (msg.content.trim().isNotEmpty) return false;
+    if (msg.replyTo.trim().isNotEmpty) return false;
+    return true;
+  }
+
+  bool _canBurstGroupImages(
+    CommunityMessageModel anchor,
+    CommunityMessageModel candidate,
+  ) {
+    if (!_isStandaloneImageMessage(anchor) ||
+        !_isStandaloneImageMessage(candidate)) {
+      return false;
+    }
+    if (anchor.senderId != candidate.senderId) return false;
+
+    final timeDiff =
+        (anchor.createdAt.millisecondsSinceEpoch -
+                candidate.createdAt.millisecondsSinceEpoch)
+            .abs();
+
+    return timeDiff <= 45 * 1000;
+  }
+
+  List<CommunityMessageModel> _collapseLegacyMultiImageMessages(
+    List<CommunityMessageModel> messages,
+  ) {
+    if (messages.length < 2) return messages;
+
+    final collapsed = <CommunityMessageModel>[];
+    int index = 0;
+
+    while (index < messages.length) {
+      final current = messages[index];
+      final groupKey = _legacyMultiImageGroupKey(current);
+
+      if (groupKey == null && !_isStandaloneImageMessage(current)) {
+        collapsed.add(current);
+        index++;
+        continue;
+      }
+
+      final grouped = <CommunityMessageModel>[current];
+      int probe = index + 1;
+
+      while (probe < messages.length) {
+        final candidate = messages[probe];
+        final candidateKey = _legacyMultiImageGroupKey(candidate);
+        final sameExplicitGroup =
+            groupKey != null &&
+            candidateKey != null &&
+            candidateKey == groupKey;
+        final sameBurst = _canBurstGroupImages(current, candidate);
+
+        if (!sameExplicitGroup && !sameBurst) {
+          break;
+        }
+
+        grouped.add(candidate);
+        probe++;
+      }
+
+      if (grouped.length == 1) {
+        collapsed.add(current);
+        index++;
+        continue;
+      }
+
+      final mediaList = grouped
+          .map((msg) => msg.mediaMetadata)
+          .whereType<MediaMetadata>()
+          .map(_normalizeMediaMetadata)
+          .toList();
+
+      _debugLogMultiImage(
+        'legacyCollapse',
+        messageId: current.messageId,
+        parsedCount: grouped.length,
+        effectiveCount: mediaList.length,
+        resolvedSources: mediaList
+            .map((m) => _resolvedMediaDisplaySource(m, isPending: false))
+            .toList(),
+      );
+
+      collapsed.add(
+        CommunityMessageModel(
+          messageId:
+              'legacy-group:${groupKey ?? 'burst_${current.senderId}_${current.createdAt.millisecondsSinceEpoch}'}:${current.messageId}',
+          communityId: current.communityId,
+          senderId: current.senderId,
+          senderName: current.senderName,
+          senderRole: current.senderRole,
+          senderAvatar: current.senderAvatar,
+          type: 'image',
+          content: grouped
+              .map((m) => m.content.trim())
+              .firstWhere((text) => text.isNotEmpty, orElse: () => ''),
+          imageUrl: '',
+          fileUrl: '',
+          fileName: '',
+          mediaMetadata: mediaList.isNotEmpty ? mediaList.first : null,
+          multipleMedia: mediaList,
+          createdAt: current.createdAt,
+          updatedAt: current.updatedAt,
+          isEdited: grouped.any((m) => m.isEdited),
+          isDeleted: false,
+          isPinned: grouped.any((m) => m.isPinned),
+          reactions: current.reactions,
+          replyTo: current.replyTo,
+          replyCount: grouped.fold<int>(0, (sum, m) => sum + m.replyCount),
+          isReported: grouped.any((m) => m.isReported),
+          reportCount: grouped.fold<int>(0, (sum, m) => sum + m.reportCount),
+          deletedFor: current.deletedFor,
+          documentSnapshot: current.documentSnapshot,
+        ),
+      );
+
+      index = probe;
+    }
+
+    return collapsed;
+  }
+
+  void _debugLogMultiImage(
+    String stage, {
+    required String messageId,
+    int? parsedCount,
+    int? rawCount,
+    int? effectiveCount,
+    List<String>? resolvedSources,
+  }) {
+    if (!_debugMultiImageGrid) return;
+    debugPrint(
+      '[ParentGroupMultiImage][$stage] '
+      'messageId=$messageId '
+      'parsed=${parsedCount ?? '-'} '
+      'raw=${rawCount ?? '-'} '
+      'effective=${effectiveCount ?? '-'} '
+      'sources=${resolvedSources ?? const <String>[]}',
+    );
+  }
+
+  void _debugLogDisplayImageSummary(List<CommunityMessageModel> messages) {
+    if (!_debugMultiImageGrid) return;
+
+    final imageMessages = messages
+        .where(
+          (msg) =>
+              (msg.mediaMetadata != null &&
+                  _isImageMime(msg.mediaMetadata!.mimeType)) ||
+              (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty),
+        )
+        .take(20)
+        .toList();
+
+    if (imageMessages.isEmpty) {
+      debugPrint('[ParentGroupMultiImage][summary] no image candidates');
+      return;
+    }
+
+    for (final msg in imageMessages) {
+      final media = msg.mediaMetadata;
+      debugPrint(
+        '[ParentGroupMultiImage][summary] '
+        'id=${msg.messageId} '
+        'sender=${msg.senderId} '
+        'type=${msg.type} '
+        'created=${msg.createdAt.millisecondsSinceEpoch} '
+        'singleImage=${media != null && _isImageMime(media.mimeType)} '
+        'multiple=${msg.multipleMedia?.length ?? 0} '
+        'mediaId=${media?.messageId ?? '-'} '
+        'r2Key=${media?.r2Key ?? '-'} '
+        'contentEmpty=${msg.content.trim().isEmpty}',
+      );
+    }
+  }
+
+  List<MediaMetadata> _extractRawMultipleMedia(dynamic rawList) {
+    if (rawList is! List) return const <MediaMetadata>[];
+
+    final extracted = <MediaMetadata>[];
+    for (final item in rawList) {
+      if (item is! Map) continue;
+      final map = Map<String, dynamic>.from(item);
+      try {
+        extracted.add(
+          _normalizeMediaMetadata(MediaMetadata.fromFirestore(map)),
+        );
+        continue;
+      } catch (_) {
+        // Fall back to lenient parsing below.
+      }
+
+      final publicUrl = (map['publicUrl'] ?? map['url'] ?? '').toString();
+      final r2Key = (map['r2Key'] ?? '').toString();
+      final localPath = (map['localPath'] ?? '').toString();
+      final thumbnail = (map['thumbnail'] ?? '').toString();
+
+      if (publicUrl.isEmpty &&
+          r2Key.isEmpty &&
+          localPath.isEmpty &&
+          thumbnail.isEmpty) {
+        continue;
+      }
+
+      final nameRaw = (map['originalFileName'] ?? '').toString();
+      final sizeRaw = map['fileSize'];
+
+      extracted.add(
+        _normalizeMediaMetadata(
+          MediaMetadata(
+            messageId: (map['messageId'] ?? '').toString(),
+            r2Key: r2Key,
+            publicUrl: publicUrl,
+            localPath: localPath.isEmpty ? null : localPath,
+            thumbnail: thumbnail,
+            expiresAt: DateTime.now().add(const Duration(days: 30)),
+            uploadedAt: DateTime.now(),
+            fileSize: sizeRaw is num
+                ? sizeRaw.toInt()
+                : int.tryParse('$sizeRaw'),
+            mimeType: (map['mimeType'] ?? map['type'] ?? 'image/jpeg')
+                .toString(),
+            originalFileName: nameRaw.isEmpty ? null : nameRaw,
+          ),
+        ),
+      );
+    }
+
+    return extracted;
+  }
+
+  List<MediaMetadata> _effectiveMultipleMedia(CommunityMessageModel msg) {
+    final raw = msg.documentSnapshot?.data();
+    final parsed =
+        msg.multipleMedia?.map(_normalizeMediaMetadata).toList() ??
+        const <MediaMetadata>[];
+    final rawExtracted = raw is Map
+        ? _extractRawMultipleMedia(raw['multipleMedia'])
+        : const <MediaMetadata>[];
+
+    final merged = <String, MediaMetadata>{};
+    for (final media in [...rawExtracted, ...parsed]) {
+      final key = media.messageId.isNotEmpty
+          ? media.messageId
+          : (media.r2Key.isNotEmpty ? media.r2Key : media.publicUrl);
+      if (key.isEmpty) continue;
+      merged[key] = media;
+    }
+
+    final effective = merged.values.toList();
+    if (parsed.length != rawExtracted.length ||
+        effective.length != parsed.length) {
+      _debugLogMultiImage(
+        'effectiveMultipleMedia',
+        messageId: msg.messageId,
+        parsedCount: parsed.length,
+        rawCount: rawExtracted.length,
+        effectiveCount: effective.length,
+      );
+    }
+
+    return effective;
+  }
+
   void _onEmojiSelected(Emoji emoji) {
     _controller.text += emoji.emoji;
   }
@@ -1168,13 +1566,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     // First time seeing this message - cache it
                     _messageCache[msg.messageId] = msg;
                   } else {
-                    final cachedMulti = cached.multipleMedia?.length ?? 0;
-                    final freshMulti = msg.multipleMedia?.length ?? 0;
                     final hasChange =
                         cached.type != msg.type ||
-                        cachedMulti != freshMulti ||
                         cached.updatedAt != msg.updatedAt ||
-                        cached.createdAt != msg.createdAt;
+                        cached.createdAt != msg.createdAt ||
+                        _messageMediaFingerprint(cached) !=
+                            _messageMediaFingerprint(msg);
 
                     if (hasChange) {
                       _messageCache[msg.messageId] = msg;
@@ -1413,6 +1810,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   }
                 }
                 allMessages.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                final displayMessages = _collapseLegacyMultiImageMessages(
+                  allMessages,
+                );
+                _debugLogDisplayImageSummary(allMessages);
 
                 // Update last document from stream if available
                 if (cachedFirestoreMessages.isNotEmpty &&
@@ -1420,7 +1821,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   _lastDocument = cachedFirestoreMessages.last.documentSnapshot;
                 }
 
-                if (allMessages.isEmpty) {
+                if (displayMessages.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1467,17 +1868,17 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                       controller: scrollController,
                       reverse: true,
                       padding: const EdgeInsets.all(16),
-                      itemCount: allMessages.length,
+                      itemCount: displayMessages.length,
                       itemBuilder: (context, index) {
-                        final msg = allMessages[index];
+                        final msg = displayMessages[index];
                         final isCurrentUser = msg.senderId == currentUserId;
 
                         // Day separator logic
-                        final isOldest = index == allMessages.length - 1;
+                        final isOldest = index == displayMessages.length - 1;
                         final currentDate = msg.createdAt;
                         final nextDate = isOldest
                             ? null
-                            : allMessages[index + 1].createdAt;
+                            : displayMessages[index + 1].createdAt;
                         final showDayDivider =
                             isOldest ||
                             _formatDayLabel(currentDate) !=
@@ -1503,6 +1904,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                       .mediaMetadata!
                                       .r2Key]
                                 : null);
+                        final displayMultipleMedia = _effectiveMultipleMedia(
+                          msg,
+                        );
 
                         if (msg.type == 'announcement') {
                           return Column(
@@ -1695,11 +2099,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                 child: DecoratedBox(
                                                   decoration: BoxDecoration(
                                                     color:
-                                                        (msg.multipleMedia !=
-                                                                null &&
-                                                            msg
-                                                                .multipleMedia!
-                                                                .isNotEmpty)
+                                                        (displayMultipleMedia
+                                                            .isNotEmpty)
                                                         ? Colors.transparent
                                                         : (isSelected
                                                               ? primaryColor
@@ -1712,11 +2113,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                     border:
                                                         isSelected &&
                                                             !hasMedia &&
-                                                            (msg.multipleMedia ==
-                                                                    null ||
-                                                                msg
-                                                                    .multipleMedia!
-                                                                    .isEmpty)
+                                                            displayMultipleMedia
+                                                                .isEmpty
                                                         ? Border.all(
                                                             color: primaryColor,
                                                             width: 2.5,
@@ -1745,20 +2143,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                       // Zero padding for media — let the card fill naturally.
                                                       horizontal:
                                                           hasMedia ||
-                                                              (msg.multipleMedia !=
-                                                                      null &&
-                                                                  msg
-                                                                      .multipleMedia!
-                                                                      .isNotEmpty)
+                                                              displayMultipleMedia
+                                                                  .isNotEmpty
                                                           ? 0
                                                           : 12,
                                                       vertical:
                                                           hasMedia ||
-                                                              (msg.multipleMedia !=
-                                                                      null &&
-                                                                  msg
-                                                                      .multipleMedia!
-                                                                      .isNotEmpty)
+                                                              displayMultipleMedia
+                                                                  .isNotEmpty
                                                           ? 0
                                                           : 8,
                                                     ),
@@ -1776,191 +2168,180 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                         // FIX 1: Properly map URLs - use publicUrl for uploaded, localPath for pending
                                                         // FIX 2: Fallback to thumbnail if path not found (prevents empty grid)
                                                         // FIX 3: Filter empty URLs to avoid blank tiles
-                                                        if (msg.multipleMedia !=
-                                                                null &&
-                                                            msg
-                                                                .multipleMedia!
-                                                                .isNotEmpty) ...[
-                                                          Container(
-                                                            decoration:
-                                                                BoxDecoration(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        12,
-                                                                      ),
-                                                                ),
-                                                            clipBehavior:
-                                                                Clip.antiAlias,
-                                                            child: MultiImageMessageBubble(
-                                                              imageUrls: msg
-                                                                  .multipleMedia!
-                                                                  .map((m) {
-                                                                    if (isPending) {
-                                                                      // Staff-room style: pending items should render from local paths.
-                                                                      final byR2Key =
-                                                                          _localSenderMediaPaths[m
-                                                                              .r2Key];
-                                                                      if (byR2Key !=
-                                                                              null &&
-                                                                          byR2Key
-                                                                              .isNotEmpty) {
-                                                                        return byR2Key;
-                                                                      }
-
-                                                                      final byMsgId =
-                                                                          _localSenderMediaPaths[m
-                                                                              .messageId];
-                                                                      if (byMsgId !=
-                                                                              null &&
-                                                                          byMsgId
-                                                                              .isNotEmpty) {
-                                                                        return byMsgId;
-                                                                      }
-
-                                                                      if (m.localPath !=
-                                                                              null &&
-                                                                          m.localPath!.isNotEmpty) {
-                                                                        return m
-                                                                            .localPath!;
-                                                                      }
-
-                                                                      return m
-                                                                              .thumbnail
-                                                                              .isNotEmpty
-                                                                          ? m.thumbnail
-                                                                          : '';
-                                                                    }
-
-                                                                    // Staff-room style: sent items should render from public URL.
-                                                                    if (m
-                                                                        .publicUrl
-                                                                        .isNotEmpty) {
-                                                                      return m
-                                                                          .publicUrl;
-                                                                    }
-
-                                                                    if (m
-                                                                        .r2Key
-                                                                        .isNotEmpty) {
-                                                                      return '${CloudflareConfig.r2Domain}/${m.r2Key}';
-                                                                    }
-
-                                                                    return '';
-                                                                  })
+                                                        if (displayMultipleMedia
+                                                            .isNotEmpty) ...[
+                                                          Builder(
+                                                            builder: (context) {
+                                                              final resolvedImageUrls = displayMultipleMedia
+                                                                  .map(
+                                                                    (
+                                                                      m,
+                                                                    ) => _resolvedMediaDisplaySource(
+                                                                      m,
+                                                                      isPending:
+                                                                          isPending,
+                                                                    ),
+                                                                  )
                                                                   .where(
                                                                     (url) => url
                                                                         .isNotEmpty,
                                                                   )
-                                                                  .toList(),
-                                                              isMe:
-                                                                  isCurrentUser,
-                                                              userRole:
-                                                                  Provider.of<
-                                                                        AuthProvider
-                                                                      >(
-                                                                        context,
-                                                                        listen:
-                                                                            false,
-                                                                      )
-                                                                      .currentUser
-                                                                      ?.role
-                                                                      .toString()
-                                                                      .split(
-                                                                        '.',
-                                                                      )
-                                                                      .last,
-                                                              // ✅ Show upload progress for pending images
-                                                              uploadProgress:
-                                                                  isPending
-                                                                  ? msg.multipleMedia!.map((
-                                                                      m,
-                                                                    ) {
-                                                                      final notifier =
-                                                                          _pendingUploadNotifiers[m
-                                                                              .messageId];
-                                                                      return notifier !=
-                                                                              null
-                                                                          ? notifier.value /
-                                                                                100.0
-                                                                          : null;
-                                                                    }).toList()
-                                                                  : null,
-                                                              onImageTap:
-                                                                  (
-                                                                    index,
-                                                                    cachedPaths,
-                                                                  ) async {
-                                                                    // Update media list with cached paths
-                                                                    final updatedMediaList =
-                                                                        <
-                                                                          MediaMetadata
-                                                                        >[];
-                                                                    for (
-                                                                      int i = 0;
-                                                                      i <
-                                                                          msg
-                                                                              .multipleMedia!
-                                                                              .length;
-                                                                      i++
-                                                                    ) {
-                                                                      final media =
-                                                                          msg.multipleMedia![i];
-                                                                      updatedMediaList.add(
-                                                                        MediaMetadata(
-                                                                          localPath:
-                                                                              cachedPaths[i] ??
-                                                                              media.localPath,
-                                                                          publicUrl:
-                                                                              media.publicUrl,
-                                                                          messageId:
-                                                                              media.messageId,
-                                                                          mimeType:
-                                                                              media.mimeType,
-                                                                          fileSize:
-                                                                              media.fileSize,
-                                                                          r2Key:
-                                                                              media.r2Key,
-                                                                          thumbnail:
-                                                                              media.thumbnail,
-                                                                          expiresAt:
-                                                                              media.expiresAt,
-                                                                          uploadedAt:
-                                                                              media.uploadedAt,
-                                                                        ),
-                                                                      );
-                                                                    }
-                                                                    // ✅ Open full-screen viewer with zoom, pinch, and swipe
-                                                                    await _runWithoutInputFocus(
-                                                                      () => Navigator.of(context).push(
-                                                                        MaterialPageRoute(
-                                                                          builder: (_) => _ImageGalleryViewer(
-                                                                            mediaList:
-                                                                                updatedMediaList,
-                                                                            initialIndex:
-                                                                                index,
-                                                                            localFilePaths:
-                                                                                _localSenderMediaPaths,
-                                                                            forwardMessage: ForwardMessageData.fromRaw(
-                                                                              messageId: msg.messageId,
-                                                                              senderId: msg.senderId,
-                                                                              senderName: msg.senderName,
-                                                                              rawData:
-                                                                                  msg.documentSnapshot?.data()
-                                                                                      as Map<
-                                                                                        String,
-                                                                                        dynamic
-                                                                                      >?,
-                                                                              imageUrl: msg.imageUrl,
-                                                                              message: msg.content,
-                                                                              mediaMetadata: msg.mediaMetadata,
-                                                                              multipleMedia: msg.multipleMedia,
-                                                                            ),
+                                                                  .toList();
+
+                                                              if (resolvedImageUrls
+                                                                          .length !=
+                                                                      displayMultipleMedia
+                                                                          .length ||
+                                                                  displayMultipleMedia
+                                                                          .length >
+                                                                      1) {
+                                                                _debugLogMultiImage(
+                                                                  'render',
+                                                                  messageId: msg
+                                                                      .messageId,
+                                                                  parsedCount: msg
+                                                                      .multipleMedia
+                                                                      ?.length,
+                                                                  rawCount:
+                                                                      (msg.documentSnapshot?.data()
+                                                                              as Map<
+                                                                                String,
+                                                                                dynamic
+                                                                              >?)?['multipleMedia']
+                                                                          is List
+                                                                      ? ((msg.documentSnapshot?.data()
+                                                                                    as Map<
+                                                                                      String,
+                                                                                      dynamic
+                                                                                    >)['multipleMedia']
+                                                                                as List)
+                                                                            .length
+                                                                      : 0,
+                                                                  effectiveCount:
+                                                                      displayMultipleMedia
+                                                                          .length,
+                                                                  resolvedSources:
+                                                                      resolvedImageUrls,
+                                                                );
+                                                              }
+
+                                                              return Container(
+                                                                decoration:
+                                                                    BoxDecoration(
+                                                                      borderRadius:
+                                                                          BorderRadius.circular(
+                                                                            12,
                                                                           ),
-                                                                        ),
-                                                                      ),
-                                                                    );
-                                                                  },
-                                                            ),
+                                                                    ),
+                                                                clipBehavior: Clip
+                                                                    .antiAlias,
+                                                                child: MultiImageMessageBubble(
+                                                                  imageUrls:
+                                                                      resolvedImageUrls,
+                                                                  isMe:
+                                                                      isCurrentUser,
+                                                                  userRole:
+                                                                      Provider.of<
+                                                                            AuthProvider
+                                                                          >(
+                                                                            context,
+                                                                            listen:
+                                                                                false,
+                                                                          )
+                                                                          .currentUser
+                                                                          ?.role
+                                                                          .toString()
+                                                                          .split(
+                                                                            '.',
+                                                                          )
+                                                                          .last,
+                                                                  // ✅ Show upload progress for pending images
+                                                                  uploadProgress:
+                                                                      isPending
+                                                                      ? displayMultipleMedia.map((
+                                                                          m,
+                                                                        ) {
+                                                                          final notifier =
+                                                                              _pendingUploadNotifiers[m.messageId];
+                                                                          return notifier !=
+                                                                                  null
+                                                                              ? notifier.value /
+                                                                                    100.0
+                                                                              : null;
+                                                                        }).toList()
+                                                                      : null,
+                                                                  onImageTap:
+                                                                      (
+                                                                        index,
+                                                                        cachedPaths,
+                                                                      ) async {
+                                                                        // Update media list with cached paths
+                                                                        final updatedMediaList =
+                                                                            <
+                                                                              MediaMetadata
+                                                                            >[];
+                                                                        for (
+                                                                          int
+                                                                          i = 0;
+                                                                          i <
+                                                                              displayMultipleMedia.length;
+                                                                          i++
+                                                                        ) {
+                                                                          final media =
+                                                                              displayMultipleMedia[i];
+                                                                          updatedMediaList.add(
+                                                                            MediaMetadata(
+                                                                              localPath:
+                                                                                  cachedPaths[i] ??
+                                                                                  media.localPath,
+                                                                              publicUrl: media.publicUrl,
+                                                                              messageId: media.messageId,
+                                                                              mimeType: media.mimeType,
+                                                                              fileSize: media.fileSize,
+                                                                              r2Key: media.r2Key,
+                                                                              thumbnail: media.thumbnail,
+                                                                              expiresAt: media.expiresAt,
+                                                                              uploadedAt: media.uploadedAt,
+                                                                            ),
+                                                                          );
+                                                                        }
+                                                                        // ✅ Open full-screen viewer with zoom, pinch, and swipe
+                                                                        await _runWithoutInputFocus(
+                                                                          () =>
+                                                                              Navigator.of(
+                                                                                context,
+                                                                              ).push(
+                                                                                MaterialPageRoute(
+                                                                                  builder:
+                                                                                      (
+                                                                                        _,
+                                                                                      ) => _ImageGalleryViewer(
+                                                                                        mediaList: updatedMediaList,
+                                                                                        initialIndex: index,
+                                                                                        localFilePaths: _localSenderMediaPaths,
+                                                                                        forwardMessage: ForwardMessageData.fromRaw(
+                                                                                          messageId: msg.messageId,
+                                                                                          senderId: msg.senderId,
+                                                                                          senderName: msg.senderName,
+                                                                                          rawData:
+                                                                                              msg.documentSnapshot?.data()
+                                                                                                  as Map<
+                                                                                                    String,
+                                                                                                    dynamic
+                                                                                                  >?,
+                                                                                          imageUrl: msg.imageUrl,
+                                                                                          message: msg.content,
+                                                                                          mediaMetadata: msg.mediaMetadata,
+                                                                                          multipleMedia: displayMultipleMedia,
+                                                                                        ),
+                                                                                      ),
+                                                                                ),
+                                                                              ),
+                                                                        );
+                                                                      },
+                                                                ),
+                                                              );
+                                                            },
                                                           ),
                                                           if (msg
                                                               .content
