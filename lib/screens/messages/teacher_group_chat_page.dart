@@ -3532,57 +3532,63 @@ class _MessageBubble extends StatelessWidget {
                           : CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        MultiImageMessageBubble(
-                          imageUrls: message.multipleMedia!
-                              .map((m) => m.localPath ?? m.publicUrl)
-                              .toList(),
-                          isMe: isMe,
-                          uploadProgress: message.multipleMedia!
-                              .map((m) => pendingUploadProgress[m.messageId])
-                              .toList(),
-                          userRole: Provider.of<AuthProvider>(
-                            context,
-                            listen: false,
-                          ).currentUser?.role.toString().split('.').last,
-                          onImageTap: (index, cachedPaths) async {
-                            // Create updated media list with cached paths
-                            final updatedMediaList = <MediaMetadata>[];
-                            for (
-                              int i = 0;
-                              i < message.multipleMedia!.length;
-                              i++
-                            ) {
-                              final media = message.multipleMedia![i];
-                              updatedMediaList.add(
-                                MediaMetadata(
-                                  localPath: cachedPaths[i] ?? media.localPath,
-                                  publicUrl: media.publicUrl,
-                                  messageId: media.messageId,
-                                  mimeType: media.mimeType,
-                                  fileSize: media.fileSize,
-                                  r2Key: media.r2Key,
-                                  thumbnail: media.thumbnail,
-                                  expiresAt: media.expiresAt,
-                                  uploadedAt: media.uploadedAt,
+                        if (_hasOnlyImageMedia(message.multipleMedia!))
+                          MultiImageMessageBubble(
+                            imageUrls: message.multipleMedia!
+                                .map((m) => m.localPath ?? m.publicUrl)
+                                .toList(),
+                            isMe: isMe,
+                            uploadProgress: message.multipleMedia!
+                                .map((m) => pendingUploadProgress[m.messageId])
+                                .toList(),
+                            userRole: Provider.of<AuthProvider>(
+                              context,
+                              listen: false,
+                            ).currentUser?.role.toString().split('.').last,
+                            onImageTap: (index, cachedPaths) async {
+                              final updatedMediaList = <MediaMetadata>[];
+                              for (
+                                int i = 0;
+                                i < message.multipleMedia!.length;
+                                i++
+                              ) {
+                                final media = message.multipleMedia![i];
+                                updatedMediaList.add(
+                                  MediaMetadata(
+                                    localPath:
+                                        cachedPaths[i] ?? media.localPath,
+                                    publicUrl: media.publicUrl,
+                                    messageId: media.messageId,
+                                    mimeType: media.mimeType,
+                                    fileSize: media.fileSize,
+                                    r2Key: media.r2Key,
+                                    thumbnail: media.thumbnail,
+                                    expiresAt: media.expiresAt,
+                                    uploadedAt: media.uploadedAt,
+                                  ),
+                                );
+                              }
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => _ImageGalleryViewer(
+                                    mediaList: updatedMediaList,
+                                    initialIndex: index,
+                                    localSenderMediaPaths:
+                                        localSenderMediaPaths,
+                                    isMe: isMe,
+                                    forwardMessage: _buildForwardData(),
+                                  ),
                                 ),
                               );
-                            }
-
-                            // Open image gallery - it handles loading from cache or network
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => _ImageGalleryViewer(
-                                  mediaList: updatedMediaList,
-                                  initialIndex: index,
-                                  localSenderMediaPaths: localSenderMediaPaths,
-                                  isMe: isMe,
-                                  forwardMessage: _buildForwardData(),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                            },
+                          )
+                        else
+                          _buildMixedMediaAttachments(
+                            context,
+                            message.multipleMedia!,
+                          ),
                         if (message.message.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Material(
@@ -3767,6 +3773,31 @@ class _MessageBubble extends StatelessWidget {
       failed: isFailed,
       onRetry: isFailed ? () => onRetry?.call(metadata.messageId) : null,
       forwardMessage: _buildForwardData(),
+    );
+  }
+
+  bool _hasOnlyImageMedia(List<MediaMetadata> mediaList) {
+    if (mediaList.isEmpty) return false;
+    return mediaList.every(
+      (media) => (media.mimeType ?? '').toLowerCase().startsWith('image/'),
+    );
+  }
+
+  Widget _buildMixedMediaAttachments(
+    BuildContext context,
+    List<MediaMetadata> mediaList,
+  ) {
+    return Column(
+      crossAxisAlignment: isMe
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < mediaList.length; i++) ...[
+          _buildMetadataAttachment(context, mediaList[i]),
+          if (i != mediaList.length - 1) const SizedBox(height: 6),
+        ],
+      ],
     );
   }
 

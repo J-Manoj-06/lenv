@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:mime/mime.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -127,10 +128,25 @@ class ImageViewerActionService {
     );
     if (imagePath == null) return false;
 
-    await Share.shareXFiles([
-      XFile(imagePath, mimeType: lookupMimeType(imagePath) ?? 'image/jpeg'),
-    ], text: fileNameHint ?? 'Image');
-    return true;
+    final fileName = (fileNameHint != null && fileNameHint.trim().isNotEmpty)
+        ? fileNameHint.trim()
+        : p.basename(imagePath);
+    final preparedPath = await _prepareShareablePath(
+      sourcePath: imagePath,
+      fileName: fileName,
+    );
+
+    final result = await Share.shareXFiles(
+      [
+        XFile(
+          preparedPath ?? imagePath,
+          mimeType: lookupMimeType(imagePath) ?? 'image/jpeg',
+        ),
+      ],
+      fileNameOverrides: [fileName],
+      subject: fileName,
+    );
+    return result.status != ShareResultStatus.unavailable;
   }
 
   static Future<String?> ensureMediaFile({
@@ -172,6 +188,7 @@ class ImageViewerActionService {
 
     try {
       final files = <XFile>[];
+      final fileNameOverrides = <String>[];
       final fallbackUrls = <String>[];
 
       for (final item in items) {
@@ -191,7 +208,14 @@ class ImageViewerActionService {
               (item.fileName != null && item.fileName!.trim().isNotEmpty)
               ? item.fileName!.trim()
               : p.basename(path);
-          files.add(XFile(path, mimeType: mimeType, name: fileName));
+          final preparedPath = await _prepareShareablePath(
+            sourcePath: path,
+            fileName: fileName,
+          );
+          files.add(
+            XFile(preparedPath ?? path, mimeType: mimeType, name: fileName),
+          );
+          fileNameOverrides.add(fileName);
         } else if (!requireLocalOnly &&
             item.publicUrl != null &&
             item.publicUrl!.isNotEmpty) {
@@ -200,8 +224,12 @@ class ImageViewerActionService {
       }
 
       if (files.isNotEmpty) {
-        await Share.shareXFiles(files, text: text);
-        return true;
+        final result = await Share.shareXFiles(
+          files,
+          fileNameOverrides: fileNameOverrides,
+          subject: text,
+        );
+        return result.status != ShareResultStatus.unavailable;
       }
 
       if (!requireLocalOnly && fallbackUrls.isNotEmpty) {
@@ -220,6 +248,39 @@ class ImageViewerActionService {
     final file = File(localPath);
     if (await file.exists()) return file.path;
     return null;
+  }
+
+  static Future<String?> _prepareShareablePath({
+    required String sourcePath,
+    required String fileName,
+  }) async {
+    final sourceFile = File(sourcePath);
+    if (!await sourceFile.exists()) return null;
+
+    final tempDir = await getTemporaryDirectory();
+    final shareDir = Directory(p.join(tempDir.path, 'shared_media'));
+    if (!await shareDir.exists()) {
+      await shareDir.create(recursive: true);
+    }
+
+    final safeName = _sanitizeFileName(fileName);
+    final targetPath = p.join(
+      shareDir.path,
+      '${DateTime.now().microsecondsSinceEpoch}_$safeName',
+    );
+
+    try {
+      final copied = await sourceFile.copy(targetPath);
+      return copied.path;
+    } catch (_) {
+      return sourcePath;
+    }
+  }
+
+  static String _sanitizeFileName(String fileName) {
+    final sanitized = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    if (sanitized.isEmpty) return 'shared_file';
+    return sanitized;
   }
 
   static String _resolveExtension(String path, String? fileNameHint) {

@@ -3970,83 +3970,102 @@ class _MessageBubbleState extends State<_MessageBubble>
                               ? CrossAxisAlignment.end
                               : CrossAxisAlignment.start,
                           children: [
-                            MultiImageMessageBubble(
-                              key: ValueKey('${messageId}_multi_image'),
-                              imageUrls: multipleMedia.map<String>((media) {
-                                // Cast to Map<String, dynamic> first to access fields
-                                final mediaMap = media is Map<String, dynamic>
-                                    ? media
-                                    : (media as Map).cast<String, dynamic>();
+                            if (_multipleMediaAreImages(multipleMedia))
+                              MultiImageMessageBubble(
+                                key: ValueKey('${messageId}_multi_image'),
+                                imageUrls: multipleMedia.map<String>((media) {
+                                  final mediaMap = media is Map<String, dynamic>
+                                      ? media
+                                      : (media as Map).cast<String, dynamic>();
 
-                                if (isPending) {
-                                  return mediaMap['localPath'] as String? ?? '';
-                                } else {
-                                  return mediaMap['publicUrl'] as String? ?? '';
-                                }
-                              }).toList(),
-                              isMe: widget.isMe,
-                              userRole: Provider.of<AuthProvider>(
-                                context,
-                                listen: false,
-                              ).currentUser?.role.toString().split('.').last,
-                              onImageTap: (index, cachedPaths) {
-                                // Merge cached paths into mediaList
-                                final updatedMediaList =
-                                    List<Map<String, dynamic>>.from(
-                                      multipleMedia!.map((media) {
-                                        final mediaMap =
-                                            media is Map<String, dynamic>
-                                            ? Map<String, dynamic>.from(media)
-                                            : (media as Map)
-                                                  .cast<String, dynamic>();
-                                        return mediaMap;
-                                      }),
-                                    );
-
-                                // Update localPath with cached paths
-                                cachedPaths.forEach((idx, path) {
-                                  if (idx < updatedMediaList.length) {
-                                    updatedMediaList[idx]['localPath'] = path;
+                                  if (isPending) {
+                                    return mediaMap['localPath'] as String? ??
+                                        '';
+                                  } else {
+                                    return mediaMap['publicUrl'] as String? ??
+                                        '';
                                   }
-                                });
-
-                                // Open full-screen image gallery
-                                Navigator.push(
+                                }).toList(),
+                                isMe: widget.isMe,
+                                userRole: Provider.of<AuthProvider>(
                                   context,
-                                  MaterialPageRoute(
-                                    builder: (_) => _ImageGalleryViewer(
-                                      mediaList: updatedMediaList,
-                                      initialIndex: index,
-                                      isPending: isPending,
-                                      forwardMessage: _buildForwardData(
-                                        messageId,
-                                        text,
-                                        multipleMedia,
-                                        attachmentUrl,
-                                        attachmentType,
-                                        attachmentName,
-                                        attachmentSize,
+                                  listen: false,
+                                ).currentUser?.role.toString().split('.').last,
+                                onImageTap: (index, cachedPaths) {
+                                  final updatedMediaList =
+                                      List<Map<String, dynamic>>.from(
+                                        multipleMedia!.map((media) {
+                                          final mediaMap =
+                                              media is Map<String, dynamic>
+                                              ? Map<String, dynamic>.from(media)
+                                              : (media as Map)
+                                                    .cast<String, dynamic>();
+                                          return mediaMap;
+                                        }),
+                                      );
+
+                                  cachedPaths.forEach((idx, path) {
+                                    if (idx < updatedMediaList.length) {
+                                      updatedMediaList[idx]['localPath'] = path;
+                                    }
+                                  });
+
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => _ImageGalleryViewer(
+                                        mediaList: updatedMediaList,
+                                        initialIndex: index,
+                                        isPending: isPending,
+                                        forwardMessage: _buildForwardData(
+                                          messageId,
+                                          text,
+                                          multipleMedia,
+                                          attachmentUrl,
+                                          attachmentType,
+                                          attachmentName,
+                                          attachmentSize,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              },
-                              uploadProgress: isPending
-                                  ? multipleMedia.map<double?>((media) {
-                                      final mediaMap =
-                                          media is Map<String, dynamic>
-                                          ? media
-                                          : (media as Map)
-                                                .cast<String, dynamic>();
-                                      final mediaId =
-                                          mediaMap['messageId'] as String?;
-                                      return mediaId != null
-                                          ? widget
-                                                .pendingUploadProgress[mediaId]
-                                          : null;
-                                    }).toList()
-                                  : null,
-                            ),
+                                  );
+                                },
+                                uploadProgress: isPending
+                                    ? multipleMedia.map<double?>((media) {
+                                        final mediaMap =
+                                            media is Map<String, dynamic>
+                                            ? media
+                                            : (media as Map)
+                                                  .cast<String, dynamic>();
+                                        final mediaId =
+                                            mediaMap['messageId'] as String?;
+                                        return mediaId != null
+                                            ? widget
+                                                  .pendingUploadProgress[mediaId]
+                                            : null;
+                                      }).toList()
+                                    : null,
+                              )
+                            else
+                              Column(
+                                children: [
+                                  for (
+                                    int i = 0;
+                                    i < multipleMedia.length;
+                                    i++
+                                  ) ...[
+                                    _buildMultipleMediaItem(
+                                      multipleMedia[i] is Map<String, dynamic>
+                                          ? multipleMedia[i]
+                                          : (multipleMedia[i] as Map)
+                                                .cast<String, dynamic>(),
+                                      isPending,
+                                    ),
+                                    if (i != multipleMedia.length - 1)
+                                      const SizedBox(height: 6),
+                                  ],
+                                ],
+                              ),
                             const SizedBox(height: 4),
                             Padding(
                               padding: const EdgeInsets.only(
@@ -4343,6 +4362,107 @@ class _MessageBubbleState extends State<_MessageBubble>
       onRetry: isFailed ? () => widget.onRetry?.call(messageId) : null,
       forwardMessage: _buildForwardData(
         messageId,
+        widget.message['text'] as String? ?? '',
+        (widget.message['multipleMedia'] is List)
+            ? widget.message['multipleMedia'] as List<dynamic>
+            : null,
+        widget.message['attachmentUrl'] as String?,
+        widget.message['attachmentType'] as String?,
+        widget.message['attachmentName'] as String?,
+        widget.message['attachmentSize'] as int?,
+      ),
+    );
+  }
+
+  bool _multipleMediaAreImages(List<dynamic> mediaItems) {
+    if (mediaItems.isEmpty) return false;
+    return mediaItems.every((media) {
+      final mediaMap = media is Map<String, dynamic>
+          ? media
+          : (media as Map).cast<String, dynamic>();
+      final mimeType = (mediaMap['mimeType'] as String? ?? '').toLowerCase();
+      return mimeType.startsWith('image/');
+    });
+  }
+
+  Widget _buildMultipleMediaItem(
+    Map<String, dynamic> mediaMap,
+    bool isPending,
+  ) {
+    final mediaId = mediaMap['messageId'] as String? ?? '';
+    final parentMessageId = widget.message['id'] as String? ?? mediaId;
+    final publicUrl = mediaMap['publicUrl'] as String?;
+    final mimeType =
+        mediaMap['mimeType'] as String? ?? 'application/octet-stream';
+    final fileName =
+        mediaMap['originalFileName'] as String? ??
+        _fileNameFromUrl(publicUrl ?? '');
+    final fileSize = (mediaMap['fileSize'] as num?)?.toInt() ?? 0;
+    final thumbnail = mediaMap['thumbnail'] as String?;
+    final localPath = isPending
+        ? (mediaMap['localPath'] as String? ?? widget.localFilePaths[mediaId])
+        : mediaMap['localPath'] as String?;
+
+    String r2Key = mediaMap['r2Key'] as String? ?? '';
+    if (r2Key.isEmpty && publicUrl != null && publicUrl.isNotEmpty) {
+      final uri = Uri.tryParse(publicUrl);
+      if (uri != null) {
+        r2Key = uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+      }
+    }
+    if (r2Key.isEmpty) {
+      r2Key = 'pending/$mediaId';
+    }
+
+    final isUploading = widget.uploadingMessageIds.contains(mediaId);
+    final progressNotifier = widget.progressNotifiers[mediaId];
+    final isFailed = widget.failedMessageIds.contains(mediaId);
+
+    if (isUploading && progressNotifier != null) {
+      return ValueListenableBuilder<double>(
+        valueListenable: progressNotifier,
+        builder: (context, progress, child) {
+          return MediaPreviewCard(
+            r2Key: r2Key,
+            fileName: fileName,
+            mimeType: mimeType,
+            fileSize: fileSize,
+            thumbnailBase64: thumbnail,
+            localPath: localPath,
+            isMe: widget.isMe,
+            selectionMode: widget.selectionMode,
+            uploading: true,
+            uploadProgress: progress,
+            forwardMessage: _buildForwardData(
+              parentMessageId,
+              widget.message['text'] as String? ?? '',
+              (widget.message['multipleMedia'] is List)
+                  ? widget.message['multipleMedia'] as List<dynamic>
+                  : null,
+              widget.message['attachmentUrl'] as String?,
+              widget.message['attachmentType'] as String?,
+              widget.message['attachmentName'] as String?,
+              widget.message['attachmentSize'] as int?,
+            ),
+          );
+        },
+      );
+    }
+
+    return MediaPreviewCard(
+      r2Key: r2Key,
+      fileName: fileName,
+      mimeType: mimeType,
+      fileSize: fileSize,
+      thumbnailBase64: thumbnail,
+      localPath: localPath,
+      isMe: widget.isMe,
+      selectionMode: widget.selectionMode,
+      uploading: false,
+      failed: isFailed,
+      onRetry: isFailed ? () => widget.onRetry?.call(mediaId) : null,
+      forwardMessage: _buildForwardData(
+        parentMessageId,
         widget.message['text'] as String? ?? '',
         (widget.message['multipleMedia'] is List)
             ? widget.message['multipleMedia'] as List<dynamic>
