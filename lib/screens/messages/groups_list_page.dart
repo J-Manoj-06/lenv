@@ -39,6 +39,7 @@ class _GroupsListPageState extends State<GroupsListPage>
       {}; // Track subject doc listeners for lastActivity updates
   final Set<String> _messageErrorLogged = <String>{};
   final Set<String> _subjectErrorLogged = <String>{};
+  final Set<String> _openingChats = <String>{};
 
   int _toMillis(dynamic raw) {
     if (raw is int) return raw;
@@ -215,6 +216,36 @@ class _GroupsListPageState extends State<GroupsListPage>
         _sortSubjectsByRecent();
       });
     }
+  }
+
+  Future<String?> _resolveClassIdForOpen() async {
+    if (_classId != null && _classId!.isNotEmpty) {
+      return _classId;
+    }
+
+    final cachedClassId = _offlineService.getCachedStudentClassId(
+      widget.studentId,
+    );
+    if (cachedClassId != null && cachedClassId.isNotEmpty) {
+      _classId = cachedClassId;
+      return _classId;
+    }
+
+    try {
+      final fetchedClassId = await _messagingService
+          .getStudentClassId(widget.studentId)
+          .timeout(const Duration(seconds: 6));
+      if (fetchedClassId != null && fetchedClassId.isNotEmpty) {
+        _classId = fetchedClassId;
+        await _offlineService.cacheStudentClassId(
+          studentId: widget.studentId,
+          classId: fetchedClassId,
+        );
+        return _classId;
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   Future<void> _loadClassSubjects() async {
@@ -562,36 +593,69 @@ class _GroupsListPageState extends State<GroupsListPage>
                 subject: subject,
                 chatId: chatId,
                 onTap: () async {
+                  if (_openingChats.contains(chatId)) return;
+
+                  if (mounted) {
+                    setState(() {
+                      _openingChats.add(chatId);
+                    });
+                  }
+
                   // Capture context before any async operations
                   final navContext = context;
 
-                  // Navigate and wait for return
-                  await Navigator.push(
-                    navContext,
-                    MaterialPageRoute(
-                      builder: (context) => TeacherGroupChatPage(
-                        classId: _classId!,
-                        subjectId: subject.id,
-                        subjectName: subject.name,
-                        teacherName: subject.teacherName,
-                        icon: subject.icon,
-                      ),
-                    ),
-                  );
+                  final resolvedClassId = await _resolveClassIdForOpen();
+                  if (resolvedClassId == null || resolvedClassId.isEmpty) {
+                    if (mounted) {
+                      setState(() {
+                        _openingChats.remove(chatId);
+                      });
+                      ScaffoldMessenger.of(navContext).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Still connecting. Please try again in a moment.',
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
 
-                  // Refresh unread count after returning - only if widget still mounted
-                  if (mounted) {
-                    try {
-                      final unreadProvider = Provider.of<UnreadCountProvider>(
-                        navContext,
-                        listen: false,
-                      );
-                      unreadProvider.refreshChat(chatId);
-                      unreadProvider.loadUnreadCount(
-                        chatId: chatId,
-                        chatType: ChatTypeConfig.groupChat,
-                      );
-                    } catch (e) {}
+                  try {
+                    // Navigate and wait for return
+                    await Navigator.push(
+                      navContext,
+                      MaterialPageRoute(
+                        builder: (context) => TeacherGroupChatPage(
+                          classId: resolvedClassId,
+                          subjectId: subject.id,
+                          subjectName: subject.name,
+                          teacherName: subject.teacherName,
+                          icon: subject.icon,
+                        ),
+                      ),
+                    );
+
+                    // Refresh unread count after returning - only if widget still mounted
+                    if (mounted) {
+                      try {
+                        final unreadProvider = Provider.of<UnreadCountProvider>(
+                          navContext,
+                          listen: false,
+                        );
+                        unreadProvider.refreshChat(chatId);
+                        unreadProvider.loadUnreadCount(
+                          chatId: chatId,
+                          chatType: ChatTypeConfig.groupChat,
+                        );
+                      } catch (e) {}
+                    }
+                  } finally {
+                    if (mounted) {
+                      setState(() {
+                        _openingChats.remove(chatId);
+                      });
+                    }
                   }
                 },
               );

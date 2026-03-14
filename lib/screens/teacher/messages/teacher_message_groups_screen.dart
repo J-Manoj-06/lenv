@@ -344,6 +344,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   StreamSubscription<DocumentSnapshot>? _groupsStreamSubscription;
   Timer? _refreshTimer;
   String _instituteId = ''; // ✅ Cached offline: used by Staff Room card onTap
+  final Set<String> _openingGroupIds = <String>{};
 
   @override
   bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
@@ -616,11 +617,34 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   Future<void> _loadGroups({bool forceRefresh = false}) async {
-    // ✅ REMOVED: _loadGroups now obsolete (handled by stream listener)
-    // Kept for backward compatibility if called elsewhere
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    String? userId = authProvider.currentUser?.uid;
+
+    if (userId == null || userId.isEmpty) {
+      final session = await SessionManager.getLoginSession();
+      userId = session['userId'] as String?;
+    }
+
+    if (userId == null || userId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Unable to load groups. Please reconnect.';
+      });
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     if (forceRefresh) {
       _service.clearCache();
     }
+
+    await _loadGroupsFromFirestore(userId);
   }
 
   @override
@@ -994,20 +1018,14 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   void _openGroupChat(MessageGroup group) async {
-    // ✅ Mark group as read in cache
-    _service.markGroupAsRead(group.groupId);
+    if (_openingGroupIds.contains(group.groupId)) return;
 
-    // ✅ Mark group as read in Firestore for persistence
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUser = authProvider.currentUser;
-    if (currentUser != null) {
-      final messagingService = GroupMessagingService();
-      await messagingService.markGroupAsRead(
-        group.classId,
-        group.subjectId,
-        currentUser.uid,
-      );
-    }
+    setState(() {
+      _openingGroupIds.add(group.groupId);
+    });
+
+    // ✅ Mark group as read in cache immediately
+    _service.markGroupAsRead(group.groupId);
 
     // ✅ Update UI immediately to clear badge
     setState(() {
@@ -1029,27 +1047,47 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       }
     });
 
-    // ✅ OPTIMIZATION: Mark group as read in teacher_groups index
-    _markGroupAsReadInFirestore(group);
-
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TeacherGroupChatPage(
-          classId: group.classId,
-          subjectId: group
-              .subjectId, // ✅ FIXED: Use actual subjectId instead of groupId
-          subjectName: group.subjectName,
-          teacherName: 'Teacher',
-          icon: _getIconForSubject(group.subjectName),
-          className: group.className,
-          section: group.sectionName,
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser != null) {
+      final messagingService = GroupMessagingService();
+      unawaited(
+        messagingService.markGroupAsRead(
+          group.classId,
+          group.subjectId,
+          currentUser.uid,
         ),
-      ),
-    );
-    // Refresh group list so new message pushes this group to the top
-    // without waiting for cache expiry.
-    await _loadGroups(forceRefresh: true);
+      );
+    }
+
+    // ✅ OPTIMIZATION: Mark group as read in teacher_groups index (non-blocking)
+    unawaited(_markGroupAsReadInFirestore(group));
+
+    try {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TeacherGroupChatPage(
+            classId: group.classId,
+            subjectId: group
+                .subjectId, // ✅ FIXED: Use actual subjectId instead of groupId
+            subjectName: group.subjectName,
+            teacherName: 'Teacher',
+            icon: _getIconForSubject(group.subjectName),
+            className: group.className,
+            section: group.sectionName,
+          ),
+        ),
+      );
+      // Refresh group list so new message pushes this group to the top.
+      await _loadGroups(forceRefresh: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _openingGroupIds.remove(group.groupId);
+        });
+      }
+    }
   }
 
   /// ✅ OPTIMIZATION: Mark group as read in teacher_groups Firestore collection
@@ -1122,10 +1160,7 @@ class _MessageGroupTileState extends State<MessageGroupTile>
         curve: Curves.easeOut,
         child: GestureDetector(
           onTapDown: (_) => setState(() => _isPressed = true),
-          onTapUp: (_) {
-            setState(() => _isPressed = false);
-            widget.onTap();
-          },
+          onTapUp: (_) => setState(() => _isPressed = false),
           onTapCancel: () => setState(() => _isPressed = false),
           child: InkWell(
             onTap: widget.onTap,
