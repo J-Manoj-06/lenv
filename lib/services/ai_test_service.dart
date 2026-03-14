@@ -14,6 +14,8 @@ library;
 
 import 'dart:convert';
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import '../config/ai_config.dart';
 import '../config/ai_test_config.dart';
@@ -22,10 +24,26 @@ import '../exceptions/ai_exceptions.dart';
 
 class AITestService {
   final http.Client _client;
+  final FirebaseFirestore _firestore;
   final Random _random = Random();
 
+  static const int _maxScopedQuestionReads = 200;
+  static const int _maxStoredEmbeddings = 400;
+  static const int _maxRecentFingerprints = 600;
+  static const double _semanticThreshold = 0.85;
+  static const Duration _memoryCacheTtl = Duration(minutes: 8);
+
+  static final Map<String, _ScopedMemoryCache> _scopedMemoryCache =
+      <String, _ScopedMemoryCache>{};
+  static final Map<String, List<double>> _embeddingCache =
+      <String, List<double>>{};
+  static final Map<String, DateTime> _recentFingerprintCache =
+      <String, DateTime>{};
+
   /// Create service with optional custom HTTP client (for testing)
-  AITestService({http.Client? client}) : _client = client ?? http.Client();
+  AITestService({http.Client? client, FirebaseFirestore? firestore})
+    : _client = client ?? http.Client(),
+      _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Generate test questions using AI
   ///
@@ -37,7 +55,12 @@ class AITestService {
   /// - [difficulty]: Difficulty level (Easy, Medium, Hard, Mixed)
   /// - [totalMarks]: Total marks for the entire test
   /// - [numQuestions]: Number of questions to generate
-  /// - [previousQuestions]: Optional list of recent questions to avoid duplicates
+  /// - [schoolId]: Institute/school identifier for scoped duplicate checks
+  /// - [teacherId]: Teacher identifier for question bank traceability
+  /// - [sectionId]: Optional section identifier (if different from section label)
+  /// - [testTitle]: Optional title to store in metadata (source is test document)
+  /// - [sourceTestId]: Optional source test id if known while generating
+  /// - [previousQuestions]: Kept for backward compatibility; not sent to AI
   /// - [difficultQuestions]: Optional list of questions students found difficult
   ///
   /// Returns: List of generated TestQuestion objects
@@ -57,6 +80,11 @@ class AITestService {
     required String difficulty,
     required int totalMarks,
     required int numQuestions,
+    String? schoolId,
+    String? teacherId,
+    String? sectionId,
+    String? testTitle,
+    String? sourceTestId,
     List<Map<String, dynamic>>? previousQuestions,
     List<Map<String, dynamic>>? difficultQuestions,
   }) async {
@@ -71,32 +99,121 @@ class AITestService {
       numQuestions: numQuestions,
     );
 
-    // Build the prompt
-    final prompt = _buildPrompt(
-      className: className,
-      section: section,
-      subject: subject,
-      topic: topic,
-      difficulty: difficulty,
-      totalMarks: totalMarks,
-      numQuestions: numQuestions,
-      previousQuestions: previousQuestions,
-      difficultQuestions: difficultQuestions,
+    final scope = _QuestionScope(
+      schoolId: (schoolId ?? '').trim(),
+      standard: className.trim(),
+      sectionId: (sectionId ?? section).trim(),
+      subject: subject.trim(),
+      topic: topic.trim(),
+      difficultyLevel: difficulty.trim(),
     );
 
-    // Call the proxy with retry logic
-    final responseContent = await _callProxyWithRetry(prompt);
+    final scopedMemory = await _loadScopedQuestionMemory(scope);
+    final candidatesNeeded = _initialCandidateCount(numQuestions);
 
-    // Parse and process the response
-    final questions = _parseResponse(responseContent);
+    final approvedQuestions = <TestQuestion>[];
+    final exactFingerprints = <String>{...scopedMemory.fingerprints};
+    final approvedVectors = <List<double>>[];
+    final semanticReviewFallback = <TestQuestion>[];
 
-    // Distribute marks across questions
-    _distributeMarks(questions, totalMarks);
+    int rounds = 0;
+    while (approvedQuestions.length < numQuestions && rounds < 4) {
+      final remaining = numQuestions - approvedQuestions.length;
+      final requestCount = max(
+        remaining + 2,
+        min(candidatesNeeded, remaining + 8),
+      );
 
-    // Validate uniqueness
-    _validateUniqueness(questions);
+      final prompt = _buildPrompt(
+        className: className,
+        section: section,
+        subject: subject,
+        topic: topic,
+        difficulty: difficulty,
+        totalMarks: totalMarks,
+        numQuestions: requestCount,
+        previousQuestions: previousQuestions,
+        difficultQuestions: difficultQuestions,
+      );
 
-    return questions;
+      final responseContent = await _callProxyWithRetry(prompt);
+      final generatedCandidates = _parseResponse(responseContent);
+
+      for (final candidate in generatedCandidates) {
+        if (approvedQuestions.length >= numQuestions) break;
+
+        final normalized = _normalizeQuestionText(candidate.questionText);
+        final fingerprint = _fingerprint(normalized);
+
+        if (exactFingerprints.contains(fingerprint) ||
+            _recentFingerprintCache.containsKey(fingerprint)) {
+          continue;
+        }
+
+        final embedding = _safeVectorize(normalized);
+        final semanticCheck = _isSemanticallyDuplicate(
+          embedding,
+          scopedMemory.embeddings,
+          approvedVectors,
+        );
+
+        if (semanticCheck.duplicate) {
+          continue;
+        }
+
+        if (semanticCheck.reviewOnly) {
+          semanticReviewFallback.add(candidate);
+          continue;
+        }
+
+        approvedQuestions.add(candidate);
+        exactFingerprints.add(fingerprint);
+        _trackRecentFingerprint(fingerprint);
+        if (embedding != null) {
+          approvedVectors.add(embedding);
+          _cacheEmbedding(normalized, embedding);
+        }
+      }
+
+      rounds++;
+    }
+
+    // Fallback: if semantic flow failed frequently, allow review-only candidates
+    // while still enforcing exact duplicate prevention.
+    if (approvedQuestions.length < numQuestions &&
+        semanticReviewFallback.isNotEmpty) {
+      for (final candidate in semanticReviewFallback) {
+        if (approvedQuestions.length >= numQuestions) break;
+        final normalized = _normalizeQuestionText(candidate.questionText);
+        final fingerprint = _fingerprint(normalized);
+        if (exactFingerprints.contains(fingerprint) ||
+            _recentFingerprintCache.containsKey(fingerprint)) {
+          continue;
+        }
+
+        approvedQuestions.add(candidate);
+        exactFingerprints.add(fingerprint);
+        _trackRecentFingerprint(fingerprint);
+      }
+    }
+
+    if (approvedQuestions.isEmpty) {
+      throw ParseException('No unique questions could be generated.');
+    }
+
+    final finalQuestions = approvedQuestions.take(numQuestions).toList();
+    _distributeMarks(finalQuestions, totalMarks);
+    _validateUniqueness(finalQuestions);
+
+    await _storeApprovedQuestions(
+      scope: scope,
+      questions: finalQuestions,
+      teacherId: (teacherId ?? '').trim(),
+      testTitle: (testTitle ?? '').trim(),
+      sourceTestId: (sourceTestId ?? '').trim(),
+    );
+
+    return finalQuestions;
   }
 
   /// Validate input parameters
@@ -163,63 +280,28 @@ class AITestService {
   }) {
     final buffer = StringBuffer();
 
-    buffer.writeln('Create $numQuestions unique exam questions.');
-    buffer.writeln();
-    buffer.writeln('Class: $className');
-    buffer.writeln('Section: $section');
-    buffer.writeln('Subject: $subject');
-    buffer.writeln('Topic: $topic');
-    buffer.writeln('Difficulty Level: $difficulty');
-    buffer.writeln('Total Marks: $totalMarks');
-    buffer.writeln();
-
-    // Add previous questions to avoid
-    if (previousQuestions != null && previousQuestions.isNotEmpty) {
-      buffer.writeln('Avoid ALL previous questions below:');
-      for (var i = 0; i < previousQuestions.length && i < 10; i++) {
-        final q = previousQuestions[i];
-        buffer.writeln('${i + 1}. ${q['questionText']}');
-      }
-      buffer.writeln();
-    }
-
+    // Keep prompt compact to reduce token cost. Duplicate prevention is handled locally.
+    buffer.writeln(
+      'Generate $numQuestions questions for $className $section, subject $subject, topic "$topic", difficulty $difficulty.',
+    );
+    buffer.writeln('Return only JSON array with schema:');
+    buffer.writeln(
+      '[{"type":"mcq|truefalse","questionText":"...","marks":1,"options":["A","B","C","D"],"correctAnswer":"A|B|C|D|true|false"}]',
+    );
     buffer.writeln('Rules:');
-    buffer.writeln('- Output must be STRICT JSON array only.');
-    buffer.writeln('- MCQ must contain exactly 4 options.');
-    buffer.writeln('- True/False must contain no options.');
-    buffer.writeln('- Difficulty rules:');
-    buffer.writeln('  Easy: memory + basics');
-    buffer.writeln('  Medium: mix of conceptual + direct');
-    buffer.writeln('  Hard: application-level reasoning');
-    buffer.writeln('  Mixed: random blend');
-    buffer.writeln('- NO repeated or similar questions.');
+    buffer.writeln('1) MCQ must have 4 options and one correct letter A-D.');
     buffer.writeln(
-      '- Ensure every question is different from previous question history.',
+      '2) truefalse must not include options; answer true or false.',
     );
-    buffer.writeln();
-
-    buffer.writeln('OUTPUT FORMAT:');
-    buffer.writeln(
-      'Return ONLY a JSON array. No markdown code blocks. No explanatory text.',
-    );
-    buffer.writeln('Example:');
-    buffer.writeln('[');
-    buffer.writeln('  {');
-    buffer.writeln('    "type": "mcq",');
-    buffer.writeln('    "questionText": "What is 2 + 2?",');
-    buffer.writeln('    "marks": 2,');
-    buffer.writeln('    "options": ["3", "4", "5", "6"],');
-    buffer.writeln('    "correctAnswer": "B"');
-    buffer.writeln('  },');
-    buffer.writeln('  {');
-    buffer.writeln('    "type": "truefalse",');
-    buffer.writeln('    "questionText": "The Earth is flat.",');
-    buffer.writeln('    "marks": 1,');
-    buffer.writeln('    "correctAnswer": "false"');
-    buffer.writeln('  }');
-    buffer.writeln(']');
+    buffer.writeln('3) Keep wording concise and curriculum-aligned.');
+    buffer.writeln('4) No markdown, no explanation, JSON only.');
 
     return buffer.toString();
+  }
+
+  int _initialCandidateCount(int requested) {
+    if (requested <= 3) return requested + 3;
+    return requested + max(2, (requested * 0.6).ceil());
   }
 
   /// Call proxy with exponential backoff retry
@@ -493,6 +575,238 @@ class AITestService {
     }
   }
 
+  Future<_ScopedQuestionMemory> _loadScopedQuestionMemory(
+    _QuestionScope scope,
+  ) async {
+    if (scope.schoolId.isEmpty) {
+      return const _ScopedQuestionMemory(entries: []);
+    }
+
+    final cacheKey = scope.cacheKey;
+    final cached = _scopedMemoryCache[cacheKey];
+    final now = DateTime.now();
+    if (cached != null && cached.expiresAt.isAfter(now)) {
+      return cached.memory;
+    }
+
+    try {
+      Query<Map<String, dynamic>> query = _firestore
+          .collection('question_bank')
+          .where('schoolId', isEqualTo: scope.schoolId)
+          .where('standard', isEqualTo: scope.standard)
+          .where('subject', isEqualTo: scope.subject)
+          .where('topic', isEqualTo: scope.topic)
+          .limit(_maxScopedQuestionReads);
+
+      if (scope.sectionId.isNotEmpty) {
+        query = query.where('sectionId', isEqualTo: scope.sectionId);
+      }
+
+      final snap = await query.get();
+      final entries = snap.docs
+          .map((doc) {
+            final data = doc.data();
+            final normalized =
+                (data['normalizedText'] as String?)?.trim() ?? '';
+            final fingerprint = (data['fingerprint'] as String?)?.trim() ?? '';
+            final embeddingRaw = data['embeddingVector'];
+            final embedding = _parseEmbedding(embeddingRaw);
+
+            return _QuestionMemoryEntry(
+              normalizedText: normalized,
+              fingerprint: fingerprint,
+              embedding: embedding,
+            );
+          })
+          .where((e) => e.fingerprint.isNotEmpty || e.normalizedText.isNotEmpty)
+          .toList();
+
+      final memory = _ScopedQuestionMemory(entries: entries);
+      _scopedMemoryCache[cacheKey] = _ScopedMemoryCache(
+        memory: memory,
+        expiresAt: now.add(_memoryCacheTtl),
+      );
+      return memory;
+    } catch (_) {
+      // Network or query failure: allow generation to continue with local checks.
+      return const _ScopedQuestionMemory(entries: []);
+    }
+  }
+
+  Future<void> _storeApprovedQuestions({
+    required _QuestionScope scope,
+    required List<TestQuestion> questions,
+    required String teacherId,
+    required String testTitle,
+    required String sourceTestId,
+  }) async {
+    if (scope.schoolId.isEmpty || questions.isEmpty) return;
+
+    final batch = _firestore.batch();
+    for (final question in questions) {
+      final normalized = _normalizeQuestionText(question.questionText);
+      final fingerprint = _fingerprint(normalized);
+      final embedding = _safeVectorize(normalized);
+
+      final docRef = _firestore.collection('question_bank').doc();
+      batch.set(docRef, {
+        'questionId': docRef.id,
+        'schoolId': scope.schoolId,
+        'standard': scope.standard,
+        'sectionId': scope.sectionId,
+        'subject': scope.subject,
+        'topic': scope.topic,
+        'difficultyLevel': scope.difficultyLevel,
+        'questionText': question.questionText,
+        'normalizedText': normalized,
+        'fingerprint': fingerprint,
+        if (embedding != null) 'embeddingVector': embedding,
+        'questionFormat': question.type.toStringValue(),
+        'answerOptions': question.options,
+        'correctAnswer': question.correctAnswer,
+        'marks': question.marks,
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdByTeacherId': teacherId,
+        'sourceTestId': sourceTestId,
+        if (testTitle.isNotEmpty) 'sourceTestTitle': testTitle,
+      });
+    }
+
+    try {
+      await batch.commit();
+
+      // Invalidate scoped cache for fresh future reads.
+      _scopedMemoryCache.remove(scope.cacheKey);
+    } catch (_) {
+      // Non-blocking: question bank write failure should not fail test generation.
+    }
+  }
+
+  String _normalizeQuestionText(String text) {
+    String normalized = text.toLowerCase();
+
+    normalized = normalized.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    normalized = normalized.replaceAll(RegExp(r'\d+'), '#');
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    return normalized;
+  }
+
+  String _fingerprint(String normalizedText) {
+    return sha256.convert(utf8.encode(normalizedText)).toString();
+  }
+
+  List<double>? _safeVectorize(String normalizedText) {
+    try {
+      if (_embeddingCache.containsKey(normalizedText)) {
+        return _embeddingCache[normalizedText];
+      }
+
+      final tokens = normalizedText
+          .split(' ')
+          .where((t) => t.isNotEmpty && t.length > 1)
+          .toList();
+
+      if (tokens.isEmpty) return null;
+
+      const size = 64;
+      final vector = List<double>.filled(size, 0);
+      for (final token in tokens) {
+        final idx = token.hashCode.abs() % size;
+        vector[idx] += 1.0;
+      }
+
+      double norm = 0;
+      for (final v in vector) {
+        norm += v * v;
+      }
+      norm = sqrt(norm);
+      if (norm == 0) return null;
+
+      for (var i = 0; i < vector.length; i++) {
+        vector[i] = vector[i] / norm;
+      }
+
+      _cacheEmbedding(normalizedText, vector);
+      return vector;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  _SemanticDuplicateResult _isSemanticallyDuplicate(
+    List<double>? candidateVector,
+    List<List<double>> historicalVectors,
+    List<List<double>> currentVectors,
+  ) {
+    if (candidateVector == null) {
+      return const _SemanticDuplicateResult(reviewOnly: true, duplicate: false);
+    }
+
+    try {
+      for (final vector in historicalVectors) {
+        if (_cosineSimilarity(candidateVector, vector) > _semanticThreshold) {
+          return const _SemanticDuplicateResult(
+            duplicate: true,
+            reviewOnly: false,
+          );
+        }
+      }
+
+      for (final vector in currentVectors) {
+        if (_cosineSimilarity(candidateVector, vector) > _semanticThreshold) {
+          return const _SemanticDuplicateResult(
+            duplicate: true,
+            reviewOnly: false,
+          );
+        }
+      }
+
+      return const _SemanticDuplicateResult(
+        duplicate: false,
+        reviewOnly: false,
+      );
+    } catch (_) {
+      // If embedding/similarity check fails, keep question but mark as review-only.
+      return const _SemanticDuplicateResult(reviewOnly: true, duplicate: false);
+    }
+  }
+
+  double _cosineSimilarity(List<double> a, List<double> b) {
+    if (a.length != b.length || a.isEmpty) return 0;
+
+    double dot = 0;
+    for (var i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+    }
+    return dot;
+  }
+
+  List<double>? _parseEmbedding(dynamic raw) {
+    if (raw is! List) return null;
+    try {
+      return raw.map((e) => (e as num).toDouble()).toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _cacheEmbedding(String normalizedText, List<double> vector) {
+    _embeddingCache[normalizedText] = vector;
+    if (_embeddingCache.length > _maxStoredEmbeddings) {
+      final firstKey = _embeddingCache.keys.first;
+      _embeddingCache.remove(firstKey);
+    }
+  }
+
+  void _trackRecentFingerprint(String fingerprint) {
+    _recentFingerprintCache[fingerprint] = DateTime.now();
+    if (_recentFingerprintCache.length > _maxRecentFingerprints) {
+      final firstKey = _recentFingerprintCache.keys.first;
+      _recentFingerprintCache.remove(firstKey);
+    }
+  }
+
   /// Get a sample mock response for testing UI without proxy
   static String getMockResponse() {
     return jsonEncode([
@@ -536,4 +850,66 @@ class AITestService {
   void dispose() {
     _client.close();
   }
+}
+
+class _QuestionScope {
+  final String schoolId;
+  final String standard;
+  final String sectionId;
+  final String subject;
+  final String topic;
+  final String difficultyLevel;
+
+  const _QuestionScope({
+    required this.schoolId,
+    required this.standard,
+    required this.sectionId,
+    required this.subject,
+    required this.topic,
+    required this.difficultyLevel,
+  });
+
+  String get cacheKey =>
+      '$schoolId|$standard|$sectionId|$subject|$topic|$difficultyLevel';
+}
+
+class _QuestionMemoryEntry {
+  final String normalizedText;
+  final String fingerprint;
+  final List<double>? embedding;
+
+  const _QuestionMemoryEntry({
+    required this.normalizedText,
+    required this.fingerprint,
+    this.embedding,
+  });
+}
+
+class _ScopedQuestionMemory {
+  final List<_QuestionMemoryEntry> entries;
+
+  const _ScopedQuestionMemory({required this.entries});
+
+  Set<String> get fingerprints =>
+      entries.map((e) => e.fingerprint).where((v) => v.isNotEmpty).toSet();
+
+  List<List<double>> get embeddings =>
+      entries.map((e) => e.embedding).whereType<List<double>>().toList();
+}
+
+class _ScopedMemoryCache {
+  final _ScopedQuestionMemory memory;
+  final DateTime expiresAt;
+
+  const _ScopedMemoryCache({required this.memory, required this.expiresAt});
+}
+
+class _SemanticDuplicateResult {
+  final bool duplicate;
+  final bool reviewOnly;
+
+  const _SemanticDuplicateResult({
+    required this.duplicate,
+    required this.reviewOnly,
+  });
 }

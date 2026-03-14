@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../services/ai_test_service.dart';
-import '../../services/firestore_service.dart';
 import '../../services/teacher_service.dart';
 import '../../models/test_question.dart';
 import '../../exceptions/ai_exceptions.dart';
@@ -15,6 +14,7 @@ import '../../providers/test_assignment_lock_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../widgets/test_assignment_lock_banner.dart';
 import '../../widgets/test_schedule_picker.dart';
+import '../../core/constants/app_colors.dart';
 
 /// Screen for generating tests using AI
 ///
@@ -30,7 +30,6 @@ class CreateAITestScreen extends StatefulWidget {
 class _CreateAITestScreenState extends State<CreateAITestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _aiService = AITestService();
-  final _firestoreService = FirestoreService();
   final _teacherService = TeacherService();
 
   // Form controllers
@@ -349,410 +348,428 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 100),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Class dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _selectedClass,
-              decoration: const InputDecoration(
-                labelText: 'Class',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.school),
-              ),
-              items: _isLoadingTeacherData
-                  ? []
-                  : _classes.map((cls) {
-                      return DropdownMenuItem(
-                        value: cls,
-                        child: Text('Grade $cls'),
-                      );
-                    }).toList(),
-              onChanged: _classes.isEmpty
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _selectedClass = value;
-                        // Update sections based on selected class
-                        final grade = (value ?? '').trim();
-                        final secList = _gradeSections[grade] ?? <String>[];
-                        _sections = secList;
-                        _selectedSection = _sections.isNotEmpty
-                            ? _sections.first
-                            : null;
-                        // Update subjects based on new class+section
-                        if (value != null && _selectedSection != null) {
-                          final key = '${value.trim()}|$_selectedSection';
-                          final allSubjects =
-                              _classSectionSubjectsMap[key] ?? [];
-                          // Filter out "math" if there are other subjects available
-                          final filtered = allSubjects
-                              .where((s) => s.toLowerCase() != 'math')
-                              .toList();
-                          _subjects = filtered.isEmpty ? allSubjects : filtered;
-                          _subjects.sort();
-                          _selectedSubject = _subjects.isNotEmpty
-                              ? _subjects.first
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          inputDecorationTheme: Theme.of(context).inputDecorationTheme.copyWith(
+            focusedBorder: const OutlineInputBorder(
+              borderSide: BorderSide(color: AppColors.teacherColor, width: 2),
+            ),
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Class dropdown
+              DropdownButtonFormField<String>(
+                initialValue: _selectedClass,
+                decoration: const InputDecoration(
+                  labelText: 'Class',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.school),
+                ),
+                items: _isLoadingTeacherData
+                    ? []
+                    : _classes.map((cls) {
+                        return DropdownMenuItem(
+                          value: cls,
+                          child: Text('Grade $cls'),
+                        );
+                      }).toList(),
+                onChanged: _classes.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedClass = value;
+                          // Update sections based on selected class
+                          final grade = (value ?? '').trim();
+                          final secList = _gradeSections[grade] ?? <String>[];
+                          _sections = secList;
+                          _selectedSection = _sections.isNotEmpty
+                              ? _sections.first
                               : null;
-                        } else {
-                          _subjects = [];
-                          _selectedSubject = null;
-                        }
-                      });
-                      _watchLockIfReady();
-                    },
-              validator: (value) =>
-                  value == null ? 'Please select a class' : null,
-            ),
-            const SizedBox(height: 16),
-
-            // Section dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _selectedSection,
-              decoration: const InputDecoration(
-                labelText: 'Section',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.group),
+                          // Update subjects based on new class+section
+                          if (value != null && _selectedSection != null) {
+                            final key = '${value.trim()}|$_selectedSection';
+                            final allSubjects =
+                                _classSectionSubjectsMap[key] ?? [];
+                            // Filter out "math" if there are other subjects available
+                            final filtered = allSubjects
+                                .where((s) => s.toLowerCase() != 'math')
+                                .toList();
+                            _subjects = filtered.isEmpty
+                                ? allSubjects
+                                : filtered;
+                            _subjects.sort();
+                            _selectedSubject = _subjects.isNotEmpty
+                                ? _subjects.first
+                                : null;
+                          } else {
+                            _subjects = [];
+                            _selectedSubject = null;
+                          }
+                        });
+                        _watchLockIfReady();
+                      },
+                validator: (value) =>
+                    value == null ? 'Please select a class' : null,
               ),
-              items: _isLoadingTeacherData
-                  ? []
-                  : _sections.map((section) {
-                      return DropdownMenuItem(
-                        value: section,
-                        child: Text('Section $section'),
-                      );
-                    }).toList(),
-              onChanged: _sections.isEmpty
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _selectedSection = value;
-                        // Update subjects based on selected class+section
-                        if (_selectedClass != null && value != null) {
-                          final key = '$_selectedClass|$value';
-                          final allSubjects =
-                              _classSectionSubjectsMap[key] ?? [];
-                          // Filter out "math" if there are other subjects available
-                          final filtered = allSubjects
-                              .where((s) => s.toLowerCase() != 'math')
-                              .toList();
-                          _subjects = filtered.isEmpty ? allSubjects : filtered;
-                          _subjects.sort();
-                          _selectedSubject = _subjects.isNotEmpty
-                              ? _subjects.first
-                              : null;
-                        }
-                      });
-                      _watchLockIfReady();
-                    },
-              validator: (value) =>
-                  value == null ? 'Please select a section' : null,
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Title field
-            TextFormField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Test Title',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.title),
-                hintText: 'e.g., Mathematics Mid-Term Test',
+              // Section dropdown
+              DropdownButtonFormField<String>(
+                initialValue: _selectedSection,
+                decoration: const InputDecoration(
+                  labelText: 'Section',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.group),
+                ),
+                items: _isLoadingTeacherData
+                    ? []
+                    : _sections.map((section) {
+                        return DropdownMenuItem(
+                          value: section,
+                          child: Text('Section $section'),
+                        );
+                      }).toList(),
+                onChanged: _sections.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedSection = value;
+                          // Update subjects based on selected class+section
+                          if (_selectedClass != null && value != null) {
+                            final key = '$_selectedClass|$value';
+                            final allSubjects =
+                                _classSectionSubjectsMap[key] ?? [];
+                            // Filter out "math" if there are other subjects available
+                            final filtered = allSubjects
+                                .where((s) => s.toLowerCase() != 'math')
+                                .toList();
+                            _subjects = filtered.isEmpty
+                                ? allSubjects
+                                : filtered;
+                            _subjects.sort();
+                            _selectedSubject = _subjects.isNotEmpty
+                                ? _subjects.first
+                                : null;
+                          }
+                        });
+                        _watchLockIfReady();
+                      },
+                validator: (value) =>
+                    value == null ? 'Please select a section' : null,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a test title';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Subject dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _selectedSubject,
-              decoration: const InputDecoration(
-                labelText: 'Subject',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.book),
+              // Title field
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Test Title',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.title),
+                  hintText: 'e.g., Mathematics Mid-Term Test',
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a test title';
+                  }
+                  return null;
+                },
               ),
-              items: _isLoadingTeacherData
-                  ? []
-                  : _subjects.map((subject) {
-                      return DropdownMenuItem(
-                        value: subject,
-                        child: Text(subject),
-                      );
-                    }).toList(),
-              onChanged: _subjects.isEmpty
-                  ? null
-                  : (value) {
-                      setState(() => _selectedSubject = value);
-                      _watchLockIfReady();
-                    },
-              validator: (value) =>
-                  value == null ? 'Please select a subject' : null,
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Topic text field
-            TextFormField(
-              controller: _topicController,
-              decoration: const InputDecoration(
-                labelText: 'Topic',
-                hintText: 'e.g., Pythagorean Theorem',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.topic),
+              // Subject dropdown
+              DropdownButtonFormField<String>(
+                initialValue: _selectedSubject,
+                decoration: const InputDecoration(
+                  labelText: 'Subject',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.book),
+                ),
+                items: _isLoadingTeacherData
+                    ? []
+                    : _subjects.map((subject) {
+                        return DropdownMenuItem(
+                          value: subject,
+                          child: Text(subject),
+                        );
+                      }).toList(),
+                onChanged: _subjects.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() => _selectedSubject = value);
+                        _watchLockIfReady();
+                      },
+                validator: (value) =>
+                    value == null ? 'Please select a subject' : null,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a topic';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Difficulty dropdown
-            DropdownButtonFormField<String>(
-              initialValue: _selectedDifficulty,
-              decoration: const InputDecoration(
-                labelText: 'Difficulty Level',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.trending_up),
+              // Topic text field
+              TextFormField(
+                controller: _topicController,
+                decoration: const InputDecoration(
+                  labelText: 'Topic',
+                  hintText: 'e.g., Pythagorean Theorem',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.topic),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a topic';
+                  }
+                  return null;
+                },
               ),
-              items: const [
-                DropdownMenuItem(value: 'Easy', child: Text('Easy')),
-                DropdownMenuItem(value: 'Medium', child: Text('Medium')),
-                DropdownMenuItem(value: 'Hard', child: Text('Hard')),
-                DropdownMenuItem(value: 'Mixed', child: Text('Mixed')),
-              ],
-              onChanged: (value) =>
-                  setState(() => _selectedDifficulty = value!),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Number of questions slider
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Number of Questions: $_numQuestions',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: const Color(0xFF355872),
-                        inactiveTrackColor: const Color(
-                          0xFF355872,
-                        ).withOpacity(0.2),
-                        thumbColor: const Color(0xFF355872),
-                        overlayColor: const Color(0xFF355872).withOpacity(0.15),
-                        valueIndicatorColor: const Color(0xFF355872),
-                        valueIndicatorTextStyle: const TextStyle(
-                          color: Colors.white,
+              // Difficulty dropdown
+              DropdownButtonFormField<String>(
+                initialValue: _selectedDifficulty,
+                decoration: const InputDecoration(
+                  labelText: 'Difficulty Level',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.trending_up),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'Easy', child: Text('Easy')),
+                  DropdownMenuItem(value: 'Medium', child: Text('Medium')),
+                  DropdownMenuItem(value: 'Hard', child: Text('Hard')),
+                  DropdownMenuItem(value: 'Mixed', child: Text('Mixed')),
+                ],
+                onChanged: (value) =>
+                    setState(() => _selectedDifficulty = value!),
+              ),
+              const SizedBox(height: 16),
+
+              // Number of questions slider
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Number of Questions: $_numQuestions',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      SliderTheme(
+                        data: SliderThemeData(
+                          activeTrackColor: const Color(0xFF355872),
+                          inactiveTrackColor: const Color(
+                            0xFF355872,
+                          ).withOpacity(0.2),
+                          thumbColor: const Color(0xFF355872),
+                          overlayColor: const Color(
+                            0xFF355872,
+                          ).withOpacity(0.15),
+                          valueIndicatorColor: const Color(0xFF355872),
+                          valueIndicatorTextStyle: const TextStyle(
+                            color: Colors.white,
+                          ),
+                        ),
+                        child: Slider(
+                          value: _numQuestions.toDouble(),
+                          min: 1,
+                          max: 20,
+                          divisions: 19,
+                          label: _numQuestions.toString(),
+                          onChanged: (value) {
+                            setState(() => _numQuestions = value.toInt());
+                          },
                         ),
                       ),
-                      child: Slider(
-                        value: _numQuestions.toDouble(),
-                        min: 1,
-                        max: 20,
-                        divisions: 19,
-                        label: _numQuestions.toString(),
-                        onChanged: (value) {
-                          setState(() => _numQuestions = value.toInt());
-                        },
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Total marks and time limit
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _totalMarksController,
-                    decoration: const InputDecoration(
-                      labelText: 'Total Marks',
-                      hintText: 'e.g. 100',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.format_list_numbered),
+              // Total marks and time limit
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _totalMarksController,
+                      decoration: const InputDecoration(
+                        labelText: 'Total Marks',
+                        hintText: 'e.g. 100',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.format_list_numbered),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Required';
+                        }
+                        final marks = int.tryParse(value);
+                        if (marks == null || marks <= 0) {
+                          return 'Invalid number';
+                        }
+                        if (marks < _numQuestions) {
+                          return 'Min $_numQuestions';
+                        }
+                        return null;
+                      },
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Required';
-                      }
-                      final marks = int.tryParse(value);
-                      if (marks == null || marks <= 0) {
-                        return 'Invalid number';
-                      }
-                      if (marks < _numQuestions) {
-                        return 'Min $_numQuestions';
-                      }
-                      return null;
-                    },
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _timeLimitController,
-                    decoration: const InputDecoration(
-                      labelText: 'Time Limit',
-                      hintText: 'e.g. 90 mins',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.timer),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _timeLimitController,
+                      decoration: const InputDecoration(
+                        labelText: 'Time Limit',
+                        hintText: 'e.g. 90 mins',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.timer),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Required';
+                        }
+                        final time = int.tryParse(value);
+                        if (time == null || time <= 0) {
+                          return 'Invalid time';
+                        }
+                        return null;
+                      },
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Required';
-                      }
-                      final time = int.tryParse(value);
-                      if (time == null || time <= 0) {
-                        return 'Invalid time';
-                      }
-                      return null;
-                    },
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
+                ],
+              ),
+              const SizedBox(height: 24),
 
-            // Schedule Test Section
-            Row(
-              children: [
-                Icon(
-                  Icons.schedule,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white
-                      : const Color(0xFF355872),
-                  size: 24,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Schedule Test',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Date and Time Picker
-            InkWell(
-              onTap: () async {
-                await TestSchedulePicker.show(
-                  context: context,
-                  initialDate: _scheduledDate ?? DateTime.now(),
-                  initialTime: _scheduledTime ?? TimeOfDay.now(),
-                  onComplete: (dateTime) {
-                    setState(() {
-                      _scheduledDate = DateTime(
-                        dateTime.year,
-                        dateTime.month,
-                        dateTime.day,
-                      );
-                      _scheduledTime = TimeOfDay(
-                        hour: dateTime.hour,
-                        minute: dateTime.minute,
-                      );
-                    });
-                  },
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                decoration: BoxDecoration(
-                  border: Border.all(
+              // Schedule Test Section
+              Row(
+                children: [
+                  Icon(
+                    Icons.schedule,
                     color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey.shade700
-                        : Colors.grey.shade300,
+                        ? Colors.white
+                        : const Color(0xFF355872),
+                    size: 24,
                   ),
-                  borderRadius: BorderRadius.circular(12),
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF1C1C1E)
-                      : Colors.grey.shade50,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_month_rounded,
-                      size: 24,
-                      color: const Color(0xFF355872),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Schedule Test',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _scheduledDate == null
-                                ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
-                                : '${_scheduledDate!.day}/${_scheduledDate!.month}/${_scheduledDate!.year}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: _scheduledDate == null
-                                  ? Theme.of(context).textTheme.bodyLarge?.color
-                                        ?.withOpacity(0.4)
-                                  : Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.color,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _scheduledTime == null
-                                ? TimeOfDay.now().format(context)
-                                : _scheduledTime!.format(context),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: _scheduledTime == null
-                                  ? Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.color
-                                        ?.withOpacity(0.4)
-                                  : Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.color
-                                        ?.withOpacity(0.7),
-                            ),
-                          ),
-                        ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Date and Time Picker
+              InkWell(
+                onTap: () async {
+                  await TestSchedulePicker.show(
+                    context: context,
+                    initialDate: _scheduledDate ?? DateTime.now(),
+                    initialTime: _scheduledTime ?? TimeOfDay.now(),
+                    onComplete: (dateTime) {
+                      setState(() {
+                        _scheduledDate = DateTime(
+                          dateTime.year,
+                          dateTime.month,
+                          dateTime.day,
+                        );
+                        _scheduledTime = TimeOfDay(
+                          hour: dateTime.hour,
+                          minute: dateTime.minute,
+                        );
+                      });
+                    },
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.grey.shade700
+                          : Colors.grey.shade300,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? const Color(0xFF1C1C1E)
+                        : Colors.grey.shade50,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_month_rounded,
+                        size: 24,
+                        color: const Color(0xFF355872),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 16,
-                      color: Theme.of(
-                        context,
-                      ).iconTheme.color?.withOpacity(0.4),
-                    ),
-                  ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _scheduledDate == null
+                                  ? '${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}'
+                                  : '${_scheduledDate!.day}/${_scheduledDate!.month}/${_scheduledDate!.year}',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: _scheduledDate == null
+                                    ? Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.color
+                                          ?.withOpacity(0.4)
+                                    : Theme.of(
+                                        context,
+                                      ).textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              _scheduledTime == null
+                                  ? TimeOfDay.now().format(context)
+                                  : _scheduledTime!.format(context),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: _scheduledTime == null
+                                    ? Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color
+                                          ?.withOpacity(0.4)
+                                    : Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.color
+                                          ?.withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 16,
+                        color: Theme.of(
+                          context,
+                        ).iconTheme.color?.withOpacity(0.4),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            // const SizedBox(height: 2),
-          ],
+              // const SizedBox(height: 2),
+            ],
+          ),
         ),
       ),
     );
@@ -887,6 +904,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                   icon: const Icon(Icons.refresh),
                   label: const Text('Regenerate'),
                   style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.teacherColor,
+                    side: const BorderSide(
+                      color: AppColors.teacherColor,
+                      width: 1.4,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -1364,11 +1386,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
       }
 
       // Fetch previous questions for context
-      final previousQuestions = await _firestoreService.fetchPreviousQuestions(
-        className: _selectedClass!,
-        section: _selectedSection!,
-        subject: _selectedSubject!,
+      final auth = Provider.of<auth_provider.AuthProvider>(
+        context,
+        listen: false,
       );
+      final teacherUser = auth.currentUser;
 
       // Generate test
       final questions = await _aiService.generateTest(
@@ -1379,9 +1401,10 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         difficulty: _selectedDifficulty,
         totalMarks: int.parse(_totalMarksController.text),
         numQuestions: _numQuestions,
-        previousQuestions: previousQuestions.isNotEmpty
-            ? previousQuestions
-            : null,
+        schoolId: teacherUser?.instituteId,
+        teacherId: teacherUser?.uid,
+        sectionId: _selectedSection,
+        testTitle: _titleController.text.trim(),
       );
 
       // Close loading dialog
