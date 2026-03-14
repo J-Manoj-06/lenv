@@ -1789,7 +1789,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                       return m
                                                                           .publicUrl;
                                                                     }
-                                                                    // Priority 2: local path by r2Key
+                                                                    // Priority 2: derive URL from r2Key for legacy/partial metadata
+                                                                    if (m
+                                                                        .r2Key
+                                                                        .isNotEmpty) {
+                                                                      return '${CloudflareConfig.r2Domain}/${m.r2Key}';
+                                                                    }
+                                                                    // Priority 3: local path by r2Key
                                                                     final byR2Key =
                                                                         _localSenderMediaPaths[m
                                                                             .r2Key];
@@ -1799,7 +1805,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                             .isNotEmpty) {
                                                                       return byR2Key;
                                                                     }
-                                                                    // Priority 3: local path by messageId (set during initial upload)
+                                                                    // Priority 4: local path by messageId (set during initial upload)
                                                                     final byMsgId =
                                                                         _localSenderMediaPaths[m
                                                                             .messageId];
@@ -1809,7 +1815,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                             .isNotEmpty) {
                                                                       return byMsgId;
                                                                     }
-                                                                    // Priority 4: thumbnail (local file path stored in pending metadata)
+                                                                    // Priority 5: thumbnail (local file path stored in pending metadata)
                                                                     return m
                                                                             .thumbnail
                                                                             .isNotEmpty

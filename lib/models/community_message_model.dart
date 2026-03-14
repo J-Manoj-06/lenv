@@ -69,6 +69,34 @@ class CommunityMessageModel {
       });
     }
 
+    MediaMetadata? parsedMediaMetadata;
+    try {
+      if (data['mediaMetadata'] != null) {
+        parsedMediaMetadata = MediaMetadata.fromFirestore(
+          Map<String, dynamic>.from(data['mediaMetadata'] as Map),
+        );
+      }
+    } catch (_) {
+      parsedMediaMetadata = null;
+    }
+
+    List<MediaMetadata>? parsedMultipleMedia;
+    if (data['multipleMedia'] is List) {
+      final safeList = <MediaMetadata>[];
+      for (final item in (data['multipleMedia'] as List)) {
+        try {
+          if (item is Map) {
+            safeList.add(
+              MediaMetadata.fromFirestore(Map<String, dynamic>.from(item)),
+            );
+          }
+        } catch (_) {
+          // Skip only malformed media item, not the entire message.
+        }
+      }
+      parsedMultipleMedia = safeList.isNotEmpty ? safeList : null;
+    }
+
     return CommunityMessageModel(
       messageId: doc.id,
       communityId: data['communityId'] ?? '',
@@ -81,14 +109,8 @@ class CommunityMessageModel {
       imageUrl: data['imageUrl'] ?? '',
       fileUrl: data['fileUrl'] ?? '',
       fileName: data['fileName'] ?? '',
-      mediaMetadata: data['mediaMetadata'] != null
-          ? MediaMetadata.fromFirestore(data['mediaMetadata'])
-          : null,
-      multipleMedia: data['multipleMedia'] != null
-          ? (data['multipleMedia'] as List)
-                .map((m) => MediaMetadata.fromFirestore(m))
-                .toList()
-          : null,
+      mediaMetadata: parsedMediaMetadata,
+      multipleMedia: parsedMultipleMedia,
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] is Timestamp
                 ? (data['createdAt'] as Timestamp).toDate()

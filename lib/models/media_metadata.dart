@@ -44,14 +44,33 @@ class MediaMetadata {
     return fallback;
   }
 
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static String _parseString(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    return value.toString();
+  }
+
   /// Create from Firestore document
   factory MediaMetadata.fromFirestore(Map<String, dynamic> data) {
+    final parsedR2Key = _parseString(data['r2Key']);
+    final parsedPublicUrl = _parseString(data['publicUrl']).isNotEmpty
+        ? _parseString(data['publicUrl'])
+        : _parseString(data['url']);
+
     return MediaMetadata(
-      messageId: data['messageId'] as String? ?? '',
-      r2Key: data['r2Key'] as String? ?? '',
-      publicUrl: data['publicUrl'] as String? ?? '',
-      localPath: data['localPath'] as String?,
-      thumbnail: data['thumbnail'] as String? ?? '',
+      messageId: _parseString(data['messageId']),
+      r2Key: parsedR2Key,
+      publicUrl: parsedPublicUrl,
+      localPath: data['localPath'] is String ? data['localPath'] as String : null,
+      thumbnail: _parseString(data['thumbnail']),
       deletedLocally: data['deletedLocally'] as bool? ?? false,
       serverStatus: ServerStatus.fromString(
         data['serverStatus'] as String? ?? 'available',
@@ -61,9 +80,15 @@ class MediaMetadata {
         DateTime.now().add(const Duration(days: 30)),
       ),
       uploadedAt: _parseTimestamp(data['uploadedAt'], DateTime.now()),
-      fileSize: data['fileSize'] as int?,
-      mimeType: data['mimeType'] as String?,
-      originalFileName: data['originalFileName'] as String?,
+      fileSize: _parseInt(data['fileSize']),
+      mimeType: _parseString(data['mimeType']).isNotEmpty
+          ? _parseString(data['mimeType'])
+          : (_parseString(data['type']).isNotEmpty
+                ? _parseString(data['type'])
+                : null),
+      originalFileName: _parseString(data['originalFileName']).isNotEmpty
+          ? _parseString(data['originalFileName'])
+          : null,
     );
   }
 
