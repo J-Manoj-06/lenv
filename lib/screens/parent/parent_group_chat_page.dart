@@ -30,6 +30,8 @@ import '../../widgets/media_preview_card.dart';
 import '../../widgets/multi_image_message_bubble.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../services/connectivity_service.dart';
+import '../../services/media_availability_service.dart';
+import '../../services/media_storage_helper.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
 import '../../models/poll_model.dart';
@@ -102,6 +104,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   final ParentTeacherGroupService _service = ParentTeacherGroupService();
   final MediaRepository _mediaRepository = MediaRepository();
   final UnreadCountService _unreadService = UnreadCountService();
+  final MediaAvailabilityService _mediaAvailabilityService =
+      MediaAvailabilityService();
+  final MediaStorageHelper _mediaStorageHelper = MediaStorageHelper();
 
   // OFFLINE-FIRST SERVICES
   late final LocalMessageRepository _localRepo;
@@ -141,6 +146,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   bool _selectionMode = false;
   final ValueNotifier<Set<String>> _selectedMessages =
       ValueNotifier<Set<String>>({});
+  final Map<String, Map<String, dynamic>> _messageDataCache = {};
+  String? _shareEligibilitySelectionKey;
+  Future<bool>? _shareEligibilityFuture;
+  String? _forwardEligibilitySelectionKey;
+  Future<bool>? _forwardEligibilityFuture;
   final ValueNotifier<bool> _hasText = ValueNotifier<bool>(false);
 
   // ✅ NEW: Use ValueNotifier for loading state to avoid full rebuilds
@@ -170,6 +180,45 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         await _localRepo.getMessageById(pendingId);
   }
 
+  String _buildSelectionKey(Set<String> selectedIds) {
+    if (selectedIds.isEmpty) return '';
+    final sorted = selectedIds.toList()..sort();
+    return sorted.join('|');
+  }
+
+  void _invalidateSelectionEligibilityCache() {
+    _shareEligibilitySelectionKey = null;
+    _shareEligibilityFuture = null;
+    _forwardEligibilitySelectionKey = null;
+    _forwardEligibilityFuture = null;
+  }
+
+  Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_shareEligibilityFuture != null &&
+        _shareEligibilitySelectionKey == nextKey) {
+      return _shareEligibilityFuture!;
+    }
+    _shareEligibilitySelectionKey = nextKey;
+    _shareEligibilityFuture = _canShareSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _shareEligibilityFuture!;
+  }
+
+  Future<bool> _getForwardEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_forwardEligibilityFuture != null &&
+        _forwardEligibilitySelectionKey == nextKey) {
+      return _forwardEligibilityFuture!;
+    }
+    _forwardEligibilitySelectionKey = nextKey;
+    _forwardEligibilityFuture = _canForwardSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _forwardEligibilityFuture!;
+  }
+
   bool _isImageMime(String? mimeType) {
     final mt = (mimeType ?? '').toLowerCase();
     return mt.startsWith('image/');
@@ -181,6 +230,29 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     if (mt.startsWith('image/')) return 'image';
     if (mt.contains('pdf')) return 'pdf';
     return 'file';
+  }
+
+  void _toggleSelectedMessage({
+    required String messageId,
+    required bool isPending,
+    required bool isSelected,
+  }) {
+    if (isPending) return;
+
+    final selectedSet = _selectedMessages.value;
+    if (isSelected) {
+      if (selectedSet.length > 1) {
+        final updated = {...selectedSet};
+        updated.remove(messageId);
+        _selectedMessages.value = updated;
+      } else {
+        setState(() => _selectionMode = false);
+        _selectedMessages.value = {};
+        _invalidateSelectionEligibilityCache();
+      }
+    } else {
+      _selectedMessages.value = {...selectedSet, messageId};
+    }
   }
 
   Future<T?> _runWithoutInputFocus<T>(Future<T?> Function() action) async {
@@ -1446,6 +1518,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             if (_selectionMode) {
               setState(() => _selectionMode = false);
               _selectedMessages.value = {};
+              _invalidateSelectionEligibilityCache();
             } else {
               Navigator.of(context).maybePop();
             }
@@ -1498,15 +1571,56 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                 ValueListenableBuilder<Set<String>>(
                   valueListenable: _selectedMessages,
                   builder: (context, selectedSet, _) {
-                    return IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      color: Colors.redAccent,
-                      onPressed: selectedSet.isEmpty
-                          ? null
-                          : _deleteSelectedMessages,
-                      tooltip: selectedSet.isEmpty
-                          ? 'Select messages to delete'
-                          : 'Delete for everyone',
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FutureBuilder<bool>(
+                          future: _getForwardEligibilityFuture(selectedSet),
+                          builder: (context, snapshot) {
+                            final canForward =
+                                snapshot.data ?? selectedSet.isNotEmpty;
+                            return IconButton(
+                              icon: const Icon(
+                                Icons.reply_all_rounded,
+                                color: Colors.blueAccent,
+                                size: 24,
+                              ),
+                              tooltip: canForward
+                                  ? 'Forward'
+                                  : 'Download selected media first to forward',
+                              onPressed: selectedSet.isEmpty || !canForward
+                                  ? null
+                                  : _forwardSelectedMessages,
+                            );
+                          },
+                        ),
+                        FutureBuilder<bool>(
+                          future: _getShareEligibilityFuture(selectedSet),
+                          builder: (context, snapshot) {
+                            final canShare = snapshot.data == true;
+                            if (!canShare) return const SizedBox.shrink();
+                            return IconButton(
+                              icon: const Icon(
+                                Icons.share_rounded,
+                                color: Colors.white70,
+                                size: 24,
+                              ),
+                              tooltip: 'Share',
+                              onPressed: _shareSelectedMessages,
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          color: Colors.redAccent,
+                          onPressed: selectedSet.isEmpty
+                              ? null
+                              : _deleteSelectedMessages,
+                          tooltip: selectedSet.isEmpty
+                              ? 'Select messages to delete'
+                              : 'Delete for everyone',
+                        ),
+                      ],
                     );
                   },
                 ),
@@ -2027,39 +2141,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                           },
                                           onTap: _selectionMode && isCurrentUser
                                               ? () {
-                                                  if (!isPending) {
-                                                    final selectedSet =
-                                                        _selectedMessages.value;
-                                                    if (isSelected) {
-                                                      if (selectedSet.length >
-                                                          1) {
-                                                        final updated = {
-                                                          ...selectedSet,
-                                                        };
-                                                        updated.remove(
-                                                          msg.messageId,
-                                                        );
-                                                        _selectedMessages
-                                                                .value =
-                                                            updated;
-                                                      } else {
-                                                        // Deselecting the last message exits selection mode
-                                                        setState(() {
-                                                          _selectionMode =
-                                                              false;
-                                                          _selectedMessages
-                                                                  .value =
-                                                              {};
-                                                        });
-                                                      }
-                                                    } else {
-                                                      _selectedMessages.value =
-                                                          {
-                                                            ...selectedSet,
-                                                            msg.messageId,
-                                                          };
-                                                    }
-                                                  }
+                                                  _toggleSelectedMessage(
+                                                    messageId: msg.messageId,
+                                                    isPending: isPending,
+                                                    isSelected: isSelected,
+                                                  );
                                                 }
                                               : null,
                                           child: Column(
@@ -2240,6 +2326,23 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                       resolvedImageUrls,
                                                                   isMe:
                                                                       isCurrentUser,
+                                                                  selectionMode:
+                                                                      _selectionMode &&
+                                                                      isCurrentUser,
+                                                                  onSelectionTap:
+                                                                      _selectionMode &&
+                                                                          isCurrentUser
+                                                                      ? () {
+                                                                          _toggleSelectedMessage(
+                                                                            messageId:
+                                                                                msg.messageId,
+                                                                            isPending:
+                                                                                isPending,
+                                                                            isSelected:
+                                                                                isSelected,
+                                                                          );
+                                                                        }
+                                                                      : null,
                                                                   userRole:
                                                                       Provider.of<
                                                                             AuthProvider
@@ -4485,6 +4588,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       if (mounted) {
         setState(() => _selectionMode = false);
         _selectedMessages.value = {};
+        _invalidateSelectionEligibilityCache();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Messages deleted for everyone'),
@@ -4502,6 +4606,372 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         );
       }
     }
+  }
+
+  Future<Map<String, dynamic>?> _getMessageDataById(String id) async {
+    final cached = _messageDataCache[id];
+    if (cached != null) return cached;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('parent_teacher_groups')
+        .doc(widget.groupId)
+        .collection('messages')
+        .doc(id)
+        .get();
+    if (!doc.exists) return null;
+
+    final data = <String, dynamic>{...?(doc.data()), 'id': doc.id};
+    _messageDataCache[id] = data;
+    return data;
+  }
+
+  Future<String?> _resolveDownloadedLocalPath(
+    Map<String, dynamic> media,
+  ) async {
+    final directPath = media['localPath'] as String?;
+    if (directPath != null && directPath.isNotEmpty) {
+      final file = File(directPath);
+      if (await file.exists()) return directPath;
+    }
+
+    final urlCandidates = <String?>[
+      media['publicUrl'] as String?,
+      media['url'] as String?,
+      media['imageUrl'] as String?,
+      media['attachmentUrl'] as String?,
+      media['downloadUrl'] as String?,
+      media['fileUrl'] as String?,
+    ];
+
+    final keyCandidates = <String?>[
+      media['r2Key'] as String?,
+      media['key'] as String?,
+      media['mediaKey'] as String?,
+      media['path'] as String?,
+    ];
+
+    final normalizedKeys = <String>{};
+
+    void addKeyCandidate(String? raw) {
+      if (raw == null || raw.trim().isEmpty) return;
+      final trimmed = raw.trim();
+      normalizedKeys.add(trimmed);
+
+      var noLeadingSlash = trimmed;
+      while (noLeadingSlash.startsWith('/')) {
+        noLeadingSlash = noLeadingSlash.substring(1);
+      }
+      if (noLeadingSlash.isNotEmpty) normalizedKeys.add(noLeadingSlash);
+
+      final uri = Uri.tryParse(trimmed);
+      if (uri != null && uri.path.isNotEmpty) {
+        var path = uri.path;
+        while (path.startsWith('/')) {
+          path = path.substring(1);
+        }
+        if (path.isNotEmpty) {
+          normalizedKeys.add(path);
+          final decoded = Uri.decodeFull(path);
+          if (decoded.isNotEmpty) normalizedKeys.add(decoded);
+          final slashIndex = path.indexOf('/');
+          if (slashIndex > 0 && slashIndex < path.length - 1) {
+            normalizedKeys.add(path.substring(slashIndex + 1));
+          }
+        }
+      }
+    }
+
+    for (final key in keyCandidates) {
+      addKeyCandidate(key);
+    }
+    for (final url in urlCandidates) {
+      addKeyCandidate(url);
+    }
+
+    for (final key in normalizedKeys) {
+      final path = await _mediaAvailabilityService.getCachedFilePath(key);
+      if (path != null && path.isNotEmpty) return path;
+    }
+
+    final fileName = media['originalFileName'] as String?;
+    if (fileName != null && fileName.isNotEmpty) {
+      final all = await _mediaStorageHelper.getAllMediaMetadata();
+      for (final entry in all.values) {
+        if (entry.fileName == fileName) {
+          final file = File(entry.localPath);
+          if (await file.exists()) return entry.localPath;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<List<ShareMediaItem>> _buildShareItemsFromSelection(
+    Set<String> selectedIds,
+  ) async {
+    final items = <ShareMediaItem>[];
+
+    for (final id in selectedIds) {
+      final data = await _getMessageDataById(id);
+      if (data == null) return [];
+
+      final mediaMetaRaw = data['mediaMetadata'];
+      final imageUrl = data['imageUrl'] as String?;
+      final attachmentUrl = data['attachmentUrl'] as String?;
+      final fileUrl = data['fileUrl'] as String?;
+      final hasLegacyMediaUrl =
+          (imageUrl != null && imageUrl.isNotEmpty) ||
+          (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+          (fileUrl != null && fileUrl.isNotEmpty);
+
+      if (mediaMetaRaw is Map) {
+        final media = Map<String, dynamic>.from(mediaMetaRaw);
+        String? localPath = await _resolveDownloadedLocalPath(media);
+        if (localPath == null && hasLegacyMediaUrl) {
+          final fallbackMedia = <String, dynamic>{
+            ...media,
+            'localPath': data['localPath'] ?? media['localPath'],
+            'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+            'imageUrl': imageUrl,
+            'attachmentUrl': attachmentUrl,
+            'fileUrl': fileUrl,
+            'originalFileName':
+                media['originalFileName'] ??
+                data['attachmentName'] ??
+                data['fileName'],
+            'mimeType':
+                media['mimeType'] ?? data['attachmentType'] ?? data['mimeType'],
+          };
+          localPath = await _resolveDownloadedLocalPath(fallbackMedia);
+        }
+        if (localPath == null) return [];
+
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: media['originalFileName'] as String?,
+            mimeType: media['mimeType'] as String?,
+          ),
+        );
+      }
+
+      final multipleMediaRaw = data['multipleMedia'];
+      if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
+        for (final m in multipleMediaRaw) {
+          if (m is! Map) continue;
+          final media = Map<String, dynamic>.from(m);
+          final localPath = await _resolveDownloadedLocalPath(media);
+          if (localPath == null) return [];
+
+          items.add(
+            ShareMediaItem(
+              localPath: localPath,
+              fileName: media['originalFileName'] as String?,
+              mimeType: media['mimeType'] as String?,
+            ),
+          );
+        }
+      }
+
+      if (mediaMetaRaw is! Map &&
+          !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+          hasLegacyMediaUrl) {
+        final legacyMedia = <String, dynamic>{
+          'localPath': data['localPath'],
+          'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+          'originalFileName': data['attachmentName'] ?? data['fileName'],
+          'mimeType': data['attachmentType'] ?? data['mimeType'],
+          'imageUrl': imageUrl,
+          'attachmentUrl': attachmentUrl,
+          'fileUrl': fileUrl,
+        };
+        final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+        if (localPath == null) return [];
+        items.add(
+          ShareMediaItem(
+            localPath: localPath,
+            fileName: legacyMedia['originalFileName'] as String?,
+            mimeType: legacyMedia['mimeType'] as String?,
+          ),
+        );
+      }
+    }
+
+    return items;
+  }
+
+  Future<bool> _canShareSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+    final items = await _buildShareItemsFromSelection(selectedIds);
+    return items.isNotEmpty;
+  }
+
+  Future<bool> _canForwardSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+
+    for (final id in selectedIds) {
+      final data = await _getMessageDataById(id);
+      if (data == null) return false;
+
+      final mediaMetaRaw = data['mediaMetadata'];
+      final multipleMediaRaw = data['multipleMedia'];
+      final imageUrl = data['imageUrl'] as String?;
+      final attachmentUrl = data['attachmentUrl'] as String?;
+      final fileUrl = data['fileUrl'] as String?;
+      final hasLegacyMediaUrl =
+          (imageUrl != null && imageUrl.isNotEmpty) ||
+          (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+          (fileUrl != null && fileUrl.isNotEmpty);
+
+      if (mediaMetaRaw is Map) {
+        final media = Map<String, dynamic>.from(mediaMetaRaw);
+        String? localPath = await _resolveDownloadedLocalPath(media);
+        if (localPath == null && hasLegacyMediaUrl) {
+          final fallbackMedia = <String, dynamic>{
+            ...media,
+            'localPath': data['localPath'] ?? media['localPath'],
+            'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+            'imageUrl': imageUrl,
+            'attachmentUrl': attachmentUrl,
+            'fileUrl': fileUrl,
+            'originalFileName':
+                media['originalFileName'] ??
+                data['attachmentName'] ??
+                data['fileName'],
+            'mimeType':
+                media['mimeType'] ?? data['attachmentType'] ?? data['mimeType'],
+          };
+          localPath = await _resolveDownloadedLocalPath(fallbackMedia);
+        }
+        if (localPath == null) return false;
+      }
+
+      if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
+        for (final m in multipleMediaRaw) {
+          if (m is! Map) continue;
+          final media = Map<String, dynamic>.from(m);
+          final localPath = await _resolveDownloadedLocalPath(media);
+          if (localPath == null) return false;
+        }
+      }
+
+      if (mediaMetaRaw is! Map &&
+          !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+          hasLegacyMediaUrl) {
+        final legacyMedia = <String, dynamic>{
+          'localPath': data['localPath'],
+          'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+          'originalFileName': data['attachmentName'] ?? data['fileName'],
+          'mimeType': data['attachmentType'] ?? data['mimeType'],
+          'imageUrl': imageUrl,
+          'attachmentUrl': attachmentUrl,
+          'fileUrl': fileUrl,
+        };
+        final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+        if (localPath == null) return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<void> _forwardSelectedMessages() async {
+    final ids = _selectedMessages.value.toList();
+    if (ids.isEmpty) return;
+
+    final canForward = await _canForwardSelectedMessages(Set<String>.from(ids));
+    if (!canForward) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Download selected media first to enable forwarding'),
+        ),
+      );
+      return;
+    }
+
+    final forwardData = <ForwardMessageData>[];
+    for (final id in ids) {
+      final data = await _getMessageDataById(id);
+      if (data == null) continue;
+
+      final mediaMetaRaw = data['mediaMetadata'];
+      final multipleMediaRaw = data['multipleMedia'];
+
+      forwardData.add(
+        ForwardMessageData.fromRaw(
+          messageId: id,
+          senderId: data['senderId'] as String? ?? '',
+          senderName: data['senderName'] as String? ?? '',
+          rawData: data,
+          imageUrl: data['imageUrl'] as String?,
+          message: data['text'] as String? ?? '',
+          mediaMetadata: mediaMetaRaw is Map
+              ? MediaMetadata.fromFirestore(
+                  Map<String, dynamic>.from(mediaMetaRaw),
+                )
+              : null,
+          multipleMedia: multipleMediaRaw is List
+              ? multipleMediaRaw
+                    .whereType<Map>()
+                    .map(
+                      (media) => MediaMetadata.fromFirestore(
+                        Map<String, dynamic>.from(media),
+                      ),
+                    )
+                    .toList()
+              : null,
+        ),
+      );
+    }
+
+    if (forwardData.isEmpty || !mounted) return;
+
+    setState(() => _selectionMode = false);
+    _selectedMessages.value = {};
+    _invalidateSelectionEligibilityCache();
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ForwardSelectionScreen(messages: forwardData),
+      ),
+    );
+  }
+
+  Future<void> _shareSelectedMessages() async {
+    final selectedIds = _selectedMessages.value;
+    if (selectedIds.isEmpty) return;
+
+    final items = await _buildShareItemsFromSelection(selectedIds);
+    if (items.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Download selected media first to enable sharing'),
+        ),
+      );
+      return;
+    }
+
+    final ok = await ImageViewerActionService.shareMediaFiles(
+      items: items,
+      text: items.length > 1 ? 'Shared from New Reward' : null,
+      requireLocalOnly: true,
+    );
+
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Android share failed')));
+      return;
+    }
+
+    setState(() => _selectionMode = false);
+    _selectedMessages.value = {};
+    _invalidateSelectionEligibilityCache();
   }
 
   void _openSearch() {

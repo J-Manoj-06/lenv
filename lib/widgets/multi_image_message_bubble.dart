@@ -18,6 +18,8 @@ class MultiImageMessageBubble extends StatefulWidget {
   final List<String> imageUrls;
   final bool isMe;
   final void Function(int index, Map<int, String> cachedPaths) onImageTap;
+  final bool selectionMode;
+  final VoidCallback? onSelectionTap;
   final List<double?>?
   uploadProgress; // Upload progress for each image (0.0-1.0)
 
@@ -32,6 +34,8 @@ class MultiImageMessageBubble extends StatefulWidget {
     required this.imageUrls,
     required this.isMe,
     required this.onImageTap,
+    this.selectionMode = false,
+    this.onSelectionTap,
     this.uploadProgress,
     this.bubbleRadius = 4,
     this.tileRadius = 0,
@@ -166,6 +170,11 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
 
   /// Download all non-cached images
   Future<void> _downloadAllImages() async {
+    if (widget.selectionMode) {
+      widget.onSelectionTap?.call();
+      return;
+    }
+
     setState(() {
       _isDownloading = true;
       _downloadProgress = 0.0;
@@ -441,6 +450,17 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
     );
   }
 
+  void _handleTileTap(int index) {
+    if (widget.selectionMode) {
+      widget.onSelectionTap?.call();
+      return;
+    }
+
+    if (_allCached) {
+      widget.onImageTap(index, _cachedPaths);
+    }
+  }
+
   Widget _buildContent(BuildContext context) {
     final count = widget.imageUrls.length;
     // Border is 3px on each side = 6px, padding 3px on each side = 6px
@@ -466,9 +486,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
           url: widget.imageUrls[0],
           index: 0,
           radius: widget.tileRadius,
-          onTap: _allCached
-              ? (index) => widget.onImageTap(index, _cachedPaths)
-              : (_) {}, // Disable if not cached
+          onTap: _handleTileTap,
           uploadProgress: widget.uploadProgress?[0],
           fit: BoxFit.cover,
           isCached: _cachedStatus[0] ?? false,
@@ -494,9 +512,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                     url: widget.imageUrls[0],
                     index: 0,
                     radius: widget.tileRadius,
-                    onTap: _allCached
-                        ? (index) => widget.onImageTap(index, _cachedPaths)
-                        : (_) {},
+                    onTap: _handleTileTap,
                     uploadProgress: widget.uploadProgress?[0],
                     isCached: _cachedStatus[0] ?? false,
                     cachedPath: _cachedPaths[0],
@@ -513,9 +529,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                     url: widget.imageUrls[1],
                     index: 1,
                     radius: widget.tileRadius,
-                    onTap: _allCached
-                        ? (index) => widget.onImageTap(index, _cachedPaths)
-                        : (_) {},
+                    onTap: _handleTileTap,
                     uploadProgress: widget.uploadProgress?[1],
                     isCached: _cachedStatus[1] ?? false,
                     cachedPath: _cachedPaths[1],
@@ -539,9 +553,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
           imageUrls: widget.imageUrls,
           gap: widget.gap,
           tileRadius: widget.tileRadius,
-          onTap: _allCached
-              ? (index) => widget.onImageTap(index, _cachedPaths)
-              : (_) {},
+          onTap: _handleTileTap,
           uploadProgress: widget.uploadProgress,
           cachedStatus: _cachedStatus,
           cachedPaths: _cachedPaths,
@@ -570,10 +582,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                           url: widget.imageUrls[0],
                           index: 0,
                           radius: widget.tileRadius,
-                          onTap: _allCached
-                              ? (index) =>
-                                    widget.onImageTap(index, _cachedPaths)
-                              : (_) {},
+                          onTap: _handleTileTap,
                           uploadProgress: widget.uploadProgress?[0],
                           isCached: _cachedStatus[0] ?? false,
                           cachedPath: _cachedPaths[0],
@@ -593,10 +602,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                           url: widget.imageUrls[1],
                           index: 1,
                           radius: widget.tileRadius,
-                          onTap: _allCached
-                              ? (index) =>
-                                    widget.onImageTap(index, _cachedPaths)
-                              : (_) {},
+                          onTap: _handleTileTap,
                           uploadProgress: widget.uploadProgress?[1],
                           isCached: _cachedStatus[1] ?? false,
                           cachedPath: _cachedPaths[1],
@@ -623,10 +629,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                           url: widget.imageUrls[2],
                           index: 2,
                           radius: widget.tileRadius,
-                          onTap: _allCached
-                              ? (index) =>
-                                    widget.onImageTap(index, _cachedPaths)
-                              : (_) {},
+                          onTap: _handleTileTap,
                           uploadProgress: widget.uploadProgress?[2],
                           isCached: _cachedStatus[2] ?? false,
                           cachedPath: _cachedPaths[2],
@@ -646,10 +649,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                           url: widget.imageUrls[3],
                           index: 3,
                           radius: widget.tileRadius,
-                          onTap: _allCached
-                              ? (index) =>
-                                    widget.onImageTap(index, _cachedPaths)
-                              : (_) {},
+                          onTap: _handleTileTap,
                           uploadProgress: widget.uploadProgress?[3],
                           isCached: _cachedStatus[3] ?? false,
                           cachedPath: _cachedPaths[3],
@@ -703,9 +703,7 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
           url: url,
           index: index,
           radius: widget.tileRadius,
-          onTap: _allCached
-              ? (index) => widget.onImageTap(index, _cachedPaths)
-              : (_) {},
+          onTap: _handleTileTap,
           showOverlay: showOverlay,
           overlayCount: overlayCount,
           uploadProgress:
