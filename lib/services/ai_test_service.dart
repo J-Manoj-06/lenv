@@ -660,7 +660,7 @@ class AITestService {
         'questionText': question.questionText,
         'normalizedText': normalized,
         'fingerprint': fingerprint,
-        if (embedding != null) 'embeddingVector': embedding,
+        'embeddingVector': ?embedding,
         'questionFormat': question.type.toStringValue(),
         'answerOptions': question.options,
         'correctAnswer': question.correctAnswer,

@@ -136,6 +136,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   final Map<String, double> _pendingUploadProgress = {};
   // Track which messages are currently uploading
   final Set<String> _uploadingMessageIds = {};
+  // Hide deleted messages immediately while backend deletion completes.
+  final Set<String> _optimisticallyDeletedMessageIds = {};
   // Local media paths for the sender (so they view from disk, no re-download)
   final Map<String, String> _localSenderMediaPaths = {};
   // Track upload failures for retry UI
@@ -2419,6 +2421,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                           });
                         }
 
+                        // Immediately hide messages queued for deletion.
+                        allMessages.removeWhere(
+                          (msg) => _optimisticallyDeletedMessageIds.contains(msg.id),
+                        );
+
                         // Sort by timestamp (newest first)
                         allMessages.sort(
                           (a, b) => b.timestamp.compareTo(a.timestamp),
@@ -2812,6 +2819,14 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     final messagesToDelete = _selectedMessages.toList();
     if (messagesToDelete.isEmpty) return;
 
+    final selectedSnapshot = Set<String>.from(messagesToDelete);
+    setState(() {
+      _optimisticallyDeletedMessageIds.addAll(selectedSnapshot);
+      _selectedMessages.clear();
+      _isSelectionMode = false;
+      _invalidateShareEligibilityCache();
+    });
+
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -2822,6 +2837,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       // Collect all R2 keys to delete (deduplication)
       final mediaToDelete = <String>{};
       final validMessages = <String>[];
+      final invalidMessages = <String>[];
 
       // First pass: Verify ownership and collect media keys
       for (final messageId in messagesToDelete) {
@@ -2840,6 +2856,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         final senderId = data?['senderId'] as String?;
 
         if (senderId == null || senderId != currentUserId) {
+          invalidMessages.add(messageId);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -2901,12 +2918,17 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         }
       }
 
-      // Delete media files from R2
-      if (mediaToDelete.isNotEmpty) {
-        await _deleteMediaFiles(mediaToDelete.toList());
+      if (invalidMessages.isNotEmpty && mounted) {
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(invalidMessages);
+        });
       }
 
-      // Update messages to mark as deleted
+      if (validMessages.isEmpty) {
+        return;
+      }
+
+      // Update messages first so they disappear from all clients quickly.
       final batch = FirebaseFirestore.instance.batch();
       for (final messageId in validMessages) {
         final messageRef = FirebaseFirestore.instance
@@ -2928,10 +2950,16 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
       await batch.commit();
 
-      setState(() {
-        _selectedMessages.clear();
-        _isSelectionMode = false;
-        _invalidateShareEligibilityCache();
+      // Delete media files from R2 in background so UI is not blocked.
+      if (mediaToDelete.isNotEmpty) {
+        unawaited(_deleteMediaFiles(mediaToDelete.toList()));
+      }
+
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(validMessages);
+        });
       });
 
       if (mounted) {
@@ -2943,6 +2971,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         );
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(selectedSnapshot);
+        });
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

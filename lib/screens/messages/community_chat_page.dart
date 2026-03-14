@@ -178,6 +178,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final Set<String> _uploadingMessageIds = {};
   final Set<String> _failedMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
+  // Hide deleted messages immediately while Firestore update propagates.
+  final Set<String> _optimisticallyDeletedMessageIds = {};
   final Map<String, String> _localSenderMediaPaths = {};
   DateTime? _lastMarkedMessageAt;
 
@@ -2494,6 +2496,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       });
                     }
 
+                    // Immediately hide messages queued for deletion.
+                    allMessages.removeWhere(
+                      (msg) => _optimisticallyDeletedMessageIds.contains(msg.id),
+                    );
+
                     allMessages.sort(
                       (a, b) => b.timestamp.compareTo(a.timestamp),
                     );
@@ -3596,6 +3603,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final messagesToDelete = _selectedMessages.value.toList();
     if (messagesToDelete.isEmpty) return;
 
+    final selectedSnapshot = Set<String>.from(messagesToDelete);
+    setState(() {
+      _optimisticallyDeletedMessageIds.addAll(selectedSnapshot);
+    });
+    _selectedMessages.value = {};
+    _isSelectionMode.value = false;
+    _invalidateShareEligibilityCache();
+
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -3605,6 +3620,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
       // Verify ownership and collect media to delete
       final validMessages = <String>[];
+      final invalidMessages = <String>[];
       final batch = FirebaseFirestore.instance.batch();
 
       for (final messageId in messagesToDelete) {
@@ -3621,6 +3637,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         final senderId = data?['senderId'] as String?;
 
         if (senderId == null || senderId != currentUserId) {
+          invalidMessages.add(messageId);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -3644,14 +3661,25 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         });
       }
 
+      if (invalidMessages.isNotEmpty && mounted) {
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(invalidMessages);
+        });
+      }
+
       // Execute batch delete - all messages deleted instantly
       if (validMessages.isNotEmpty) {
         await batch.commit();
+      } else {
+        return;
       }
 
-      _selectedMessages.value = {};
-      _isSelectionMode.value = false;
-      _invalidateShareEligibilityCache();
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(validMessages);
+        });
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3662,6 +3690,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         );
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(selectedSnapshot);
+        });
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

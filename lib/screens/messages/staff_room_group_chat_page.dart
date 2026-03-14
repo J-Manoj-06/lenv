@@ -96,6 +96,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   final Set<String> _uploadingMessageIds = {};
   final Set<String> _failedMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
+  // Hide deleted messages immediately while backend operations complete.
+  final Set<String> _optimisticallyDeletedMessageIds = {};
   final Map<String, String> _localFilePaths = {};
   final Map<String, ValueNotifier<double>> _progressNotifiers = {};
 
@@ -2618,6 +2620,12 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           allMessages.add(_messageCache[messageId]!);
         }
 
+        // Immediately hide messages queued for deletion.
+        allMessages.removeWhere((msg) {
+          final id = msg['id'] as String?;
+          return id != null && _optimisticallyDeletedMessageIds.contains(id);
+        });
+
         // Sort by timestamp
         allMessages.sort((a, b) {
           final aTime = a['createdAt'];
@@ -3655,6 +3663,14 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final messagesToDelete = _selectedMessages.value.toList();
     if (messagesToDelete.isEmpty) return;
 
+    final selectedSnapshot = Set<String>.from(messagesToDelete);
+    setState(() {
+      _optimisticallyDeletedMessageIds.addAll(selectedSnapshot);
+    });
+    _selectedMessages.value = {};
+    _isSelectionMode.value = false;
+    _invalidateShareEligibilityCache();
+
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.currentUser?.uid;
@@ -3665,6 +3681,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       // First, verify ownership and collect media to delete
       final mediaToDelete = <String>[];
       final validMessages = <String>[];
+      final invalidMessages = <String>[];
 
       final batch = FirebaseFirestore.instance.batch();
 
@@ -3683,6 +3700,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         final senderId = data?['senderId'] as String?;
 
         if (senderId == null || senderId != currentUserId) {
+          invalidMessages.add(messageId);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -3759,19 +3777,30 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         });
       }
 
-      // Execute batch delete - all messages deleted instantly
-      if (validMessages.isNotEmpty) {
-        await batch.commit();
-
-        // Delete media files in background (don't wait)
-        if (mediaToDelete.isNotEmpty) {
-          _deleteMediaFiles(mediaToDelete);
-        }
+      if (invalidMessages.isNotEmpty && mounted) {
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(invalidMessages);
+        });
       }
 
-      _selectedMessages.value = {};
-      _isSelectionMode.value = false;
-      _invalidateShareEligibilityCache();
+      if (validMessages.isEmpty) {
+        return;
+      }
+
+      // Execute batch delete - all messages deleted instantly
+      await batch.commit();
+
+      // Delete media files in background (don't wait)
+      if (mediaToDelete.isNotEmpty) {
+        _deleteMediaFiles(mediaToDelete);
+      }
+
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(validMessages);
+        });
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3782,6 +3811,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         );
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(selectedSnapshot);
+        });
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
