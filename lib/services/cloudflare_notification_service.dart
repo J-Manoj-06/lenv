@@ -82,8 +82,8 @@ class CloudflareNotificationService {
       'recipientId': recipientId,
       'text': text,
       'messageType': messageType,
-      if (deepLinkRoute != null) 'deepLinkRoute': deepLinkRoute,
-      if (metadata != null) 'metadata': metadata,
+      'deepLinkRoute': ?deepLinkRoute,
+      'metadata': ?metadata,
     });
   }
 
@@ -112,9 +112,9 @@ class CloudflareNotificationService {
       'recipientIds': recipientIds,
       'content': content,
       'messageType': messageType,
-      if (groupName != null) 'groupName': groupName,
-      if (deepLinkRoute != null) 'deepLinkRoute': deepLinkRoute,
-      if (metadata != null) 'metadata': metadata,
+      'groupName': ?groupName,
+      'deepLinkRoute': ?deepLinkRoute,
+      'metadata': ?metadata,
     });
   }
 
@@ -160,9 +160,9 @@ class CloudflareNotificationService {
       'section': section,
       'schoolCode': schoolCode,
       'studentIds': studentIds,
-      if (teacherName != null) 'teacherName': teacherName,
-      if (deepLinkRoute != null) 'deepLinkRoute': deepLinkRoute,
-      if (metadata != null) 'metadata': metadata,
+      'teacherName': ?teacherName,
+      'deepLinkRoute': ?deepLinkRoute,
+      'metadata': ?metadata,
     });
   }
 
@@ -182,8 +182,8 @@ class CloudflareNotificationService {
       'productName': productName,
       'studentId': studentId,
       if (parentId != null && parentId.isNotEmpty) 'parentId': parentId,
-      if (deepLinkRoute != null) 'deepLinkRoute': deepLinkRoute,
-      if (metadata != null) 'metadata': metadata,
+      'deepLinkRoute': ?deepLinkRoute,
+      'metadata': ?metadata,
     });
   }
 
@@ -229,10 +229,10 @@ class CloudflareNotificationService {
       'schoolId': schoolId,
       'important': important,
       if (title != null && title.isNotEmpty) 'title': title,
-      if (standards != null) 'standards': standards,
-      if (sections != null) 'sections': sections,
-      if (deepLinkRoute != null) 'deepLinkRoute': deepLinkRoute,
-      if (metadata != null) 'metadata': metadata,
+      'standards': ?standards,
+      'sections': ?sections,
+      'deepLinkRoute': ?deepLinkRoute,
+      'metadata': ?metadata,
     });
   }
 

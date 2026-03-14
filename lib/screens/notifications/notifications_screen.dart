@@ -106,7 +106,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   },
                 );
               },
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemCount: _tabs.length,
             ),
           ),

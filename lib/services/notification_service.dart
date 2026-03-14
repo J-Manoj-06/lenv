@@ -183,8 +183,21 @@ class NotificationService {
     try {
       final token = await getToken();
       if (token != null) {
+        // Try saving now — succeeds if user session already restored
         await saveTokenToFirestore(token);
       }
+
+      // Also save when auth state confirms a logged-in user.
+      // This covers the race where the token is obtained before Firebase Auth
+      // restores the persisted session (most first-run and cold-start cases).
+      FirebaseAuth.instance.authStateChanges().listen((user) async {
+        if (user != null) {
+          final currentToken = await getToken();
+          if (currentToken != null) {
+            await saveTokenToFirestore(currentToken);
+          }
+        }
+      });
 
       // Listen to token refresh
       _firebaseMessaging.onTokenRefresh.listen((newToken) {
