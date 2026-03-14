@@ -1577,18 +1577,16 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                         FutureBuilder<bool>(
                           future: _getForwardEligibilityFuture(selectedSet),
                           builder: (context, snapshot) {
-                            final canForward =
-                                snapshot.data ?? selectedSet.isNotEmpty;
+                            final canForward = snapshot.data == true;
+                            if (!canForward) return const SizedBox.shrink();
                             return IconButton(
                               icon: const Icon(
                                 Icons.reply_all_rounded,
                                 color: Colors.blueAccent,
                                 size: 24,
                               ),
-                              tooltip: canForward
-                                  ? 'Forward'
-                                  : 'Download selected media first to forward',
-                              onPressed: selectedSet.isEmpty || !canForward
+                              tooltip: 'Forward',
+                              onPressed: selectedSet.isEmpty
                                   ? null
                                   : _forwardSelectedMessages,
                             );

@@ -198,6 +198,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
   String? _shareEligibilitySelectionKey;
   Future<bool>? _shareEligibilityFuture;
+  String? _forwardEligibilitySelectionKey;
+  Future<bool>? _forwardEligibilityFuture;
 
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
@@ -273,6 +275,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   void _invalidateShareEligibilityCache() {
     _shareEligibilitySelectionKey = null;
     _shareEligibilityFuture = null;
+    _forwardEligibilitySelectionKey = null;
+    _forwardEligibilityFuture = null;
   }
 
   Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
@@ -286,6 +290,19 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       Set<String>.from(selectedIds),
     );
     return _shareEligibilityFuture!;
+  }
+
+  Future<bool> _getForwardEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_forwardEligibilityFuture != null &&
+        _forwardEligibilitySelectionKey == nextKey) {
+      return _forwardEligibilityFuture!;
+    }
+    _forwardEligibilitySelectionKey = nextKey;
+    _forwardEligibilityFuture = _canForwardSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _forwardEligibilityFuture!;
   }
 
   @override
@@ -2091,16 +2108,25 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       ? Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.reply_all_rounded,
-                                color: Colors.blueAccent,
-                                size: 24,
+                            FutureBuilder<bool>(
+                              future: _getForwardEligibilityFuture(
+                                selectedMessages,
                               ),
-                              tooltip: 'Forward',
-                              onPressed: selectedMessages.isEmpty
-                                  ? null
-                                  : _forwardSelectedMessages,
+                              builder: (context, snapshot) {
+                                final canForward = snapshot.data == true;
+                                if (!canForward) return const SizedBox.shrink();
+                                return IconButton(
+                                  icon: const Icon(
+                                    Icons.reply_all_rounded,
+                                    color: Colors.blueAccent,
+                                    size: 24,
+                                  ),
+                                  tooltip: 'Forward',
+                                  onPressed: selectedMessages.isEmpty
+                                      ? null
+                                      : _forwardSelectedMessages,
+                                );
+                              },
                             ),
                             FutureBuilder<bool>(
                               future: _getShareEligibilityFuture(
@@ -3303,6 +3329,81 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     }
 
     return items.isNotEmpty;
+  }
+
+  Future<bool> _canForwardSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+
+    for (final id in selectedIds) {
+      final doc = await FirebaseFirestore.instance
+          .collection('communities')
+          .doc(widget.communityId)
+          .collection('messages')
+          .doc(id)
+          .get();
+      if (!doc.exists) return false;
+
+      final data = doc.data()!;
+      final mediaMetaRaw = data['mediaMetadata'];
+      final multipleMediaRaw = data['multipleMedia'];
+      final imageUrl = data['imageUrl'] as String?;
+      final attachmentUrl = data['attachmentUrl'] as String?;
+      final fileUrl = data['fileUrl'] as String?;
+      final hasLegacyMediaUrl =
+          (imageUrl != null && imageUrl.isNotEmpty) ||
+          (attachmentUrl != null && attachmentUrl.isNotEmpty) ||
+          (fileUrl != null && fileUrl.isNotEmpty);
+
+      if (mediaMetaRaw is Map) {
+        final media = Map<String, dynamic>.from(mediaMetaRaw);
+        String? localPath = await _resolveDownloadedLocalPath(media);
+        if (localPath == null && hasLegacyMediaUrl) {
+          final fallbackMedia = <String, dynamic>{
+            ...media,
+            'localPath': data['localPath'] ?? media['localPath'],
+            'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+            'imageUrl': imageUrl,
+            'attachmentUrl': attachmentUrl,
+            'fileUrl': fileUrl,
+            'originalFileName':
+                media['originalFileName'] ??
+                data['attachmentName'] ??
+                data['fileName'],
+            'mimeType':
+                media['mimeType'] ?? data['attachmentType'] ?? data['mimeType'],
+          };
+          localPath = await _resolveDownloadedLocalPath(fallbackMedia);
+        }
+        if (localPath == null) return false;
+      }
+
+      if (multipleMediaRaw is List && multipleMediaRaw.isNotEmpty) {
+        for (final m in multipleMediaRaw) {
+          if (m is! Map) continue;
+          final media = Map<String, dynamic>.from(m);
+          final localPath = await _resolveDownloadedLocalPath(media);
+          if (localPath == null) return false;
+        }
+      }
+
+      if (mediaMetaRaw is! Map &&
+          !((multipleMediaRaw is List) && multipleMediaRaw.isNotEmpty) &&
+          hasLegacyMediaUrl) {
+        final legacyMedia = <String, dynamic>{
+          'localPath': data['localPath'],
+          'publicUrl': imageUrl ?? attachmentUrl ?? fileUrl,
+          'originalFileName': data['attachmentName'] ?? data['fileName'],
+          'mimeType': data['attachmentType'] ?? data['mimeType'],
+          'imageUrl': imageUrl,
+          'attachmentUrl': attachmentUrl,
+          'fileUrl': fileUrl,
+        };
+        final localPath = await _resolveDownloadedLocalPath(legacyMedia);
+        if (localPath == null) return false;
+      }
+    }
+
+    return true;
   }
 
   Future<void> _shareSelectedMessages() async {
