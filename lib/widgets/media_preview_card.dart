@@ -78,8 +78,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   @override
   void didUpdateWidget(MediaPreviewCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Re-check download status if r2Key changes (pending -> uploaded)
-    if (oldWidget.r2Key != widget.r2Key) {
+    // Re-check when uploaded key changes or when a sender local path becomes
+    // available after the widget was already built.
+    if (oldWidget.r2Key != widget.r2Key ||
+        oldWidget.localPath != widget.localPath) {
       _checkDownloadStatus();
     }
   }

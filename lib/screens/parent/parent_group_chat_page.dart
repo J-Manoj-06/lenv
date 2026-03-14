@@ -4331,8 +4331,23 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
     final pendingId = 'pending:${DateTime.now().millisecondsSinceEpoch}';
     final fileName = file.path.split('/').last;
+    var persistedRecordingPath = file.path;
 
     try {
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        final voiceDir = Directory('${appDir.path}/recordings');
+        if (!await voiceDir.exists()) {
+          await voiceDir.create(recursive: true);
+        }
+        final persistedFile = File('${voiceDir.path}/$fileName');
+        final copied = await file.copy(persistedFile.path);
+        persistedRecordingPath = copied.path;
+      } catch (_) {}
+
+      final sourceFilePath = persistedRecordingPath;
+      final sourceFile = File(sourceFilePath);
+
       // Create optimistic pending message
       final pendingMetadata = MediaMetadata(
         messageId: pendingId,
@@ -4341,7 +4356,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         thumbnail: '',
         expiresAt: DateTime.now().add(const Duration(days: 365)),
         uploadedAt: DateTime.now(),
-        fileSize: await file.length(),
+        fileSize: await sourceFile.length(),
         mimeType: 'audio/mp4',
         originalFileName: fileName,
       );
@@ -4373,7 +4388,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
         _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0.01);
-        _localSenderMediaPaths[pendingId] = file.path;
+        _localSenderMediaPaths[pendingId] = sourceFilePath;
         _lastUploadPercent[pendingId] = -1;
       });
 
@@ -4389,10 +4404,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           multipleMedia: [
             {
               'messageId': pendingId,
-              'localPath': file.path,
+              'localPath': sourceFilePath,
               'uploadProgress': 0.0,
               'originalFileName': fileName,
-              'fileSize': await file.length(),
+              'fileSize': await sourceFile.length(),
               'mimeType': 'audio/mp4',
             },
           ],
@@ -4410,7 +4425,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
       // Upload in background
       final mediaMessage = await _mediaUploadService.uploadMedia(
-        file: file,
+        file: sourceFile,
         conversationId: widget.groupId,
         senderId: user.uid,
         senderRole: widget.senderRole,
@@ -4425,10 +4440,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
               _updatePendingMessageCache(pendingId, [
                 {
                   'messageId': pendingId,
-                  'localPath': file.path,
+                  'localPath': sourceFilePath,
                   'uploadProgress': percent / 100.0,
                   'originalFileName': fileName,
-                  'fileSize': file.lengthSync(),
+                  'fileSize': sourceFile.lengthSync(),
                   'mimeType': 'audio/mp4',
                 },
               ]);
@@ -4463,7 +4478,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       // Cache the uploaded recording so we don't re-download it
       await _mediaRepository.cacheUploadedMedia(
         r2Key: r2Key,
-        localPath: file.path,
+        localPath: sourceFilePath,
         fileName: fileName,
         mimeType: mediaMessage.fileType,
         fileSize: mediaMessage.fileSize,
@@ -4474,7 +4489,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
-          _localSenderMediaPaths[r2Key] = file.path;
+          _localSenderMediaPaths[r2Key] = sourceFilePath;
           _localSenderMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
@@ -4504,8 +4519,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     } finally {
       if (mounted) setState(() => _isUploading = false);
       try {
-        if (_recordingPath != null) File(_recordingPath!).deleteSync();
+        if (_recordingPath != null &&
+            _recordingPath != persistedRecordingPath) {
+          File(_recordingPath!).deleteSync();
+        }
       } catch (_) {}
+      _recordingPath = null;
     }
   }
 
