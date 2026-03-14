@@ -2122,8 +2122,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Flexible(
+                                      Expanded(
                                         child: GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
                                           onLongPress: () {
                                             if (!_selectionMode &&
                                                 !isPending &&
@@ -2146,576 +2147,587 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                   );
                                                 }
                                               : null,
-                                          child: Column(
-                                            crossAxisAlignment: isCurrentUser
-                                                ? CrossAxisAlignment.end
-                                                : CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              // Show sender name outside the bubble
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  left: 12,
-                                                  right: 12,
-                                                  bottom: 4,
-                                                ),
-                                                child: Text(
-                                                  isCurrentUser
-                                                      ? 'You'
-                                                      : msg.senderName,
-                                                  style: TextStyle(
-                                                    color: isDark
-                                                        ? Colors.grey[400]
-                                                        : Colors.grey[700],
-                                                    fontWeight: FontWeight.w600,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                              ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  maxWidth:
-                                                      MediaQuery.of(
-                                                        context,
-                                                      ).size.width *
-                                                      0.7,
-                                                ),
-                                                child: DecoratedBox(
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        (displayMultipleMedia
-                                                            .isNotEmpty)
-                                                        ? Colors.transparent
-                                                        : (isSelected
-                                                              ? primaryColor
-                                                                    .withOpacity(
-                                                                      0.2,
-                                                                    )
-                                                              : bubbleColor),
-                                                    // No border on media bubbles — media cards have their own shape.
-                                                    // Only show a subtle selection indicator for text-only bubbles.
-                                                    border:
-                                                        isSelected &&
-                                                            !hasMedia &&
-                                                            displayMultipleMedia
-                                                                .isEmpty
-                                                        ? Border.all(
-                                                            color: primaryColor,
-                                                            width: 2.5,
-                                                          )
-                                                        : null,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ).copyWith(
-                                                          bottomRight:
-                                                              isCurrentUser
-                                                              ? const Radius.circular(
-                                                                  4,
-                                                                )
-                                                              : null,
-                                                          bottomLeft:
-                                                              !isCurrentUser
-                                                              ? const Radius.circular(
-                                                                  4,
-                                                                )
-                                                              : null,
-                                                        ),
-                                                  ),
-                                                  child: Padding(
-                                                    padding: EdgeInsets.symmetric(
-                                                      // Zero padding for media — let the card fill naturally.
-                                                      horizontal:
-                                                          hasMedia ||
-                                                              displayMultipleMedia
-                                                                  .isNotEmpty
-                                                          ? 0
-                                                          : 12,
-                                                      vertical:
-                                                          hasMedia ||
-                                                              displayMultipleMedia
-                                                                  .isNotEmpty
-                                                          ? 0
-                                                          : 8,
+                                          child: Align(
+                                            alignment: isCurrentUser
+                                                ? Alignment.centerRight
+                                                : Alignment.centerLeft,
+                                            child: Column(
+                                              crossAxisAlignment: isCurrentUser
+                                                  ? CrossAxisAlignment.end
+                                                  : CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                // Show sender name outside the bubble
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        left: 12,
+                                                        right: 12,
+                                                        bottom: 4,
+                                                      ),
+                                                  child: Text(
+                                                    isCurrentUser
+                                                        ? 'You'
+                                                        : msg.senderName,
+                                                    style: TextStyle(
+                                                      color: isDark
+                                                          ? Colors.grey[400]
+                                                          : Colors.grey[700],
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      fontSize: 12,
                                                     ),
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          isCurrentUser
-                                                          ? CrossAxisAlignment
-                                                                .end
-                                                          : CrossAxisAlignment
-                                                                .start,
-                                                      mainAxisSize:
-                                                          MainAxisSize.min,
-                                                      children: [
-                                                        // ✅ MULTI-IMAGE GRID: Display multiple images in WhatsApp-style grid
-                                                        // FIX 1: Properly map URLs - use publicUrl for uploaded, localPath for pending
-                                                        // FIX 2: Fallback to thumbnail if path not found (prevents empty grid)
-                                                        // FIX 3: Filter empty URLs to avoid blank tiles
-                                                        if (displayMultipleMedia
-                                                            .isNotEmpty) ...[
-                                                          Builder(
-                                                            builder: (context) {
-                                                              final resolvedImageUrls = displayMultipleMedia
-                                                                  .map(
-                                                                    (
-                                                                      m,
-                                                                    ) => _resolvedMediaDisplaySource(
-                                                                      m,
-                                                                      isPending:
-                                                                          isPending,
-                                                                    ),
-                                                                  )
-                                                                  .where(
-                                                                    (url) => url
-                                                                        .isNotEmpty,
-                                                                  )
-                                                                  .toList();
-
-                                                              if (resolvedImageUrls
-                                                                          .length !=
-                                                                      displayMultipleMedia
-                                                                          .length ||
-                                                                  displayMultipleMedia
-                                                                          .length >
-                                                                      1) {
-                                                                _debugLogMultiImage(
-                                                                  'render',
-                                                                  messageId: msg
-                                                                      .messageId,
-                                                                  parsedCount: msg
-                                                                      .multipleMedia
-                                                                      ?.length,
-                                                                  rawCount:
-                                                                      (msg.documentSnapshot?.data()
-                                                                              as Map<
-                                                                                String,
-                                                                                dynamic
-                                                                              >?)?['multipleMedia']
-                                                                          is List
-                                                                      ? ((msg.documentSnapshot?.data()
-                                                                                    as Map<
-                                                                                      String,
-                                                                                      dynamic
-                                                                                    >)['multipleMedia']
-                                                                                as List)
-                                                                            .length
-                                                                      : 0,
-                                                                  effectiveCount:
-                                                                      displayMultipleMedia
-                                                                          .length,
-                                                                  resolvedSources:
-                                                                      resolvedImageUrls,
-                                                                );
-                                                              }
-
-                                                              return Container(
-                                                                decoration:
-                                                                    BoxDecoration(
-                                                                      borderRadius:
-                                                                          BorderRadius.circular(
-                                                                            12,
-                                                                          ),
-                                                                    ),
-                                                                clipBehavior: Clip
-                                                                    .antiAlias,
-                                                                child: MultiImageMessageBubble(
-                                                                  imageUrls:
-                                                                      resolvedImageUrls,
-                                                                  isMe:
-                                                                      isCurrentUser,
-                                                                  selectionMode:
-                                                                      _selectionMode &&
-                                                                      isCurrentUser,
-                                                                  onSelectionTap:
-                                                                      _selectionMode &&
-                                                                          isCurrentUser
-                                                                      ? () {
-                                                                          _toggleSelectedMessage(
-                                                                            messageId:
-                                                                                msg.messageId,
-                                                                            isPending:
-                                                                                isPending,
-                                                                            isSelected:
-                                                                                isSelected,
-                                                                          );
-                                                                        }
-                                                                      : null,
-                                                                  userRole:
-                                                                      Provider.of<
-                                                                            AuthProvider
-                                                                          >(
-                                                                            context,
-                                                                            listen:
-                                                                                false,
-                                                                          )
-                                                                          .currentUser
-                                                                          ?.role
-                                                                          .toString()
-                                                                          .split(
-                                                                            '.',
-                                                                          )
-                                                                          .last,
-                                                                  // ✅ Show upload progress for pending images
-                                                                  uploadProgress:
-                                                                      isPending
-                                                                      ? displayMultipleMedia.map((
-                                                                          m,
-                                                                        ) {
-                                                                          final notifier =
-                                                                              _pendingUploadNotifiers[m.messageId];
-                                                                          return notifier !=
-                                                                                  null
-                                                                              ? notifier.value /
-                                                                                    100.0
-                                                                              : null;
-                                                                        }).toList()
-                                                                      : null,
-                                                                  onImageTap:
-                                                                      (
-                                                                        index,
-                                                                        cachedPaths,
-                                                                      ) async {
-                                                                        // Update media list with cached paths
-                                                                        final updatedMediaList =
-                                                                            <
-                                                                              MediaMetadata
-                                                                            >[];
-                                                                        for (
-                                                                          int
-                                                                          i = 0;
-                                                                          i <
-                                                                              displayMultipleMedia.length;
-                                                                          i++
-                                                                        ) {
-                                                                          final media =
-                                                                              displayMultipleMedia[i];
-                                                                          updatedMediaList.add(
-                                                                            MediaMetadata(
-                                                                              localPath:
-                                                                                  cachedPaths[i] ??
-                                                                                  media.localPath,
-                                                                              publicUrl: media.publicUrl,
-                                                                              messageId: media.messageId,
-                                                                              mimeType: media.mimeType,
-                                                                              fileSize: media.fileSize,
-                                                                              r2Key: media.r2Key,
-                                                                              thumbnail: media.thumbnail,
-                                                                              expiresAt: media.expiresAt,
-                                                                              uploadedAt: media.uploadedAt,
-                                                                            ),
-                                                                          );
-                                                                        }
-                                                                        // ✅ Open full-screen viewer with zoom, pinch, and swipe
-                                                                        await _runWithoutInputFocus(
-                                                                          () =>
-                                                                              Navigator.of(
-                                                                                context,
-                                                                              ).push(
-                                                                                MaterialPageRoute(
-                                                                                  builder:
-                                                                                      (
-                                                                                        _,
-                                                                                      ) => _ImageGalleryViewer(
-                                                                                        mediaList: updatedMediaList,
-                                                                                        initialIndex: index,
-                                                                                        localFilePaths: _localSenderMediaPaths,
-                                                                                        forwardMessage: ForwardMessageData.fromRaw(
-                                                                                          messageId: msg.messageId,
-                                                                                          senderId: msg.senderId,
-                                                                                          senderName: msg.senderName,
-                                                                                          rawData:
-                                                                                              msg.documentSnapshot?.data()
-                                                                                                  as Map<
-                                                                                                    String,
-                                                                                                    dynamic
-                                                                                                  >?,
-                                                                                          imageUrl: msg.imageUrl,
-                                                                                          message: msg.content,
-                                                                                          mediaMetadata: msg.mediaMetadata,
-                                                                                          multipleMedia: displayMultipleMedia,
-                                                                                        ),
-                                                                                      ),
-                                                                                ),
-                                                                              ),
-                                                                        );
-                                                                      },
-                                                                ),
-                                                              );
-                                                            },
-                                                          ),
-                                                          if (msg
-                                                              .content
+                                                  ),
+                                                ),
+                                                ConstrainedBox(
+                                                  constraints: BoxConstraints(
+                                                    maxWidth:
+                                                        MediaQuery.of(
+                                                          context,
+                                                        ).size.width *
+                                                        0.7,
+                                                  ),
+                                                  child: DecoratedBox(
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          (displayMultipleMedia
                                                               .isNotEmpty)
-                                                            const SizedBox(
-                                                              height: 8,
-                                                            ),
-                                                        ] else if (msg
-                                                                .mediaMetadata !=
-                                                            null) ...[
-                                                          RepaintBoundary(
-                                                            child:
-                                                                progressNotifier !=
-                                                                    null
-                                                                ? ValueListenableBuilder<
-                                                                    double
-                                                                  >(
-                                                                    valueListenable:
-                                                                        progressNotifier,
-                                                                    builder: (_, value, _) {
-                                                                      // ── Failed upload: show retry overlay ──
-                                                                      if (value ==
-                                                                          -1.0) {
-                                                                        return Stack(
-                                                                          children: [
-                                                                            MediaPreviewCard(
-                                                                              r2Key: msg.mediaMetadata!.r2Key,
-                                                                              fileName: _getFileName(
-                                                                                msg,
+                                                          ? Colors.transparent
+                                                          : (isSelected
+                                                                ? primaryColor
+                                                                      .withOpacity(
+                                                                        0.2,
+                                                                      )
+                                                                : bubbleColor),
+                                                      // No border on media bubbles — media cards have their own shape.
+                                                      // Only show a subtle selection indicator for text-only bubbles.
+                                                      border:
+                                                          isSelected &&
+                                                              !hasMedia &&
+                                                              displayMultipleMedia
+                                                                  .isEmpty
+                                                          ? Border.all(
+                                                              color:
+                                                                  primaryColor,
+                                                              width: 2.5,
+                                                            )
+                                                          : null,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            12,
+                                                          ).copyWith(
+                                                            bottomRight:
+                                                                isCurrentUser
+                                                                ? const Radius.circular(
+                                                                    4,
+                                                                  )
+                                                                : null,
+                                                            bottomLeft:
+                                                                !isCurrentUser
+                                                                ? const Radius.circular(
+                                                                    4,
+                                                                  )
+                                                                : null,
+                                                          ),
+                                                    ),
+                                                    child: Padding(
+                                                      padding: EdgeInsets.symmetric(
+                                                        // Zero padding for media — let the card fill naturally.
+                                                        horizontal:
+                                                            hasMedia ||
+                                                                displayMultipleMedia
+                                                                    .isNotEmpty
+                                                            ? 0
+                                                            : 12,
+                                                        vertical:
+                                                            hasMedia ||
+                                                                displayMultipleMedia
+                                                                    .isNotEmpty
+                                                            ? 0
+                                                            : 8,
+                                                      ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            isCurrentUser
+                                                            ? CrossAxisAlignment
+                                                                  .end
+                                                            : CrossAxisAlignment
+                                                                  .start,
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          // ✅ MULTI-IMAGE GRID: Display multiple images in WhatsApp-style grid
+                                                          // FIX 1: Properly map URLs - use publicUrl for uploaded, localPath for pending
+                                                          // FIX 2: Fallback to thumbnail if path not found (prevents empty grid)
+                                                          // FIX 3: Filter empty URLs to avoid blank tiles
+                                                          if (displayMultipleMedia
+                                                              .isNotEmpty) ...[
+                                                            Builder(
+                                                              builder: (context) {
+                                                                final resolvedImageUrls = displayMultipleMedia
+                                                                    .map(
+                                                                      (
+                                                                        m,
+                                                                      ) => _resolvedMediaDisplaySource(
+                                                                        m,
+                                                                        isPending:
+                                                                            isPending,
+                                                                      ),
+                                                                    )
+                                                                    .where(
+                                                                      (
+                                                                        url,
+                                                                      ) => url
+                                                                          .isNotEmpty,
+                                                                    )
+                                                                    .toList();
+
+                                                                if (resolvedImageUrls
+                                                                            .length !=
+                                                                        displayMultipleMedia
+                                                                            .length ||
+                                                                    displayMultipleMedia
+                                                                            .length >
+                                                                        1) {
+                                                                  _debugLogMultiImage(
+                                                                    'render',
+                                                                    messageId: msg
+                                                                        .messageId,
+                                                                    parsedCount: msg
+                                                                        .multipleMedia
+                                                                        ?.length,
+                                                                    rawCount:
+                                                                        (msg.documentSnapshot?.data()
+                                                                                as Map<
+                                                                                  String,
+                                                                                  dynamic
+                                                                                >?)?['multipleMedia']
+                                                                            is List
+                                                                        ? ((msg.documentSnapshot?.data()
+                                                                                      as Map<
+                                                                                        String,
+                                                                                        dynamic
+                                                                                      >)['multipleMedia']
+                                                                                  as List)
+                                                                              .length
+                                                                        : 0,
+                                                                    effectiveCount:
+                                                                        displayMultipleMedia
+                                                                            .length,
+                                                                    resolvedSources:
+                                                                        resolvedImageUrls,
+                                                                  );
+                                                                }
+
+                                                                return Container(
+                                                                  decoration: BoxDecoration(
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                          12,
+                                                                        ),
+                                                                  ),
+                                                                  clipBehavior:
+                                                                      Clip.antiAlias,
+                                                                  child: MultiImageMessageBubble(
+                                                                    imageUrls:
+                                                                        resolvedImageUrls,
+                                                                    isMe:
+                                                                        isCurrentUser,
+                                                                    selectionMode:
+                                                                        _selectionMode &&
+                                                                        isCurrentUser,
+                                                                    onSelectionTap:
+                                                                        _selectionMode &&
+                                                                            isCurrentUser
+                                                                        ? () {
+                                                                            _toggleSelectedMessage(
+                                                                              messageId: msg.messageId,
+                                                                              isPending: isPending,
+                                                                              isSelected: isSelected,
+                                                                            );
+                                                                          }
+                                                                        : null,
+                                                                    userRole:
+                                                                        Provider.of<
+                                                                              AuthProvider
+                                                                            >(
+                                                                              context,
+                                                                              listen: false,
+                                                                            )
+                                                                            .currentUser
+                                                                            ?.role
+                                                                            .toString()
+                                                                            .split(
+                                                                              '.',
+                                                                            )
+                                                                            .last,
+                                                                    // ✅ Show upload progress for pending images
+                                                                    uploadProgress:
+                                                                        isPending
+                                                                        ? displayMultipleMedia.map((
+                                                                            m,
+                                                                          ) {
+                                                                            final notifier =
+                                                                                _pendingUploadNotifiers[m.messageId];
+                                                                            return notifier !=
+                                                                                    null
+                                                                                ? notifier.value /
+                                                                                      100.0
+                                                                                : null;
+                                                                          }).toList()
+                                                                        : null,
+                                                                    onImageTap:
+                                                                        (
+                                                                          index,
+                                                                          cachedPaths,
+                                                                        ) async {
+                                                                          // Update media list with cached paths
+                                                                          final updatedMediaList =
+                                                                              <
+                                                                                MediaMetadata
+                                                                              >[];
+                                                                          for (
+                                                                            int
+                                                                            i = 0;
+                                                                            i <
+                                                                                displayMultipleMedia.length;
+                                                                            i++
+                                                                          ) {
+                                                                            final media =
+                                                                                displayMultipleMedia[i];
+                                                                            updatedMediaList.add(
+                                                                              MediaMetadata(
+                                                                                localPath:
+                                                                                    cachedPaths[i] ??
+                                                                                    media.localPath,
+                                                                                publicUrl: media.publicUrl,
+                                                                                messageId: media.messageId,
+                                                                                mimeType: media.mimeType,
+                                                                                fileSize: media.fileSize,
+                                                                                r2Key: media.r2Key,
+                                                                                thumbnail: media.thumbnail,
+                                                                                expiresAt: media.expiresAt,
+                                                                                uploadedAt: media.uploadedAt,
                                                                               ),
-                                                                              mimeType:
-                                                                                  msg.mediaMetadata!.mimeType ??
-                                                                                  'application/octet-stream',
-                                                                              fileSize:
-                                                                                  msg.mediaMetadata!.fileSize ??
-                                                                                  0,
-                                                                              thumbnailBase64: msg.mediaMetadata!.thumbnail,
-                                                                              localPath: localPath,
-                                                                              isMe: isCurrentUser,
-                                                                              uploading: false,
-                                                                              uploadProgress: null,
-                                                                              selectionMode: _selectionMode,
-                                                                              forwardMessage: _buildForwardDataForMessage(
-                                                                                msg,
-                                                                              ),
-                                                                            ),
-                                                                            Positioned.fill(
-                                                                              child: Container(
-                                                                                decoration: BoxDecoration(
-                                                                                  color: Colors.black.withOpacity(
-                                                                                    0.65,
-                                                                                  ),
-                                                                                  borderRadius: BorderRadius.circular(
-                                                                                    12,
+                                                                            );
+                                                                          }
+                                                                          // ✅ Open full-screen viewer with zoom, pinch, and swipe
+                                                                          await _runWithoutInputFocus(
+                                                                            () =>
+                                                                                Navigator.of(
+                                                                                  context,
+                                                                                ).push(
+                                                                                  MaterialPageRoute(
+                                                                                    builder:
+                                                                                        (
+                                                                                          _,
+                                                                                        ) => _ImageGalleryViewer(
+                                                                                          mediaList: updatedMediaList,
+                                                                                          initialIndex: index,
+                                                                                          localFilePaths: _localSenderMediaPaths,
+                                                                                          forwardMessage: ForwardMessageData.fromRaw(
+                                                                                            messageId: msg.messageId,
+                                                                                            senderId: msg.senderId,
+                                                                                            senderName: msg.senderName,
+                                                                                            rawData:
+                                                                                                msg.documentSnapshot?.data()
+                                                                                                    as Map<
+                                                                                                      String,
+                                                                                                      dynamic
+                                                                                                    >?,
+                                                                                            imageUrl: msg.imageUrl,
+                                                                                            message: msg.content,
+                                                                                            mediaMetadata: msg.mediaMetadata,
+                                                                                            multipleMedia: displayMultipleMedia,
+                                                                                          ),
+                                                                                        ),
                                                                                   ),
                                                                                 ),
-                                                                                child: Column(
-                                                                                  mainAxisAlignment: MainAxisAlignment.center,
-                                                                                  mainAxisSize: MainAxisSize.min,
-                                                                                  children: [
-                                                                                    const Icon(
-                                                                                      Icons.cloud_off_rounded,
-                                                                                      color: Colors.white70,
-                                                                                      size: 26,
+                                                                          );
+                                                                        },
+                                                                  ),
+                                                                );
+                                                              },
+                                                            ),
+                                                            if (msg
+                                                                .content
+                                                                .isNotEmpty)
+                                                              const SizedBox(
+                                                                height: 8,
+                                                              ),
+                                                          ] else if (msg
+                                                                  .mediaMetadata !=
+                                                              null) ...[
+                                                            RepaintBoundary(
+                                                              child:
+                                                                  progressNotifier !=
+                                                                      null
+                                                                  ? ValueListenableBuilder<
+                                                                      double
+                                                                    >(
+                                                                      valueListenable:
+                                                                          progressNotifier,
+                                                                      builder: (_, value, _) {
+                                                                        // ── Failed upload: show retry overlay ──
+                                                                        if (value ==
+                                                                            -1.0) {
+                                                                          return Stack(
+                                                                            children: [
+                                                                              MediaPreviewCard(
+                                                                                r2Key: msg.mediaMetadata!.r2Key,
+                                                                                fileName: _getFileName(
+                                                                                  msg,
+                                                                                ),
+                                                                                mimeType:
+                                                                                    msg.mediaMetadata!.mimeType ??
+                                                                                    'application/octet-stream',
+                                                                                fileSize:
+                                                                                    msg.mediaMetadata!.fileSize ??
+                                                                                    0,
+                                                                                thumbnailBase64: msg.mediaMetadata!.thumbnail,
+                                                                                localPath: localPath,
+                                                                                isMe: isCurrentUser,
+                                                                                uploading: false,
+                                                                                uploadProgress: null,
+                                                                                selectionMode: _selectionMode,
+                                                                                forwardMessage: _buildForwardDataForMessage(
+                                                                                  msg,
+                                                                                ),
+                                                                              ),
+                                                                              Positioned.fill(
+                                                                                child: Container(
+                                                                                  decoration: BoxDecoration(
+                                                                                    color: Colors.black.withOpacity(
+                                                                                      0.65,
                                                                                     ),
-                                                                                    const SizedBox(
-                                                                                      height: 6,
+                                                                                    borderRadius: BorderRadius.circular(
+                                                                                      12,
                                                                                     ),
-                                                                                    const Text(
-                                                                                      'Upload failed',
-                                                                                      style: TextStyle(
+                                                                                  ),
+                                                                                  child: Column(
+                                                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                                                    mainAxisSize: MainAxisSize.min,
+                                                                                    children: [
+                                                                                      const Icon(
+                                                                                        Icons.cloud_off_rounded,
                                                                                         color: Colors.white70,
-                                                                                        fontSize: 12,
-                                                                                        fontWeight: FontWeight.w500,
+                                                                                        size: 26,
                                                                                       ),
-                                                                                    ),
-                                                                                    const SizedBox(
-                                                                                      height: 10,
-                                                                                    ),
-                                                                                    ElevatedButton.icon(
-                                                                                      onPressed: () => _retryPendingUpload(
-                                                                                        msg.messageId,
+                                                                                      const SizedBox(
+                                                                                        height: 6,
                                                                                       ),
-                                                                                      icon: const Icon(
-                                                                                        Icons.refresh_rounded,
-                                                                                        size: 15,
-                                                                                      ),
-                                                                                      label: const Text(
-                                                                                        'Retry',
+                                                                                      const Text(
+                                                                                        'Upload failed',
                                                                                         style: TextStyle(
+                                                                                          color: Colors.white70,
                                                                                           fontSize: 12,
-                                                                                          fontWeight: FontWeight.w600,
+                                                                                          fontWeight: FontWeight.w500,
                                                                                         ),
                                                                                       ),
-                                                                                      style: ElevatedButton.styleFrom(
-                                                                                        backgroundColor: const Color(
-                                                                                          0xFFE53935,
+                                                                                      const SizedBox(
+                                                                                        height: 10,
+                                                                                      ),
+                                                                                      ElevatedButton.icon(
+                                                                                        onPressed: () => _retryPendingUpload(
+                                                                                          msg.messageId,
                                                                                         ),
-                                                                                        foregroundColor: Colors.white,
-                                                                                        padding: const EdgeInsets.symmetric(
-                                                                                          horizontal: 14,
-                                                                                          vertical: 6,
+                                                                                        icon: const Icon(
+                                                                                          Icons.refresh_rounded,
+                                                                                          size: 15,
                                                                                         ),
-                                                                                        minimumSize: Size.zero,
-                                                                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                                                                        shape: RoundedRectangleBorder(
-                                                                                          borderRadius: BorderRadius.circular(
-                                                                                            8,
+                                                                                        label: const Text(
+                                                                                          'Retry',
+                                                                                          style: TextStyle(
+                                                                                            fontSize: 12,
+                                                                                            fontWeight: FontWeight.w600,
+                                                                                          ),
+                                                                                        ),
+                                                                                        style: ElevatedButton.styleFrom(
+                                                                                          backgroundColor: const Color(
+                                                                                            0xFFE53935,
+                                                                                          ),
+                                                                                          foregroundColor: Colors.white,
+                                                                                          padding: const EdgeInsets.symmetric(
+                                                                                            horizontal: 14,
+                                                                                            vertical: 6,
+                                                                                          ),
+                                                                                          minimumSize: Size.zero,
+                                                                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                                                                          shape: RoundedRectangleBorder(
+                                                                                            borderRadius: BorderRadius.circular(
+                                                                                              8,
+                                                                                            ),
                                                                                           ),
                                                                                         ),
                                                                                       ),
-                                                                                    ),
-                                                                                  ],
+                                                                                    ],
+                                                                                  ),
                                                                                 ),
                                                                               ),
-                                                                            ),
-                                                                          ],
+                                                                            ],
+                                                                          );
+                                                                        }
+                                                                        // ── Normal upload in progress ──
+                                                                        final progress =
+                                                                            ((value /
+                                                                                        100)
+                                                                                    .clamp(
+                                                                                      0.0,
+                                                                                      1.0,
+                                                                                    ))
+                                                                                .toDouble();
+                                                                        return MediaPreviewCard(
+                                                                          r2Key: msg
+                                                                              .mediaMetadata!
+                                                                              .r2Key,
+                                                                          fileName: _getFileName(
+                                                                            msg,
+                                                                          ),
+                                                                          mimeType:
+                                                                              msg.mediaMetadata!.mimeType ??
+                                                                              'application/octet-stream',
+                                                                          fileSize:
+                                                                              msg.mediaMetadata!.fileSize ??
+                                                                              0,
+                                                                          thumbnailBase64: msg
+                                                                              .mediaMetadata!
+                                                                              .thumbnail,
+                                                                          localPath:
+                                                                              localPath,
+                                                                          isMe:
+                                                                              isCurrentUser,
+                                                                          uploading:
+                                                                              true,
+                                                                          uploadProgress:
+                                                                              progress,
+                                                                          selectionMode:
+                                                                              _selectionMode,
+                                                                          forwardMessage: _buildForwardDataForMessage(
+                                                                            msg,
+                                                                          ),
                                                                         );
-                                                                      }
-                                                                      // ── Normal upload in progress ──
-                                                                      final progress =
-                                                                          ((value / 100).clamp(
-                                                                            0.0,
-                                                                            1.0,
-                                                                          )).toDouble();
-                                                                      return MediaPreviewCard(
-                                                                        r2Key: msg
-                                                                            .mediaMetadata!
-                                                                            .r2Key,
-                                                                        fileName:
-                                                                            _getFileName(
-                                                                              msg,
-                                                                            ),
-                                                                        mimeType:
-                                                                            msg.mediaMetadata!.mimeType ??
-                                                                            'application/octet-stream',
-                                                                        fileSize:
-                                                                            msg.mediaMetadata!.fileSize ??
-                                                                            0,
-                                                                        thumbnailBase64: msg
-                                                                            .mediaMetadata!
-                                                                            .thumbnail,
-                                                                        localPath:
-                                                                            localPath,
-                                                                        isMe:
-                                                                            isCurrentUser,
-                                                                        uploading:
-                                                                            true,
-                                                                        uploadProgress:
-                                                                            progress,
-                                                                        selectionMode:
-                                                                            _selectionMode,
-                                                                        forwardMessage:
-                                                                            _buildForwardDataForMessage(
-                                                                              msg,
-                                                                            ),
-                                                                      );
-                                                                    },
-                                                                  )
-                                                                : MediaPreviewCard(
-                                                                    r2Key: msg
-                                                                        .mediaMetadata!
-                                                                        .r2Key,
-                                                                    fileName:
-                                                                        _getFileName(
-                                                                          msg,
-                                                                        ),
-                                                                    mimeType:
-                                                                        msg
-                                                                            .mediaMetadata!
-                                                                            .mimeType ??
-                                                                        'application/octet-stream',
-                                                                    fileSize:
-                                                                        msg
-                                                                            .mediaMetadata!
-                                                                            .fileSize ??
-                                                                        0,
-                                                                    thumbnailBase64: msg
-                                                                        .mediaMetadata!
-                                                                        .thumbnail,
-                                                                    localPath:
-                                                                        localPath,
-                                                                    isMe:
-                                                                        isCurrentUser,
-                                                                    uploading:
-                                                                        isPending,
-                                                                    uploadProgress:
-                                                                        null,
-                                                                    selectionMode:
-                                                                        _selectionMode,
-                                                                    forwardMessage:
-                                                                        _buildForwardDataForMessage(
-                                                                          msg,
-                                                                        ),
-                                                                  ),
-                                                          ),
+                                                                      },
+                                                                    )
+                                                                  : MediaPreviewCard(
+                                                                      r2Key: msg
+                                                                          .mediaMetadata!
+                                                                          .r2Key,
+                                                                      fileName:
+                                                                          _getFileName(
+                                                                            msg,
+                                                                          ),
+                                                                      mimeType:
+                                                                          msg
+                                                                              .mediaMetadata!
+                                                                              .mimeType ??
+                                                                          'application/octet-stream',
+                                                                      fileSize:
+                                                                          msg
+                                                                              .mediaMetadata!
+                                                                              .fileSize ??
+                                                                          0,
+                                                                      thumbnailBase64: msg
+                                                                          .mediaMetadata!
+                                                                          .thumbnail,
+                                                                      localPath:
+                                                                          localPath,
+                                                                      isMe:
+                                                                          isCurrentUser,
+                                                                      uploading:
+                                                                          isPending,
+                                                                      uploadProgress:
+                                                                          null,
+                                                                      selectionMode:
+                                                                          _selectionMode,
+                                                                      forwardMessage:
+                                                                          _buildForwardDataForMessage(
+                                                                            msg,
+                                                                          ),
+                                                                    ),
+                                                            ),
+                                                            if (msg
+                                                                .content
+                                                                .isNotEmpty)
+                                                              const SizedBox(
+                                                                height: 8,
+                                                              ),
+                                                          ],
                                                           if (msg
                                                               .content
                                                               .isNotEmpty)
-                                                            const SizedBox(
-                                                              height: 8,
+                                                            Linkify(
+                                                              onOpen: (link) async {
+                                                                final uri =
+                                                                    Uri.parse(
+                                                                      link.url,
+                                                                    );
+                                                                if (await canLaunchUrl(
+                                                                  uri,
+                                                                )) {
+                                                                  await launchUrl(
+                                                                    uri,
+                                                                    mode: LaunchMode
+                                                                        .externalApplication,
+                                                                  );
+                                                                }
+                                                              },
+                                                              text:
+                                                                  LinkUtils.addProtocolToBareUrls(
+                                                                    msg.content,
+                                                                  ),
+                                                              options:
+                                                                  const LinkifyOptions(
+                                                                    defaultToHttps:
+                                                                        true,
+                                                                  ),
+                                                              style: TextStyle(
+                                                                color:
+                                                                    textColor,
+                                                                fontSize: 15,
+                                                              ),
+                                                              linkStyle: TextStyle(
+                                                                color:
+                                                                    isCurrentUser
+                                                                    ? Colors
+                                                                          .white
+                                                                          .withOpacity(
+                                                                            0.95,
+                                                                          )
+                                                                    : primaryColor,
+                                                                fontSize: 15,
+                                                                decoration:
+                                                                    TextDecoration
+                                                                        .underline,
+                                                              ),
                                                             ),
                                                         ],
-                                                        if (msg
-                                                            .content
-                                                            .isNotEmpty)
-                                                          Linkify(
-                                                            onOpen: (link) async {
-                                                              final uri =
-                                                                  Uri.parse(
-                                                                    link.url,
-                                                                  );
-                                                              if (await canLaunchUrl(
-                                                                uri,
-                                                              )) {
-                                                                await launchUrl(
-                                                                  uri,
-                                                                  mode: LaunchMode
-                                                                      .externalApplication,
-                                                                );
-                                                              }
-                                                            },
-                                                            text:
-                                                                LinkUtils.addProtocolToBareUrls(
-                                                                  msg.content,
-                                                                ),
-                                                            options:
-                                                                const LinkifyOptions(
-                                                                  defaultToHttps:
-                                                                      true,
-                                                                ),
-                                                            style: TextStyle(
-                                                              color: textColor,
-                                                              fontSize: 15,
-                                                            ),
-                                                            linkStyle: TextStyle(
-                                                              color:
-                                                                  isCurrentUser
-                                                                  ? Colors.white
-                                                                        .withOpacity(
-                                                                          0.95,
-                                                                        )
-                                                                  : primaryColor,
-                                                              fontSize: 15,
-                                                              decoration:
-                                                                  TextDecoration
-                                                                      .underline,
-                                                            ),
-                                                          ),
-                                                      ],
+                                                      ),
                                                     ),
                                                   ),
                                                 ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Padding(
-                                                padding: EdgeInsets.only(
-                                                  left: isCurrentUser ? 0 : 8,
-                                                  right: isCurrentUser ? 8 : 0,
-                                                ),
-                                                child: Text(
-                                                  _formatTime(msg.createdAt),
-                                                  style: TextStyle(
-                                                    color:
-                                                        (isDark
-                                                                ? Colors.white
-                                                                : Colors.black)
-                                                            .withOpacity(0.5),
-                                                    fontSize: 10,
+                                                const SizedBox(height: 2),
+                                                Padding(
+                                                  padding: EdgeInsets.only(
+                                                    left: isCurrentUser ? 0 : 8,
+                                                    right: isCurrentUser
+                                                        ? 8
+                                                        : 0,
+                                                  ),
+                                                  child: Text(
+                                                    _formatTime(msg.createdAt),
+                                                    style: TextStyle(
+                                                      color:
+                                                          (isDark
+                                                                  ? Colors.white
+                                                                  : Colors
+                                                                        .black)
+                                                              .withOpacity(0.5),
+                                                      fontSize: 10,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -2726,23 +2738,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                             top: 8,
                                           ),
                                           child: GestureDetector(
-                                            onTap: () {
-                                              if (isSelected) {
-                                                if (selectedSet.length > 2) {
-                                                  final updated = {
-                                                    ...selectedSet,
-                                                  };
-                                                  updated.remove(msg.messageId);
-                                                  _selectedMessages.value =
-                                                      updated;
-                                                }
-                                              } else {
-                                                _selectedMessages.value = {
-                                                  ...selectedSet,
-                                                  msg.messageId,
-                                                };
-                                              }
-                                            },
+                                            behavior:
+                                                HitTestBehavior.translucent,
+                                            onTap: () => _toggleSelectedMessage(
+                                              messageId: msg.messageId,
+                                              isPending: isPending,
+                                              isSelected: isSelected,
+                                            ),
                                             child: Container(
                                               width: 24,
                                               height: 24,
@@ -3958,6 +3960,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
         _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0);
+        _localSenderMediaPaths[pendingId] = file.path;
         _lastUploadPercent[pendingId] = -1;
       });
 
@@ -4058,6 +4061,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _localSenderMediaPaths[r2Key] = file.path;
+          _localSenderMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
 
@@ -4151,6 +4156,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       setState(() {
         _pendingMessages.insert(0, pendingMessage);
         _pendingUploadNotifiers[pendingId] = ValueNotifier<double>(0.01);
+        _localSenderMediaPaths[pendingId] = file.path;
         _lastUploadPercent[pendingId] = -1;
       });
 
@@ -4249,6 +4255,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _localSenderMediaPaths[r2Key] = file.path;
+          _localSenderMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
 
@@ -4466,6 +4474,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         setState(() {
           _pendingMessages.removeWhere((m) => m.messageId == pendingId);
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
+          _localSenderMediaPaths[r2Key] = file.path;
+          _localSenderMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
 
