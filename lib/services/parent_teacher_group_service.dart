@@ -344,7 +344,10 @@ class ParentTeacherGroupService {
       } catch (e) {}
     }
 
-    // Delete files from R2 storage
+    // Commit soft-delete batch first so UI and Firebase state update immediately.
+    await batch.commit();
+
+    // Delete files from R2 storage after Firestore is already updated.
     if (r2KeysToDelete.isNotEmpty) {
       try {
         final r2Service = CloudflareR2Service(
@@ -355,21 +358,15 @@ class ParentTeacherGroupService {
           r2Domain: CloudflareConfig.r2Domain,
         );
 
-        int successCount = 0;
-
         for (final key in r2KeysToDelete) {
           try {
             await r2Service.deleteFile(key: key);
-            successCount++;
           } catch (e) {
-            // Continue with other files
+            // Best-effort cleanup; Firestore delete already succeeded.
           }
         }
       } catch (e) {}
     }
-
-    // Commit soft-delete batch
-    await batch.commit();
   }
 
   /// Extract R2 keys from message data

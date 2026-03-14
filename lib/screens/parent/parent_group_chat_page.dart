@@ -146,6 +146,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   bool _selectionMode = false;
   final ValueNotifier<Set<String>> _selectedMessages =
       ValueNotifier<Set<String>>({});
+  final Set<String> _optimisticallyDeletedMessageIds = <String>{};
   final Map<String, Map<String, dynamic>> _messageDataCache = {};
   String? _shareEligibilitySelectionKey;
   Future<bool>? _shareEligibilityFuture;
@@ -1917,6 +1918,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   ...olderCachedMessages,
                   ..._olderMessages,
                 ]) {
+                  if (_optimisticallyDeletedMessageIds.contains(
+                    msg.messageId,
+                  )) {
+                    continue;
+                  }
                   if (seenIds.add(msg.messageId)) {
                     allMessages.add(msg);
                   }
@@ -4606,16 +4612,31 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
     if (confirm != true) return;
 
+    final messageIdsToDelete = _selectedMessages.value.toList();
+
+    if (mounted) {
+      setState(() {
+        _selectionMode = false;
+        _optimisticallyDeletedMessageIds.addAll(messageIdsToDelete);
+        _olderMessages.removeWhere(
+          (message) => messageIdsToDelete.contains(message.messageId),
+        );
+        for (final messageId in messageIdsToDelete) {
+          _messageCache.remove(messageId);
+          _messageDataCache.remove(messageId);
+        }
+      });
+      _selectedMessages.value = {};
+      _invalidateSelectionEligibilityCache();
+    }
+
     try {
       await _service.deleteMessagesForEveryone(
         groupId: widget.groupId,
-        messageIds: _selectedMessages.value.toList(),
+        messageIds: messageIdsToDelete,
       );
 
       if (mounted) {
-        setState(() => _selectionMode = false);
-        _selectedMessages.value = {};
-        _invalidateSelectionEligibilityCache();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Messages deleted for everyone'),
@@ -4625,6 +4646,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       }
     } catch (e) {
       if (mounted) {
+        setState(() {
+          _optimisticallyDeletedMessageIds.removeAll(messageIdsToDelete);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete messages: $e'),
