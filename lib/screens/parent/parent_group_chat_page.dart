@@ -38,8 +38,12 @@ import '../../utils/message_scroll_highlight_mixin.dart';
 // OFFLINE-FIRST IMPORTS
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
+import '../../services/image_viewer_action_service.dart';
 import '../messages/offline_message_search_page.dart';
+import '../messages/forward_selection_screen.dart';
+import '../../models/forward_message_data.dart';
 import '../../models/local_message.dart';
+import '../../core/constants/app_colors.dart';
 
 class ParentGroupChatPage extends StatefulWidget {
   final String groupId;
@@ -78,7 +82,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   static const Color mutedText = Color(0xFF9AA0A6);
   static const Color dividerColor = Color(0xFF1E2123);
   static const Color parentGreen = Color(0xFF14A670);
-  static const Color teacherViolet = Color(0xFF6366F1);
 
   // Legacy color constants for compatibility
   static const Color backgroundDark = primaryBackground;
@@ -147,6 +150,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
   // ✅ Cache stream like staff room to avoid rebuilding new streams
   Stream<List<CommunityMessageModel>>? _messagesStream;
+
+  Color _chatAccentColor(BuildContext context) {
+    // Match teacher dashboard accent exactly.
+    if (widget.senderRole.toLowerCase() == 'teacher') {
+      return AppColors.teacherColor;
+    }
+    return parentGreen;
+  }
 
   @override
   bool get wantKeepAlive => true; // ✅ Prevent rebuild when switching tabs
@@ -240,7 +251,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           limit: 50,
         );
       } else {
-
         // Debug: Check what senders are in the cache
         final senders = cachedMessages.map((m) => m.senderId).toSet();
         for (final senderId in senders) {
@@ -272,10 +282,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
         // Mark offline services ready for progress polling
         _offlineReady = true;
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
   }
 
   /// Save pending message with current upload progress to cache
@@ -310,8 +318,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       );
 
       await _localRepo.saveMessage(localMessage);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Load pending messages from local cache (survives navigation)
@@ -333,7 +340,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         return;
       }
 
-
       if (!mounted) return;
 
       setState(() {
@@ -353,7 +359,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             })
             .map((msg) => msg.messageId)
             .toSet();
-
 
         // Remove only completed/stale messages, keep active uploads
         _pendingMessages.removeWhere(
@@ -378,7 +383,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         // Convert LocalMessage to CommunityMessageModel format
         for (final msg in pendingMessages) {
           if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
-
             // Convert multipleMedia from List<dynamic> to List<MediaMetadata>
             final mediaList = <MediaMetadata>[];
             for (final mediaMap in msg.multipleMedia!) {
@@ -401,8 +405,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     mimeType: mediaMap['mimeType'] ?? 'image/jpeg',
                   ),
                 );
-              } catch (e) {
-              }
+              } catch (e) {}
             }
 
             if (mediaList.isEmpty) continue;
@@ -473,15 +476,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     );
                 _lastUploadPercent[media.messageId] = (progressValue * 100)
                     .toInt();
-              } else {
-              }
+              } else {}
             }
           }
         }
       });
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   void _startProgressPolling() {
@@ -687,7 +687,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         startAfter: _lastDocument,
       );
 
-
       if (newMessages.length < _messagesPerPage) {
         _hasMoreMessages = false;
       }
@@ -700,7 +699,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         // This prevents triggering the StreamBuilder rebuild
         _olderMessages.addAll(newMessages);
         _lastDocument = newMessages.last.documentSnapshot;
-
 
         // ✅ KEY FIX: Update loading notifier AFTER messages are added
         // This updates only the loading indicator, not the entire list
@@ -726,8 +724,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
               final safePosition =
                   scrollController.position.maxScrollExtent * 0.5;
               scrollController.jumpTo(safePosition);
-            } catch (_) {
-            }
+            } catch (_) {}
           }
 
           // Re-enable scroll listener after restoration is complete
@@ -875,7 +872,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   void _scrollToBottom() {
     if (!scrollController.hasClients) return;
 
-
     // Schedule after frame to ensure ListView has laid out
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !scrollController.hasClients) {
@@ -885,8 +881,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       try {
         // Instant jump to bottom (0 in reverse list) - no animation
         scrollController.jumpTo(0.0);
-      } catch (e) {
-      }
+      } catch (e) {}
     });
   }
 
@@ -897,9 +892,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     final currentUserId =
         Provider.of<AuthProvider>(context, listen: false).currentUser?.uid ??
         '';
-    final primaryColor = widget.senderRole == 'teacher'
-        ? teacherViolet
-        : parentGreen;
+    final primaryColor = _chatAccentColor(context);
 
     return Scaffold(
       backgroundColor: isDark ? primaryBackground : Colors.white,
@@ -1001,7 +994,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                 if (snapshot.connectionState == ConnectionState.waiting &&
                     _pendingMessages.isEmpty) {
                   return Center(
-                    child: CircularProgressIndicator(color: parentGreen),
+                    child: CircularProgressIndicator(color: primaryColor),
                   );
                 }
 
@@ -1084,7 +1077,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   if (notifier != null && notifier.value < 100) {
                     uploadInProgress = true;
                   }
-
 
                   // ✅ If upload in progress, keep the message visible
                   if (uploadInProgress) {
@@ -1790,6 +1782,28 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                               index,
                                                                           localFilePaths:
                                                                               _localSenderMediaPaths,
+                                                                          forwardMessage: ForwardMessageData.fromRaw(
+                                                                            messageId:
+                                                                                msg.messageId,
+                                                                            senderId:
+                                                                                msg.senderId,
+                                                                            senderName:
+                                                                                msg.senderName,
+                                                                            rawData:
+                                                                                msg.documentSnapshot?.data()
+                                                                                    as Map<
+                                                                                      String,
+                                                                                      dynamic
+                                                                                    >?,
+                                                                            imageUrl:
+                                                                                msg.imageUrl,
+                                                                            message:
+                                                                                msg.content,
+                                                                            mediaMetadata:
+                                                                                msg.mediaMetadata,
+                                                                            multipleMedia:
+                                                                                msg.multipleMedia,
+                                                                          ),
                                                                         ),
                                                                       ),
                                                                     );
@@ -2022,17 +2036,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                             linkStyle: TextStyle(
                                                               color:
                                                                   isCurrentUser
-                                                                  ? const Color(
-                                                                      0xFF0066CC,
-                                                                    )
-                                                                  : (widget.senderRole ==
-                                                                            'parent'
-                                                                        ? const Color(
-                                                                            0xFF14A670,
-                                                                          )
-                                                                        : const Color(
-                                                                            0xFF6366F1,
-                                                                          )),
+                                                                  ? Colors.white
+                                                                        .withOpacity(
+                                                                          0.95,
+                                                                        )
+                                                                  : primaryColor,
                                                               fontSize: 15,
                                                               decoration:
                                                                   TextDecoration
@@ -2172,9 +2180,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   }
 
   Widget _buildMessageInput(bool isDark) {
-    final primaryColor = widget.senderRole == 'teacher'
-        ? teacherViolet
-        : parentGreen;
+    final primaryColor = _chatAccentColor(context);
 
     return ValueListenableBuilder<bool>(
       valueListenable: _isRecording,
@@ -2199,6 +2205,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   decoration: BoxDecoration(
                     color: isDark ? secondaryBackground : Colors.white,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: primaryColor.withOpacity(isDark ? 0.45 : 0.25),
+                      width: 1.1,
+                    ),
                   ),
                   child: Material(
                     color: Colors.transparent,
@@ -2223,6 +2233,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     decoration: BoxDecoration(
                       color: secondaryBackground,
                       borderRadius: BorderRadius.circular(21),
+                      border: Border.all(
+                        color: widget.senderRole.toLowerCase() == 'teacher'
+                            ? AppColors.teacherColor
+                            : primaryColor.withOpacity(isDark ? 0.55 : 0.35),
+                        width: widget.senderRole.toLowerCase() == 'teacher'
+                            ? 1.6
+                            : 1.2,
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -2245,7 +2263,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                 color: mutedText,
                                 fontSize: 15,
                               ),
+                              filled: false,
+                              fillColor: Colors.transparent,
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
                               contentPadding: EdgeInsets.fromLTRB(
                                 16,
                                 11,
@@ -2413,9 +2438,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       _showOfflineSnackBar(isMedia: true);
       return;
     }
-    final primaryColor = widget.senderRole == 'teacher'
-        ? teacherViolet
-        : parentGreen;
+    final primaryColor = _chatAccentColor(context);
     showModernAttachmentSheet(
       context,
       onCameraTap: _pickAndSendCamera,
@@ -2935,8 +2958,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         isPending: true,
       );
       await _localRepo.saveMessage(pendingLocalMsg);
-    } catch (e) {
-    }
+    } catch (e) {}
 
     setState(() {
       _pendingMessages.insert(0, pendingMessage);
@@ -3129,8 +3151,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         await _localRepo.saveMessage(localMessage);
 
         // ✅ Keep pending cache until Firestore message is visible
-      } catch (e) {
-      }
+      } catch (e) {}
 
       // ✅ Keep pending message in UI until Firestore sync replaces it
       if (mounted) {
@@ -3171,8 +3192,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         // Delete pending message from cache on error
         try {
           await _localRepo.deletePendingMessage(groupMessageId);
-        } catch (e) {
-        }
+        } catch (e) {}
       }
     }
   }
@@ -3315,8 +3335,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           isPending: true,
         );
         await _localRepo.saveMessage(pendingLocalMsg);
-      } catch (e) {
-      }
+      } catch (e) {}
 
       // Upload in background with optimistic UI
       final mediaMessage = await _mediaUploadService.uploadMedia(
@@ -4589,11 +4608,13 @@ class _ImageGalleryViewer extends StatefulWidget {
   final List<MediaMetadata> mediaList;
   final int initialIndex;
   final Map<String, String> localFilePaths;
+  final ForwardMessageData? forwardMessage;
 
   const _ImageGalleryViewer({
     required this.mediaList,
     required this.initialIndex,
     required this.localFilePaths,
+    this.forwardMessage,
   });
 
   @override
@@ -4609,6 +4630,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
       {}; // Per-image double-tap position
   bool _isInteracting = false; // Track if user is zooming
   int _pointerCount = 0; // Track number of fingers on screen
+  bool _isActionBusy = false;
 
   @override
   void initState() {
@@ -4650,6 +4672,77 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   bool get _shouldDisableScroll =>
       _isInteracting || (_zoomStates[_currentIndex] ?? false);
 
+  MediaMetadata get _currentMetadata => widget.mediaList[_currentIndex];
+
+  String? get _currentLocalPath {
+    final metadata = _currentMetadata;
+    return widget.localFilePaths[metadata.r2Key] ?? metadata.thumbnail;
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _downloadCurrentImage() async {
+    if (_isActionBusy) return;
+    setState(() => _isActionBusy = true);
+    try {
+      final metadata = _currentMetadata;
+      final saved = await ImageViewerActionService.saveImageToGallery(
+        localPath: _currentLocalPath,
+        publicUrl: metadata.publicUrl,
+        sourceKey: metadata.r2Key.isNotEmpty
+            ? metadata.r2Key
+            : metadata.publicUrl,
+        fileNameHint: metadata.originalFileName,
+      );
+      _showMessage(
+        saved != null
+            ? 'Image saved to gallery'
+            : 'Storage permission denied or save failed',
+      );
+    } catch (_) {
+      _showMessage('Download interrupted. Please retry.');
+    } finally {
+      if (mounted) setState(() => _isActionBusy = false);
+    }
+  }
+
+  Future<void> _shareCurrentImage() async {
+    if (_isActionBusy) return;
+    setState(() => _isActionBusy = true);
+    try {
+      final metadata = _currentMetadata;
+      final ok = await ImageViewerActionService.shareImage(
+        localPath: _currentLocalPath,
+        publicUrl: metadata.publicUrl,
+        fileNameHint: metadata.originalFileName,
+      );
+      if (!ok) _showMessage('Android share failed');
+    } catch (_) {
+      _showMessage('Android share failed');
+    } finally {
+      if (mounted) setState(() => _isActionBusy = false);
+    }
+  }
+
+  Future<void> _forwardCurrentImage() async {
+    if (_isActionBusy) return;
+    final forwardMessage = widget.forwardMessage;
+    if (forwardMessage == null) {
+      _showMessage('Forward unavailable for this image');
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ForwardSelectionScreen(messages: [forwardMessage]),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -4665,6 +4758,23 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           style: const TextStyle(color: Colors.white),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_rounded, color: Colors.white),
+            tooltip: 'Download',
+            onPressed: _isActionBusy ? null : _downloadCurrentImage,
+          ),
+          IconButton(
+            icon: const Icon(Icons.forward_rounded, color: Colors.white),
+            tooltip: 'Forward',
+            onPressed: _isActionBusy ? null : _forwardCurrentImage,
+          ),
+          IconButton(
+            icon: const Icon(Icons.share_rounded, color: Colors.white),
+            tooltip: 'Share',
+            onPressed: _isActionBusy ? null : _shareCurrentImage,
+          ),
+        ],
       ),
       body: PageView.builder(
         controller: _pageController,
