@@ -151,6 +151,34 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   // ✅ Cache stream like staff room to avoid rebuilding new streams
   Stream<List<CommunityMessageModel>>? _messagesStream;
 
+  String _cacheMessageIdFromPendingId(String messageId) {
+    return messageId.startsWith('pending:')
+        ? messageId.substring('pending:'.length)
+        : messageId;
+  }
+
+  Future<LocalMessage?> _getCachedPendingMessageByPendingId(
+    String pendingId,
+  ) async {
+    final baseId = _cacheMessageIdFromPendingId(pendingId);
+    // Prefer normalized ID, but support legacy entries written with pending: prefix.
+    return await _localRepo.getMessageById(baseId) ??
+        await _localRepo.getMessageById(pendingId);
+  }
+
+  bool _isImageMime(String? mimeType) {
+    final mt = (mimeType ?? '').toLowerCase();
+    return mt.startsWith('image/');
+  }
+
+  String _mediaTypeFromMime(String? mimeType) {
+    final mt = (mimeType ?? '').toLowerCase();
+    if (mt.startsWith('audio/')) return 'audio';
+    if (mt.startsWith('image/')) return 'image';
+    if (mt.contains('pdf')) return 'pdf';
+    return 'file';
+  }
+
   Future<T?> _runWithoutInputFocus<T>(Future<T?> Function() action) async {
     // Prevent keyboard re-opening when launching overlays/routes from chat.
     FocusManager.instance.primaryFocus?.unfocus();
@@ -321,7 +349,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       }
 
       final localMessage = LocalMessage(
-        messageId: messageId,
+        messageId: _cacheMessageIdFromPendingId(messageId),
         chatId: widget.groupId,
         chatType: 'ptGroup',
         senderId: currentUser.uid,
@@ -398,6 +426,86 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         // Convert LocalMessage to CommunityMessageModel format
         for (final msg in pendingMessages) {
           if (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) {
+            final firstRaw = msg.multipleMedia!.first;
+            final firstMime = (firstRaw['mimeType'] as String?) ?? '';
+            final isSingleNonImageAttachment =
+                msg.multipleMedia!.length == 1 && !_isImageMime(firstMime);
+
+            if (isSingleNonImageAttachment) {
+              final pendingMessageId = msg.messageId.startsWith('pending:')
+                  ? msg.messageId
+                  : 'pending:${msg.messageId}';
+              final mediaId =
+                  (firstRaw['messageId'] as String?) ?? pendingMessageId;
+              final localPath = firstRaw['localPath'] as String?;
+              final uploadProgress =
+                  (firstRaw['uploadProgress'] as num?)?.toDouble() ?? 0.0;
+
+              final pendingMetadata = MediaMetadata(
+                messageId: mediaId,
+                r2Key: firstRaw['r2Key'] ?? '',
+                publicUrl: firstRaw['publicUrl'] ?? '',
+                thumbnail: firstRaw['thumbnail'] ?? '',
+                localPath: localPath ?? '',
+                expiresAt: firstRaw['expiresAt'] != null
+                    ? DateTime.parse(firstRaw['expiresAt'])
+                    : DateTime.now().add(const Duration(days: 30)),
+                uploadedAt: firstRaw['uploadedAt'] != null
+                    ? DateTime.parse(firstRaw['uploadedAt'])
+                    : DateTime.now(),
+                originalFileName: firstRaw['originalFileName'] ?? '',
+                fileSize: firstRaw['fileSize'] ?? 0,
+                mimeType: firstRaw['mimeType'] ?? 'application/octet-stream',
+              );
+
+              if (_pendingMessages.any(
+                (m) => m.messageId == pendingMessageId,
+              )) {
+                continue;
+              }
+
+              final pendingMessage = CommunityMessageModel(
+                messageId: pendingMessageId,
+                communityId: widget.groupId,
+                senderId: msg.senderId,
+                senderName: msg.senderName,
+                senderRole: widget.senderRole,
+                senderAvatar: '',
+                type: _mediaTypeFromMime(firstMime),
+                content: msg.messageText ?? '',
+                imageUrl: '',
+                fileUrl: '',
+                fileName: pendingMetadata.originalFileName ?? '',
+                mediaMetadata: pendingMetadata,
+                createdAt: DateTime.fromMillisecondsSinceEpoch(msg.timestamp),
+                isEdited: false,
+                isDeleted: false,
+                isPinned: false,
+                reactions: {},
+                replyTo: '',
+                replyCount: 0,
+                isReported: false,
+                reportCount: 0,
+              );
+
+              _pendingMessages.insert(0, pendingMessage);
+              _messageCache[pendingMessage.messageId] = pendingMessage;
+
+              if (localPath != null && localPath.isNotEmpty) {
+                _localSenderMediaPaths[pendingMessageId] = localPath;
+                _localSenderMediaPaths[mediaId] = localPath;
+              }
+
+              if (uploadProgress < 1.0) {
+                _pendingUploadNotifiers[pendingMessageId] =
+                    ValueNotifier<double>(uploadProgress * 100);
+                _lastUploadPercent[pendingMessageId] = (uploadProgress * 100)
+                    .toInt();
+              }
+
+              continue;
+            }
+
             // Convert multipleMedia from List<dynamic> to List<MediaMetadata>
             final mediaList = <MediaMetadata>[];
             for (final mediaMap in msg.multipleMedia!) {
@@ -516,10 +624,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
     for (final pendingMsg in _pendingMessages) {
       final pendingId = pendingMsg.messageId;
-      final baseId = pendingId.replaceFirst('pending:', '');
 
       try {
-        final cachedMsg = await _localRepo.getMessageById(baseId);
+        final cachedMsg = await _getCachedPendingMessageByPendingId(pendingId);
 
         if (cachedMsg == null || cachedMsg.isPending == false) {
           // ✅ CRITICAL: Check if upload is still in progress before removing
@@ -561,8 +668,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _pendingMessages.removeWhere((m) => toRemove.contains(m.messageId));
         for (final pendingId in toRemove) {
           final baseId = pendingId.replaceFirst('pending:', '');
-          _pendingUploadNotifiers.removeWhere((k, _) => k.startsWith(baseId));
-          _lastUploadPercent.removeWhere((k, _) => k.startsWith(baseId));
+          _pendingUploadNotifiers.removeWhere(
+            (k, _) => k == pendingId || k.startsWith(baseId),
+          );
+          _lastUploadPercent.removeWhere(
+            (k, _) => k == pendingId || k.startsWith(baseId),
+          );
         }
       });
       return;
@@ -1255,15 +1366,17 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                         final baseId = pendingId.replaceFirst('pending:', '');
                         // Remove all notifiers for this message's media
                         _pendingUploadNotifiers.forEach((key, notifier) {
-                          if (key.startsWith(baseId)) {
+                          if (key == pendingId || key.startsWith(baseId)) {
                             notifier.dispose();
                           }
                         });
                         _pendingUploadNotifiers.removeWhere(
-                          (key, _) => key.startsWith(baseId),
+                          (key, _) =>
+                              key == pendingId || key.startsWith(baseId),
                         );
                         _lastUploadPercent.removeWhere(
-                          (key, _) => key.startsWith(baseId),
+                          (key, _) =>
+                              key == pendingId || key.startsWith(baseId),
                         );
                         // Remove pending message from cache (but keep Firestore messages)
                         _messageCache.remove(pendingId);
@@ -3327,7 +3440,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       // ✅ Save pending PDF to cache immediately for persistence
       try {
         final pendingLocalMsg = LocalMessage(
-          messageId: pendingId,
+          messageId: _cacheMessageIdFromPendingId(pendingId),
           chatId: widget.groupId,
           chatType: 'ptGroup',
           senderId: user.uid,
@@ -3424,6 +3537,14 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           _lastUploadPercent.remove(pendingId);
         });
 
+        // Remove pending cache entries now that server message is sent.
+        try {
+          await _localRepo.deletePendingMessage(
+            _cacheMessageIdFromPendingId(pendingId),
+          );
+          await _localRepo.deletePendingMessage(pendingId);
+        } catch (_) {}
+
         // ✅ Scroll to bottom to show newly sent PDF
         _scrollToBottom();
       }
@@ -3509,6 +3630,31 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _lastUploadPercent[pendingId] = -1;
       });
 
+      // Save pending audio to cache for restore-after-navigation support.
+      try {
+        final pendingLocalMsg = LocalMessage(
+          messageId: _cacheMessageIdFromPendingId(pendingId),
+          chatId: widget.groupId,
+          chatType: 'ptGroup',
+          senderId: user.uid,
+          senderName: user.name,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          messageText: '',
+          multipleMedia: [
+            {
+              'messageId': pendingId,
+              'localPath': file.path,
+              'uploadProgress': 0.0,
+              'originalFileName': fileName,
+              'fileSize': fileSize,
+              'mimeType': mime,
+            },
+          ],
+          isPending: true,
+        );
+        await _localRepo.saveMessage(pendingLocalMsg);
+      } catch (_) {}
+
       final mediaMessage = await _mediaUploadService.uploadMedia(
         file: file,
         conversationId: widget.groupId,
@@ -3524,6 +3670,19 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           if (!shouldUpdate) return;
           _lastUploadPercent[pendingId] = percent;
           _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
+
+          if (percent % 20 == 0 || percent == 100) {
+            _updatePendingMessageCache(pendingId, [
+              {
+                'messageId': pendingId,
+                'localPath': file.path,
+                'uploadProgress': percent / 100.0,
+                'originalFileName': fileName,
+                'fileSize': fileSize,
+                'mimeType': mime,
+              },
+            ]);
+          }
         },
       );
 
@@ -3568,6 +3727,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
           _lastUploadPercent.remove(pendingId);
         });
+
+        try {
+          await _localRepo.deletePendingMessage(
+            _cacheMessageIdFromPendingId(pendingId),
+          );
+          await _localRepo.deletePendingMessage(pendingId);
+        } catch (_) {}
 
         // ✅ Scroll to bottom to show newly sent audio
         _scrollToBottom();
@@ -3679,6 +3845,30 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _lastUploadPercent[pendingId] = -1;
       });
 
+      try {
+        final pendingLocalMsg = LocalMessage(
+          messageId: _cacheMessageIdFromPendingId(pendingId),
+          chatId: widget.groupId,
+          chatType: 'ptGroup',
+          senderId: user.uid,
+          senderName: user.name,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          messageText: '',
+          multipleMedia: [
+            {
+              'messageId': pendingId,
+              'localPath': file.path,
+              'uploadProgress': 0.0,
+              'originalFileName': fileName,
+              'fileSize': await file.length(),
+              'mimeType': 'audio/mp4',
+            },
+          ],
+          isPending: true,
+        );
+        await _localRepo.saveMessage(pendingLocalMsg);
+      } catch (_) {}
+
       // Scroll to bottom to show new message
       Future.delayed(const Duration(milliseconds: 100), () {
         if (scrollController.hasClients) {
@@ -3698,6 +3888,19 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           if (_lastUploadPercent[pendingId] != percent) {
             _lastUploadPercent[pendingId] = percent;
             _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
+
+            if (percent % 20 == 0 || percent == 100) {
+              _updatePendingMessageCache(pendingId, [
+                {
+                  'messageId': pendingId,
+                  'localPath': file.path,
+                  'uploadProgress': percent / 100.0,
+                  'originalFileName': fileName,
+                  'fileSize': file.lengthSync(),
+                  'mimeType': 'audio/mp4',
+                },
+              ]);
+            }
           }
         },
       );
@@ -3741,6 +3944,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           _pendingUploadNotifiers.remove(pendingId)?.dispose();
           _lastUploadPercent.remove(pendingId);
         });
+
+        try {
+          await _localRepo.deletePendingMessage(
+            _cacheMessageIdFromPendingId(pendingId),
+          );
+          await _localRepo.deletePendingMessage(pendingId);
+        } catch (_) {}
       }
 
       // ✅ Scroll to bottom to show newly sent voice message

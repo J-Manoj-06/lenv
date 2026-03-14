@@ -558,14 +558,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     for (final pendingMsg in _pendingMessages) {
       final messageId = pendingMsg.id;
-
-      // Skip cache checks for BackgroundUploadService pending messages
-      if (messageId.startsWith('pending:')) {
-        continue;
-      }
+      final cacheMessageId = messageId.replaceFirst('pending:', '');
 
       try {
-        final cachedMsg = await _localRepo.getMessageById(messageId);
+        final cachedMsg =
+            await _localRepo.getMessageById(cacheMessageId) ??
+            await _localRepo.getMessageById(messageId);
 
         // If message was deleted from cache, it means upload completed
         // Remove it from UI pending list
@@ -620,10 +618,17 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     if (toRemove.isNotEmpty && mounted) {
       setState(() {
         _pendingMessages.removeWhere((m) => toRemove.contains(m.id));
-        for (final messageId in toRemove) {
-          _uploadingMessageIds.removeWhere((id) => id.startsWith(messageId));
-          _pendingUploadProgress.removeWhere((k, v) => k.startsWith(messageId));
-          _localSenderMediaPaths.removeWhere((k, v) => k.startsWith(messageId));
+        for (final pendingId in toRemove) {
+          final baseId = pendingId.replaceFirst('pending:', '');
+          _uploadingMessageIds.removeWhere(
+            (id) => id == pendingId || id.startsWith(baseId),
+          );
+          _pendingUploadProgress.removeWhere(
+            (k, v) => k == pendingId || k.startsWith(baseId),
+          );
+          _localSenderMediaPaths.removeWhere(
+            (k, v) => k == pendingId || k.startsWith(baseId),
+          );
         }
       });
     }
@@ -1030,7 +1035,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       }
 
       final localMsg = LocalMessage(
-        messageId: messageData['messageId'] as String,
+        messageId: (messageData['messageId'] as String).replaceFirst(
+          'pending:',
+          '',
+        ),
         chatId: widget.communityId,
         chatType: 'community',
         senderId: currentUser.uid,
