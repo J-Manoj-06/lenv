@@ -69,7 +69,9 @@ class MediaMetadata {
       messageId: _parseString(data['messageId']),
       r2Key: parsedR2Key,
       publicUrl: parsedPublicUrl,
-      localPath: data['localPath'] is String ? data['localPath'] as String : null,
+      localPath: data['localPath'] is String
+          ? data['localPath'] as String
+          : null,
       thumbnail: _parseString(data['thumbnail']),
       deletedLocally: data['deletedLocally'] as bool? ?? false,
       serverStatus: ServerStatus.fromString(
