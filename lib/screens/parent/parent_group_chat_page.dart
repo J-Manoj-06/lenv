@@ -151,6 +151,21 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   // ✅ Cache stream like staff room to avoid rebuilding new streams
   Stream<List<CommunityMessageModel>>? _messagesStream;
 
+  Future<T?> _runWithoutInputFocus<T>(Future<T?> Function() action) async {
+    // Prevent keyboard re-opening when launching overlays/routes from chat.
+    FocusManager.instance.primaryFocus?.unfocus();
+    _focusNode.unfocus();
+    final previousCanRequestFocus = _focusNode.canRequestFocus;
+    _focusNode.canRequestFocus = false;
+    try {
+      return await action();
+    } finally {
+      if (mounted) {
+        _focusNode.canRequestFocus = previousCanRequestFocus;
+      }
+    }
+  }
+
   Color _chatAccentColor(BuildContext context) {
     // Match teacher dashboard accent exactly.
     if (widget.senderRole.toLowerCase() == 'teacher') {
@@ -1730,7 +1745,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                   (
                                                                     index,
                                                                     cachedPaths,
-                                                                  ) {
+                                                                  ) async {
                                                                     // Update media list with cached paths
                                                                     final updatedMediaList =
                                                                         <
@@ -1771,38 +1786,31 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                       );
                                                                     }
                                                                     // ✅ Open full-screen viewer with zoom, pinch, and swipe
-                                                                    Navigator.of(
-                                                                      context,
-                                                                    ).push(
-                                                                      MaterialPageRoute(
-                                                                        builder: (_) => _ImageGalleryViewer(
-                                                                          mediaList:
-                                                                              updatedMediaList,
-                                                                          initialIndex:
-                                                                              index,
-                                                                          localFilePaths:
-                                                                              _localSenderMediaPaths,
-                                                                          forwardMessage: ForwardMessageData.fromRaw(
-                                                                            messageId:
-                                                                                msg.messageId,
-                                                                            senderId:
-                                                                                msg.senderId,
-                                                                            senderName:
-                                                                                msg.senderName,
-                                                                            rawData:
-                                                                                msg.documentSnapshot?.data()
-                                                                                    as Map<
-                                                                                      String,
-                                                                                      dynamic
-                                                                                    >?,
-                                                                            imageUrl:
-                                                                                msg.imageUrl,
-                                                                            message:
-                                                                                msg.content,
-                                                                            mediaMetadata:
-                                                                                msg.mediaMetadata,
-                                                                            multipleMedia:
-                                                                                msg.multipleMedia,
+                                                                    await _runWithoutInputFocus(
+                                                                      () => Navigator.of(context).push(
+                                                                        MaterialPageRoute(
+                                                                          builder: (_) => _ImageGalleryViewer(
+                                                                            mediaList:
+                                                                                updatedMediaList,
+                                                                            initialIndex:
+                                                                                index,
+                                                                            localFilePaths:
+                                                                                _localSenderMediaPaths,
+                                                                            forwardMessage: ForwardMessageData.fromRaw(
+                                                                              messageId: msg.messageId,
+                                                                              senderId: msg.senderId,
+                                                                              senderName: msg.senderName,
+                                                                              rawData:
+                                                                                  msg.documentSnapshot?.data()
+                                                                                      as Map<
+                                                                                        String,
+                                                                                        dynamic
+                                                                                      >?,
+                                                                              imageUrl: msg.imageUrl,
+                                                                              message: msg.content,
+                                                                              mediaMetadata: msg.mediaMetadata,
+                                                                              multipleMedia: msg.multipleMedia,
+                                                                            ),
                                                                           ),
                                                                         ),
                                                                       ),
@@ -2439,15 +2447,19 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       return;
     }
     final primaryColor = _chatAccentColor(context);
-    showModernAttachmentSheet(
-      context,
-      onCameraTap: _pickAndSendCamera,
-      onImageTap: _pickAndSendImage,
-      onDocumentTap: _pickAndSendPDF,
-      onAudioTap: _pickAndSendAudioFile,
-      onPollTap: _navigateToPollScreen,
-      mindmapEnabled: false, // ✅ Disable mindmap in parent-teacher groups
-      color: primaryColor,
+    unawaited(
+      _runWithoutInputFocus(
+        () => showModernAttachmentSheet(
+          context,
+          onCameraTap: _pickAndSendCamera,
+          onImageTap: _pickAndSendImage,
+          onDocumentTap: _pickAndSendPDF,
+          onAudioTap: _pickAndSendAudioFile,
+          onPollTap: _navigateToPollScreen,
+          mindmapEnabled: false, // ✅ Disable mindmap in parent-teacher groups
+          color: primaryColor,
+        ),
+      ),
     );
   }
 
