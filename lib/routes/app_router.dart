@@ -34,6 +34,8 @@ import '../screens/notifications/notifications_screen.dart';
 import '../share/share_target_screen.dart';
 import '../share/incoming_share_data.dart';
 import '../screens/messages/community_chat_page.dart';
+import '../screens/messages/teacher_group_chat_page.dart';
+import '../screens/messages/staff_room_group_chat_page.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -275,6 +277,70 @@ class AppRouter {
             communityId: communityId,
             communityName: communityName,
             icon: communityIcon,
+          ),
+        );
+
+      case '/teacher/student-group-chat':
+        final args = settings.arguments as Map<String, dynamic>?;
+        final fallbackTargetId = (args?['targetId'] ?? '').toString();
+        final targetParts = fallbackTargetId.split('|');
+        final classId =
+            (args?['classId'] ??
+                    (targetParts.isNotEmpty ? targetParts.first : ''))
+                .toString();
+        final subjectId =
+            (args?['subjectId'] ??
+                    (targetParts.length > 1 ? targetParts[1] : ''))
+                .toString();
+        final subjectName =
+            (args?['subjectName'] ?? subjectId.replaceAll('_', ' ')).toString();
+        final teacherName = (args?['teacherName'] ?? 'Teacher').toString();
+        final icon = (args?['icon'] ?? '📕').toString();
+        final className = args?['className']?.toString();
+        final section = args?['section']?.toString();
+
+        if (classId.isEmpty || subjectId.isEmpty) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(
+              body: Center(child: Text('Missing teacher-student group data')),
+            ),
+          );
+        }
+
+        return MaterialPageRoute(
+          builder: (_) => TeacherGroupChatPage(
+            classId: classId,
+            subjectId: subjectId,
+            subjectName: subjectName,
+            teacherName: teacherName,
+            icon: icon,
+            className: className,
+            section: section,
+          ),
+        );
+
+      case '/staff-room-chat':
+        final args = settings.arguments as Map<String, dynamic>?;
+        final instituteId =
+            (args?['instituteId'] ??
+                    args?['groupId'] ??
+                    args?['targetId'] ??
+                    '')
+                .toString();
+        final instituteName =
+            (args?['instituteName'] ?? args?['groupName'] ?? 'Staff Room')
+                .toString();
+        if (instituteId.isEmpty) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(
+              body: Center(child: Text('Missing staff room data')),
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => StaffRoomGroupChatPage(
+            instituteId: instituteId,
+            instituteName: instituteName,
           ),
         );
 

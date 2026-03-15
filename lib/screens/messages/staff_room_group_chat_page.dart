@@ -34,6 +34,7 @@ import '../../services/firebase_message_sync_service.dart';
 import '../../models/local_message.dart';
 import 'offline_message_search_page.dart';
 import '../../services/background_upload_service.dart';
+import '../../services/cloudflare_notification_service.dart';
 import '../../services/image_viewer_action_service.dart';
 import '../../services/media_availability_service.dart';
 import '../../services/media_storage_helper.dart';
@@ -41,6 +42,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
+import '../../services/active_chat_service.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomGroupChatPage extends StatefulWidget {
@@ -143,6 +145,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   @override
   void initState() {
     super.initState();
+    ActiveChatService().setActiveChat(
+      targetType: 'staff_room',
+      targetId: widget.instituteId,
+    );
     _isOnline = ConnectivityService().isOnline;
     _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
       online,
@@ -1107,6 +1113,10 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
   @override
   void dispose() {
+    ActiveChatService().clearActiveChat(
+      targetType: 'staff_room',
+      targetId: widget.instituteId,
+    );
     _isInitialized = false;
     _connectivitySub?.cancel();
     _rebuildThrottleTimer?.cancel();
@@ -1232,7 +1242,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     if (currentUser == null) return;
 
     try {
-      await FirebaseFirestore.instance
+      final messageRef = await FirebaseFirestore.instance
           .collection('staff_rooms')
           .doc(widget.instituteId)
           .collection('messages')
@@ -1244,6 +1254,31 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             'timestamp': FieldValue.serverTimestamp(),
             'createdAt': DateTime.now().millisecondsSinceEpoch,
           });
+
+      unawaited(
+        CloudflareNotificationService.sendGroupMessageNotification(
+          messageId: messageRef.id,
+          senderId: currentUser.uid,
+          senderName: currentUser.name,
+          senderRole: currentUser.role.toString().split('.').last,
+          groupType: 'staff_room',
+          groupId: widget.instituteId,
+          // Worker resolves staff room recipients server-side.
+          recipientIds: const <String>[],
+          content: text,
+          messageType: 'text',
+          groupName: '${widget.instituteName} Staff Room',
+          deepLinkRoute: '/staff-room-chat',
+          metadata: {
+            'instituteId': widget.instituteId,
+            'instituteName': widget.instituteName,
+            'schoolCode': currentUser.instituteId ?? widget.instituteId,
+          },
+        ).catchError((Object error) {
+          debugPrint('Cloudflare staff room notification failed: $error');
+          return false;
+        }),
+      );
 
       _messageController.clear();
       _hasText.value = false; // Update ValueNotifier instead of setState

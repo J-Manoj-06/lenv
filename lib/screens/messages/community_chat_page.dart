@@ -44,6 +44,7 @@ import '../../services/media_availability_service.dart';
 import '../../services/media_storage_helper.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
+import '../../services/active_chat_service.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -219,6 +220,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   @override
   void initState() {
     super.initState();
+    ActiveChatService().setActiveChat(
+      targetType: 'community',
+      targetId: widget.communityId,
+    );
     _isOnline = ConnectivityService().isOnline;
     _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
       online,
@@ -938,6 +943,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   @override
   @override
   void dispose() {
+    ActiveChatService().clearActiveChat(
+      targetType: 'community',
+      targetId: widget.communityId,
+    );
     _isInitialized = false;
     _connectivitySub?.cancel();
     _rebuildThrottleTimer?.cancel();
@@ -2498,7 +2507,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
                     // Immediately hide messages queued for deletion.
                     allMessages.removeWhere(
-                      (msg) => _optimisticallyDeletedMessageIds.contains(msg.id),
+                      (msg) =>
+                          _optimisticallyDeletedMessageIds.contains(msg.id),
                     );
 
                     allMessages.sort(

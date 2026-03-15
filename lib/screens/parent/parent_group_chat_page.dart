@@ -46,6 +46,7 @@ import '../messages/forward_selection_screen.dart';
 import '../../models/forward_message_data.dart';
 import '../../models/local_message.dart';
 import '../../core/constants/app_colors.dart';
+import '../../services/active_chat_service.dart';
 
 class ParentGroupChatPage extends StatefulWidget {
   final String groupId;
@@ -284,6 +285,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
   @override
   void dispose() {
+    ActiveChatService().clearActiveChat(
+      targetType: 'parent_teacher_group',
+      targetId: widget.groupId,
+    );
     for (final notifier in _pendingUploadNotifiers.values) {
       notifier.dispose();
     }
@@ -308,6 +313,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   @override
   void initState() {
     super.initState();
+    ActiveChatService().setActiveChat(
+      targetType: 'parent_teacher_group',
+      targetId: widget.groupId,
+    );
     _isOnline = ConnectivityService().isOnline;
     _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
       online,

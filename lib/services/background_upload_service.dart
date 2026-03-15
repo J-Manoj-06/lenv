@@ -8,6 +8,7 @@ import 'cloudflare_r2_service.dart';
 import 'local_cache_service.dart';
 import 'group_messaging_service.dart';
 import 'community_service.dart';
+import 'cloudflare_notification_service.dart';
 import 'notification_service.dart';
 import '../models/group_chat_message.dart';
 import '../models/media_metadata.dart';
@@ -119,6 +120,35 @@ class BackgroundUploadService extends ChangeNotifier {
   Function(String groupId)? onGroupComplete;
 
   List<PendingUpload> get uploads => _uploads;
+
+  Future<void> _notifyStaffRoomMessage({
+    required String instituteId,
+    required String messageId,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+    required String content,
+    required String messageType,
+  }) async {
+    try {
+      await CloudflareNotificationService.sendGroupMessageNotification(
+        messageId: messageId,
+        senderId: senderId,
+        senderName: senderName,
+        senderRole: senderRole,
+        groupType: 'staff_room',
+        groupId: instituteId,
+        recipientIds: const <String>[],
+        content: content,
+        messageType: messageType,
+        groupName: 'Staff Room',
+        deepLinkRoute: '/staff-room-chat',
+        metadata: {'instituteId': instituteId, 'schoolCode': instituteId},
+      );
+    } catch (e) {
+      debugPrint('Staff room upload notification failed: $e');
+    }
+  }
 
   int _activeCommunityUploadCount() {
     return _uploads.where((u) {
@@ -402,6 +432,16 @@ class BackgroundUploadService extends ChangeNotifier {
                           )
                           .toList(),
                     });
+
+                await _notifyStaffRoomMessage(
+                  instituteId: upload.conversationId,
+                  messageId: upload.groupId!,
+                  senderId: upload.senderId,
+                  senderName: upload.senderName ?? 'Teacher',
+                  senderRole: upload.senderRole,
+                  content: '',
+                  messageType: 'image',
+                );
               }
 
               // Clean up completed group
@@ -489,6 +529,22 @@ class BackgroundUploadService extends ChangeNotifier {
                   'attachmentSize': metadata.fileSize,
                   'thumbnailUrl': metadata.thumbnail,
                 });
+
+            final mt = (metadata.mimeType ?? '').toLowerCase();
+            String inferredType = 'file';
+            if (mt.startsWith('image/')) inferredType = 'image';
+            if (mt.startsWith('audio/')) inferredType = 'audio';
+            if (mt.contains('pdf')) inferredType = 'pdf';
+
+            await _notifyStaffRoomMessage(
+              instituteId: upload.conversationId,
+              messageId: upload.id,
+              senderId: upload.senderId,
+              senderName: upload.senderName ?? 'Teacher',
+              senderRole: upload.senderRole,
+              content: '',
+              messageType: inferredType,
+            );
           } else {
             // Default: direct teacher-parent conversation
             await _chatService.sendMessage(

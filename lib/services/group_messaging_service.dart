@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/group_chat_message.dart';
 import '../models/group_subject.dart';
 import '../models/community.dart';
+import 'cloudflare_notification_service.dart';
 
 class GroupMessagingService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -13,6 +16,7 @@ class GroupMessagingService {
 
   // Verbose logging toggle
   static bool logVerbose = false;
+  static bool _disableClassActivityUpdate = false;
 
   // ====================================================
   // GROUP CHAT METHODS
@@ -27,7 +31,7 @@ class GroupMessagingService {
   ) async {
     try {
       // Add message to Firestore
-      await _firestore
+      final messageRef = await _firestore
           .collection('classes')
           .doc(classId)
           .collection('subjects')
@@ -41,9 +45,271 @@ class GroupMessagingService {
 
       // ✅ NEW: Update class document for students so they see groups reorder in real-time
       await _updateClassAfterMessage(classId, subjectId, message);
+
+      // Send push notifications for teacher-student group participants.
+      unawaited(
+        _notifyTeacherStudentGroupMessage(
+          classId: classId,
+          subjectId: subjectId,
+          messageId: messageRef.id,
+          message: message,
+        ),
+      );
     } catch (e) {
       throw Exception('Failed to send group message: $e');
     }
+  }
+
+  Future<void> _notifyTeacherStudentGroupMessage({
+    required String classId,
+    required String subjectId,
+    required String messageId,
+    required GroupChatMessage message,
+  }) async {
+    try {
+      final classDoc = await _firestore
+          .collection('classes')
+          .doc(classId)
+          .get();
+      if (!classDoc.exists) return;
+
+      final classData = classDoc.data();
+      if (classData == null) return;
+
+      final className = (classData['className'] ?? '').toString();
+      final section = (classData['section'] ?? '').toString();
+      final schoolCode = (classData['schoolCode'] ?? '').toString();
+      final subjectName = _resolveSubjectName(classData, subjectId);
+      final subjectTeachers =
+          classData['subjectTeachers'] as Map<String, dynamic>?;
+      final subjectTeacherData = _resolveSubjectTeacher(
+        subjectTeachers,
+        subjectId,
+      );
+      final teacherId = (subjectTeacherData?['teacherId'] ?? '').toString();
+      final teacherName = (subjectTeacherData?['teacherName'] ?? 'Teacher')
+          .toString();
+
+      final recipientIds = <String>{};
+      recipientIds.addAll(_extractStudentIdsFromClass(classData));
+      if (teacherId.isNotEmpty) {
+        recipientIds.add(teacherId);
+      }
+
+      // Fallback: derive student UIDs from students collection if class doc has no IDs.
+      if (recipientIds.isEmpty &&
+          className.isNotEmpty &&
+          section.isNotEmpty &&
+          schoolCode.isNotEmpty) {
+        final studentsSnapshot = await _firestore
+            .collection('students')
+            .where('className', isEqualTo: className)
+            .where('section', isEqualTo: section)
+            .where('schoolCode', isEqualTo: schoolCode)
+            .get();
+
+        for (final doc in studentsSnapshot.docs) {
+          final data = doc.data();
+          final uid = (data['uid'] ?? data['userId'] ?? '').toString();
+          if (uid.isNotEmpty) {
+            recipientIds.add(uid);
+          } else {
+            recipientIds.add(doc.id);
+          }
+        }
+
+        if (teacherId.isNotEmpty) {
+          recipientIds.add(teacherId);
+        }
+      }
+
+      recipientIds.remove(message.senderId);
+
+      final senderRole = message.senderId == teacherId ? 'teacher' : 'student';
+      final groupName = [
+        className,
+        if (section.isNotEmpty) section,
+        if (subjectName.isNotEmpty) '- $subjectName',
+      ].where((part) => part.isNotEmpty).join(' ').trim();
+
+      final preview = _previewForGroupMessage(message);
+
+      await CloudflareNotificationService.sendGroupMessageNotification(
+        messageId: messageId,
+        senderId: message.senderId,
+        senderName: message.senderName,
+        senderRole: senderRole,
+        groupType: 'teacher_student_group',
+        groupId: '$classId|$subjectId',
+        // Use worker-side resolution (same robust strategy as parent-teacher).
+        // This avoids client-side UID mismatches from mixed class document schemas.
+        recipientIds: const <String>[],
+        content: preview,
+        messageType: _messageTypeForGroupMessage(message),
+        groupName: groupName.isNotEmpty ? groupName : subjectName,
+        deepLinkRoute: '/teacher/student-group-chat',
+        metadata: {
+          'classId': classId,
+          'subjectId': subjectId,
+          'subjectName': subjectName,
+          'teacherName': teacherName,
+          'className': className,
+          'section': section,
+          'schoolCode': schoolCode,
+          'teacherId': teacherId,
+          'icon': _getSubjectIcon(subjectName),
+        },
+      );
+    } catch (e) {
+      debugPrint('Teacher-student group notification failed: $e');
+    }
+  }
+
+  Map<String, dynamic>? _resolveSubjectTeacher(
+    Map<String, dynamic>? subjectTeachers,
+    String subjectId,
+  ) {
+    if (subjectTeachers == null || subjectTeachers.isEmpty) return null;
+
+    final direct = subjectTeachers[subjectId];
+    if (direct is Map<String, dynamic>) return direct;
+
+    final spaced = subjectTeachers[subjectId.replaceAll('_', ' ')];
+    if (spaced is Map<String, dynamic>) return spaced;
+
+    for (final entry in subjectTeachers.entries) {
+      final normalizedKey = entry.key.toLowerCase().replaceAll(' ', '_').trim();
+      if (normalizedKey == subjectId) {
+        final value = entry.value;
+        if (value is Map<String, dynamic>) return value;
+      }
+    }
+
+    return null;
+  }
+
+  String _resolveSubjectName(Map<String, dynamic> classData, String subjectId) {
+    final subjects = classData['subjects'];
+    if (subjects is List) {
+      for (final entry in subjects) {
+        if (entry is! String) continue;
+        final normalized = entry.toLowerCase().replaceAll(' ', '_').trim();
+        if (normalized == subjectId) {
+          return entry;
+        }
+      }
+    }
+
+    final fallback = subjectId.replaceAll('_', ' ').trim();
+    if (fallback.isEmpty) return subjectId;
+    return fallback
+        .split(' ')
+        .where((part) => part.isNotEmpty)
+        .map((part) => part[0].toUpperCase() + part.substring(1))
+        .join(' ');
+  }
+
+  Set<String> _extractStudentIdsFromClass(Map<String, dynamic> classData) {
+    final ids = <String>{};
+
+    void addId(String? value) {
+      final id = (value ?? '').trim();
+      if (id.isNotEmpty) ids.add(id);
+    }
+
+    final directFields = [
+      classData['studentIds'],
+      classData['members'],
+      classData['memberIds'],
+      classData['participants'],
+    ];
+
+    for (final field in directFields) {
+      if (field is List) {
+        for (final entry in field) {
+          if (entry is String) {
+            addId(entry);
+          } else if (entry is Map<String, dynamic>) {
+            addId((entry['uid'] ?? entry['userId'] ?? entry['id']).toString());
+          }
+        }
+      }
+    }
+
+    final students = classData['students'];
+    if (students is List) {
+      for (final entry in students) {
+        if (entry is String) {
+          addId(entry);
+        } else if (entry is Map<String, dynamic>) {
+          addId((entry['uid'] ?? entry['userId'] ?? entry['id']).toString());
+        }
+      }
+    } else if (students is Map<String, dynamic>) {
+      for (final entry in students.entries) {
+        addId(entry.key);
+        final value = entry.value;
+        if (value is Map<String, dynamic>) {
+          addId((value['uid'] ?? value['userId'] ?? value['id']).toString());
+        }
+      }
+    }
+
+    return ids;
+  }
+
+  String _previewForGroupMessage(GroupChatMessage message) {
+    if (message.message.trim().isNotEmpty) {
+      return message.message.trim();
+    }
+
+    final mime = (message.mediaMetadata?.mimeType ?? '').toLowerCase();
+    if (mime.startsWith('image/')) return 'Photo';
+    if (mime.startsWith('audio/')) return 'Audio';
+    if (mime.contains('pdf')) return 'Document';
+    if (message.multipleMedia != null && message.multipleMedia!.isNotEmpty) {
+      return '${message.multipleMedia!.length} attachments';
+    }
+    if ((message.imageUrl ?? '').isNotEmpty) return 'Photo';
+
+    return 'New message';
+  }
+
+  String _messageTypeForGroupMessage(GroupChatMessage message) {
+    if (message.message.trim().isNotEmpty) return 'text';
+
+    final mime = (message.mediaMetadata?.mimeType ?? '').toLowerCase();
+    if (mime.startsWith('image/')) return 'image';
+    if (mime.startsWith('audio/')) return 'audio';
+    if (mime.contains('pdf')) return 'pdf';
+    if (message.multipleMedia != null && message.multipleMedia!.isNotEmpty) {
+      return 'image';
+    }
+    if ((message.imageUrl ?? '').isNotEmpty) return 'image';
+
+    return 'text';
+  }
+
+  String _getSubjectIcon(String subjectName) {
+    final subject = subjectName.toLowerCase();
+    if (subject.contains('math')) return '🔢';
+    if (subject.contains('science') &&
+        !subject.contains('social') &&
+        !subject.contains('computer')) {
+      return '🔬';
+    }
+    if (subject.contains('social')) return '🌍';
+    if (subject.contains('english')) return '📖';
+    if (subject.contains('hindi')) return '📚';
+    if (subject.contains('chem')) return '🧪';
+    if (subject.contains('phy') && !subject.contains('education')) return '⚡';
+    if (subject.contains('bio')) return '🧬';
+    if (subject.contains('computer')) return '💻';
+    if (subject.contains('history')) return '📜';
+    if (subject.contains('physical') || subject.contains('education')) {
+      return '⚽';
+    }
+    return '📕';
   }
 
   /// ✅ OPTIMIZATION: Update teacher_groups collection when message sent
@@ -113,13 +379,21 @@ class GroupMessagingService {
     String subjectId,
     GroupChatMessage message,
   ) async {
+    if (_disableClassActivityUpdate) return;
+
     try {
       // Store last message time by subject so list can sort by it
       await _firestore.collection('classes').doc(classId).set({
         'subjectLastMessageTime': {subjectId: FieldValue.serverTimestamp()},
       }, SetOptions(merge: true));
     } catch (e) {
-      // Don't throw - message was already sent successfully
+      // Avoid repeated permission-denied warnings on profiles that cannot write class docs.
+      if (e.toString().toLowerCase().contains('permission-denied') ||
+          e.toString().toLowerCase().contains(
+            'missing or insufficient permissions',
+          )) {
+        _disableClassActivityUpdate = true;
+      }
     }
   }
 

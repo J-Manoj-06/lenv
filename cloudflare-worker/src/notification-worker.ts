@@ -366,6 +366,93 @@ function parseParentGroupScope(request: JsonMap): { schoolCode: string; classNam
   return { schoolCode, className, section };
 }
 
+function resolveTeacherIdFromSubjectTeachers(subjectTeachers: unknown, subjectId: string): string {
+  if (!subjectTeachers || typeof subjectTeachers !== 'object') return '';
+
+  const map = subjectTeachers as Record<string, unknown>;
+  const direct = map[subjectId];
+  if (direct && typeof direct === 'object') {
+    const teacherId = asString((direct as JsonMap).teacherId);
+    if (teacherId) return teacherId;
+  }
+
+  const spaced = map[subjectId.replace(/_/g, ' ')];
+  if (spaced && typeof spaced === 'object') {
+    const teacherId = asString((spaced as JsonMap).teacherId);
+    if (teacherId) return teacherId;
+  }
+
+  const normalizedSubject = subjectId.toLowerCase().replace(/\s+/g, '_').trim();
+  for (const [key, value] of Object.entries(map)) {
+    const normalizedKey = key.toLowerCase().replace(/\s+/g, '_').trim();
+    if (normalizedKey !== normalizedSubject) continue;
+    if (value && typeof value === 'object') {
+      const teacherId = asString((value as JsonMap).teacherId);
+      if (teacherId) return teacherId;
+    }
+  }
+
+  return '';
+}
+
+function parseTeacherStudentScope(
+  request: JsonMap,
+  classDoc?: JsonMap | null
+): {
+  schoolCode: string;
+  className: string;
+  section: string;
+  classId: string;
+  subjectId: string;
+  teacherId: string;
+} {
+  const metadata = (request.metadata || {}) as JsonMap;
+  const rawGroupId = asString(request.groupId);
+  const parts = rawGroupId.split('|');
+  const parsedClassId = parts.length > 0 ? asString(parts[0]) : '';
+  const parsedSubjectId = parts.length > 1 ? asString(parts[1]) : '';
+
+  const classId = asString(request.classId || metadata.classId || parsedClassId);
+  const subjectId = asString(request.subjectId || metadata.subjectId || parsedSubjectId);
+
+  const schoolCode = asString(
+    request.schoolCode ||
+      metadata.schoolCode ||
+      classDoc?.schoolCode ||
+      classDoc?.schoolId ||
+      classDoc?.instituteId
+  );
+  const className = asString(request.className || metadata.className || classDoc?.className);
+  const section = asString(request.section || metadata.section || classDoc?.section);
+
+  const teacherId =
+    asString(request.teacherId || metadata.teacherId) ||
+    resolveTeacherIdFromSubjectTeachers(classDoc?.subjectTeachers, subjectId);
+
+  return { schoolCode, className, section, classId, subjectId, teacherId };
+}
+
+function parseStaffRoomScope(
+  request: JsonMap,
+  roomDoc?: JsonMap | null
+): { instituteId: string; schoolCode: string } {
+  const metadata = (request.metadata || {}) as JsonMap;
+  const groupId = asString(request.groupId);
+  const instituteId = asString(
+    request.instituteId || metadata.instituteId || groupId
+  );
+  const schoolCode = asString(
+    request.schoolCode ||
+      metadata.schoolCode ||
+      metadata.schoolId ||
+      roomDoc?.schoolCode ||
+      roomDoc?.schoolId ||
+      roomDoc?.instituteId ||
+      instituteId
+  );
+  return { instituteId, schoolCode };
+}
+
 interface RecipientData {
   userId: string;
   fcmToken: string;
@@ -494,6 +581,217 @@ async function resolveParentTeacherRecipients(
 
   console.log(`[resolveParentTeacherRecipients] resolved ${recipients.length} recipients`);
   return recipients;
+}
+
+async function resolveTeacherStudentRecipients(
+  request: JsonMap,
+  senderId: string,
+  env: Env,
+  accessToken: string
+): Promise<RecipientData[]> {
+  const MAX_FAST_RECIPIENTS = 20;
+  const rawGroupId = asString(request.groupId);
+
+  let classDoc: JsonMap | null = null;
+  const metadata = (request.metadata || {}) as JsonMap;
+  const tentativeClassId = asString(request.classId || metadata.classId || rawGroupId.split('|')[0]);
+  if (tentativeClassId) {
+    classDoc = await firestoreGetDocument('classes', tentativeClassId, env, accessToken);
+  }
+
+  const { schoolCode, className, section, teacherId } = parseTeacherStudentScope(request, classDoc);
+  console.log(
+    `[resolveTeacherStudentRecipients] groupId=${rawGroupId} senderId=${senderId} school=${schoolCode} class=${className} section=${section} teacherId=${teacherId}`
+  );
+
+  const recipients: RecipientData[] = [];
+  const seen = new Set<string>();
+
+  const pushRecipient = (profile: UserProfile | null) => {
+    if (!profile || !profile.id || !profile.fcmToken || profile.id === senderId || seen.has(profile.id)) return;
+    seen.add(profile.id);
+    recipients.push({
+      userId: profile.id,
+      fcmToken: profile.fcmToken,
+      name: profile.name,
+      role: profile.role,
+      schoolId: profile.schoolId,
+    });
+  };
+
+  // Ensure teacher is included for student-originated messages.
+  if (teacherId) {
+    const teacherProfile = await getUserProfile(teacherId, env, accessToken);
+    pushRecipient(teacherProfile);
+  }
+
+  if (!schoolCode) {
+    console.log('[resolveTeacherStudentRecipients] no schoolCode — returning teacher-only recipients');
+    return recipients.slice(0, MAX_FAST_RECIPIENTS);
+  }
+
+  const codeVariants = [...new Set([schoolCode, schoolCode.toUpperCase()])].filter(Boolean);
+  const queryResults = await Promise.all(
+    codeVariants.map((code) =>
+      firestoreRunQuery(
+        { from: [{ collectionId: 'users' }], where: equalsFilter('schoolCode', code) },
+        env,
+        accessToken
+      )
+    )
+  );
+
+  const allUsers = queryResults.flat();
+  const normalizedClass = normalizeClass(className);
+  const normalizedSection = asString(section).toLowerCase();
+
+  for (const user of allUsers) {
+    if (recipients.length >= MAX_FAST_RECIPIENTS) break;
+
+    const userId = asString(user.id);
+    if (!userId || userId === senderId || seen.has(userId)) continue;
+
+    const role = normalizeRole(user.role);
+    if (role !== 'student') continue;
+
+    if (normalizedClass) {
+      const userClass = normalizeClass(user.className || user.class || user.standard || user.grade || user.studentClass);
+      if (userClass && userClass !== normalizedClass) continue;
+    }
+
+    if (normalizedSection) {
+      const userSection = asString(user.section || user.sec || user.division).toLowerCase();
+      if (userSection && userSection !== normalizedSection) continue;
+    }
+
+    const fcmToken = asString(user.fcmToken);
+    if (!fcmToken) continue;
+
+    seen.add(userId);
+    recipients.push({
+      userId,
+      fcmToken,
+      name: asString(user.name || user.studentName || 'Student'),
+      role,
+      schoolId: asString(user.schoolId || user.schoolCode || user.instituteId),
+    });
+  }
+
+  console.log(`[resolveTeacherStudentRecipients] resolved ${recipients.length} recipients`);
+  return recipients.slice(0, MAX_FAST_RECIPIENTS);
+}
+
+async function resolveStaffRoomRecipients(
+  request: JsonMap,
+  senderId: string,
+  env: Env,
+  accessToken: string
+): Promise<RecipientData[]> {
+  const MAX_FAST_RECIPIENTS = 20;
+  const recipients: RecipientData[] = [];
+  const seen = new Set<string>();
+
+  const pushRecipient = (profile: UserProfile | null) => {
+    if (!profile || !profile.id || !profile.fcmToken || profile.id === senderId || seen.has(profile.id)) return;
+    seen.add(profile.id);
+    recipients.push({
+      userId: profile.id,
+      fcmToken: profile.fcmToken,
+      name: profile.name,
+      role: profile.role,
+      schoolId: profile.schoolId,
+    });
+  };
+
+  const groupId = asString(request.groupId);
+  const roomDoc = groupId
+    ? await firestoreGetDocument('staff_rooms', groupId, env, accessToken)
+    : null;
+  const { instituteId, schoolCode } = parseStaffRoomScope(request, roomDoc);
+
+  console.log(
+    `[resolveStaffRoomRecipients] groupId=${groupId} senderId=${senderId} instituteId=${instituteId} schoolCode=${schoolCode}`
+  );
+
+  // Step 1: explicit room members if available.
+  if (roomDoc) {
+    const memberFields = ['memberIds', 'members', 'participants', 'userIds'];
+    for (const field of memberFields) {
+      const value = roomDoc[field];
+      if (!Array.isArray(value) || !value.length) continue;
+
+      const ids = value
+        .map((entry: unknown) => {
+          if (typeof entry === 'string') return asString(entry);
+          if (entry && typeof entry === 'object') {
+            const obj = entry as JsonMap;
+            return asString(obj.userId || obj.uid || obj.id);
+          }
+          return '';
+        })
+        .filter((id) => id && id !== senderId)
+        .slice(0, MAX_FAST_RECIPIENTS);
+
+      if (ids.length) {
+        const profiles = await Promise.all(ids.map((uid) => getUserProfile(uid, env, accessToken)));
+        for (const profile of profiles) {
+          const role = normalizeRole(profile?.role);
+          if (role === 'teacher' || role === 'principal') {
+            pushRecipient(profile);
+          }
+          if (recipients.length >= MAX_FAST_RECIPIENTS) break;
+        }
+      }
+
+      if (recipients.length >= MAX_FAST_RECIPIENTS) break;
+    }
+  }
+
+  if (recipients.length >= MAX_FAST_RECIPIENTS) {
+    return recipients.slice(0, MAX_FAST_RECIPIENTS);
+  }
+
+  // Step 2: school/institute fallback by users collection.
+  const codeSeed = schoolCode || instituteId;
+  if (!codeSeed) {
+    console.log('[resolveStaffRoomRecipients] no code seed, returning existing recipients only');
+    return recipients.slice(0, MAX_FAST_RECIPIENTS);
+  }
+
+  const codeVariants = [...new Set([codeSeed, codeSeed.toUpperCase()])].filter(Boolean);
+  const queryResults = await Promise.all(
+    codeVariants.map((code) =>
+      firestoreRunQuery(
+        { from: [{ collectionId: 'users' }], where: equalsFilter('schoolCode', code) },
+        env,
+        accessToken
+      )
+    )
+  );
+
+  for (const user of queryResults.flat()) {
+    if (recipients.length >= MAX_FAST_RECIPIENTS) break;
+    const userId = asString(user.id);
+    if (!userId || userId === senderId || seen.has(userId)) continue;
+
+    const role = normalizeRole(user.role);
+    if (role !== 'teacher' && role !== 'principal') continue;
+
+    const fcmToken = asString(user.fcmToken);
+    if (!fcmToken) continue;
+
+    seen.add(userId);
+    recipients.push({
+      userId,
+      fcmToken,
+      name: asString(user.name || user.teacherName || user.parentName || 'User'),
+      role,
+      schoolId: asString(user.schoolId || user.schoolCode || user.instituteId),
+    });
+  }
+
+  console.log(`[resolveStaffRoomRecipients] resolved ${recipients.length} recipients`);
+  return recipients.slice(0, MAX_FAST_RECIPIENTS);
 }
 
 /**
@@ -902,8 +1200,16 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
   //    send using only 2 subrequests per user (write notif + FCM).
   //    This avoids the 5-subrequest-per-user cost of sendNotificationToUser and
   //    keeps total subrequests well within Cloudflare's free-plan limit of 50.
-  if (groupType === 'parent_teacher_group') {
-    const recipients = await resolveParentTeacherRecipients(request, senderId, env, accessToken);
+  if (
+    groupType === 'parent_teacher_group' ||
+    groupType === 'teacher_student_group' ||
+    groupType === 'staff_room'
+  ) {
+    const recipients = groupType === 'parent_teacher_group'
+      ? await resolveParentTeacherRecipients(request, senderId, env, accessToken)
+      : groupType === 'teacher_student_group'
+      ? await resolveTeacherStudentRecipients(request, senderId, env, accessToken)
+      : await resolveStaffRoomRecipients(request, senderId, env, accessToken);
     if (!recipients.length) {
       return jsonResponse({ success: false, message: 'No recipients for group message' }, 400);
     }

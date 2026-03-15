@@ -53,6 +53,7 @@ import 'mindmap_viewer_page.dart';
 import 'mindmap_create_page.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
+import '../../services/active_chat_service.dart';
 
 class TeacherGroupChatPage extends StatefulWidget {
   final String classId;
@@ -741,6 +742,10 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   @override
   void initState() {
     super.initState();
+    ActiveChatService().setActiveChat(
+      targetType: 'teacher_student_group',
+      targetId: '${widget.classId}|${widget.subjectId}',
+    );
     _isOnline = ConnectivityService().isOnline;
     _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
       online,
@@ -967,6 +972,10 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
   @override
   void dispose() {
+    ActiveChatService().clearActiveChat(
+      targetType: 'teacher_student_group',
+      targetId: '${widget.classId}|${widget.subjectId}',
+    );
     // CRITICAL EMERGENCY SAVE: Last chance to persist pending messages
     // Must happen SYNCHRONOUSLY before any cleanup
     if (_pendingMessages.isNotEmpty) {
@@ -2423,7 +2432,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
                         // Immediately hide messages queued for deletion.
                         allMessages.removeWhere(
-                          (msg) => _optimisticallyDeletedMessageIds.contains(msg.id),
+                          (msg) =>
+                              _optimisticallyDeletedMessageIds.contains(msg.id),
                         );
 
                         // Sort by timestamp (newest first)

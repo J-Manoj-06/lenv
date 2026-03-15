@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/notification_model.dart';
+import 'active_chat_service.dart';
 
 // Top-level function for background message handler
 @pragma('vm:entry-point')
@@ -291,8 +292,15 @@ class NotificationService {
     // Show local notification for non-silent notifications
     final shouldShow =
         message.data['silent']?.toString().toLowerCase() != 'true';
-    if (shouldShow) {
+    final suppressForActiveChat = ActiveChatService().isActiveNotification(
+      message.data,
+    );
+    if (shouldShow && !suppressForActiveChat) {
       await _showLocalNotification(message);
+    } else if (suppressForActiveChat) {
+      debugPrint(
+        'Suppressing foreground notification for active chat: ${message.data['targetType']} / ${message.data['targetId']}',
+      );
     }
   }
 
