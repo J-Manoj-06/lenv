@@ -476,11 +476,12 @@ class FirebaseMessageSyncService {
         content: content,
         messageType: messageType,
         groupName: groupData['name']?.toString(),
-        deepLinkRoute: '/notifications',
+        deepLinkRoute: '/parent/section-group-chat',
         metadata: {
           'className': className,
           'section': section,
           'schoolCode': schoolCode,
+          'groupName': groupData['name']?.toString() ?? '',
         },
       );
     } catch (e) {
@@ -497,9 +498,14 @@ class FirebaseMessageSyncService {
     required String messageType,
   }) async {
     try {
-      final membersSnapshot = await _firestore
+      final communityRef = _firestore
           .collection('communities')
-          .doc(communityId)
+          .doc(communityId);
+      final communityDoc = await communityRef.get();
+      final communityData = communityDoc.data() ?? {};
+      final communityName = (communityData['name'] ?? communityId).toString();
+      final communityIcon = (communityData['icon'] ?? '🌐').toString();
+      final membersSnapshot = await communityRef
           .collection('members')
           .where('status', isEqualTo: 'active')
           .get();
@@ -520,8 +526,12 @@ class FirebaseMessageSyncService {
         recipientIds: recipientIds,
         content: content,
         messageType: messageType,
-        deepLinkRoute: '/notifications',
-        metadata: {'communityId': communityId},
+        deepLinkRoute: '/community-group-chat',
+        metadata: {
+          'communityId': communityId,
+          'groupName': communityName,
+          'communityIcon': communityIcon,
+        },
       );
     } catch (e) {
       debugPrint('Cloudflare community sync notification failed: $e');

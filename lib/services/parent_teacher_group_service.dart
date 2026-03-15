@@ -324,11 +324,12 @@ class ParentTeacherGroupService {
         content: lastMessage,
         messageType: mediaType,
         groupName: groupData['name']?.toString(),
-        deepLinkRoute: '/notifications',
+        deepLinkRoute: '/parent/section-group-chat',
         metadata: {
           'className': groupData['className']?.toString() ?? '',
           'section': groupData['section']?.toString() ?? '',
           'schoolCode': groupData['schoolCode']?.toString() ?? '',
+          'groupName': groupData['name']?.toString() ?? '',
         },
       ).catchError((Object error) {
         debugPrint(

@@ -33,6 +33,7 @@ import '../screens/parent/parent_group_chat_page.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../share/share_target_screen.dart';
 import '../share/incoming_share_data.dart';
+import '../screens/messages/community_chat_page.dart';
 
 class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
@@ -253,6 +254,29 @@ class AppRouter {
 
       case '/notifications':
         return MaterialPageRoute(builder: (_) => const NotificationsScreen());
+
+      case '/community-group-chat':
+        final args = settings.arguments as Map<String, dynamic>?;
+        final communityId =
+            (args?['communityId'] ?? args?['targetId'] ?? '') as String;
+        final communityName =
+            (args?['groupName'] ?? args?['communityName'] ?? communityId)
+                as String;
+        final communityIcon = (args?['communityIcon'] ?? '🌐') as String;
+        if (communityId.isEmpty) {
+          return MaterialPageRoute(
+            builder: (_) => const Scaffold(
+              body: Center(child: Text('Missing community ID')),
+            ),
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => CommunityChatPage(
+            communityId: communityId,
+            communityName: communityName,
+            icon: communityIcon,
+          ),
+        );
 
       case '/share-target':
         final shareData = settings.arguments as IncomingShareData?;

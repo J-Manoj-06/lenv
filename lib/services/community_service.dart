@@ -935,9 +935,12 @@ class CommunityService {
 
       await batch.commit();
 
-      final membersSnapshot = await _firestore
-          .collection('communities')
-          .doc(communityId)
+      final communityDocSnap = await communityRef.get();
+      final communityDocData = communityDocSnap.data() ?? {};
+      final communityName = (communityDocData['name'] ?? communityId)
+          .toString();
+      final communityIcon = (communityDocData['icon'] ?? '🌐').toString();
+      final membersSnapshot = await communityRef
           .collection('members')
           .where('status', isEqualTo: 'active')
           .get();
@@ -960,10 +963,12 @@ class CommunityService {
             recipientIds: recipientIds,
             content: preview,
             messageType: messageType,
-            deepLinkRoute: '/notifications',
+            deepLinkRoute: '/community-group-chat',
             metadata: {
               'communityId': communityId,
               'replyToId': replyToId ?? '',
+              'groupName': communityName,
+              'communityIcon': communityIcon,
             },
           ).catchError((Object error) {
             debugPrint('Cloudflare community notification failed: $error');
@@ -1015,18 +1020,19 @@ class CommunityService {
         // Update user_communities for this member
         final userCommRef = _firestore
             .collection('user_communities')
-            .doc(userId);
+            .doc(userId)
+            .collection('communities')
+            .doc(communityId);
 
         batch.set(userCommRef, {
-          'communities': {
-            communityId: {
-              'unreadCount': FieldValue.increment(1),
-              'lastMessage': content.length > 50
-                  ? '${content.substring(0, 50)}...'
-                  : content,
-              'lastMessageAt': FieldValue.serverTimestamp(),
-              'lastMessageBy': senderName,
-            },
+          'communityId': communityId,
+          'unreadCount': FieldValue.increment(1),
+          'lastActivity': {
+            'lastMessage': content.length > 50
+                ? '${content.substring(0, 50)}...'
+                : content,
+            'lastMessageAt': FieldValue.serverTimestamp(),
+            'lastMessageBy': senderName,
           },
           'lastUpdated': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
