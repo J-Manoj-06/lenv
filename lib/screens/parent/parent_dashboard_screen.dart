@@ -569,189 +569,268 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final children = parentProvider.children;
     final selectedIndex = parentProvider.selectedChildIndex;
     final cardColor = _cardColor(context);
+    final canGoPrev = selectedIndex > 0;
+    final canGoNext = selectedIndex < children.length - 1;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         children: [
-          Container(
-            height: 116,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: isDark
-                    ? Colors.white.withOpacity(0.08)
-                    : Colors.black.withOpacity(0.04),
+          FractionallySizedBox(
+            widthFactor: 0.92,
+            child: Container(
+              height: 124,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.08)
+                      : Colors.black.withOpacity(0.04),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                  BoxShadow(
+                    color: parentGreen.withOpacity(0.10),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-                BoxShadow(
-                  color: parentGreen.withOpacity(0.10),
-                  blurRadius: 16,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: PageView.builder(
-              controller: _childrenPageController,
-              onPageChanged: (index) {
-                parentProvider.selectChild(index);
-              },
-              itemCount: children.length,
-              itemBuilder: (context, index) {
-                final child = children[index];
-                final studentName = child.name.trim().isNotEmpty
-                    ? child.name
-                    : 'Student';
-                final studentClass =
-                    '${child.className ?? "Grade"}${child.section != null ? ' - ${child.section}' : ''}';
+              child: Column(
+                children: [
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _childrenPageController,
+                      onPageChanged: (index) {
+                        parentProvider.selectChild(index);
+                      },
+                      itemCount: children.length,
+                      itemBuilder: (context, index) {
+                        final child = children[index];
+                        final studentName = child.name.trim().isNotEmpty
+                            ? child.name
+                            : 'Student';
+                        final studentClass =
+                            '${child.className ?? "Grade"}${child.section != null ? ' - ${child.section}' : ''}';
 
-                return Row(
-                  children: [
-                    Container(
-                      width: 76,
-                      height: 76,
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: parentGreen.withOpacity(0.28),
-                            blurRadius: 14,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isDark
-                              ? const Color(0xFF141418)
-                              : Colors.white,
-                        ),
-                        child: ClipOval(
-                          child:
-                              child.photoUrl != null &&
-                                  child.photoUrl!.trim().isNotEmpty
-                              ? Image.network(
-                                  child.photoUrl!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => Center(
-                                    child: Text(
-                                      studentName[0].toUpperCase(),
-                                      style: const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w700,
-                                        color: parentGreen,
+                        return Row(
+                          children: [
+                            Container(
+                              width: 70,
+                              height: 70,
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF14A670),
+                                    Color(0xFF0F8A5A),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: parentGreen.withOpacity(0.28),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isDark
+                                      ? const Color(0xFF141418)
+                                      : Colors.white,
+                                ),
+                                child: ClipOval(
+                                  child:
+                                      child.photoUrl != null &&
+                                          child.photoUrl!.trim().isNotEmpty
+                                      ? Image.network(
+                                          child.photoUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Center(
+                                            child: Text(
+                                              studentName[0].toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w700,
+                                                color: parentGreen,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : Center(
+                                          child: Text(
+                                            studentName[0].toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              color: parentGreen,
+                                            ),
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    studentName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? Colors.white
+                                          : _onBackground(context),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    studentClass,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isDark
+                                          ? Colors.grey[400]
+                                          : Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  SizedBox(
+                                    height: 30,
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        if (index == selectedIndex) {
+                                          Navigator.pushNamed(
+                                            context,
+                                            '/parent/child-profile',
+                                          );
+                                        } else {
+                                          parentProvider.selectChild(index);
+                                          _childrenPageController.animateToPage(
+                                            index,
+                                            duration: const Duration(
+                                              milliseconds: 300,
+                                            ),
+                                            curve: Curves.easeInOut,
+                                          );
+                                        }
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: parentGreen,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                        minimumSize: const Size(0, 30),
+                                        elevation: 0,
+                                        shape: const StadiumBorder(),
+                                      ),
+                                      child: const Text(
+                                        'View Profile',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                )
-                              : Center(
-                                  child: Text(
-                                    studentName[0].toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w700,
-                                      color: parentGreen,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            studentName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: isDark
-                                  ? Colors.white
-                                  : _onBackground(context),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            studentClass,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? Colors.grey[400]
-                                  : Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            height: 36,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                if (index == selectedIndex) {
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/parent/child-profile',
-                                  );
-                                } else {
-                                  parentProvider.selectChild(index);
-                                  _childrenPageController.animateToPage(
-                                    index,
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut,
-                                  );
-                                }
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: parentGreen,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                minimumSize: const Size(0, 36),
-                                elevation: 0,
-                                shape: const StadiumBorder(),
-                              ),
-                              child: const Text(
-                                'View Profile',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                ],
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        );
+                      },
                     ),
-                  ],
-                );
-              },
+                  ),
+                ],
+              ),
             ),
           ),
           if (children.length > 1) ...[
             const SizedBox(height: 8),
-            _buildPageIndicator(parentProvider),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildSwitcherArrow(
+                  icon: Icons.chevron_left_rounded,
+                  enabled: canGoPrev,
+                  onTap: () {
+                    if (!canGoPrev) return;
+                    final prevIndex = selectedIndex - 1;
+                    parentProvider.selectChild(prevIndex);
+                    _childrenPageController.animateToPage(
+                      prevIndex,
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                    );
+                  },
+                ),
+                const SizedBox(width: 12),
+                _buildPageIndicator(parentProvider),
+                const SizedBox(width: 12),
+                _buildSwitcherArrow(
+                  icon: Icons.chevron_right_rounded,
+                  enabled: canGoNext,
+                  onTap: () {
+                    if (!canGoNext) return;
+                    final nextIndex = selectedIndex + 1;
+                    parentProvider.selectChild(nextIndex);
+                    _childrenPageController.animateToPage(
+                      nextIndex,
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                    );
+                  },
+                ),
+              ],
+            ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildSwitcherArrow({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled
+              ? parentGreen.withOpacity(0.16)
+              : Colors.grey.withOpacity(0.10),
+          border: Border.all(
+            color: enabled
+                ? parentGreen.withOpacity(0.28)
+                : Colors.grey.withOpacity(0.20),
+          ),
+        ),
+        child: Icon(icon, size: 18, color: enabled ? parentGreen : Colors.grey),
       ),
     );
   }

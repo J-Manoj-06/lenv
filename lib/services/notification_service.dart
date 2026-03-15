@@ -407,9 +407,21 @@ class NotificationService {
     RemoteMessage message,
   ) async {
     try {
-      final userId = message.data['userId'];
+      final userId = message.data['userId']?.toString();
       if (userId == null) {
         debugPrint('No userId in notification data');
+        return;
+      }
+
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        debugPrint('Skip notification save: no authenticated user in app');
+        return;
+      }
+      if (currentUser.uid != userId) {
+        debugPrint(
+          'Skip notification save: target userId does not match current user',
+        );
         return;
       }
 
