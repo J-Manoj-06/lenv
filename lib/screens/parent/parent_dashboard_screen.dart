@@ -280,11 +280,17 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           // Children Profile Cards Carousel
                           _buildChildrenCarousel(isDark, parentProvider),
 
-                          // Page Indicator
-                          _buildPageIndicator(parentProvider),
+                          const SizedBox(height: 16),
 
                           // Announcements Section
                           _buildAnnouncementsSection(isDark, parentProvider),
+
+                          const SizedBox(height: 16),
+
+                          // Parent-Teacher Section Group Card
+                          _buildSectionGroupCard(isDark, parentProvider),
+
+                          const SizedBox(height: 16),
 
                           // Performance Summary
                           _buildPerformanceSummary(
@@ -294,13 +300,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             parentProvider.attendance,
                           ),
 
-                          // Parent-Teacher Section Group Card
-                          _buildSectionGroupCard(isDark, parentProvider),
+                          const SizedBox(height: 16),
 
                           // Reward Requests
                           _buildRewardRequests(isDark, parentProvider),
 
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     ),
@@ -327,16 +332,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             .trim();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         decoration: BoxDecoration(
-          color: parentGreen,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: parentGreen.withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+              color: parentGreen.withOpacity(0.35),
+              blurRadius: 18,
+              spreadRadius: 1,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -362,22 +372,23 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                   );
                 },
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Container(
-                      width: 44,
-                      height: 44,
+                      width: 46,
+                      height: 46,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.18),
                       ),
                       child: const Icon(
-                        Icons.forum_outlined,
+                        Icons.chat_bubble_outline,
                         color: Colors.white,
+                        size: 24,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -390,7 +401,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                                 ? group!.name
                                 : fallbackTitle,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 18,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),
@@ -401,17 +412,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           Text(
                             'Chat with teachers and parents of this section',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 14,
                               color: Colors.white.withOpacity(0.9),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right, color: Colors.white),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 if (isLoading)
                   Row(
                     children: [
@@ -421,7 +436,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: const AlwaysStoppedAnimation<Color>(
-                            parentGreen,
+                            Colors.white,
                           ),
                         ),
                       ),
@@ -502,16 +517,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 
   Widget _buildHeader(bool isDark, AuthProvider authProvider) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      color: _scaffoldBg(context),
-      child: Row(
-        children: [
-          const SizedBox(width: 40),
-
-          // Title
-          Expanded(
-            child: Text(
+    return SizedBox(
+      height: 60,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Text(
               'Dashboard',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -520,32 +533,34 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 color: isDark ? Colors.white : _onBackground(context),
               ),
             ),
-          ),
-
-          // Profile Icon
-          Row(
-            children: [
-              NotificationBellButton(
-                iconColor: isDark ? Colors.white : _onBackground(context),
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.person,
-                  size: 28,
-                  color: isDark ? Colors.white : _onBackground(context),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ParentProfileScreen(),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NotificationBellButton(
+                    iconColor: isDark ? Colors.white : _onBackground(context),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.person,
+                      size: 26,
+                      color: isDark ? Colors.white : _onBackground(context),
                     ),
-                  );
-                },
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ParentProfileScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -553,206 +568,189 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Widget _buildChildrenCarousel(bool isDark, ParentProvider parentProvider) {
     final children = parentProvider.children;
     final selectedIndex = parentProvider.selectedChildIndex;
+    final cardColor = _cardColor(context);
 
-    return SizedBox(
-      height: 240,
-      child: PageView.builder(
-        controller: _childrenPageController,
-        onPageChanged: (index) {
-          parentProvider.selectChild(index);
-        },
-        itemCount: children.length,
-        itemBuilder: (context, index) {
-          final child = children[index];
-          final isActive = index == selectedIndex;
-          final cardColor = _cardColor(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.08)
+                : Colors.black.withOpacity(0.04),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              height: 162,
+              child: PageView.builder(
+                controller: _childrenPageController,
+                onPageChanged: (index) {
+                  parentProvider.selectChild(index);
+                },
+                itemCount: children.length,
+                itemBuilder: (context, index) {
+                  final child = children[index];
+                  final studentName = child.name.trim().isNotEmpty
+                      ? child.name
+                      : 'Student';
+                  final studentClass =
+                      '${child.className ?? "Grade"}${child.section != null ? ' - ${child.section}' : ''}';
 
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Opacity(
-              opacity: isActive ? 1.0 : 0.7,
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: cardColor.withOpacity(
-                    isActive ? 1.0 : (isDark ? 0.6 : 0.8),
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withOpacity(0.1)
-                        : Colors.transparent,
-                  ),
-                  boxShadow: isActive
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(
-                              isDark ? 0.2 : 0.05,
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            boxShadow: [
+                              BoxShadow(
+                                color: parentGreen.withOpacity(0.28),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
                           ),
-                        ]
-                      : [],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Profile Header with Gradient
-                    Container(
-                      height: 140,
-                      decoration: BoxDecoration(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(16),
-                        ),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Initial Circle
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Text(
-                                  child.name.isNotEmpty
-                                      ? child.name[0].toUpperCase()
-                                      : 'S',
-                                  style: const TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF14A670),
-                                  ),
-                                ),
-                              ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark
+                                  ? const Color(0xFF141418)
+                                  : Colors.white,
                             ),
-                            const SizedBox(height: 10),
-                            // Name
-                            Padding(
+                            child: ClipOval(
+                              child:
+                                  child.photoUrl != null &&
+                                      child.photoUrl!.trim().isNotEmpty
+                                  ? Image.network(
+                                      child.photoUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Center(
+                                        child: Text(
+                                          studentName[0].toUpperCase(),
+                                          style: const TextStyle(
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.w700,
+                                            color: parentGreen,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        studentName[0].toUpperCase(),
+                                        style: const TextStyle(
+                                          fontSize: 26,
+                                          fontWeight: FontWeight.w700,
+                                          color: parentGreen,
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            studentName,
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? Colors.white
+                                  : _onBackground(context),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          studentClass,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.grey[400] : Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        SizedBox(
+                          height: 30,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              if (index == selectedIndex) {
+                                Navigator.pushNamed(
+                                  context,
+                                  '/parent/child-profile',
+                                );
+                              } else {
+                                parentProvider.selectChild(index);
+                                _childrenPageController.animateToPage(
+                                  index,
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: parentGreen,
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                               ),
-                              child: Text(
-                                (child.name.trim().isNotEmpty
-                                    ? child.name
-                                    : 'Student'),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
+                              minimumSize: const Size(0, 30),
+                              elevation: 0,
+                              shape: const StadiumBorder(),
+                            ),
+                            child: Text(
+                              index == selectedIndex
+                                  ? 'View Profile'
+                                  : 'Switch Profile',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            // Class with icon
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(
-                                  Icons.school,
-                                  color: Colors.white,
-                                  size: 13,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${child.className ?? "N/A"}${child.section != null ? " - ${child.section}" : ""}',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.white70,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-
-                    // Child Info
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  if (isActive) {
-                                    // Navigate to child profile screen
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/parent/child-profile',
-                                    );
-                                  } else {
-                                    parentProvider.selectChild(index);
-                                    _childrenPageController.animateToPage(
-                                      index,
-                                      duration: const Duration(
-                                        milliseconds: 300,
-                                      ),
-                                      curve: Curves.easeInOut,
-                                    );
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isActive
-                                      ? parentGreen
-                                      : parentGreen.withOpacity(0.2),
-                                  foregroundColor: isActive
-                                      ? Colors.white
-                                      : (isDark
-                                            ? Colors.white
-                                            : _onBackground(context)),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  elevation: isActive ? 2 : 0,
-                                ),
-                                child: Text(
-                                  isActive ? 'View Profile' : 'Switch Profile',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
-          );
-        },
+            if (children.length > 1) ...[
+              const SizedBox(height: 8),
+              _buildPageIndicator(parentProvider),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -761,23 +759,21 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     final children = parentProvider.children;
     final selectedIndex = parentProvider.selectedChildIndex;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(children.length, (index) {
-          final isActive = index == selectedIndex;
-          return Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            width: isActive ? 16 : 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: isActive ? parentGreen : parentGreen.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(4),
-            ),
-          );
-        }),
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(children.length, (index) {
+        final isActive = index == selectedIndex;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isActive ? parentGreen : parentGreen.withOpacity(0.24),
+          ),
+        );
+      }),
     );
   }
 
@@ -826,7 +822,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       children: [
         // Section Title with Icon
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(
             children: [
               Container(
@@ -839,7 +835,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               const SizedBox(width: 10),
               Text(
-                '📢 Announcements',
+                'Announcements',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -852,7 +848,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
         // Horizontal scrollable list of circular avatars
         SizedBox(
-          height: 100,
+          height: 88,
           child: announcements.isEmpty
               ? _buildEmptyAnnouncementsList(isDark)
               : ListView.separated(
@@ -880,10 +876,10 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           children: [
             Icon(
               Icons.mail_outline,
-              size: 32,
+              size: 30,
               color: isDark ? Colors.grey[600] : Colors.grey[400],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               'No announcements yet',
               style: TextStyle(
@@ -1037,7 +1033,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 32, bottom: 12),
+            padding: const EdgeInsets.only(bottom: 10),
             child: Text(
               'Performance Summary',
               style: TextStyle(
@@ -1091,7 +1087,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     required String label,
   }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: _cardColor(context),
         borderRadius: BorderRadius.circular(16),
@@ -1108,12 +1104,12 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       ),
       child: Column(
         children: [
-          Icon(icon, color: parentGreen, size: 30),
+          Icon(icon, color: parentGreen, size: 27),
           const SizedBox(height: 8),
           Text(
             value,
             style: TextStyle(
-              fontSize: 24,
+              fontSize: 23,
               fontWeight: FontWeight.bold,
               color: isDark ? Colors.white : _onBackground(context),
             ),
@@ -1192,7 +1188,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 32, bottom: 12),
+            padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

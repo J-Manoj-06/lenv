@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:provider/provider.dart';
 import 'dart:async';
+import '../../../models/user_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../utils/session_manager.dart';
 import '../../messages/teacher_group_chat_page.dart';
@@ -391,10 +393,11 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       // ✅ CRITICAL: Wait for auth to initialize on app start
       await authProvider.ensureInitialized();
 
-      // Now set up stream listener after auth is ready
-      String? userId = authProvider.currentUser?.uid;
+      final authenticatedUser = authProvider.currentUser;
+      String? userId = authenticatedUser?.uid;
 
-      // ✅ OFFLINE FALLBACK: Get userId from SharedPreferences if auth user is null
+      // ✅ OFFLINE FALLBACK: Get userId from SharedPreferences if auth user is null.
+      // This is only safe for cached display, not Firestore reads/listeners.
       if (userId == null || userId.isEmpty) {
         final session = await SessionManager.getLoginSession();
         userId = session['userId'] as String?;
@@ -416,8 +419,23 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         }
       }
 
-      if (userId != null && userId.isNotEmpty) {
-        _setupTeacherGroupsStream(userId);
+      final hasLiveFirebaseSession =
+          firebase_auth.FirebaseAuth.instance.currentUser != null;
+      final isTeacher = authenticatedUser?.role == UserRole.teacher;
+
+      if (hasLiveFirebaseSession &&
+          authenticatedUser != null &&
+          authenticatedUser.uid.isNotEmpty &&
+          isTeacher) {
+        _setupTeacherGroupsStream(authenticatedUser.uid);
+      } else if (userId != null && userId.isNotEmpty) {
+        await _loadCachedGroupsOnly(userId);
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage ??= 'Showing cached groups. Reconnect to refresh.';
+          });
+        }
       } else {
         // No userId available at all - stop loading
         if (mounted) {
@@ -434,6 +452,42 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadCachedGroupsOnly(String teacherId) async {
+    try {
+      await _offlineService.initialize();
+      final cachedGroups = _offlineService.getCachedTeacherGroups(teacherId);
+
+      if (cachedGroups == null || cachedGroups.isEmpty || !mounted) {
+        return;
+      }
+
+      setState(() {
+        _groups = cachedGroups.map((data) {
+          return MessageGroup(
+            groupId: data['groupId'] ?? '',
+            subjectId: data['subjectId'] ?? '',
+            subjectName: data['subjectName'] ?? '',
+            className: data['className'] ?? '',
+            sectionName: data['sectionName'] ?? '',
+            teacherId: data['teacherId'] ?? '',
+            studentCount: data['studentCount'] ?? 0,
+            lastMessage: data['lastMessage'] as String?,
+            lastMessageTime: data['lastMessageTime'] != null
+                ? DateTime.fromMillisecondsSinceEpoch(
+                    data['lastMessageTime'] as int,
+                  )
+                : null,
+            unreadCount: data['unreadCount'] ?? 0,
+            classId: data['classId'] ?? '',
+          );
+        }).toList();
+        _filteredGroups = _groups;
+      });
+    } catch (e) {
+      debugPrint('⚠️ Failed to load cached groups only: $e');
     }
   }
 
@@ -462,9 +516,18 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
             await _loadGroupsFromFirestore(teacherId);
           },
           onError: (error) {
+            final message = error.toString();
+            if (message.contains('PERMISSION_DENIED')) {
+              _groupsStreamSubscription?.cancel();
+              _refreshTimer?.cancel();
+            }
             if (mounted) {
               setState(() {
-                _errorMessage = 'Error listening to groups: $error';
+                if (_groups.isEmpty) {
+                  _errorMessage = message.contains('PERMISSION_DENIED')
+                      ? 'Showing cached groups. Reconnect to refresh.'
+                      : 'Error listening to groups: $error';
+                }
                 _isLoading = false;
               });
             }
