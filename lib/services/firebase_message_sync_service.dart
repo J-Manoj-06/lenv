@@ -368,8 +368,8 @@ class FirebaseMessageSyncService {
           if (entry is String && entry.isNotEmpty) {
             memberIds.add(entry);
           } else if (entry is Map<String, dynamic>) {
-            final uid =
-                (entry['userId'] ?? entry['uid'] ?? entry['id'] ?? '').toString();
+            final uid = (entry['userId'] ?? entry['uid'] ?? entry['id'] ?? '')
+                .toString();
             if (uid.isNotEmpty) memberIds.add(uid);
           }
         }
@@ -397,7 +397,8 @@ class FirebaseMessageSyncService {
                       .toString()
                       .trim()
                       .toLowerCase();
-                    if (normalizedSchool.isNotEmpty && userSchool != normalizedSchool) {
+              if (normalizedSchool.isNotEmpty &&
+                  userSchool != normalizedSchool) {
                 return false;
               }
 

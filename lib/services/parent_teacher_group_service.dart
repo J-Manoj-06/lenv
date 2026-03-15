@@ -342,7 +342,10 @@ class ParentTeacherGroupService {
   }) async {
     try {
       // Prefer explicit member lists if present on the group document.
-      final memberIds = _extractMemberIds(groupData, excludeUserId: excludeUserId);
+      final memberIds = _extractMemberIds(
+        groupData,
+        excludeUserId: excludeUserId,
+      );
       if (memberIds.isNotEmpty) {
         return memberIds;
       }
@@ -355,7 +358,9 @@ class ParentTeacherGroupService {
       );
 
       final usersSnapshot = await _firestore.collection('users').get();
-      final normalizedClass = _normalizeClassName(scope.className).toLowerCase();
+      final normalizedClass = _normalizeClassName(
+        scope.className,
+      ).toLowerCase();
       final normalizedSection = scope.section.trim().toLowerCase();
       final normalizedSchool = scope.schoolCode.trim().toLowerCase();
 
@@ -372,9 +377,9 @@ class ParentTeacherGroupService {
                         data['schoolId'] ??
                         data['instituteId'] ??
                         '')
-                  .toString()
-                  .trim()
-                  .toLowerCase();
+                    .toString()
+                    .trim()
+                    .toLowerCase();
             if (normalizedSchool.isNotEmpty && userSchool != normalizedSchool) {
               return false;
             }
@@ -397,7 +402,8 @@ class ParentTeacherGroupService {
                     .toString()
                     .trim()
                     .toLowerCase();
-            if (normalizedSection.isNotEmpty && userSection != normalizedSection) {
+            if (normalizedSection.isNotEmpty &&
+                userSection != normalizedSection) {
               return false;
             }
 
@@ -455,8 +461,8 @@ class ParentTeacherGroupService {
         if (entry is String && entry.isNotEmpty) {
           ids.add(entry);
         } else if (entry is Map<String, dynamic>) {
-          final uid =
-              (entry['userId'] ?? entry['uid'] ?? entry['id'] ?? '').toString();
+          final uid = (entry['userId'] ?? entry['uid'] ?? entry['id'] ?? '')
+              .toString();
           if (uid.isNotEmpty) ids.add(uid);
         }
       }
@@ -500,9 +506,13 @@ class ParentTeacherGroupService {
         final schoolFromId = parts.join('_');
 
         return _GroupScope(
-          schoolCode: normalizedSchool.isNotEmpty ? normalizedSchool : schoolFromId,
+          schoolCode: normalizedSchool.isNotEmpty
+              ? normalizedSchool
+              : schoolFromId,
           className: normalizedClass.isNotEmpty ? normalizedClass : classFromId,
-          section: normalizedSection.isNotEmpty ? normalizedSection : sectionFromId,
+          section: normalizedSection.isNotEmpty
+              ? normalizedSection
+              : sectionFromId,
         );
       }
     }
