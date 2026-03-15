@@ -354,39 +354,115 @@ class FirebaseMessageSyncService {
       final className = (groupData['className'] ?? '').toString();
       final section = (groupData['section'] ?? '').toString();
       final normalizedClass = _normalizeClassName(className).toLowerCase();
+      final normalizedSection = section.trim().toLowerCase();
 
-      final usersSnapshot = await _firestore.collection('users').get();
-      final recipientIds = usersSnapshot.docs
-          .where((doc) {
-            if (doc.id == senderId) return false;
-            final data = doc.data();
-            final role = (data['role'] ?? '').toString().toLowerCase();
-            if (role != 'parent' && role != 'teacher') return false;
+      final memberIds = <String>{};
+      final memberCandidates = [
+        groupData['memberIds'],
+        groupData['members'],
+        groupData['participants'],
+      ];
+      for (final candidate in memberCandidates) {
+        if (candidate is! List) continue;
+        for (final entry in candidate) {
+          if (entry is String && entry.isNotEmpty) {
+            memberIds.add(entry);
+          } else if (entry is Map<String, dynamic>) {
+            final uid =
+                (entry['userId'] ?? entry['uid'] ?? entry['id'] ?? '').toString();
+            if (uid.isNotEmpty) memberIds.add(uid);
+          }
+        }
+      }
+      memberIds.remove(senderId);
 
-            final userSchool =
-                (data['schoolCode'] ??
-                        data['schoolId'] ??
-                        data['instituteId'] ??
+      List<String> recipientIds;
+      if (memberIds.isNotEmpty) {
+        recipientIds = memberIds.toList();
+      } else {
+        final normalizedSchool = schoolCode.trim().toLowerCase();
+        final usersSnapshot = await _firestore.collection('users').get();
+        final strictRecipients = usersSnapshot.docs
+            .where((doc) {
+              if (doc.id == senderId) return false;
+              final data = doc.data();
+              final role = (data['role'] ?? '').toString().toLowerCase();
+              if (role != 'parent' && role != 'teacher') return false;
+
+              final userSchool =
+                  (data['schoolCode'] ??
+                          data['schoolId'] ??
+                          data['instituteId'] ??
+                          '')
+                      .toString()
+                      .trim()
+                      .toLowerCase();
+                    if (normalizedSchool.isNotEmpty && userSchool != normalizedSchool) {
+                return false;
+              }
+
+              final userClass = _normalizeClassName(
+                (data['className'] ??
+                        data['class'] ??
+                        data['standard'] ??
+                        data['grade'] ??
+                        data['studentClass'] ??
                         '')
-                    .toString();
-            if (schoolCode.isNotEmpty && userSchool != schoolCode) return false;
+                    .toString(),
+              ).toLowerCase();
+              if (normalizedClass.isNotEmpty && userClass != normalizedClass) {
+                return false;
+              }
 
-            final userClass = _normalizeClassName(
-              (data['className'] ?? data['class'] ?? data['standard'] ?? '')
-                  .toString(),
-            ).toLowerCase();
-            if (normalizedClass.isNotEmpty && userClass != normalizedClass) {
-              return false;
-            }
+              final userSection =
+                  (data['section'] ?? data['sec'] ?? data['division'] ?? '')
+                      .toString()
+                      .trim()
+                      .toLowerCase();
+              if (normalizedSection.isNotEmpty &&
+                  userSection != normalizedSection) {
+                return false;
+              }
 
-            final userSection = (data['section'] ?? '').toString();
-            if (section.isNotEmpty && userSection != section) return false;
-            return true;
-          })
-          .map((doc) => doc.id)
-          .toList();
+              return true;
+            })
+            .map((doc) => doc.id)
+            .toList();
 
-      if (recipientIds.isEmpty) return;
+        if (strictRecipients.isNotEmpty || normalizedSchool.isEmpty) {
+          recipientIds = strictRecipients;
+        } else {
+          recipientIds = usersSnapshot.docs
+              .where((doc) {
+                if (doc.id == senderId) return false;
+                final data = doc.data();
+                final role = (data['role'] ?? '').toString().toLowerCase();
+                if (role != 'parent' && role != 'teacher') return false;
+
+                final userSchool =
+                    (data['schoolCode'] ??
+                            data['schoolId'] ??
+                            data['instituteId'] ??
+                            '')
+                        .toString()
+                        .trim()
+                        .toLowerCase();
+                return userSchool == normalizedSchool;
+              })
+              .map((doc) => doc.id)
+              .toList();
+
+          debugPrint(
+            'Parent-group sync fallback used: school recipients=${recipientIds.length}',
+          );
+        }
+      }
+
+      if (recipientIds.isEmpty) {
+        debugPrint(
+          'Parent-group sync notification using worker-side recipient resolution for group=$groupId',
+        );
+      }
 
       await CloudflareNotificationService.sendGroupMessageNotification(
         messageId: messageId,

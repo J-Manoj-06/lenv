@@ -291,52 +291,75 @@ class ParentTeacherGroupService {
     await batch.commit();
 
     final recipientIds = await _resolveNotificationRecipients(
+      groupId: groupId,
+      groupData: groupData,
       schoolCode: groupData['schoolCode']?.toString() ?? '',
       className: groupData['className']?.toString() ?? '',
       section: groupData['section']?.toString() ?? '',
       excludeUserId: senderId,
     );
 
-    if (recipientIds.isNotEmpty) {
-      unawaited(
-        CloudflareNotificationService.sendGroupMessageNotification(
-          messageId: messageRef.id,
-          senderId: senderId,
-          senderName: senderName,
-          senderRole: senderRole,
-          groupType: 'parent_teacher_group',
-          groupId: groupId,
-          recipientIds: recipientIds,
-          content: lastMessage,
-          messageType: mediaType,
-          groupName: groupData['name']?.toString(),
-          deepLinkRoute: '/notifications',
-          metadata: {
-            'className': groupData['className']?.toString() ?? '',
-            'section': groupData['section']?.toString() ?? '',
-            'schoolCode': groupData['schoolCode']?.toString() ?? '',
-          },
-        ).catchError((Object error) {
-          debugPrint(
-            'Cloudflare parent-teacher group notification failed: $error',
-          );
-          return false;
-        }),
+    if (recipientIds.isEmpty) {
+      debugPrint(
+        'Parent-teacher notification using worker-side recipient resolution for group=$groupId',
       );
     }
+
+    unawaited(
+      CloudflareNotificationService.sendGroupMessageNotification(
+        messageId: messageRef.id,
+        senderId: senderId,
+        senderName: senderName,
+        senderRole: senderRole,
+        groupType: 'parent_teacher_group',
+        groupId: groupId,
+        recipientIds: recipientIds,
+        content: lastMessage,
+        messageType: mediaType,
+        groupName: groupData['name']?.toString(),
+        deepLinkRoute: '/notifications',
+        metadata: {
+          'className': groupData['className']?.toString() ?? '',
+          'section': groupData['section']?.toString() ?? '',
+          'schoolCode': groupData['schoolCode']?.toString() ?? '',
+        },
+      ).catchError((Object error) {
+        debugPrint(
+          'Cloudflare parent-teacher group notification failed: $error',
+        );
+        return false;
+      }),
+    );
   }
 
   Future<List<String>> _resolveNotificationRecipients({
+    required String groupId,
+    required Map<String, dynamic> groupData,
     required String schoolCode,
     required String className,
     required String section,
     required String excludeUserId,
   }) async {
     try {
-      final usersSnapshot = await _firestore.collection('users').get();
-      final normalizedClass = _normalizeClassName(className).toLowerCase();
+      // Prefer explicit member lists if present on the group document.
+      final memberIds = _extractMemberIds(groupData, excludeUserId: excludeUserId);
+      if (memberIds.isNotEmpty) {
+        return memberIds;
+      }
 
-      return usersSnapshot.docs
+      final scope = _scopeFromGroup(
+        groupId: groupId,
+        schoolCode: schoolCode,
+        className: className,
+        section: section,
+      );
+
+      final usersSnapshot = await _firestore.collection('users').get();
+      final normalizedClass = _normalizeClassName(scope.className).toLowerCase();
+      final normalizedSection = scope.section.trim().toLowerCase();
+      final normalizedSchool = scope.schoolCode.trim().toLowerCase();
+
+      final strictRecipients = usersSnapshot.docs
           .where((doc) {
             if (doc.id == excludeUserId) return false;
 
@@ -349,28 +372,146 @@ class ParentTeacherGroupService {
                         data['schoolId'] ??
                         data['instituteId'] ??
                         '')
-                    .toString();
-            if (schoolCode.isNotEmpty && userSchool != schoolCode) return false;
+                  .toString()
+                  .trim()
+                  .toLowerCase();
+            if (normalizedSchool.isNotEmpty && userSchool != normalizedSchool) {
+              return false;
+            }
 
             final userClass = _normalizeClassName(
-              (data['className'] ?? data['class'] ?? data['standard'] ?? '')
+              (data['className'] ??
+                      data['class'] ??
+                      data['standard'] ??
+                      data['grade'] ??
+                      data['studentClass'] ??
+                      '')
                   .toString(),
             ).toLowerCase();
             if (normalizedClass.isNotEmpty && userClass != normalizedClass) {
               return false;
             }
 
-            final userSection = (data['section'] ?? '').toString();
-            if (section.isNotEmpty && userSection != section) return false;
+            final userSection =
+                (data['section'] ?? data['sec'] ?? data['division'] ?? '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+            if (normalizedSection.isNotEmpty && userSection != normalizedSection) {
+              return false;
+            }
 
             return true;
           })
           .map((doc) => doc.id)
           .toList();
+
+      if (strictRecipients.isNotEmpty || normalizedSchool.isEmpty) {
+        return strictRecipients;
+      }
+
+      // Fallback: If class/section mapping is incomplete in user docs, notify
+      // parents/teachers from the same school instead of dropping the event.
+      final schoolWideRecipients = usersSnapshot.docs
+          .where((doc) {
+            if (doc.id == excludeUserId) return false;
+            final data = doc.data();
+            final role = (data['role'] ?? '').toString().toLowerCase();
+            if (role != 'parent' && role != 'teacher') return false;
+
+            final userSchool =
+                (data['schoolCode'] ??
+                        data['schoolId'] ??
+                        data['instituteId'] ??
+                        '')
+                    .toString()
+                    .trim()
+                    .toLowerCase();
+            return userSchool == normalizedSchool;
+          })
+          .map((doc) => doc.id)
+          .toList();
+
+      debugPrint(
+        'Parent-teacher recipient fallback used for group=$groupId; school recipients=${schoolWideRecipients.length}',
+      );
+
+      return schoolWideRecipients;
     } catch (e) {
       debugPrint('Failed to resolve parent-teacher group recipients: $e');
       return const [];
     }
+  }
+
+  List<String> _extractMemberIds(
+    Map<String, dynamic> groupData, {
+    required String excludeUserId,
+  }) {
+    final ids = <String>{};
+
+    void addDynamicList(dynamic raw) {
+      if (raw is! List) return;
+      for (final entry in raw) {
+        if (entry is String && entry.isNotEmpty) {
+          ids.add(entry);
+        } else if (entry is Map<String, dynamic>) {
+          final uid =
+              (entry['userId'] ?? entry['uid'] ?? entry['id'] ?? '').toString();
+          if (uid.isNotEmpty) ids.add(uid);
+        }
+      }
+    }
+
+    addDynamicList(groupData['memberIds']);
+    addDynamicList(groupData['members']);
+    addDynamicList(groupData['participants']);
+
+    ids.remove(excludeUserId);
+    return ids.toList();
+  }
+
+  _GroupScope _scopeFromGroup({
+    required String groupId,
+    required String schoolCode,
+    required String className,
+    required String section,
+  }) {
+    final normalizedSchool = schoolCode.trim();
+    final normalizedClass = className.trim();
+    final normalizedSection = section.trim();
+
+    if (normalizedSchool.isNotEmpty &&
+        normalizedClass.isNotEmpty &&
+        normalizedSection.isNotEmpty) {
+      return _GroupScope(
+        schoolCode: normalizedSchool,
+        className: normalizedClass,
+        section: normalizedSection,
+      );
+    }
+
+    const suffix = '_parents_teachers';
+    if (groupId.endsWith(suffix)) {
+      final core = groupId.substring(0, groupId.length - suffix.length);
+      final parts = core.split('_');
+      if (parts.length >= 3) {
+        final sectionFromId = parts.removeLast();
+        final classFromId = parts.removeLast();
+        final schoolFromId = parts.join('_');
+
+        return _GroupScope(
+          schoolCode: normalizedSchool.isNotEmpty ? normalizedSchool : schoolFromId,
+          className: normalizedClass.isNotEmpty ? normalizedClass : classFromId,
+          section: normalizedSection.isNotEmpty ? normalizedSection : sectionFromId,
+        );
+      }
+    }
+
+    return _GroupScope(
+      schoolCode: normalizedSchool,
+      className: normalizedClass,
+      section: normalizedSection,
+    );
   }
 
   String _lastMessageLabel(String mediaType, MediaMetadata? metadata) {
@@ -589,4 +730,16 @@ class ParentTeacherGroupService {
       return [];
     }
   }
+}
+
+class _GroupScope {
+  final String schoolCode;
+  final String className;
+  final String section;
+
+  const _GroupScope({
+    required this.schoolCode,
+    required this.className,
+    required this.section,
+  });
 }

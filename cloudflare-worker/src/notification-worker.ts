@@ -339,6 +339,98 @@ function equalsFilter(field: string, value: any): JsonMap {
   };
 }
 
+function parseParentGroupScope(request: JsonMap): { schoolCode: string; className: string; section: string } {
+  const metadata = (request.metadata || {}) as JsonMap;
+  let schoolCode = asString(request.schoolCode || metadata.schoolCode).toLowerCase();
+  let className = asString(request.className || metadata.className);
+  let section = asString(request.section || metadata.section);
+
+  const groupId = asString(request.groupId);
+  const suffix = '_parents_teachers';
+  if ((!schoolCode || !className || !section) && groupId.endsWith(suffix)) {
+    const core = groupId.substring(0, groupId.length - suffix.length);
+    const parts = core.split('_');
+    if (parts.length >= 3) {
+      const parsedSection = parts.pop() || '';
+      const parsedClass = parts.pop() || '';
+      const parsedSchool = parts.join('_');
+
+      schoolCode = schoolCode || parsedSchool.toLowerCase();
+      className = className || parsedClass;
+      section = section || parsedSection;
+    }
+  }
+
+  return { schoolCode, className, section };
+}
+
+async function resolveParentTeacherRecipients(
+  request: JsonMap,
+  senderId: string,
+  env: Env,
+  accessToken: string
+): Promise<string[]> {
+  const { schoolCode, className, section } = parseParentGroupScope(request);
+  if (!schoolCode) return [];
+
+  // Query by school on multiple potential fields and merge locally.
+  const queryByField = async (field: string) =>
+    firestoreRunQuery(
+      {
+        from: [{ collectionId: 'users' }],
+        where: equalsFilter(field, schoolCode),
+      },
+      env,
+      accessToken
+    );
+
+  const [bySchoolCode, bySchoolId, byInstituteId] = await Promise.all([
+    queryByField('schoolCode'),
+    queryByField('schoolId'),
+    queryByField('instituteId'),
+  ]);
+
+  const merged = [...bySchoolCode, ...bySchoolId, ...byInstituteId];
+  const normalizedClass = normalizeClass(className);
+  const normalizedSection = asString(section).toLowerCase();
+  const recipientSet = new Set<string>();
+
+  merged.forEach((user) => {
+    const userId = asString(user.id);
+    if (!userId || userId === senderId) return;
+
+    const role = normalizeRole(user.role);
+    if (role !== 'parent' && role !== 'teacher') return;
+
+    if (normalizedClass) {
+      const userClass = normalizeClass(user.className || user.class || user.standard || user.grade || user.studentClass);
+      if (userClass !== normalizedClass) return;
+    }
+
+    if (normalizedSection) {
+      const userSection = asString(user.section || user.sec || user.division).toLowerCase();
+      if (userSection && userSection !== normalizedSection) return;
+      if (!userSection) return;
+    }
+
+    recipientSet.add(userId);
+  });
+
+  // Final fallback: if class/section are not reliable in user docs, notify same-school parent/teacher users.
+  if (!recipientSet.size) {
+    merged.forEach((user) => {
+      const userId = asString(user.id);
+      if (!userId || userId === senderId) return;
+      const role = normalizeRole(user.role);
+      if (role === 'parent' || role === 'teacher') {
+        recipientSet.add(userId);
+      }
+    });
+  }
+
+  return Array.from(recipientSet);
+}
+
 async function getUserProfile(userId: string, env: Env, accessToken: string): Promise<UserProfile | null> {
   const user = await firestoreGetDocument('users', userId, env, accessToken);
   if (!user) return null;
@@ -641,12 +733,20 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
   const senderName = asString(request.senderName, 'New message');
   const groupId = asString(request.groupId);
   const groupType = asString(request.groupType, 'group');
-  const recipientIds = Array.isArray(request.recipientIds)
+  let recipientIds = Array.isArray(request.recipientIds)
     ? request.recipientIds.map((entry: unknown) => asString(entry)).filter(Boolean)
     : [];
 
-  if (!messageId || !senderId || !groupId || !recipientIds.length) {
+  if (!messageId || !senderId || !groupId) {
     return jsonResponse({ success: false, message: 'Missing group message fields' }, 400);
+  }
+
+  if (!recipientIds.length && groupType === 'parent_teacher_group') {
+    recipientIds = await resolveParentTeacherRecipients(request, senderId, env, accessToken);
+  }
+
+  if (!recipientIds.length) {
+    return jsonResponse({ success: false, message: 'No recipients for group message' }, 400);
   }
 
   const body = previewForMessage(asString(request.content), asString(request.messageType, 'text'));
