@@ -572,185 +572,186 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.04),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+      child: Column(
+        children: [
+          Container(
+            height: 116,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.04),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(isDark ? 0.18 : 0.06),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: parentGreen.withOpacity(0.10),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 162,
-              child: PageView.builder(
-                controller: _childrenPageController,
-                onPageChanged: (index) {
-                  parentProvider.selectChild(index);
-                },
-                itemCount: children.length,
-                itemBuilder: (context, index) {
-                  final child = children[index];
-                  final studentName = child.name.trim().isNotEmpty
-                      ? child.name
-                      : 'Student';
-                  final studentClass =
-                      '${child.className ?? "Grade"}${child.section != null ? ' - ${child.section}' : ''}';
+            child: PageView.builder(
+              controller: _childrenPageController,
+              onPageChanged: (index) {
+                parentProvider.selectChild(index);
+              },
+              itemCount: children.length,
+              itemBuilder: (context, index) {
+                final child = children[index];
+                final studentName = child.name.trim().isNotEmpty
+                    ? child.name
+                    : 'Student';
+                final studentClass =
+                    '${child.className ?? "Grade"}${child.section != null ? ' - ${child.section}' : ''}';
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: parentGreen.withOpacity(0.28),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
+                return Row(
+                  children: [
+                    Container(
+                      width: 76,
+                      height: 76,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: parentGreen.withOpacity(0.28),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
                           ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isDark
-                                  ? const Color(0xFF141418)
-                                  : Colors.white,
-                            ),
-                            child: ClipOval(
-                              child:
-                                  child.photoUrl != null &&
-                                      child.photoUrl!.trim().isNotEmpty
-                                  ? Image.network(
-                                      child.photoUrl!,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Center(
-                                        child: Text(
-                                          studentName[0].toUpperCase(),
-                                          style: const TextStyle(
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.w700,
-                                            color: parentGreen,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  : Center(
-                                      child: Text(
-                                        studentName[0].toUpperCase(),
-                                        style: const TextStyle(
-                                          fontSize: 26,
-                                          fontWeight: FontWeight.w700,
-                                          color: parentGreen,
-                                        ),
+                        ],
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? const Color(0xFF141418)
+                              : Colors.white,
+                        ),
+                        child: ClipOval(
+                          child:
+                              child.photoUrl != null &&
+                                  child.photoUrl!.trim().isNotEmpty
+                              ? Image.network(
+                                  child.photoUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Center(
+                                    child: Text(
+                                      studentName[0].toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w700,
+                                        color: parentGreen,
                                       ),
                                     ),
-                            ),
-                          ),
+                                  ),
+                                )
+                              : Center(
+                                  child: Text(
+                                    studentName[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w700,
+                                      color: parentGreen,
+                                    ),
+                                  ),
+                                ),
                         ),
-                        const SizedBox(height: 4),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Text(
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
                             studentName,
-                            textAlign: TextAlign.center,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 18,
                               fontWeight: FontWeight.w600,
                               color: isDark
                                   ? Colors.white
                                   : _onBackground(context),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          studentClass,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: isDark ? Colors.grey[400] : Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          height: 30,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              if (index == selectedIndex) {
-                                Navigator.pushNamed(
-                                  context,
-                                  '/parent/child-profile',
-                                );
-                              } else {
-                                parentProvider.selectChild(index);
-                                _childrenPageController.animateToPage(
-                                  index,
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: parentGreen,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              minimumSize: const Size(0, 30),
-                              elevation: 0,
-                              shape: const StadiumBorder(),
-                            ),
-                            child: Text(
-                              index == selectedIndex
-                                  ? 'View Profile'
-                                  : 'Switch Profile',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          const SizedBox(height: 4),
+                          Text(
+                            studentClass,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? Colors.grey[400]
+                                  : Colors.grey[600],
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            height: 36,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                if (index == selectedIndex) {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/parent/child-profile',
+                                  );
+                                } else {
+                                  parentProvider.selectChild(index);
+                                  _childrenPageController.animateToPage(
+                                    index,
+                                    duration: const Duration(milliseconds: 300),
+                                    curve: Curves.easeInOut,
+                                  );
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: parentGreen,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                minimumSize: const Size(0, 36),
+                                elevation: 0,
+                                shape: const StadiumBorder(),
+                              ),
+                              child: const Text(
+                                'View Profile',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
+                  ],
+                );
+              },
             ),
-            if (children.length > 1) ...[
-              const SizedBox(height: 8),
-              _buildPageIndicator(parentProvider),
-            ],
+          ),
+          if (children.length > 1) ...[
+            const SizedBox(height: 8),
+            _buildPageIndicator(parentProvider),
           ],
-        ),
+        ],
       ),
     );
   }

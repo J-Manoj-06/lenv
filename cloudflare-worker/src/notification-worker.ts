@@ -341,7 +341,8 @@ function equalsFilter(field: string, value: any): JsonMap {
 
 function parseParentGroupScope(request: JsonMap): { schoolCode: string; className: string; section: string } {
   const metadata = (request.metadata || {}) as JsonMap;
-  let schoolCode = asString(request.schoolCode || metadata.schoolCode).toLowerCase();
+  // Preserve original case — Firestore equality is case-sensitive (user docs store CSK100 uppercase).
+  let schoolCode = asString(request.schoolCode || metadata.schoolCode);
   let className = asString(request.className || metadata.className);
   let section = asString(request.section || metadata.section);
 
@@ -355,7 +356,8 @@ function parseParentGroupScope(request: JsonMap): { schoolCode: string; classNam
       const parsedClass = parts.pop() || '';
       const parsedSchool = parts.join('_');
 
-      schoolCode = schoolCode || parsedSchool.toLowerCase();
+      // groupId is lowercase → store as-is; we will query both cases below.
+      schoolCode = schoolCode || parsedSchool;
       className = className || parsedClass;
       section = section || parsedSection;
     }
@@ -364,71 +366,210 @@ function parseParentGroupScope(request: JsonMap): { schoolCode: string; classNam
   return { schoolCode, className, section };
 }
 
+interface RecipientData {
+  userId: string;
+  fcmToken: string;
+  name: string;
+  role: string;
+  schoolId: string;
+}
+
+/**
+ * Resolves parent-teacher group recipients and returns their profile data
+ * (including fcmToken) directly from the Firestore query — avoiding per-user
+ * profile fetches in the send loop.
+ *
+ * Strategy (in order):
+ *  1. Read group doc for explicit memberIds.
+ *  2. Fall back to school-wide query for parents + teachers.
+ *     Capped at MAX_FAST_RECIPIENTS to honour Cloudflare subrequest limits.
+ */
 async function resolveParentTeacherRecipients(
   request: JsonMap,
   senderId: string,
   env: Env,
   accessToken: string
-): Promise<string[]> {
+): Promise<RecipientData[]> {
+  // Safety cap: 2 subrequests per recipient (write notif + FCM) + ~3 overhead.
+  // Free plan = 50 subrequests → max 23 recipients; use 20 for margin.
+  const MAX_FAST_RECIPIENTS = 20;
+
+  const groupId = asString(request.groupId);
+  console.log(`[resolveParentTeacherRecipients] groupId=${groupId} senderId=${senderId}`);
+
+  // ── Step 1: Read the group document for an explicit member list (1 subrequest). ──
+  if (groupId) {
+    const groupDoc = await firestoreGetDocument('parent_teacher_groups', groupId, env, accessToken);
+    if (groupDoc) {
+      const memberFields = ['memberIds', 'members', 'participants', 'userIds'];
+      for (const field of memberFields) {
+        const val = groupDoc[field];
+        if (Array.isArray(val) && val.length > 0) {
+          const memberIds = val
+            .map((v: unknown) => asString(v))
+            .filter((id) => id && id !== senderId)
+            .slice(0, MAX_FAST_RECIPIENTS);
+          if (memberIds.length > 0) {
+            console.log(`[resolveParentTeacherRecipients] ${memberIds.length} members from group doc '${field}'`);
+            // Fetch profiles in parallel so we have fcmToken for each.
+            const profiles = await Promise.all(
+              memberIds.map((uid) => getUserProfile(uid, env, accessToken))
+            );
+            return profiles
+              .filter((p): p is UserProfile => p !== null && !!(p.fcmToken))
+              .map((p) => ({
+                userId: p.id,
+                fcmToken: p.fcmToken,
+                name: p.name,
+                role: p.role,
+                schoolId: p.schoolId,
+              }));
+          }
+        }
+      }
+      console.log(`[resolveParentTeacherRecipients] group doc has no member list; fields=${JSON.stringify(Object.keys(groupDoc))}`);
+    }
+  }
+
+  // ── Step 2: School-wide fallback — query users by schoolCode (1–2 subrequests). ──
   const { schoolCode, className, section } = parseParentGroupScope(request);
-  if (!schoolCode) return [];
+  if (!schoolCode) {
+    console.log('[resolveParentTeacherRecipients] no schoolCode — cannot resolve');
+    return [];
+  }
 
-  // Query by school on multiple potential fields and merge locally.
-  const queryByField = async (field: string) =>
-    firestoreRunQuery(
-      {
-        from: [{ collectionId: 'users' }],
-        where: equalsFilter(field, schoolCode),
-      },
-      env,
-      accessToken
-    );
+  // CSK100 (from Flutter) and csk100 (from groupId parsing) are the same school.
+  const codeVariants = [...new Set([schoolCode, schoolCode.toUpperCase()])].filter(Boolean);
+  console.log(`[resolveParentTeacherRecipients] school query variants=${JSON.stringify(codeVariants)} class=${className} section=${section}`);
 
-  const [bySchoolCode, bySchoolId, byInstituteId] = await Promise.all([
-    queryByField('schoolCode'),
-    queryByField('schoolId'),
-    queryByField('instituteId'),
-  ]);
+  const queryResults = await Promise.all(
+    codeVariants.map((code) =>
+      firestoreRunQuery(
+        { from: [{ collectionId: 'users' }], where: equalsFilter('schoolCode', code) },
+        env,
+        accessToken
+      )
+    )
+  );
 
-  const merged = [...bySchoolCode, ...bySchoolId, ...byInstituteId];
+  const allUsers = queryResults.flat();
+  console.log(`[resolveParentTeacherRecipients] school query returned ${allUsers.length} users`);
+
   const normalizedClass = normalizeClass(className);
   const normalizedSection = asString(section).toLowerCase();
-  const recipientSet = new Set<string>();
+  const seen = new Set<string>();
+  const recipients: RecipientData[] = [];
 
-  merged.forEach((user) => {
+  for (const user of allUsers) {
+    if (recipients.length >= MAX_FAST_RECIPIENTS) break;
     const userId = asString(user.id);
-    if (!userId || userId === senderId) return;
+    if (!userId || userId === senderId || seen.has(userId)) continue;
+    seen.add(userId);
 
     const role = normalizeRole(user.role);
-    if (role !== 'parent' && role !== 'teacher') return;
+    if (role !== 'parent' && role !== 'teacher') continue;
 
+    // Only reject if user explicitly has a different class (teachers often have no className).
     if (normalizedClass) {
       const userClass = normalizeClass(user.className || user.class || user.standard || user.grade || user.studentClass);
-      if (userClass !== normalizedClass) return;
+      if (userClass && userClass !== normalizedClass) continue;
     }
-
+    // Only reject if user explicitly has a different section.
     if (normalizedSection) {
       const userSection = asString(user.section || user.sec || user.division).toLowerCase();
-      if (userSection && userSection !== normalizedSection) return;
-      if (!userSection) return;
+      if (userSection && userSection !== normalizedSection) continue;
     }
 
-    recipientSet.add(userId);
-  });
+    const fcmToken = asString(user.fcmToken);
+    if (!fcmToken) continue; // Skip users without a push token.
 
-  // Final fallback: if class/section are not reliable in user docs, notify same-school parent/teacher users.
-  if (!recipientSet.size) {
-    merged.forEach((user) => {
-      const userId = asString(user.id);
-      if (!userId || userId === senderId) return;
-      const role = normalizeRole(user.role);
-      if (role === 'parent' || role === 'teacher') {
-        recipientSet.add(userId);
-      }
+    recipients.push({
+      userId,
+      fcmToken,
+      name: asString(user.name || user.teacherName || user.parentName || 'User'),
+      role,
+      schoolId: asString(user.schoolId || user.schoolCode || user.instituteId),
     });
   }
 
-  return Array.from(recipientSet);
+  console.log(`[resolveParentTeacherRecipients] resolved ${recipients.length} recipients`);
+  return recipients;
+}
+
+/**
+ * Sends a group notification to a pre-resolved recipient (whose profile data is
+ * already in memory).  Uses only 2 subrequests per user:
+ *   1. Write notification document (for the in-app bell icon).
+ *   2. Send FCM push to the user's stored fcmToken.
+ * Skips the dedup check, second profile fetch, and device_tokens collection read.
+ */
+async function sendFastGroupNotification(
+  recipient: RecipientData,
+  opts: {
+    notificationId: string;
+    title: string;
+    body: string;
+    category: string;
+    targetType: string;
+    targetId: string;
+    deepLinkRoute: string;
+    metadata: JsonMap;
+    dedupeKey: string;
+  },
+  env: Env,
+  accessToken: string
+): Promise<JsonMap> {
+  const { userId, fcmToken, role, schoolId } = recipient;
+  const { notificationId, title, body, category, targetType, targetId, deepLinkRoute, metadata, dedupeKey } = opts;
+
+  // Write notification doc (for in-app bell) — no dedup read, PATCH is idempotent.
+  await firestoreCreateOrReplaceDocument(
+    'notifications',
+    notificationId,
+    {
+      notificationId,
+      userId,
+      role,
+      schoolId,
+      category,
+      title,
+      body,
+      iconType: 'chat',
+      priority: 'high',
+      soundEnabled: true,
+      vibrationEnabled: true,
+      isRead: false,
+      createdAt: new Date(),
+      timestamp: new Date(),
+      type: category,
+      referenceId: targetId,
+      data: metadata,
+      targetType,
+      targetId,
+      deepLinkRoute,
+      metadata,
+      dedupeKey,
+    },
+    env,
+    accessToken
+  );
+
+  // Send FCM push using the token cached from the user doc.
+  const payloadData: Record<string, string> = {
+    notificationId,
+    userId,
+    category,
+    deepLinkRoute,
+    targetType,
+    targetId,
+    priority: 'high',
+    soundEnabled: 'true',
+    vibrationEnabled: 'true',
+    ...Object.fromEntries(Object.entries(metadata).map(([k, v]) => [k, asString(v)])),
+  };
+
+  const sent = await sendFcmToToken(fcmToken, title, body, payloadData, 'high', true, env, accessToken);
+  return { sent, notificationId, userId };
 }
 
 async function getUserProfile(userId: string, env: Env, accessToken: string): Promise<UserProfile | null> {
@@ -451,10 +592,15 @@ async function getUserProfile(userId: string, env: Env, accessToken: string): Pr
   };
 }
 
-async function getActiveDeviceTokens(userId: string, env: Env, accessToken: string): Promise<string[]> {
-  const profile = await getUserProfile(userId, env, accessToken);
+async function getActiveDeviceTokens(userId: string, env: Env, accessToken: string, preloadedFcmToken?: string): Promise<string[]> {
   const tokenSet = new Set<string>();
-  if (profile?.fcmToken) tokenSet.add(profile.fcmToken);
+  if (preloadedFcmToken !== undefined) {
+    // Caller already fetched the user profile — use their token directly.
+    if (preloadedFcmToken) tokenSet.add(preloadedFcmToken);
+  } else {
+    const profile = await getUserProfile(userId, env, accessToken);
+    if (profile?.fcmToken) tokenSet.add(profile.fcmToken);
+  }
 
   const devices = await firestoreRunQuery(
     {
@@ -641,7 +787,7 @@ async function sendNotificationToUser({
     accessToken
   );
 
-  const tokens = await getActiveDeviceTokens(userId, env, accessToken);
+  const tokens = await getActiveDeviceTokens(userId, env, accessToken, user.fcmToken);
   if (!tokens.length) {
     return { sent: false, reason: 'no-tokens', notificationId };
   }
@@ -733,7 +879,7 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
   const senderName = asString(request.senderName, 'New message');
   const groupId = asString(request.groupId);
   const groupType = asString(request.groupType, 'group');
-  let recipientIds = Array.isArray(request.recipientIds)
+  const rawRecipientIds = Array.isArray(request.recipientIds)
     ? request.recipientIds.map((entry: unknown) => asString(entry)).filter(Boolean)
     : [];
 
@@ -741,22 +887,60 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
     return jsonResponse({ success: false, message: 'Missing group message fields' }, 400);
   }
 
-  if (!recipientIds.length && groupType === 'parent_teacher_group') {
-    recipientIds = await resolveParentTeacherRecipients(request, senderId, env, accessToken);
+  const body = previewForMessage(asString(request.content), asString(request.messageType, 'text'));
+  const title = asString(request.groupName) || senderName;
+  const notifBody = `${senderName}: ${body}`;
+  const sharedMetadata: JsonMap = {
+    messageId,
+    senderId,
+    groupId,
+    groupType,
+    ...(request.metadata || {}),
+  };
+
+  // ── Fast path for parent_teacher_group: resolve recipients with profile data and
+  //    send using only 2 subrequests per user (write notif + FCM).
+  //    This avoids the 5-subrequest-per-user cost of sendNotificationToUser and
+  //    keeps total subrequests well within Cloudflare's free-plan limit of 50.
+  if (groupType === 'parent_teacher_group') {
+    const recipients = await resolveParentTeacherRecipients(request, senderId, env, accessToken);
+    if (!recipients.length) {
+      return jsonResponse({ success: false, message: 'No recipients for group message' }, 400);
+    }
+    const results = await Promise.all(
+      recipients.map((r) =>
+        sendFastGroupNotification(
+          r,
+          {
+            notificationId: buildNotificationId('notif', r.userId, `${groupType}_${messageId}`),
+            title,
+            body: notifBody,
+            category: 'messaging',
+            targetType: groupType,
+            targetId: groupId,
+            deepLinkRoute: asString(request.deepLinkRoute, '/notifications'),
+            metadata: sharedMetadata,
+            dedupeKey: `${groupType}_${messageId}`,
+          },
+          env,
+          accessToken
+        )
+      )
+    );
+    return jsonResponse({ success: true, count: results.length, results });
   }
 
-  if (!recipientIds.length) {
+  // ── Standard path for other group types (community, etc.). ──
+  if (!rawRecipientIds.length) {
     return jsonResponse({ success: false, message: 'No recipients for group message' }, 400);
   }
 
-  const body = previewForMessage(asString(request.content), asString(request.messageType, 'text'));
-  const title = asString(request.groupName) || senderName;
   const results = await Promise.all(
-    recipientIds.map((userId) =>
+    rawRecipientIds.map((userId) =>
       sendNotificationToUser({
         userId,
         title,
-        body: `${senderName}: ${body}`,
+        body: notifBody,
         category: 'messaging',
         priority: 'high',
         soundEnabled: true,
@@ -765,13 +949,7 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
         targetType: groupType,
         targetId: groupId,
         deepLinkRoute: asString(request.deepLinkRoute, '/notifications'),
-        metadata: {
-          messageId,
-          senderId,
-          groupId,
-          groupType,
-          ...(request.metadata || {}),
-        },
+        metadata: sharedMetadata,
         dedupeKey: `${groupType}_${messageId}`,
         env,
         accessToken,

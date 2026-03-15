@@ -289,6 +289,15 @@ class ParentTeacherGroupService {
     }, SetOptions(merge: true));
 
     await batch.commit();
+    // Track sender in memberIds so the notification worker can find group members
+    // without querying all users. After both parties send once, the fast path kicks in.
+    unawaited(
+      groupRef.set(
+        {'memberIds': FieldValue.arrayUnion([senderId])},
+        SetOptions(merge: true),
+      ),
+    );
+
 
     final recipientIds = await _resolveNotificationRecipients(
       groupId: groupId,
