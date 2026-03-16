@@ -168,6 +168,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
   // ✅ Cache stream like staff room to avoid rebuilding new streams
   Stream<List<CommunityMessageModel>>? _messagesStream;
+  Timestamp? _lastReadAt;
+  StreamSubscription<Timestamp?>? _lastReadAtSub;
+  final bool _showUnreadDivider = true;
+  bool _hasScrolledToUnread = false;
   final Completer<void> _offlineInitCompleter = Completer<void>();
 
   String _cacheMessageIdFromPendingId(String messageId) {
@@ -310,6 +314,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     _progressPollTimer?.cancel();
     _connectivitySub?.cancel();
     _firestoreMirrorSub?.cancel();
+    _lastReadAtSub?.cancel();
     _audioRecorder.dispose();
     super.dispose();
   }
@@ -368,6 +373,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
     // Mark chat as read when screen opens
     _markChatAsRead();
+    _setupLastReadStream();
   }
 
   void _initOfflineFirst() async {
@@ -1011,6 +1017,34 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     } catch (e) {}
   }
 
+  void _setupLastReadStream() {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser == null) return;
+      final stream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('chatReads')
+          .doc(widget.groupId)
+          .snapshots()
+          .map((doc) {
+            if (doc.exists && doc.data() != null && doc['lastReadAt'] != null) {
+              return doc['lastReadAt'] as Timestamp;
+            }
+            return Timestamp.fromDate(
+              DateTime.now().subtract(const Duration(days: 30)),
+            );
+          });
+      _lastReadAtSub?.cancel();
+      _lastReadAtSub = stream.listen((ts) {
+        if (mounted) setState(() => _lastReadAt = ts);
+      });
+    } catch (e) {
+      // Fail silently — unread divider is non-critical
+    }
+  }
+
   String _formatTime(DateTime dateTime) {
     return DateFormat('h:mm a').format(dateTime);
   }
@@ -1055,6 +1089,34 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildUnreadDivider({int count = 0}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = _chatAccentColor(context);
+    final label = count <= 1 ? '1 unread message' : '$count unread messages';
+    final dividerColor = isDark
+        ? const Color(0x339E9E9E)
+        : Colors.grey.shade300;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Expanded(child: Divider(color: dividerColor, thickness: 1)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: accentColor,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Divider(color: dividerColor, thickness: 1)),
+        ],
       ),
     );
   }
@@ -1736,6 +1798,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         Provider.of<AuthProvider>(context, listen: false).currentUser?.uid ??
         '';
     final primaryColor = _chatAccentColor(context);
+    // Compute last-read threshold for unread divider
+    final lastReadMs =
+        _lastReadAt?.toDate().millisecondsSinceEpoch ??
+        DateTime.now()
+            .subtract(const Duration(days: 30))
+            .millisecondsSinceEpoch;
 
     return Scaffold(
       backgroundColor: isDark ? primaryBackground : Colors.white,
@@ -2211,6 +2279,64 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                   );
                 }
 
+                // ── WhatsApp-style unread divider ──────────────────────────
+                int? unreadDividerIndex;
+                bool hasUnreadFromOthers = false;
+                bool hasUnread = false;
+                bool hasRead = false;
+                for (int i = 0; i < displayMessages.length; i++) {
+                  final msEpoch =
+                      displayMessages[i].createdAt.millisecondsSinceEpoch;
+                  final isUnread = msEpoch > lastReadMs;
+                  final isFromOthers =
+                      displayMessages[i].senderId != currentUserId;
+                  hasUnread = hasUnread || isUnread;
+                  hasRead = hasRead || !isUnread;
+                  if (isUnread && isFromOthers) hasUnreadFromOthers = true;
+                  if (i > 0) {
+                    final prevMs =
+                        displayMessages[i - 1].createdAt.millisecondsSinceEpoch;
+                    if (prevMs > lastReadMs &&
+                        !isUnread &&
+                        unreadDividerIndex == null) {
+                      unreadDividerIndex = i;
+                    }
+                  }
+                }
+                if (unreadDividerIndex == null && hasUnread && hasRead) {
+                  unreadDividerIndex = displayMessages.length - 1;
+                }
+                if (!hasUnreadFromOthers) unreadDividerIndex = null;
+                final unreadCount = displayMessages
+                    .where(
+                      (m) =>
+                          m.createdAt.millisecondsSinceEpoch > lastReadMs &&
+                          m.senderId != currentUserId,
+                    )
+                    .length;
+                // Scroll to first unread on initial open
+                if (_showUnreadDivider &&
+                    _lastReadAt != null &&
+                    unreadDividerIndex != null &&
+                    !_hasScrolledToUnread) {
+                  _hasScrolledToUnread = true;
+                  final targetIdx = unreadDividerIndex;
+                  final totalItems = displayMessages.length;
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    await Future.delayed(const Duration(milliseconds: 300));
+                    if (!mounted || !scrollController.hasClients) return;
+                    final maxExtent = scrollController.position.maxScrollExtent;
+                    if (maxExtent <= 0) return;
+                    final target = (targetIdx / totalItems) * maxExtent;
+                    scrollController.animateTo(
+                      target.clamp(0.0, maxExtent),
+                      duration: const Duration(milliseconds: 400),
+                      curve: Curves.easeOut,
+                    );
+                  });
+                }
+                // ──────────────────────────────────────────────────────────
+
                 return Stack(
                   children: [
                     // Main message list
@@ -2263,6 +2389,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              if (_showUnreadDivider &&
+                                  unreadDividerIndex == index)
+                                _buildUnreadDivider(count: unreadCount),
                               if (showDayDivider) _buildDayDivider(currentDate),
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
@@ -2314,6 +2443,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             return Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (_showUnreadDivider &&
+                                    unreadDividerIndex == index)
+                                  _buildUnreadDivider(count: unreadCount),
                                 if (showDayDivider)
                                   _buildDayDivider(currentDate),
                                 SizedBox(
@@ -2343,6 +2475,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                         return Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (_showUnreadDivider &&
+                                unreadDividerIndex == index)
+                              _buildUnreadDivider(count: unreadCount),
                             if (showDayDivider) _buildDayDivider(currentDate),
                             ValueListenableBuilder<Set<String>>(
                               valueListenable: _selectedMessages,

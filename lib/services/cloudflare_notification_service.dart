@@ -101,6 +101,10 @@ class CloudflareNotificationService {
     String? deepLinkRoute,
     Map<String, dynamic>? metadata,
   }) {
+    final sanitizedRecipients = recipientIds
+        .where((id) => id.isNotEmpty && id != senderId)
+        .toSet()
+        .toList();
     return _post({
       'type': 'group_message',
       'messageId': messageId,
@@ -109,7 +113,10 @@ class CloudflareNotificationService {
       'senderRole': senderRole,
       'groupType': groupType,
       'groupId': groupId,
-      'recipientIds': recipientIds,
+      'recipientIds': sanitizedRecipients,
+      // Extra hard guards for worker-side recipient resolution paths.
+      'excludeUserId': senderId,
+      'excludeUserIds': [senderId],
       'content': content,
       'messageType': messageType,
       'groupName': ?groupName,

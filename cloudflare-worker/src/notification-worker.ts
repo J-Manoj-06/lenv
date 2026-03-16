@@ -85,7 +85,7 @@ function getServiceAccount(env: Env): JsonMap {
     const binaryString = Buffer.from(env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8');
     serviceAccount = JSON.parse(binaryString);
   }
-  return serviceAccount;
+  return serviceAccount as JsonMap;
 }
 
 async function getAccessToken(env: Env): Promise<string> {
@@ -1045,6 +1045,15 @@ async function sendNotificationToUser({
 }): Promise<JsonMap> {
   if (!userId) return { sent: false, reason: 'missing-user' };
 
+  const metadataSenderId = asString(
+    (metadata || {}).senderId ||
+        (metadata || {}).createdBy ||
+        (metadata || {}).actorUserId
+  );
+  if (metadataSenderId && userId === metadataSenderId) {
+    return { sent: false, reason: 'self-notification-skipped' };
+  }
+
   const user = await getUserProfile(userId, env, accessToken);
   if (!user) return { sent: false, reason: 'user-not-found' };
 
@@ -1180,6 +1189,15 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
   const rawRecipientIds = Array.isArray(request.recipientIds)
     ? request.recipientIds.map((entry: unknown) => asString(entry)).filter(Boolean)
     : [];
+  const excludedUserIds = new Set(
+    [
+      senderId,
+      asString(request.excludeUserId),
+      ...(Array.isArray(request.excludeUserIds)
+        ? request.excludeUserIds.map((entry: unknown) => asString(entry))
+        : []),
+    ].filter(Boolean)
+  );
 
   if (!messageId || !senderId || !groupId) {
     return jsonResponse({ success: false, message: 'Missing group message fields' }, 400);
@@ -1210,11 +1228,14 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
       : groupType === 'teacher_student_group'
       ? await resolveTeacherStudentRecipients(request, senderId, env, accessToken)
       : await resolveStaffRoomRecipients(request, senderId, env, accessToken);
-    if (!recipients.length) {
+    const filteredRecipients = recipients.filter(
+      (r) => r.userId && !excludedUserIds.has(r.userId)
+    );
+    if (!filteredRecipients.length) {
       return jsonResponse({ success: false, message: 'No recipients for group message' }, 400);
     }
     const results = await Promise.all(
-      recipients.map((r) =>
+      filteredRecipients.map((r) =>
         sendFastGroupNotification(
           r,
           {
@@ -1237,12 +1258,15 @@ async function handleGroupMessage(request: JsonMap, env: Env, accessToken: strin
   }
 
   // ── Standard path for other group types (community, etc.). ──
-  if (!rawRecipientIds.length) {
+  const finalRecipientIds = [...new Set(rawRecipientIds)].filter(
+    (userId) => userId && !excludedUserIds.has(userId)
+  );
+  if (!finalRecipientIds.length) {
     return jsonResponse({ success: false, message: 'No recipients for group message' }, 400);
   }
 
   const results = await Promise.all(
-    rawRecipientIds.map((userId) =>
+    finalRecipientIds.map((userId) =>
       sendNotificationToUser({
         userId,
         title,

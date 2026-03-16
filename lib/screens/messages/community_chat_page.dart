@@ -75,6 +75,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
   );
   final bool _showUnreadDivider = true;
+  bool _hasScrolledToUnread = false;
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
   bool _isOnline = true;
@@ -136,7 +137,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     );
   }
 
-  Widget _buildUnreadDivider() {
+  Widget _buildUnreadDivider({int count = 0}) {
     // Get user role to determine theme color
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userRole = authProvider.currentUser?.role;
@@ -144,6 +145,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final themeColor = isPrincipal
         ? const Color(0xFF00A884)
         : const Color(0xFFFF8800);
+    final label = count <= 1 ? '1 unread message' : '$count unread messages';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -154,7 +156,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           ),
           const SizedBox(width: 8),
           Text(
-            'Unread messages',
+            label,
             style: TextStyle(
               color: themeColor,
               fontSize: 11,
@@ -2551,6 +2553,40 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       unreadDividerIndex = allMessages.length - 1;
                     }
 
+                    // Count unread messages from others for separator label
+                    final unreadCount = allMessages
+                        .where(
+                          (m) =>
+                              m.timestamp > lastReadMs &&
+                              m.senderId != currentUserId,
+                        )
+                        .length;
+
+                    // Scroll to first unread on initial open (WhatsApp-style)
+                    if (_showUnreadDivider &&
+                        hasValidData &&
+                        unreadDividerIndex != null &&
+                        !_hasScrolledToUnread &&
+                        !_userHasScrolled) {
+                      _hasScrolledToUnread = true;
+                      final targetIdx = unreadDividerIndex;
+                      final totalItems = allMessages.length;
+                      WidgetsBinding.instance.addPostFrameCallback((_) async {
+                        await Future.delayed(const Duration(milliseconds: 300));
+                        if (!mounted || !scrollController.hasClients) return;
+                        final maxExtent =
+                            scrollController.position.maxScrollExtent;
+                        if (maxExtent <= 0) return;
+                        final target = (targetIdx / totalItems) * maxExtent;
+                        scrollController.animateTo(
+                          target.clamp(0.0, maxExtent),
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeOut,
+                        );
+                        _userHasScrolled = true;
+                      });
+                    }
+
                     // Handle pending scroll request from search
                     if (_scrollToMessageId != null &&
                         !_isScrollingToMessage &&
@@ -2673,7 +2709,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                     if (_showUnreadDivider &&
                                         hasValidData &&
                                         unreadDividerIndex == index)
-                                      _buildUnreadDivider(),
+                                      _buildUnreadDivider(count: unreadCount),
                                     if (showDayDivider)
                                       _buildDayDivider(currentDate),
                                     HighlightedMessageWrapper(

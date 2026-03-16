@@ -39,12 +39,9 @@ class GroupMessagingService {
           .collection('messages')
           .add(message.toFirestore());
 
-      // Update teacher_groups index for this class-subject combo
-      // This updates the teacher's unread count in real-time without scanning messages
-      await _updateTeacherGroupsAfterMessage(classId, subjectId, message);
-
-      // ✅ NEW: Update class document for students so they see groups reorder in real-time
-      await _updateClassAfterMessage(classId, subjectId, message);
+      // NOTE: Do not perform client-side index writes to top-level class/teacher docs.
+      // These writes are privileged in many role configurations and cause
+      // permission-denied stream resets for student/parent senders.
 
       // Send push notifications for teacher-student group participants.
       unawaited(
@@ -314,6 +311,7 @@ class GroupMessagingService {
 
   /// ✅ OPTIMIZATION: Update teacher_groups collection when message sent
   /// Increments unread count for teacher, updates lastMessage/lastMessageAt
+  // ignore: unused_element
   Future<void> _updateTeacherGroupsAfterMessage(
     String classId,
     String subjectId,
@@ -374,6 +372,7 @@ class GroupMessagingService {
 
   /// ✅ NEW: Update class document with subject-level last message time
   /// This allows students' group lists to reorder in real-time
+  // ignore: unused_element
   Future<void> _updateClassAfterMessage(
     String classId,
     String subjectId,

@@ -246,6 +246,36 @@ class NotificationService {
       final platform = defaultTargetPlatform.name;
       final tokenDocId = '${user.uid}_${token.hashCode.abs()}';
 
+      // Ensure this device token is uniquely owned by the active user.
+      // If this token is still linked to old accounts on the same device,
+      // those users can receive notifications meant for others.
+      final sameTokenUsers = await FirebaseFirestore.instance
+          .collection('users')
+          .where('fcmToken', isEqualTo: token)
+          .get();
+      for (final doc in sameTokenUsers.docs) {
+        if (doc.id == user.uid) continue;
+        await doc.reference.set({
+          'fcmToken': FieldValue.delete(),
+          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      final sameTokenDevices = await FirebaseFirestore.instance
+          .collection('user_device_tokens')
+          .where('deviceToken', isEqualTo: token)
+          .where('active', isEqualTo: true)
+          .get();
+      for (final doc in sameTokenDevices.docs) {
+        final data = doc.data();
+        final ownerId = (data['userId'] ?? '').toString();
+        if (ownerId == user.uid) continue;
+        await doc.reference.set({
+          'active': false,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
       await usersRef.set({
         'fcmToken': token,
         'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),

@@ -152,6 +152,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   final Duration _soundDebounce = const Duration(milliseconds: 500);
   // Show unread split inside chat to aid context (user requested)
   final bool _showUnreadDivider = true;
+  bool _hasScrolledToUnread = false;
+  final GlobalKey _unreadDividerKey = GlobalKey();
+  DateTime _lastAutoReadMarkAt = DateTime.fromMillisecondsSinceEpoch(0);
   UnreadCountProvider? _unreadRef;
 
   // Cache keys for pending messages persistence
@@ -481,23 +484,28 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     );
   }
 
-  Widget _buildUnreadDivider() {
+  Widget _buildUnreadDivider({int count = 0}) {
+    final label = count <= 1 ? '1 unread message' : '$count unread messages';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
-        children: const [
-          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
-          SizedBox(width: 8),
+        children: [
+          const Expanded(
+            child: Divider(color: Color(0x339E9E9E), thickness: 1),
+          ),
+          const SizedBox(width: 8),
           Text(
-            'Unread messages',
-            style: TextStyle(
+            label,
+            style: const TextStyle(
               color: Color(0xFFFF8800),
               fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(width: 8),
-          Expanded(child: Divider(color: Color(0x339E9E9E), thickness: 1)),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Divider(color: Color(0x339E9E9E), thickness: 1),
+          ),
         ],
       ),
     );
@@ -538,18 +546,48 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       if (i > 0) {
         final prevUnread = messages[i - 1].timestamp > lastReadMs;
         if (prevUnread && !isUnread && unreadDividerIndex == null) {
-          unreadDividerIndex = i;
+          // List is reverse:true with newest-first data. To place divider
+          // between read (older) and unread (newer), attach divider to the
+          // first unread item in this pair (i - 1), not the read item (i).
+          unreadDividerIndex = i - 1;
         }
       }
     }
-    // If both read and unread exist but no boundary found (edge cases), place at last item
+    // If both read and unread exist but no boundary found (edge cases), place at first unread.
     if (unreadDividerIndex == null && hasUnread && hasRead) {
-      unreadDividerIndex = messages.length - 1;
+      unreadDividerIndex = messages.indexWhere((m) => m.timestamp > lastReadMs);
+      if (unreadDividerIndex < 0) {
+        unreadDividerIndex = 0;
+      }
     }
 
     // Only show divider if there are unread messages from OTHER users
     if (!hasUnreadFromOthers) {
       unreadDividerIndex = null;
+    }
+
+    // Count unread messages from others for the separator label
+    final unreadCount = messages
+        .where((m) => m.timestamp > lastReadMs && m.senderId != currentUserId)
+        .length;
+
+    // Scroll to first unread message on initial open
+    if (showDivider && unreadDividerIndex != null && !_hasScrolledToUnread) {
+      _hasScrolledToUnread = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await Future.delayed(const Duration(milliseconds: 300));
+        if (!mounted) return;
+        final dividerContext = _unreadDividerKey.currentContext;
+        if (dividerContext != null) {
+          await Scrollable.ensureVisible(
+            dividerContext,
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOut,
+            alignment: 0.2,
+            alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+          );
+        }
+      });
     }
 
     return ListView.builder(
@@ -602,7 +640,10 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
             if (_showUnreadDivider &&
                 showDivider &&
                 unreadDividerIndex == index)
-              _buildUnreadDivider(),
+              KeyedSubtree(
+                key: _unreadDividerKey,
+                child: _buildUnreadDivider(count: unreadCount),
+              ),
             if (showDayDivider) _buildDayDivider(currentDate),
             TweenAnimationBuilder<double>(
               key: msgKey,
@@ -786,6 +827,18 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       }
     });
 
+    // Mark read only when user actually reaches newest messages (bottom in reverse list).
+    scrollController.addListener(() {
+      if (!mounted || !scrollController.hasClients) return;
+      if (scrollController.offset < 120) {
+        final now = DateTime.now();
+        if (now.difference(_lastAutoReadMarkAt) > const Duration(seconds: 2)) {
+          _lastAutoReadMarkAt = now;
+          _markAsRead();
+        }
+      }
+    });
+
     // Listen to background upload progress
     final uploadService = BackgroundUploadService();
     uploadService.onUploadProgress = (messageId, isUploading, progress) {
@@ -886,20 +939,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
     // Set up stream to track lastReadAt in real-time
     _setupLastReadStream();
-
-    // Scroll to bottom on initial load AND mark as read after frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _scrollToBottom(force: true);
-        // Mark as read on entry so splitter can detect read messages
-        // Schedule this separately to avoid build conflicts
-        Future.delayed(const Duration(milliseconds: 100), () {
-          if (mounted) {
-            _markAsRead();
-          }
-        });
-      }
-    });
   }
 
   void _setupLastReadStream() {
@@ -1050,6 +1089,12 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
   Future<void> _bumpLastActivity(int timestampMs) async {
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      // Subject-level activity writes are privileged; skip for non-teachers.
+      if (currentUser == null || currentUser.role != UserRole.teacher) {
+        return;
+      }
       await FirebaseFirestore.instance
           .collection('classes')
           .doc(widget.classId)
