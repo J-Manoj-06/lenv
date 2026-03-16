@@ -566,7 +566,7 @@ class NotificationService {
 
   Stream<List<NotificationModel>> notificationsStream({
     NotificationCategory? category,
-    bool unreadOnly = false,
+    bool unreadOnly = true,
     int limit = 150,
   }) {
     final user = FirebaseAuth.instance.currentUser;
@@ -585,6 +585,30 @@ class NotificationService {
     }
 
     return query
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => NotificationModel.fromFirestore(doc))
+              .toList(),
+        );
+  }
+
+  /// Optimized unread-only stream for notification center UI.
+  /// Query pattern:
+  /// - where userId == current user
+  /// - where isRead == false
+  /// - orderBy createdAt desc
+  /// - limit 50
+  Stream<List<NotificationModel>> unreadNotificationsStream({int limit = 50}) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return Stream.value(const <NotificationModel>[]);
+
+    return FirebaseFirestore.instance
+        .collection('notifications')
+        .where('userId', isEqualTo: user.uid)
+        .where('isRead', isEqualTo: false)
         .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()

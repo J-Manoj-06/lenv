@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/notification_model.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/notification_card.dart';
+import '../../providers/auth_provider.dart' as auth;
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -27,11 +29,36 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _FilterTab(label: 'Alerts', category: NotificationCategory.alerts),
   ];
 
-  int _selectedIndex = 0;
+  int _selectedIndex = 1; // Unread default
+
+  List<NotificationModel> _applyLocalFilter(
+    List<NotificationModel> unreadNotifications,
+    _FilterTab tab,
+  ) {
+    if (tab.category != null) {
+      return unreadNotifications
+          .where((n) => n.category == tab.category)
+          .toList();
+    }
+    return unreadNotifications;
+  }
+
+  Color _roleAccent(String role) {
+    final r = role.toLowerCase();
+    if (r.contains('teacher')) return const Color(0xFF5B4BDB); // Indigo
+    if (r.contains('parent')) return const Color(0xFF2EAD62); // Green
+    if (r.contains('principal') || r.contains('institute')) {
+      return const Color(0xFFE59D2F); // Gold
+    }
+    return const Color(0xFF1E9BFF); // Student blue/cyan
+  }
 
   @override
   Widget build(BuildContext context) {
     final tab = _tabs[_selectedIndex];
+    final authProvider = Provider.of<auth.AuthProvider>(context);
+    final currentRole = authProvider.currentUser?.role.name ?? 'student';
+    final accent = _roleAccent(currentRole);
 
     return Scaffold(
       appBar: AppBar(
@@ -101,6 +128,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 return ChoiceChip(
                   label: Text(item.label),
                   selected: _selectedIndex == index,
+                  selectedColor: accent.withOpacity(0.2),
+                  side: BorderSide(
+                    color: _selectedIndex == index
+                        ? accent
+                        : Theme.of(context).dividerColor,
+                  ),
                   onSelected: (_) {
                     setState(() => _selectedIndex = index);
                   },
@@ -113,21 +146,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           const Divider(height: 1),
           Expanded(
             child: StreamBuilder<List<NotificationModel>>(
-              stream: _notificationService.notificationsStream(
-                category: tab.category,
-                unreadOnly: tab.unreadOnly,
-              ),
+              stream: _notificationService.unreadNotificationsStream(limit: 50),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return _buildSkeletonList();
                 }
 
-                final notifications =
+                final unreadNotifications =
                     snapshot.data ?? const <NotificationModel>[];
+                final notifications = _applyLocalFilter(
+                  unreadNotifications,
+                  tab,
+                );
 
                 if (notifications.isEmpty) {
                   return Center(
@@ -160,7 +194,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                 return RefreshIndicator(
                   onRefresh: () async {
-                    await Future.delayed(const Duration(milliseconds: 500));
+                    await Future.delayed(const Duration(milliseconds: 350));
                   },
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -169,6 +203,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       final notification = notifications[index];
                       return NotificationCard(
                         notification: notification,
+                        roleAccent: _roleAccent(
+                          notification.role.isNotEmpty
+                              ? notification.role
+                              : currentRole,
+                        ),
+                        animationDelayMs: index * 30,
                         onTap: () => _handleNotificationTap(notification),
                         onMarkRead: () => _markRead(notification),
                         onDismiss: () =>
@@ -185,10 +225,70 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  Widget _buildSkeletonList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: 6,
+      itemBuilder: (_, __) {
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.22),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 12,
+                      width: double.infinity,
+                      color: Colors.grey.withOpacity(0.2),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 10,
+                      width: 180,
+                      color: Colors.grey.withOpacity(0.18),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 10,
+                      width: 120,
+                      color: Colors.grey.withOpacity(0.16),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _handleNotificationTap(NotificationModel notification) async {
     await _markRead(notification);
 
     if (!mounted) return;
+
+    final navArgs = {
+      ...(notification.metadata ?? <String, dynamic>{}),
+      'targetId': notification.targetId,
+      'notificationId': notification.notificationId,
+    };
 
     if (notification.deepLinkRoute != null &&
         notification.deepLinkRoute!.isNotEmpty) {
@@ -196,34 +296,64 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         Navigator.pushNamed(
           context,
           notification.deepLinkRoute!,
-          arguments: notification.metadata,
+          arguments: navArgs,
         );
         return;
-      } catch (_) {
-        // Fall through to category fallback.
-      }
+      } catch (_) {}
     }
 
-    switch (notification.category) {
-      case NotificationCategory.messaging:
-        Navigator.pushNamed(
-          context,
-          '/messages',
-          arguments: notification.metadata,
-        );
-        break;
-      case NotificationCategory.tests:
-      case NotificationCategory.academic:
-        Navigator.pushNamed(context, '/student-tests');
-        break;
-      case NotificationCategory.rewards:
-        Navigator.pushNamed(context, '/student-rewards');
-        break;
-      case NotificationCategory.announcements:
-      case NotificationCategory.alerts:
-      case NotificationCategory.general:
-        // Already on notification center; keep user on this screen.
-        break;
+    try {
+      switch (notification.category) {
+        case NotificationCategory.messaging:
+          if ((notification.metadata ?? const {})['communityId'] != null) {
+            Navigator.pushNamed(
+              context,
+              '/community-group-chat',
+              arguments: navArgs,
+            );
+            return;
+          }
+          if ((notification.metadata ?? const {})['classId'] != null &&
+              (notification.metadata ?? const {})['subjectId'] != null) {
+            Navigator.pushNamed(
+              context,
+              '/teacher/student-group-chat',
+              arguments: navArgs,
+            );
+            return;
+          }
+          if ((notification.deepLinkRoute ?? '').contains('section-group') ||
+              (notification.metadata ?? const {})['groupId'] != null) {
+            Navigator.pushNamed(
+              context,
+              '/parent/section-group-chat',
+              arguments: navArgs,
+            );
+            return;
+          }
+          Navigator.pushNamed(context, '/messages', arguments: navArgs);
+          return;
+        case NotificationCategory.tests:
+        case NotificationCategory.academic:
+          Navigator.pushNamed(context, '/student-tests', arguments: navArgs);
+          return;
+        case NotificationCategory.rewards:
+          Navigator.pushNamed(context, '/student-rewards', arguments: navArgs);
+          return;
+        case NotificationCategory.announcements:
+        case NotificationCategory.alerts:
+        case NotificationCategory.general:
+          Navigator.pushNamed(context, '/notifications');
+          return;
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Target unavailable. Opening notifications.'),
+        ),
+      );
+      Navigator.pushNamed(context, '/notifications');
     }
   }
 
