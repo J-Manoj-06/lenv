@@ -475,6 +475,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final batch = FirebaseFirestore.instance.batch();
       int updateCount = 0;
 
+      // Students collection doc IDs may differ from auth UIDs.
+      final Map<String, String> authUidToDocId = {
+        for (final s in _students)
+          (s['id']?.toString() ?? ''): (s['legacyId']?.toString() ?? ''),
+      };
+      final Map<String, String> legacyIdToDocId = {
+        for (final s in _students)
+          (s['legacyId']?.toString() ?? ''): (s['legacyId']?.toString() ?? ''),
+      };
+
       for (final entry in studentAttendance.entries) {
         final studentId = entry.key;
         final total = entry.value['total'] ?? 0;
@@ -483,10 +493,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         if (total > 0) {
           final percentage = ((present / total) * 100).round().clamp(0, 100);
 
+          final docId = authUidToDocId[studentId] ?? legacyIdToDocId[studentId];
+          if (docId == null || docId.isEmpty) {
+            continue;
+          }
+
           // Update student document
           final studentRef = FirebaseFirestore.instance
               .collection('students')
-              .doc(studentId);
+              .doc(docId);
 
           batch.update(studentRef, {
             'attendance': percentage,
@@ -1157,14 +1172,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               .trim();
       final studentEmail = (student['email'] ?? '').toString().trim();
 
-
       // Fetch parent for this student (with all available hints)
       final parentData = await messagingService.fetchParentForStudent(
         studentId,
         parentPhone: parentPhone.isEmpty ? null : parentPhone,
         studentEmail: studentEmail.isEmpty ? null : studentEmail,
       );
-
 
       if (!mounted) return;
 
@@ -1220,7 +1233,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         }
       }
 
-
       if (schoolCode.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('School code not available')),
@@ -1266,8 +1278,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             duration: Duration(seconds: 3),
           ),
         );
-      } else {
-      }
+      } else {}
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop(); // Dismiss loading dialog

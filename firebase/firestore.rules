@@ -155,6 +155,7 @@ service cloud.firestore {
     
     function isTeacher() {
       return hasRole('teacher') || hasRole('Teacher') ||
+          hasRole('teaching') || hasRole('Teaching') ||
           (isSignedIn() && exists(teacherDocPath()));
     }
     
@@ -226,6 +227,15 @@ service cloud.firestore {
         'locked_points',
         'deducted_points',
         'lastRewardRedemptionAt',
+      ]);
+    }
+
+    function attendanceFieldsUpdateOnly() {
+      let changed = request.resource.data.diff(resource.data).changedKeys();
+      return changed.hasOnly([
+        'attendance',
+        'attendancePercentage',
+        'attendanceLastUpdated',
       ]);
     }
     
@@ -324,6 +334,7 @@ service cloud.firestore {
         uidIs(studentId)
         || isTeacher()
         || isAdmin()
+        || (isStaffRole() && attendanceFieldsUpdateOnly())
         // Any authenticated approver OR any signed-in user making only points-field changes
         // (covers parents whose role/doc setup varies by school)
         || pointsFieldsUpdateOnly()
@@ -684,7 +695,26 @@ service cloud.firestore {
     
     match /attendance/{recordId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+      allow create: if isSignedIn() && (
+        isStaffRole()
+        || isPrincipal()
+        || isInstitute()
+        || isAdmin()
+        || request.resource.data.teacherId == request.auth.uid
+      );
+      allow update: if isSignedIn() && (
+        isStaffRole()
+        || isPrincipal()
+        || isInstitute()
+        || isAdmin()
+        || resource.data.teacherId == request.auth.uid
+        || request.resource.data.teacherId == request.auth.uid
+      );
+      allow delete: if isSignedIn() && (
+        isAdmin()
+        || isPrincipal()
+        || resource.data.teacherId == request.auth.uid
+      );
     }
     
     // ============================================
