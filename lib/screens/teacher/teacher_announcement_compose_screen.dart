@@ -347,13 +347,34 @@ class _ComposeTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final arrowBg = isDark ? _surface : const Color(0xFFF0F2F5);
+    final arrowBorder = isDark
+        ? _primary.withOpacity(0.35)
+        : const Color(0xFFD9DEE5);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
       child: Row(
         children: [
-          IconButton(
-            onPressed: onBack,
-            icon: Icon(Icons.arrow_back, color: textColor, size: 26),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: arrowBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: arrowBorder),
+            ),
+            child: IconButton(
+              onPressed: onBack,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: textColor,
+                size: 20,
+              ),
+            ),
           ),
           Expanded(
             child: Text(
@@ -711,34 +732,38 @@ class _BottomActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            offset: const Offset(0, -2),
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: ElevatedButton(
-        onPressed: isPosting ? null : onSend,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _primary,
-          disabledBackgroundColor: _primary.withOpacity(0.6),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        decoration: BoxDecoration(
+          color: bgColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              offset: const Offset(0, -2),
+              blurRadius: 8,
+            ),
+          ],
         ),
-        child: Text(
-          isPosting ? 'Posting...' : 'Post Announcement',
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
+        child: ElevatedButton(
+          onPressed: isPosting ? null : onSend,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _primary,
+            disabledBackgroundColor: _primary.withOpacity(0.6),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Text(
+            isPosting ? 'Posting...' : 'Post Announcement',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
       ),
