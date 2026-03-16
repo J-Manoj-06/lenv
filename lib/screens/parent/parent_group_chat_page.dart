@@ -47,6 +47,7 @@ import '../../models/forward_message_data.dart';
 import '../../models/local_message.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/active_chat_service.dart';
+import '../../utils/session_manager.dart';
 
 class ParentGroupChatPage extends StatefulWidget {
   final String groupId;
@@ -121,6 +122,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   bool _isUploading = false;
   bool _isOnline = true;
   StreamSubscription<bool>? _connectivitySub;
+  StreamSubscription<List<CommunityMessageModel>>? _firestoreMirrorSub;
   final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
   String? _recordingPath;
   final ValueNotifier<int> _recordingDuration = ValueNotifier<int>(0);
@@ -166,6 +168,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
   // ✅ Cache stream like staff room to avoid rebuilding new streams
   Stream<List<CommunityMessageModel>>? _messagesStream;
+  final Completer<void> _offlineInitCompleter = Completer<void>();
 
   String _cacheMessageIdFromPendingId(String messageId) {
     return messageId.startsWith('pending:')
@@ -306,6 +309,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     _recordingTimer?.cancel();
     _progressPollTimer?.cancel();
     _connectivitySub?.cancel();
+    _firestoreMirrorSub?.cancel();
     _audioRecorder.dispose();
     super.dispose();
   }
@@ -322,6 +326,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       online,
     ) {
       if (mounted) setState(() => _isOnline = online);
+      if (online) {
+        _startFirestoreMirror();
+        _syncOnReconnect();
+      } else {
+        _firestoreMirrorSub?.cancel();
+        _firestoreMirrorSub = null;
+      }
     });
 
     // ✅ OPTIMIZATION: Setup scroll listener for pagination
@@ -333,15 +344,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     });
 
     _initOfflineFirst();
+    _startFirestoreMirror();
 
     // Start polling cached progress (keeps UI updated after navigation)
     _startProgressPolling();
 
     // ✅ Cache stream once (same as staff room) to prevent re-creation
-    _messagesStream = _service.getMessagesStream(
-      widget.groupId,
-      limit: _initialRealtimeMessageLimit,
-    );
+    _messagesStream = _buildOfflineFirstMessagesStream();
 
     final r2Service = CloudflareR2Service(
       accountId: CloudflareConfig.accountId,
@@ -367,6 +376,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       _syncService = FirebaseMessageSyncService(_localRepo);
 
       await _localRepo.initialize();
+      if (!_offlineInitCompleter.isCompleted) {
+        _offlineInitCompleter.complete();
+      }
 
       final chatId = widget.groupId;
 
@@ -400,13 +412,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
       // Start real-time sync
       if (!mounted) return;
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUser = authProvider.currentUser;
-      if (currentUser != null) {
+      final currentUserId = await _resolveCurrentUserId();
+      if (currentUserId != null && currentUserId.isNotEmpty) {
         await _syncService.startSyncForChat(
           chatId: chatId,
           chatType: 'parent_group',
-          userId: currentUser.uid,
+          userId: currentUserId,
         );
 
         // ✅ CRITICAL: Load pending messages after sync starts
@@ -416,6 +427,219 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _offlineReady = true;
       } else {}
     } catch (e) {}
+  }
+
+  Stream<List<CommunityMessageModel>>
+  _buildOfflineFirstMessagesStream() async* {
+    try {
+      await _offlineInitCompleter.future;
+    } catch (_) {
+      // No-op; stream will yield empty state below.
+    }
+
+    if (!_offlineInitCompleter.isCompleted) {
+      yield const <CommunityMessageModel>[];
+      return;
+    }
+
+    await for (final localMessages in _localRepo.watchMessagesForChat(
+      widget.groupId,
+    )) {
+      final mapped = localMessages
+          .where((m) => !m.isDeleted && m.isPending != true)
+          .map(_localToCommunityMessage)
+          .toList();
+
+      yield mapped;
+    }
+  }
+
+  Future<String?> _resolveCurrentUserId() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser != null && currentUser.uid.isNotEmpty) {
+      return currentUser.uid;
+    }
+
+    final session = await SessionManager.getLoginSession();
+    final userId = session['userId'] as String?;
+    if (userId != null && userId.isNotEmpty) {
+      return userId;
+    }
+    return null;
+  }
+
+  Future<void> _syncOnReconnect() async {
+    if (!_offlineInitCompleter.isCompleted) return;
+
+    try {
+      final userId = await _resolveCurrentUserId();
+      if (userId != null && userId.isNotEmpty) {
+        await _syncService.startSyncForChat(
+          chatId: widget.groupId,
+          chatType: 'parent_group',
+          userId: userId,
+        );
+      }
+
+      final cachedMessages = await _localRepo.getMessagesForChat(
+        widget.groupId,
+        limit: 1,
+      );
+      if (cachedMessages.isEmpty) {
+        await _syncService.initialSyncForChat(
+          chatId: widget.groupId,
+          chatType: 'parent_group',
+          limit: _initialOfflineSyncLimit,
+        );
+      } else {
+        await _syncService.syncNewMessages(
+          chatId: widget.groupId,
+          chatType: 'parent_group',
+          lastTimestamp: cachedMessages.first.timestamp,
+        );
+      }
+    } catch (_) {
+      // Ignore transient reconnect sync errors.
+    }
+  }
+
+  void _startFirestoreMirror() {
+    if (!_isOnline) return;
+
+    _firestoreMirrorSub?.cancel();
+    _firestoreMirrorSub = _service
+        .getMessagesStream(widget.groupId, limit: _initialRealtimeMessageLimit)
+        .listen((messages) async {
+          if (!_offlineInitCompleter.isCompleted) {
+            try {
+              await _offlineInitCompleter.future;
+            } catch (_) {
+              return;
+            }
+          }
+
+          final localMessages = messages
+              .where((m) => (m.isDeleted == false))
+              .map(_communityToLocalMessage)
+              .toList();
+
+          if (localMessages.isNotEmpty) {
+            await _localRepo.saveMessages(localMessages);
+          }
+        });
+  }
+
+  LocalMessage _communityToLocalMessage(CommunityMessageModel msg) {
+    final attachment = msg.mediaMetadata;
+    final multipleMedia = msg.multipleMedia
+        ?.map((m) => m.toFirestore())
+        .toList();
+
+    String? attachmentType;
+    if (attachment != null) {
+      final mime = (attachment.mimeType ?? '').toLowerCase();
+      if (mime.startsWith('image/')) {
+        attachmentType = 'image';
+      } else if (mime.startsWith('audio/')) {
+        attachmentType = 'audio';
+      } else if (mime.contains('pdf')) {
+        attachmentType = 'pdf';
+      } else {
+        attachmentType = msg.type;
+      }
+    } else {
+      attachmentType = msg.type == 'text' ? null : msg.type;
+    }
+
+    return LocalMessage(
+      messageId: msg.messageId,
+      chatId: widget.groupId,
+      chatType: 'parent_group',
+      senderId: msg.senderId,
+      senderName: msg.senderName,
+      messageText: msg.content,
+      timestamp: msg.createdAt.millisecondsSinceEpoch,
+      attachmentUrl: attachment?.publicUrl,
+      attachmentType: attachmentType,
+      isDeleted: msg.isDeleted,
+      replyToMessageId: msg.replyTo.isNotEmpty ? msg.replyTo : null,
+      multipleMedia: multipleMedia,
+      isPending: false,
+    );
+  }
+
+  CommunityMessageModel _localToCommunityMessage(LocalMessage msg) {
+    final multipleMedia = _extractRawMultipleMedia(msg.multipleMedia);
+
+    MediaMetadata? mediaMetadata;
+    if (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty) {
+      mediaMetadata = MediaMetadata(
+        messageId: msg.messageId,
+        r2Key: '',
+        publicUrl: msg.attachmentUrl!,
+        thumbnail: '',
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+        uploadedAt: DateTime.fromMillisecondsSinceEpoch(msg.timestamp),
+        originalFileName: msg.attachmentUrl!.split('/').last,
+        fileSize: 0,
+        mimeType: _mimeFromAttachmentType(msg.attachmentType),
+      );
+    }
+
+    if (multipleMedia.isNotEmpty && mediaMetadata == null) {
+      mediaMetadata = multipleMedia.first;
+    }
+
+    return CommunityMessageModel(
+      messageId: msg.messageId,
+      communityId: widget.groupId,
+      senderId: msg.senderId,
+      senderName: msg.senderName,
+      senderRole: widget.senderRole,
+      senderAvatar: '',
+      type: _messageTypeFromLocal(msg, multipleMedia),
+      content: msg.messageText ?? '',
+      imageUrl: mediaMetadata != null && _isImageMime(mediaMetadata.mimeType)
+          ? mediaMetadata.publicUrl
+          : '',
+      fileUrl: mediaMetadata != null && !_isImageMime(mediaMetadata.mimeType)
+          ? mediaMetadata.publicUrl
+          : '',
+      fileName: mediaMetadata?.originalFileName ?? '',
+      mediaMetadata: mediaMetadata,
+      multipleMedia: multipleMedia.isNotEmpty ? multipleMedia : null,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(msg.timestamp),
+      updatedAt: null,
+      isEdited: false,
+      isDeleted: msg.isDeleted,
+      isPinned: false,
+      reactions: const <String, List<String>>{},
+      replyTo: msg.replyToMessageId ?? '',
+      replyCount: 0,
+      isReported: false,
+      reportCount: 0,
+      documentSnapshot: null,
+    );
+  }
+
+  String _mimeFromAttachmentType(String? type) {
+    final normalized = (type ?? '').toLowerCase();
+    if (normalized == 'image') return 'image/jpeg';
+    if (normalized == 'audio') return 'audio/mpeg';
+    if (normalized == 'pdf' || normalized == 'document') {
+      return 'application/pdf';
+    }
+    return 'application/octet-stream';
+  }
+
+  String _messageTypeFromLocal(LocalMessage msg, List<MediaMetadata> multi) {
+    if (multi.isNotEmpty) return 'image';
+    final t = (msg.attachmentType ?? '').toLowerCase();
+    if (t == 'image') return 'image';
+    if (t == 'audio') return 'audio';
+    if (t == 'pdf' || t == 'document') return 'pdf';
+    return 'text';
   }
 
   /// Save pending message with current upload progress to cache

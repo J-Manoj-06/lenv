@@ -1,0 +1,322 @@
+FEATURE IMPLEMENTATION PROMPT: WHATSAPP-STYLE UNREAD MESSAGE SEPARATOR FOR GROUP CHATS AND COMMUNITY CHATS IN LENV
+
+Goal
+Implement a WhatsApp-style unread message separator in all chat interfaces of Lenv including:
+
+• Student group chats
+• Teacher group chats
+• Parent-teacher groups
+• Community chats
+
+The separator must show where unread messages begin and disappear once messages are read, exactly like WhatsApp.
+
+The implementation must integrate with the current chat system without breaking existing message rendering, scrolling, selection, or media handling.
+
+--------------------------------------------------
+
+1. CORE BEHAVIOR
+
+When a user opens a chat:
+
+If there are unread messages, display a separator that indicates the first unread message.
+
+Example UI:
+
+-------------------------
+Today
+-------------------------
+
+----- 1 unread message -----
+
+<Message 1>
+<Message 2>
+<Message 3>
+
+The separator must appear immediately above the first unread message.
+
+--------------------------------------------------
+
+2. DATA MODEL REQUIREMENT
+
+Each chat must track a read marker per user.
+
+Store for each chat:
+
+chatId
+userId
+lastReadMessageId
+lastReadTimestamp
+
+Example Firestore structure:
+
+chat_read_state/{chatId}/{userId}
+
+Fields:
+
+lastReadMessageId
+lastReadTimestamp
+updatedAt
+
+This allows the system to know where unread messages begin.
+
+--------------------------------------------------
+
+3. MESSAGE RENDERING LOGIC
+
+When loading messages in a chat:
+
+1. Retrieve messages sorted by timestamp.
+2. Retrieve the user's lastReadMessageId.
+3. Find the first message after that ID.
+4. Insert the unread separator before that message.
+
+Example logic:
+
+messages = getMessages(chatId)
+
+lastRead = getLastReadMessageId(chatId, userId)
+
+for message in messages:
+    if message.id == firstUnreadMessageId:
+        renderUnreadSeparator()
+    renderMessage(message)
+
+--------------------------------------------------
+
+4. SEPARATOR UI DESIGN
+
+Separator style must be clean and subtle.
+
+Design:
+
+Centered pill-style indicator
+
+Example:
+
+[ 1 unread message ]
+
+or
+
+[ 5 unread messages ]
+
+Appearance:
+
+• rounded background
+• subtle theme color
+• small shadow
+• text centered
+• slightly translucent
+
+--------------------------------------------------
+
+5. MULTIPLE UNREAD MESSAGES
+
+If multiple unread messages exist:
+
+Show the count.
+
+Example:
+
+[ 7 unread messages ]
+
+This should be calculated using:
+
+totalMessagesAfter(lastReadMessageId)
+
+--------------------------------------------------
+
+6. WHEN USER SCROLLS INTO UNREAD AREA
+
+Once the user scrolls past the unread separator and sees the unread messages:
+
+Update read state.
+
+Steps:
+
+1. Detect that unread messages became visible.
+2. Update lastReadMessageId to the newest visible message.
+3. Remove separator from UI.
+
+--------------------------------------------------
+
+7. WHEN USER IS CURRENTLY IN CHAT
+
+If the user is already inside the chat when new messages arrive:
+
+Do NOT show unread separator.
+
+Instead behave like WhatsApp:
+
+• messages appear normally
+• chat auto-scrolls if user is near bottom
+• read state updates immediately
+
+--------------------------------------------------
+
+8. WHEN USER RETURNS TO CHAT
+
+If user leaves the chat and returns later:
+
+Unread messages accumulated during absence should trigger the separator.
+
+Example:
+
+User left chat at message #20  
+Messages #21–#30 arrive
+
+Separator should appear before message #21.
+
+--------------------------------------------------
+
+9. GROUP CHAT EDGE CASES
+
+Works the same for group chats.
+
+Unread logic should depend on the user's read marker, not on sender.
+
+Even if messages are from different people, the separator remains consistent.
+
+--------------------------------------------------
+
+10. COMMUNITY CHAT EDGE CASES
+
+Community chats may have many participants.
+
+The separator must still be based only on the current user's read marker.
+
+Do NOT track read state per participant for this feature.
+
+--------------------------------------------------
+
+11. SCROLL POSITION HANDLING
+
+When opening chat with unread messages:
+
+Auto-scroll to the unread separator instead of the bottom.
+
+Behavior:
+
+If unread messages exist:
+
+scrollTo(firstUnreadMessage)
+
+Else:
+
+scrollTo(bottom)
+
+--------------------------------------------------
+
+12. DISAPPEARING SEPARATOR
+
+Once unread messages are read:
+
+• remove separator immediately
+• update read state in database
+
+Separator must not remain visible after reading.
+
+--------------------------------------------------
+
+13. APP STATE HANDLING
+
+Handle these scenarios:
+
+User opens chat
+User receives messages while inside chat
+User leaves chat
+User comes back later
+User scrolls up to read old messages
+User scrolls back down
+
+Separator should only exist when unread messages exist.
+
+--------------------------------------------------
+
+14. PERFORMANCE OPTIMIZATION
+
+Unread detection must not require scanning entire message history.
+
+Use:
+
+lastReadMessageId
+message ordering index
+
+Query only recent messages when possible.
+
+--------------------------------------------------
+
+15. FIREBASE STRUCTURE EXAMPLE
+
+messages/{chatId}/messages/{messageId}
+
+chat_read_state/{chatId}/{userId}
+
+Fields:
+
+lastReadMessageId
+lastReadTimestamp
+
+This avoids updating message documents individually.
+
+--------------------------------------------------
+
+16. MULTI-DEVICE SUPPORT
+
+If user logs in from another device:
+
+The read state should sync.
+
+Unread separator should respect the latest read marker.
+
+--------------------------------------------------
+
+17. OFFLINE HANDLING
+
+If user reads messages offline:
+
+Store read marker locally.
+
+Sync read state when connection restores.
+
+Separator must disappear locally immediately.
+
+--------------------------------------------------
+
+18. CHAT LIST INTEGRATION
+
+Unread separator logic must align with chat list unread counts.
+
+When messages are read:
+
+• chat unread badge resets
+• separator disappears
+
+--------------------------------------------------
+
+19. DO NOT BREAK EXISTING FEATURES
+
+Ensure this feature does not interfere with:
+
+• message selection mode
+• long-press reactions
+• image grids
+• audio messages
+• message deletion
+• message forwarding
+• typing indicators
+• scroll performance
+
+--------------------------------------------------
+
+20. EXPECTED RESULT
+
+After implementation:
+
+• unread messages appear separated visually
+• separator shows correct count
+• separator disappears when messages are read
+• behavior matches WhatsApp
+• works in group and community chats
+• read state syncs across sessions
+
+END OF IMPLEMENTATION PROMPT
