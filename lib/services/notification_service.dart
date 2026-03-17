@@ -246,7 +246,7 @@ class NotificationService {
       final platform = defaultTargetPlatform.name;
       final tokenDocId = '${user.uid}_${token.hashCode.abs()}';
 
-        // Clear duplicate token fields only on docs readable by this user.
+      // Clear duplicate token fields only on docs readable by this user.
       final sameTokenUsers = await FirebaseFirestore.instance
           .collection('users')
           .where('fcmToken', isEqualTo: token)
