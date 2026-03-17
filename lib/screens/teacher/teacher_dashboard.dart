@@ -55,6 +55,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   final Set<String> _viewedPrincipalAnnouncements = <String>{};
   // Cache for instant viewed status display (both teacher and principal)
   final Map<String, bool> _viewedCache = {};
+  // Keep a stable announcements stream so class dropdown changes don't reset it.
+  String? _announcementStreamInstituteId;
+  Stream<List<Map<String, dynamic>>>? _announcementStream;
   final MediaRepository _mediaRepository = MediaRepository();
   final NetworkService _networkService = NetworkService();
   final OfflineCacheManager _cacheManager = OfflineCacheManager();
@@ -1527,6 +1530,17 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   // (Announcements removed) — merged into Classroom Highlights as 24h status
 
+  Stream<List<Map<String, dynamic>>> _getStableAnnouncementStream(
+    String instituteId,
+  ) {
+    if (_announcementStream == null ||
+        _announcementStreamInstituteId != instituteId) {
+      _announcementStreamInstituteId = instituteId;
+      _announcementStream = _combineAnnouncementStreams(instituteId);
+    }
+    return _announcementStream!;
+  }
+
   // ========== Take Attendance Card ==========
   Widget _buildGradientStatsBanner() {
     return InkWell(
@@ -1662,7 +1676,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         SizedBox(
           height: 100,
           child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _combineAnnouncementStreams(instituteId),
+            stream: _getStableAnnouncementStream(instituteId),
             builder: (context, snapshot) {
               // Loading state
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -1698,9 +1712,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               for (final doc in combinedDocs) {
                 if (doc['type'] == 'teacher') {
                   // Teacher announcement (StatusModel)
-                  final status = StatusModel.fromFirestore(
-                    doc['snapshot'] as DocumentSnapshot,
-                  );
+                  final rawData =
+                      (doc['data'] as Map<String, dynamic>?) ??
+                      const <String, dynamic>{};
+                  final id = doc['id']?.toString() ?? '';
+                  if (id.isEmpty) continue;
+                  final status = StatusModel.fromMap(id, rawData);
                   if (status.isValid && status.instituteId == instituteId) {
                     // Check cache first for instant status, fallback to viewedBy
                     final isViewed =
@@ -1722,12 +1739,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   }
                 } else if (doc['type'] == 'principal') {
                   // Principal announcement (InstituteAnnouncementModel)
-                  final snapshot = doc['snapshot'] as DocumentSnapshot;
-                  final announcement = InstituteAnnouncementModel.fromFirestore(
-                    snapshot,
-                  );
                   final data =
-                      (snapshot.data() as Map<String, dynamic>?) ?? const {};
+                      (doc['data'] as Map<String, dynamic>?) ??
+                      const <String, dynamic>{};
+                  final id = doc['id']?.toString() ?? '';
+                  if (id.isEmpty) continue;
+                  final announcement = InstituteAnnouncementModel.fromMap(
+                    id,
+                    data,
+                  );
                   final viewedBy =
                       (data['viewedBy'] as List<dynamic>?)
                           ?.map((e) => e.toString())
@@ -4470,36 +4490,99 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
     String instituteId,
   ) async* {
+    try {
+      await _cacheManager.initialize();
+    } catch (_) {}
+
+    final cacheKey = instituteId;
+    final cached = _cacheManager.getCachedAnnouncements(
+      scope: 'teacher_dashboard',
+      scopeId: cacheKey,
+    );
+    if (cached != null && cached.isNotEmpty) {
+      yield cached;
+    }
+
     final now = Timestamp.now();
 
-    await for (final teacherSnapshot
-        in FirebaseFirestore.instance
-            .collection('class_highlights')
+    try {
+      await for (final teacherSnapshot
+          in FirebaseFirestore.instance
+              .collection('class_highlights')
+              .where('instituteId', isEqualTo: instituteId)
+              .where('expiresAt', isGreaterThan: now)
+              .snapshots()) {
+        // Get principal announcements as a one-time fetch (respect expiry)
+        final principalSnapshot = await FirebaseFirestore.instance
+            .collection('institute_announcements')
             .where('instituteId', isEqualTo: instituteId)
+            .where('audienceType', isEqualTo: 'school')
             .where('expiresAt', isGreaterThan: now)
-            .snapshots()) {
-      // Get principal announcements as a one-time fetch (respect expiry)
-      final principalSnapshot = await FirebaseFirestore.instance
-          .collection('institute_announcements')
-          .where('instituteId', isEqualTo: instituteId)
-          .where('audienceType', isEqualTo: 'school')
-          .where('expiresAt', isGreaterThan: now)
-          .get();
+            .get();
 
-      final combined = <Map<String, dynamic>>[];
+        final combined = <Map<String, dynamic>>[];
 
-      // Add teacher announcements
-      for (final doc in teacherSnapshot.docs) {
-        combined.add({'type': 'teacher', 'snapshot': doc});
+        // Add teacher announcements
+        for (final doc in teacherSnapshot.docs) {
+          combined.add({
+            'type': 'teacher',
+            'id': doc.id,
+            'data': _serializeAnnouncementMap(doc.data()),
+          });
+        }
+
+        // Add principal announcements
+        for (final doc in principalSnapshot.docs) {
+          combined.add({
+            'type': 'principal',
+            'id': doc.id,
+            'data': _serializeAnnouncementMap(doc.data()),
+          });
+        }
+
+        await _cacheManager.cacheAnnouncements(
+          scope: 'teacher_dashboard',
+          scopeId: cacheKey,
+          announcements: combined,
+        );
+
+        yield combined;
       }
-
-      // Add principal announcements
-      for (final doc in principalSnapshot.docs) {
-        combined.add({'type': 'principal', 'snapshot': doc});
-      }
-
-      yield combined;
+    } catch (_) {
+      final fallback = _cacheManager.getCachedAnnouncements(
+        scope: 'teacher_dashboard',
+        scopeId: cacheKey,
+      );
+      yield fallback ?? const <Map<String, dynamic>>[];
     }
+  }
+
+  Map<String, dynamic> _serializeAnnouncementMap(Map<String, dynamic> input) {
+    final output = <String, dynamic>{};
+    input.forEach((key, value) {
+      output[key] = _serializeAnnouncementValue(value);
+    });
+    return output;
+  }
+
+  dynamic _serializeAnnouncementValue(dynamic value) {
+    if (value is Timestamp) {
+      return value.millisecondsSinceEpoch;
+    }
+    if (value is DateTime) {
+      return value.millisecondsSinceEpoch;
+    }
+    if (value is Map) {
+      final mapped = <String, dynamic>{};
+      value.forEach((k, v) {
+        mapped[k.toString()] = _serializeAnnouncementValue(v);
+      });
+      return mapped;
+    }
+    if (value is List) {
+      return value.map(_serializeAnnouncementValue).toList();
+    }
+    return value;
   }
 }
 

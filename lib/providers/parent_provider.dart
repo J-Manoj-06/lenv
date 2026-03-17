@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/student_model.dart';
 import '../models/test_result_model.dart';
@@ -7,10 +8,12 @@ import '../models/reward_request_model.dart';
 import '../models/parent_teacher_group.dart';
 import '../services/parent_service.dart';
 import '../services/parent_teacher_group_service.dart';
+import '../services/offline_cache_manager.dart';
 
 class ParentProvider with ChangeNotifier {
   final ParentService _parentService = ParentService();
   final ParentTeacherGroupService _ptGroupService = ParentTeacherGroupService();
+  final OfflineCacheManager _cacheManager = OfflineCacheManager();
 
   // SharedPreferences key for persisting selected child
   static const String _selectedChildKey = 'parent_selected_child_uid';
@@ -108,6 +111,17 @@ class ParentProvider with ChangeNotifier {
   Future<void> initialize(String parentEmail, {String? parentId}) async {
     _parentEmail = parentEmail;
     _parentId = parentId;
+    try {
+      await _cacheManager.initialize();
+      final cached = _cacheManager.getCachedAnnouncements(
+        scope: 'parent_dashboard',
+        scopeId: parentEmail,
+      );
+      if (cached != null && cached.isNotEmpty) {
+        _announcements = cached;
+        notifyListeners();
+      }
+    } catch (_) {}
     await loadChildren();
     // Start real-time aggregated announcements for this parent
     startParentAnnouncementsStream();
@@ -312,8 +326,21 @@ class ParentProvider with ChangeNotifier {
         }
         _announcements = merged.values.toList();
       }
+
+      await _cacheManager.cacheAnnouncements(
+        scope: 'parent_dashboard',
+        scopeId: _parentEmail!,
+        announcements: _announcements.map(_serializeAnnouncementMap).toList(),
+      );
     } catch (e) {
       _announcementsError = 'Failed to load parent announcements: $e';
+      final cached = _cacheManager.getCachedAnnouncements(
+        scope: 'parent_dashboard',
+        scopeId: _parentEmail!,
+      );
+      if (cached != null) {
+        _announcements = cached;
+      }
     } finally {
       _isLoadingAnnouncements = false;
       notifyListeners();
@@ -329,15 +356,57 @@ class ParentProvider with ChangeNotifier {
     _announcementsSub = _parentService
         .getAnnouncementsStreamForParent(_parentEmail!)
         .listen(
-          (list) {
+          (list) async {
             _announcements = list;
+            await _cacheManager.cacheAnnouncements(
+              scope: 'parent_dashboard',
+              scopeId: _parentEmail!,
+              announcements: _announcements
+                  .map(_serializeAnnouncementMap)
+                  .toList(),
+            );
             notifyListeners();
           },
           onError: (e) {
             _announcementsError = 'Parent announcements stream error: $e';
+            final cached = _cacheManager.getCachedAnnouncements(
+              scope: 'parent_dashboard',
+              scopeId: _parentEmail!,
+            );
+            if (cached != null) {
+              _announcements = cached;
+            }
             notifyListeners();
           },
         );
+  }
+
+  Map<String, dynamic> _serializeAnnouncementMap(Map<String, dynamic> input) {
+    final output = <String, dynamic>{};
+    input.forEach((key, value) {
+      output[key] = _serializeAnnouncementValue(value);
+    });
+    return output;
+  }
+
+  dynamic _serializeAnnouncementValue(dynamic value) {
+    if (value is Timestamp) {
+      return value.toDate().toIso8601String();
+    }
+    if (value is DateTime) {
+      return value.toIso8601String();
+    }
+    if (value is List) {
+      return value.map(_serializeAnnouncementValue).toList();
+    }
+    if (value is Map) {
+      final result = <String, dynamic>{};
+      value.forEach((k, v) {
+        result[k.toString()] = _serializeAnnouncementValue(v);
+      });
+      return result;
+    }
+    return value;
   }
 
   /// Stop the real-time announcements stream

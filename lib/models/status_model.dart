@@ -94,6 +94,63 @@ class StatusModel {
     );
   }
 
+  /// Create from plain map (used for offline cache hydration)
+  factory StatusModel.fromMap(String id, Map<String, dynamic> data) {
+    List<Map<String, String>>? imageCaptions;
+    if (data['imageCaptions'] is List) {
+      imageCaptions = (data['imageCaptions'] as List)
+          .whereType<Map>()
+          .map((item) => Map<String, String>.from(item))
+          .toList();
+    }
+
+    final createdAt = _parseDate(data['createdAt']) ?? DateTime.now();
+
+    return StatusModel(
+      id: id,
+      teacherId: data['teacherId']?.toString() ?? '',
+      teacherName: data['teacherName']?.toString() ?? 'Teacher',
+      teacherEmail: data['teacherEmail']?.toString(),
+      instituteId: data['instituteId']?.toString() ?? '',
+      className: data['className']?.toString() ?? '',
+      text: data['text']?.toString() ?? '',
+      imageUrl: data['imageUrl']?.toString(),
+      imageCaptions: imageCaptions,
+      createdAt: createdAt,
+      expiresAt:
+          _parseDate(data['expiresAt']) ??
+          createdAt.add(const Duration(hours: 24)),
+      audienceType: data['audienceType']?.toString() ?? 'school',
+      standards:
+          (data['standards'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const <String>[],
+      sections:
+          (data['sections'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const <String>[],
+      viewedBy:
+          (data['viewedBy'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const <String>[],
+    );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    return null;
+  }
+
   /// Check if status is still valid (not expired)
   bool get isValid => DateTime.now().isBefore(expiresAt);
 

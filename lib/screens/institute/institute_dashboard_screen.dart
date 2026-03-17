@@ -669,12 +669,10 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     return SizedBox(
       height: 110,
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _isOnline
-            ? FirebaseFirestore.instance
-                  .collection('institute_announcements')
-                  .where('instituteId', isEqualTo: instituteId)
-                  .snapshots()
-            : const Stream.empty(),
+        stream: FirebaseFirestore.instance
+            .collection('institute_announcements')
+            .where('instituteId', isEqualTo: instituteId)
+            .snapshots(),
         builder: (context, snapshot) {
           // Loading state
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -939,12 +937,10 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     const blueColor = Color(0xFF355872);
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _isOnline
-          ? FirebaseFirestore.instance
-                .collection('class_highlights')
-                .where('instituteId', isEqualTo: instituteId)
-                .snapshots()
-          : const Stream.empty(),
+      stream: FirebaseFirestore.instance
+          .collection('class_highlights')
+          .where('instituteId', isEqualTo: instituteId)
+          .snapshots(),
       builder: (context, snapshot) {
         var statuses = <StatusModel>[];
 
@@ -957,8 +953,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                 // This catches old documents without expiresAt field too
                 ..removeWhere((status) => !status.isValid)
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-          for (final status in statuses) {}
         } else {}
 
         // hasTeacherAnnouncements should be based on FILTERED statuses
