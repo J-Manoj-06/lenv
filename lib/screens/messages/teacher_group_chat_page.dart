@@ -371,14 +371,35 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       await uploadService.initialize();
 
       final conversationId = '${widget.classId}_${widget.subjectId}';
-      final uploads = uploadService.uploads
-          .where(
-            (u) =>
-                u.conversationId == conversationId &&
-                (u.status == UploadStatus.pending ||
-                    u.status == UploadStatus.uploading),
-          )
-          .toList();
+      final uploads = uploadService.uploads.where((u) {
+        if (u.conversationId != conversationId) return false;
+
+        // Active uploads are always shown.
+        if (u.status == UploadStatus.pending ||
+            u.status == UploadStatus.uploading) {
+          return true;
+        }
+
+        // Keep completed members of an in-flight multi-upload group visible.
+        // Without this, reopening chat mid-upload can show 4 -> 3 -> 2 -> 1
+        // images as items complete one by one.
+        if (u.status == UploadStatus.completed && u.groupId != null) {
+          final siblings = uploadService.uploads.where(
+            (other) =>
+                other.groupId == u.groupId &&
+                other.conversationId == conversationId,
+          );
+
+          return siblings.any(
+            (other) =>
+                other.status == UploadStatus.pending ||
+                other.status == UploadStatus.uploading ||
+                other.status == UploadStatus.failed,
+          );
+        }
+
+        return false;
+      }).toList();
 
       if (uploads.isEmpty) return;
 
