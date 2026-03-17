@@ -903,7 +903,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           return MessageGroupTile(
             group: groupWithoutPreview,
             isDark: isDark,
-            onTap: () => _openGroupChat(displayGroups[index - 1]),
+            onTap: () => _openGroupChat(group),
           );
         },
       ),
@@ -1087,63 +1087,73 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       _openingGroupIds.add(group.groupId);
     });
 
-    // ✅ Mark group as read in cache immediately
-    _service.markGroupAsRead(group.groupId);
-
-    // ✅ Update UI immediately to clear badge
-    setState(() {
-      final index = _groups.indexWhere((g) => g.groupId == group.groupId);
-      if (index != -1) {
-        _groups[index] = MessageGroup(
-          groupId: group.groupId,
+    // Open chat immediately for responsive single-tap navigation.
+    final navFuture = Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TeacherGroupChatPage(
+          classId: group.classId,
           subjectId: group.subjectId,
           subjectName: group.subjectName,
+          teacherName: 'Teacher',
+          icon: _getIconForSubject(group.subjectName),
           className: group.className,
-          sectionName: group.sectionName,
-          teacherId: group.teacherId,
-          studentCount: group.studentCount,
-          unreadCount: 0, // Clear badge in UI
-          lastMessage: group.lastMessage,
-          lastMessageTime: group.lastMessageTime,
-          classId: group.classId,
-        );
-      }
-    });
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUser = authProvider.currentUser;
-    if (currentUser != null) {
-      final messagingService = GroupMessagingService();
-      unawaited(
-        messagingService.markGroupAsRead(
-          group.classId,
-          group.subjectId,
-          currentUser.uid,
+          section: group.sectionName,
         ),
-      );
-    }
-
-    // ✅ OPTIMIZATION: Mark group as read in teacher_groups index (non-blocking)
-    unawaited(_markGroupAsReadInFirestore(group));
+      ),
+    );
 
     try {
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => TeacherGroupChatPage(
-            classId: group.classId,
-            subjectId: group
-                .subjectId, // ✅ FIXED: Use actual subjectId instead of groupId
+      // ✅ Mark group as read in cache immediately
+      _service.markGroupAsRead(group.groupId);
+
+      // ✅ Update UI immediately to clear badge
+      setState(() {
+        final index = _groups.indexWhere((g) => g.groupId == group.groupId);
+        if (index != -1) {
+          _groups[index] = MessageGroup(
+            groupId: group.groupId,
+            subjectId: group.subjectId,
             subjectName: group.subjectName,
-            teacherName: 'Teacher',
-            icon: _getIconForSubject(group.subjectName),
             className: group.className,
-            section: group.sectionName,
+            sectionName: group.sectionName,
+            teacherId: group.teacherId,
+            studentCount: group.studentCount,
+            unreadCount: 0, // Clear badge in UI
+            lastMessage: group.lastMessage,
+            lastMessageTime: group.lastMessageTime,
+            classId: group.classId,
+          );
+        }
+      });
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final currentUser = authProvider.currentUser;
+      if (currentUser != null) {
+        final messagingService = GroupMessagingService();
+        unawaited(
+          messagingService.markGroupAsRead(
+            group.classId,
+            group.subjectId,
+            currentUser.uid,
           ),
-        ),
-      );
+        );
+      }
+
+      // ✅ OPTIMIZATION: Mark group as read in teacher_groups index (non-blocking)
+      unawaited(_markGroupAsReadInFirestore(group));
+
+      await navFuture;
       // Refresh group list so new message pushes this group to the top.
       await _loadGroups(forceRefresh: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to open group. Please try again.'),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -1221,135 +1231,134 @@ class _MessageGroupTileState extends State<MessageGroupTile>
         scale: _isPressed ? 0.97 : 1.0,
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
-        child: GestureDetector(
-          onTapDown: (_) => setState(() => _isPressed = true),
-          onTapUp: (_) => setState(() => _isPressed = false),
-          onTapCancel: () => setState(() => _isPressed = false),
-          child: InkWell(
-            onTap: widget.onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: widget.isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: widget.isDark
-                      ? Colors.white.withOpacity(0.08)
-                      : Colors.grey[200]!,
-                  width: 1,
-                ),
+        child: InkWell(
+          onTap: widget.onTap,
+          onHighlightChanged: (isHighlighted) {
+            if (_isPressed == isHighlighted) return;
+            setState(() => _isPressed = isHighlighted);
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: widget.isDark ? const Color(0xFF1C1C1E) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: widget.isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.grey[200]!,
+                width: 1,
               ),
-              child: Row(
-                children: [
-                  // Blue accent bar
-                  Container(
-                    width: 4,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF355872), Color(0xFF4A7A99)],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                      borderRadius: BorderRadius.circular(2),
+            ),
+            child: Row(
+              children: [
+                // Blue accent bar
+                Container(
+                  width: 4,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF355872), Color(0xFF4A7A99)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
                     ),
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  const SizedBox(width: 14),
+                ),
+                const SizedBox(width: 14),
 
-                  GroupAvatarWidget(
-                    groupId: widget.group.groupId,
-                    groupName: widget.group.subjectName,
-                    size: 56,
-                    isTeacher: false,
-                  ),
-                  const SizedBox(width: 14),
+                GroupAvatarWidget(
+                  groupId: widget.group.groupId,
+                  groupName: widget.group.subjectName,
+                  size: 56,
+                  isTeacher: false,
+                ),
+                const SizedBox(width: 14),
 
-                  // Group Info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.group.subjectName,
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -0.3,
-                                  color: widget.isDark
-                                      ? Colors.white
-                                      : Colors.black87,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
+                // Group Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              widget.group.subjectName,
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.3,
+                                color: widget.isDark
+                                    ? Colors.white
+                                    : Colors.black87,
                               ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
-                            if (widget.group.unreadCount > 0)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFE53E3E),
-                                      Color(0xFFC53030),
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(14),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withOpacity(0.3),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
-                                    ),
+                          ),
+                          if (widget.group.unreadCount > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFE53E3E),
+                                    Color(0xFFC53030),
                                   ],
                                 ),
-                                child: Text(
-                                  '${widget.group.unreadCount}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withOpacity(0.3),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
                                   ),
+                                ],
+                              ),
+                              child: Text(
+                                '${widget.group.unreadCount}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
                                 ),
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Builder(
-                          builder: (context) {
-                            // Extract grade number from className
-                            final gradeMatch = RegExp(
-                              r'\d+',
-                            ).firstMatch(widget.group.className);
-                            final grade =
-                                gradeMatch?.group(0) ?? widget.group.className;
-                            return Text(
-                              'Grade $grade • Section ${widget.group.sectionName}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.2,
-                                color: widget.isDark
-                                    ? Colors.white.withOpacity(0.5)
-                                    : Colors.grey[600],
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Builder(
+                        builder: (context) {
+                          // Extract grade number from className
+                          final gradeMatch = RegExp(
+                            r'\d+',
+                          ).firstMatch(widget.group.className);
+                          final grade =
+                              gradeMatch?.group(0) ?? widget.group.className;
+                          return Text(
+                            'Grade $grade - Section ${widget.group.sectionName}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                              color: widget.isDark
+                                  ? Colors.white.withOpacity(0.5)
+                                  : Colors.grey[600],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

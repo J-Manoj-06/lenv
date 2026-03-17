@@ -433,11 +433,15 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         if (multipleMedia is List && multipleMedia.isNotEmpty) {
           for (final media in multipleMedia) {
             if (media is Map) {
-              final mediaMap = media is Map<String, dynamic>
-                  ? media
-                  : media as Map<String, dynamic>;
+              final mediaMap = <String, dynamic>{};
+              media.forEach((key, value) {
+                mediaMap[key.toString()] = value;
+              });
 
-              final publicUrl = mediaMap['publicUrl'] as String?;
+              final publicUrlRaw = mediaMap['publicUrl'];
+              final publicUrl = publicUrlRaw is String
+                  ? publicUrlRaw
+                  : publicUrlRaw?.toString();
               // Only preload network URLs (not local paths or pending uploads)
               if (publicUrl != null &&
                   publicUrl.isNotEmpty &&
