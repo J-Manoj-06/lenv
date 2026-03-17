@@ -5,6 +5,7 @@ import '../services/image_viewer_action_service.dart';
 import '../screens/audio_player_screen.dart';
 import '../screens/messages/forward_selection_screen.dart';
 import '../models/forward_message_data.dart';
+import '../config/cloudflare_config.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:open_filex/open_filex.dart';
 import 'dart:io';
@@ -68,11 +69,13 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
   bool _isDownloading = false;
   double _downloadProgress = 0.0;
   String? _localPath;
+  int? _resolvedFileSize;
 
   @override
   void initState() {
     super.initState();
     _checkDownloadStatus();
+    _resolveMissingFileSize();
   }
 
   @override
@@ -81,8 +84,62 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
     // Re-check when uploaded key changes or when a sender local path becomes
     // available after the widget was already built.
     if (oldWidget.r2Key != widget.r2Key ||
-        oldWidget.localPath != widget.localPath) {
+        oldWidget.localPath != widget.localPath ||
+        oldWidget.fileSize != widget.fileSize) {
       _checkDownloadStatus();
+      _resolveMissingFileSize();
+    }
+  }
+
+  int get _displayFileSize {
+    if (widget.fileSize > 0) return widget.fileSize;
+    if ((_resolvedFileSize ?? 0) > 0) return _resolvedFileSize!;
+    return 0;
+  }
+
+  Future<void> _resolveMissingFileSize() async {
+    if (widget.fileSize > 0) return;
+
+    // Prefer local file length when available.
+    final localCandidates = <String?>[_localPath, widget.localPath];
+    for (final path in localCandidates) {
+      if (path == null || path.isEmpty) continue;
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          final length = await file.length();
+          if (length > 0 && mounted) {
+            setState(() {
+              _resolvedFileSize = length;
+            });
+            return;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Fallback to remote HEAD Content-Length for older messages missing fileSize.
+    final url = widget.r2Key.startsWith('http')
+        ? widget.r2Key
+        : '${CloudflareConfig.r2Domain}/${widget.r2Key}';
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri == null) return;
+
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 6);
+      final req = await client.headUrl(uri);
+      final resp = await req.close();
+      final contentLength = resp.contentLength;
+      client.close(force: true);
+
+      if (contentLength > 0 && mounted) {
+        setState(() {
+          _resolvedFileSize = contentLength;
+        });
+      }
+    } catch (_) {
+      // Keep "Unknown size" if server does not expose content-length.
     }
   }
 
@@ -98,6 +155,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
             _isDownloaded = true;
             _localPath = widget.localPath;
           });
+          _resolveMissingFileSize();
         }
         return;
       }
@@ -120,6 +178,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
               setState(() {
                 _localPath = path;
               });
+              _resolveMissingFileSize();
             }
           });
         }
@@ -160,6 +219,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
           _isDownloaded = true;
           _localPath = result.localPath;
         });
+        _resolveMissingFileSize();
       } else {
         ScaffoldMessenger.of(
           context,
@@ -546,7 +606,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _formatSize(widget.fileSize),
+                            _formatSize(_displayFileSize),
                             style: TextStyle(
                               color: isDark ? Colors.white60 : Colors.black54,
                               fontSize: 11,
@@ -642,7 +702,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                     child: ElevatedButton.icon(
                       onPressed: widget.selectionMode ? null : _download,
                       icon: const Icon(Icons.download),
-                      label: Text('Download ${_formatSize(widget.fileSize)}'),
+                      label: Text('Download ${_formatSize(_displayFileSize)}'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _accentColor,
                         foregroundColor: Colors.white,

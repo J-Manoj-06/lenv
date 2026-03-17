@@ -105,22 +105,32 @@ class PollModel {
 
   /// Create from Firestore document
   factory PollModel.fromMap(Map<String, dynamic> map, String documentId) {
+    Map<String, dynamic> asStringDynamicMap(dynamic raw) {
+      if (raw is Map<String, dynamic>) return raw;
+      if (raw is Map) {
+        final mapped = <String, dynamic>{};
+        raw.forEach((k, v) {
+          mapped[k.toString()] = v;
+        });
+        return mapped;
+      }
+      return <String, dynamic>{};
+    }
+
     final optionsList =
         (map['options'] as List<dynamic>?)
-            ?.map((o) => PollOption.fromMap(o as Map<String, dynamic>))
+            ?.map((o) => PollOption.fromMap(asStringDynamicMap(o)))
             .toList() ??
         [];
 
     // Parse voters map
     final votersMap = <String, List<String>>{};
-    final votersData = map['voters'] as Map<String, dynamic>?;
-    if (votersData != null) {
-      votersData.forEach((key, value) {
-        if (value is List) {
-          votersMap[key] = value.map((e) => e.toString()).toList();
-        }
-      });
-    }
+    final votersData = asStringDynamicMap(map['voters']);
+    votersData.forEach((key, value) {
+      if (value is List) {
+        votersMap[key] = value.map((e) => e.toString()).toList();
+      }
+    });
 
     // Handle createdAt - can be Timestamp or int (milliseconds)
     DateTime? createdAt;

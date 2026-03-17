@@ -455,9 +455,21 @@ class OfflineCacheManager {
       if (cached == null) return null;
 
       final announcements = cached['announcements'] as List?;
-      return announcements != null
-          ? List<Map<String, dynamic>>.from(announcements)
-          : null;
+      if (announcements == null) return null;
+
+      final result = <Map<String, dynamic>>[];
+      for (final item in announcements) {
+        if (item is Map<String, dynamic>) {
+          result.add(item);
+        } else if (item is Map) {
+          final mapped = <String, dynamic>{};
+          item.forEach((k, v) {
+            mapped[k.toString()] = v;
+          });
+          result.add(mapped);
+        }
+      }
+      return result;
     } catch (e) {
       debugPrint('Error retrieving cached announcements: $e');
       return null;

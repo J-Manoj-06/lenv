@@ -1714,7 +1714,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 if (doc['type'] == 'teacher') {
                   // Teacher announcement (StatusModel)
                   final rawData =
-                      (doc['data'] as Map<String, dynamic>?) ??
+                      _safeMapFromCache(
+                        doc['data'],
+                        fieldName: 'data',
+                        source: 'classroomHighlights.teacher',
+                      ) ??
                       const <String, dynamic>{};
                   final id = doc['id']?.toString() ?? '';
                   if (id.isEmpty) continue;
@@ -1741,7 +1745,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                 } else if (doc['type'] == 'principal') {
                   // Principal announcement (InstituteAnnouncementModel)
                   final data =
-                      (doc['data'] as Map<String, dynamic>?) ??
+                      _safeMapFromCache(
+                        doc['data'],
+                        fieldName: 'data',
+                        source: 'classroomHighlights.principal',
+                      ) ??
                       const <String, dynamic>{};
                   final id = doc['id']?.toString() ?? '';
                   if (id.isEmpty) continue;

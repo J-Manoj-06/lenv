@@ -122,8 +122,9 @@ class LocalMessage extends HiveObject {
         data['attachmentType'] ?? data['mediaType'] ?? data['type'];
 
     // Check if message has mediaMetadata field (used for PDFs and other files)
+    Map<String, dynamic>? cleanedSingleMedia;
     if (data['mediaMetadata'] != null && data['mediaMetadata'] is Map) {
-      final mediaData = data['mediaMetadata'] as Map<String, dynamic>;
+      final mediaData = Map<String, dynamic>.from(data['mediaMetadata'] as Map);
       finalAttachmentUrl = mediaData['publicUrl'] ?? finalAttachmentUrl;
 
       // Determine attachment type from mimeType or originalFileName
@@ -152,6 +153,18 @@ class LocalMessage extends HiveObject {
           }
         }
       }
+
+      // Preserve single media metadata (including fileSize) for offline rendering.
+      if (mediaData['fileSize'] == null && data['fileSize'] != null) {
+        mediaData['fileSize'] = data['fileSize'];
+      }
+      if (mediaData['mimeType'] == null && data['mimeType'] != null) {
+        mediaData['mimeType'] = data['mimeType'];
+      }
+      if (mediaData['originalFileName'] == null && data['fileName'] != null) {
+        mediaData['originalFileName'] = data['fileName'];
+      }
+      cleanedSingleMedia = _cleanMapFromTimestamps(mediaData);
     }
 
     List<dynamic>? multipleMedia;
@@ -182,12 +195,28 @@ class LocalMessage extends HiveObject {
         }
         return item;
       }).toList();
+    } else if (cleanedSingleMedia != null) {
+      // Keep single media in a normalized list too, so we don't lose fileSize metadata.
+      multipleMedia = <dynamic>[cleanedSingleMedia];
     }
 
     // Clean poll data if present
     Map<String, dynamic>? cleanedPollData;
     if (data['poll'] is Map) {
       cleanedPollData = _cleanMapFromTimestamps(data['poll']);
+    } else if ((data['type']?.toString().toLowerCase() ?? '') == 'poll') {
+      cleanedPollData = _cleanMapFromTimestamps({
+        'type': 'poll',
+        'question': data['question'],
+        'options': data['options'],
+        'allowMultiple': data['allowMultiple'],
+        'createdBy': data['createdBy'] ?? data['senderId'],
+        'createdByName': data['createdByName'] ?? data['senderName'],
+        'createdByRole': data['createdByRole'] ?? data['senderRole'],
+        'createdAt': data['createdAt'] ?? data['timestamp'],
+        'timestamp': data['timestamp'],
+        'voters': data['voters'],
+      });
     }
 
     return LocalMessage(

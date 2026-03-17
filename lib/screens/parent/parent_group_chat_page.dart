@@ -165,6 +165,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   // This cache ensures Flutter recognizes the same message object and doesn't rebuild widgets
   // when StreamBuilder rebuilds. Same technique used in staff room.
   final Map<String, CommunityMessageModel> _messageCache = {};
+  final Map<String, Map<String, dynamic>> _localPollDataCache =
+      <String, Map<String, dynamic>>{};
 
   // ✅ Cache stream like staff room to avoid rebuilding new streams
   Stream<List<CommunityMessageModel>>? _messagesStream;
@@ -538,9 +540,18 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
   LocalMessage _communityToLocalMessage(CommunityMessageModel msg) {
     final attachment = msg.mediaMetadata;
-    final multipleMedia = msg.multipleMedia
-        ?.map((m) => m.toFirestore())
-        .toList();
+    final rawMultipleMedia = (msg.multipleMedia?.isNotEmpty == true)
+        ? msg.multipleMedia!.map((m) => m.toFirestore()).toList()
+        : (attachment != null
+              ? <Map<String, dynamic>>[attachment.toFirestore()]
+              : null);
+    final multipleMedia =
+        _sanitizeForLocalHive(rawMultipleMedia) as List<dynamic>?;
+
+    final rawDocData = _asStringDynamicMap(msg.documentSnapshot?.data());
+    final pollData =
+        _sanitizeForLocalHive(_extractPollDataFromMessage(rawDocData, msg))
+            as Map<String, dynamic>?;
 
     String? attachmentType;
     if (attachment != null) {
@@ -571,8 +582,39 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       isDeleted: msg.isDeleted,
       replyToMessageId: msg.replyTo.isNotEmpty ? msg.replyTo : null,
       multipleMedia: multipleMedia,
+      pollData: pollData,
       isPending: false,
     );
+  }
+
+  Map<String, dynamic>? _extractPollDataFromMessage(
+    Map<String, dynamic>? raw,
+    CommunityMessageModel msg,
+  ) {
+    if ((msg.type).toLowerCase() != 'poll') return null;
+
+    if (raw != null) {
+      if (raw['poll'] is Map) {
+        return Map<String, dynamic>.from(raw['poll'] as Map);
+      }
+      if (raw['question'] != null && raw['options'] is List) {
+        return Map<String, dynamic>.from(raw);
+      }
+    }
+
+    // Fallback for cached local reconstruction when snapshot isn't present.
+    return <String, dynamic>{
+      'type': 'poll',
+      'question': msg.content.replaceFirst(RegExp(r'^Poll:\s*'), ''),
+      'options': const <dynamic>[],
+      'allowMultiple': false,
+      'createdBy': msg.senderId,
+      'createdByName': msg.senderName,
+      'createdByRole': msg.senderRole,
+      'timestamp': msg.createdAt.millisecondsSinceEpoch,
+      'createdAt': msg.createdAt.millisecondsSinceEpoch,
+      'voters': const <String, dynamic>{},
+    };
   }
 
   CommunityMessageModel _localToCommunityMessage(LocalMessage msg) {
@@ -580,22 +622,38 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
     MediaMetadata? mediaMetadata;
     if (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty) {
+      final first = multipleMedia.isNotEmpty ? multipleMedia.first : null;
       mediaMetadata = MediaMetadata(
         messageId: msg.messageId,
         r2Key: '',
-        publicUrl: msg.attachmentUrl!,
+        publicUrl: first?.publicUrl.isNotEmpty == true
+            ? first!.publicUrl
+            : msg.attachmentUrl!,
         thumbnail: '',
         expiresAt: DateTime.now().add(const Duration(days: 30)),
         uploadedAt: DateTime.fromMillisecondsSinceEpoch(msg.timestamp),
-        originalFileName: msg.attachmentUrl!.split('/').last,
-        fileSize: 0,
-        mimeType: _mimeFromAttachmentType(msg.attachmentType),
+        originalFileName:
+            first?.originalFileName ?? msg.attachmentUrl!.split('/').last,
+        fileSize: (first?.fileSize != null && first!.fileSize! > 0)
+            ? first.fileSize
+            : null,
+        mimeType:
+            first?.mimeType ?? _mimeFromAttachmentType(msg.attachmentType),
       );
     }
 
     if (multipleMedia.isNotEmpty && mediaMetadata == null) {
       mediaMetadata = multipleMedia.first;
     }
+
+    if (msg.pollData != null) {
+      _localPollDataCache[msg.messageId] = Map<String, dynamic>.from(
+        msg.pollData!,
+      );
+    }
+
+    final resolvedType = _messageTypeFromLocal(msg, multipleMedia);
+    final pollQuestion = msg.pollData?['question']?.toString();
 
     return CommunityMessageModel(
       messageId: msg.messageId,
@@ -604,8 +662,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       senderName: msg.senderName,
       senderRole: widget.senderRole,
       senderAvatar: '',
-      type: _messageTypeFromLocal(msg, multipleMedia),
-      content: msg.messageText ?? '',
+      type: resolvedType,
+      content: resolvedType == 'poll'
+          ? 'Poll: ${pollQuestion ?? (msg.messageText ?? '').trim()}'
+          : (msg.messageText ?? ''),
       imageUrl: mediaMetadata != null && _isImageMime(mediaMetadata.mimeType)
           ? mediaMetadata.publicUrl
           : '',
@@ -640,7 +700,16 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   }
 
   String _messageTypeFromLocal(LocalMessage msg, List<MediaMetadata> multi) {
-    if (multi.isNotEmpty) return 'image';
+    if (msg.pollData != null ||
+        (msg.attachmentType ?? '').toLowerCase() == 'poll') {
+      return 'poll';
+    }
+    if (multi.isNotEmpty) {
+      final firstMime = (multi.first.mimeType ?? '').toLowerCase();
+      if (_isImageMime(firstMime)) return 'image';
+      if (firstMime.startsWith('audio/')) return 'audio';
+      return 'pdf';
+    }
     final t = (msg.attachmentType ?? '').toLowerCase();
     if (t == 'image') return 'image';
     if (t == 'audio') return 'audio';
@@ -1144,12 +1213,53 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       messageId: msg.messageId,
       senderId: msg.senderId,
       senderName: msg.senderName,
-      rawData: msg.documentSnapshot?.data() as Map<String, dynamic>?,
+      rawData: _asStringDynamicMap(msg.documentSnapshot?.data()),
       imageUrl: msg.imageUrl,
       message: msg.content,
       mediaMetadata: msg.mediaMetadata,
       multipleMedia: msg.multipleMedia,
     );
+  }
+
+  Map<String, dynamic>? _asStringDynamicMap(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) {
+      final mapped = <String, dynamic>{};
+      raw.forEach((key, value) {
+        mapped[key.toString()] = value;
+      });
+      return mapped;
+    }
+    return null;
+  }
+
+  dynamic _sanitizeForLocalHive(dynamic value) {
+    if (value == null) return null;
+
+    // Avoid direct Timestamp dependency while still handling Firestore values.
+    if (value.runtimeType.toString() == 'Timestamp') {
+      final dynamic ts = value;
+      return ts.millisecondsSinceEpoch as int;
+    }
+
+    if (value is DateTime) {
+      return value.millisecondsSinceEpoch;
+    }
+
+    if (value is Map) {
+      final mapped = <String, dynamic>{};
+      value.forEach((key, val) {
+        mapped[key.toString()] = _sanitizeForLocalHive(val);
+      });
+      return mapped;
+    }
+
+    if (value is List) {
+      return value.map(_sanitizeForLocalHive).toList();
+    }
+
+    return value;
   }
 
   MediaMetadata _normalizeMediaMetadata(MediaMetadata media) {
@@ -2383,7 +2493,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                 : null);
                         final displayMultipleMedia = _effectiveMultipleMedia(
                           msg,
-                        );
+                        ).where((m) => _isImageMime(m.mimeType)).toList();
 
                         if (msg.type == 'announcement') {
                           return Column(
@@ -2436,8 +2546,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
                         if (msg.type == 'poll') {
                           final data =
-                              msg.documentSnapshot?.data()
-                                  as Map<String, dynamic>?;
+                              _asStringDynamicMap(
+                                msg.documentSnapshot?.data(),
+                              ) ??
+                              _localPollDataCache[msg.messageId];
                           if (data != null) {
                             final poll = PollModel.fromMap(data, msg.messageId);
                             return Column(
@@ -2663,6 +2775,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                     displayMultipleMedia
                                                                             .length >
                                                                         1) {
+                                                                  final rawMessageData =
+                                                                      _asStringDynamicMap(
+                                                                        msg.documentSnapshot
+                                                                            ?.data(),
+                                                                      );
+                                                                  final rawMultipleMedia =
+                                                                      rawMessageData?['multipleMedia'];
                                                                   _debugLogMultiImage(
                                                                     'render',
                                                                     messageId: msg
@@ -2671,18 +2790,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                         .multipleMedia
                                                                         ?.length,
                                                                     rawCount:
-                                                                        (msg.documentSnapshot?.data()
-                                                                                as Map<
-                                                                                  String,
-                                                                                  dynamic
-                                                                                >?)?['multipleMedia']
+                                                                        rawMultipleMedia
                                                                             is List
-                                                                        ? ((msg.documentSnapshot?.data()
-                                                                                      as Map<
-                                                                                        String,
-                                                                                        dynamic
-                                                                                      >)['multipleMedia']
-                                                                                  as List)
+                                                                        ? rawMultipleMedia
                                                                               .length
                                                                         : 0,
                                                                     effectiveCount:
@@ -2803,12 +2913,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                                             messageId: msg.messageId,
                                                                                             senderId: msg.senderId,
                                                                                             senderName: msg.senderName,
-                                                                                            rawData:
-                                                                                                msg.documentSnapshot?.data()
-                                                                                                    as Map<
-                                                                                                      String,
-                                                                                                      dynamic
-                                                                                                    >?,
+                                                                                            rawData: _asStringDynamicMap(
+                                                                                              msg.documentSnapshot?.data(),
+                                                                                            ),
                                                                                             imageUrl: msg.imageUrl,
                                                                                             message: msg.content,
                                                                                             mediaMetadata: msg.mediaMetadata,
