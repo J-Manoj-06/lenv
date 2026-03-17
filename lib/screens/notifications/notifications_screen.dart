@@ -59,9 +59,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final authProvider = Provider.of<auth.AuthProvider>(context);
     final currentRole = authProvider.currentUser?.role.name ?? 'student';
     final accent = _roleAccent(currentRole);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final scaffoldBg = isDark
+        ? const Color(0xFF121316)
+        : const Color(0xFFF5F7FB);
+    final appBarBg = isDark
+        ? Color.lerp(const Color(0xFF1B1D22), accent, 0.18)!
+        : Color.lerp(Colors.white, accent, 0.14)!;
+    final appBarFg = isDark ? Colors.white : const Color(0xFF101418);
+    final chipBg = isDark ? const Color(0xFF151821) : Colors.white;
+    final chipBorder = isDark
+        ? Colors.white.withOpacity(0.18)
+        : const Color(0xFFD7DCE7);
 
     return Scaffold(
+      backgroundColor: scaffoldBg,
       appBar: AppBar(
+        backgroundColor: appBarBg,
+        foregroundColor: appBarFg,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+          onPressed: () => Navigator.maybePop(context),
+        ),
         title: const Text('Notifications'),
         actions: [
           StreamBuilder<int>(
@@ -126,13 +148,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               itemBuilder: (context, index) {
                 final item = _tabs[index];
                 return ChoiceChip(
-                  label: Text(item.label),
+                  label: Text(
+                    item.label,
+                    style: TextStyle(
+                      color: _selectedIndex == index
+                          ? (isDark ? Colors.white : accent)
+                          : (isDark
+                                ? Colors.white.withOpacity(0.85)
+                                : const Color(0xFF2B3140)),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  backgroundColor: chipBg,
                   selected: _selectedIndex == index,
-                  selectedColor: accent.withOpacity(0.2),
+                  selectedColor: accent.withOpacity(isDark ? 0.22 : 0.14),
                   side: BorderSide(
-                    color: _selectedIndex == index
-                        ? accent
-                        : Theme.of(context).dividerColor,
+                    color: _selectedIndex == index ? accent : chipBorder,
+                    width: _selectedIndex == index ? 1.4 : 1,
                   ),
                   onSelected: (_) {
                     setState(() => _selectedIndex = index);
@@ -229,7 +261,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: 6,
-      itemBuilder: (_, __) {
+      itemBuilder: (_, _) {
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           padding: const EdgeInsets.all(14),

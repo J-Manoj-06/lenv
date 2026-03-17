@@ -44,6 +44,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
   final Map<int, bool> _imageLoadedState = {}; // Track which images are loaded
   bool _isPreloadingImages = true; // Show loading while preloading
   bool _hasPreloadedImages = false; // Track if preloading has been initiated
+  bool _isClosing = false;
 
   // Track current image index within each announcement (for multi-image support)
   final Map<int, int> _announcementImageIndex = {};
@@ -76,7 +77,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
           );
         } else if (_currentIndex >= widget.announcements.length - 1) {
           // Finished last announcement, close viewer
-          if (mounted) Navigator.of(context).maybePop();
+          _safeCloseViewer();
         }
       }
     });
@@ -165,21 +166,29 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
   @override
   void dispose() {
+    _isClosing = true;
     _pageController.dispose();
     _progressController.dispose();
     super.dispose();
   }
 
+  void _safeCloseViewer() {
+    if (!mounted || _isClosing) return;
+    _isClosing = true;
+    Navigator.of(context).maybePop();
+  }
+
   /// Safely extract imageCaptions from announcement map
-  List<Map<String, dynamic>>? _safeGetImageCaptions(Map<String, dynamic> announcement) {
+  List<Map<String, dynamic>>? _safeGetImageCaptions(
+    Map<String, dynamic> announcement,
+  ) {
     try {
       final raw = announcement['imageCaptions'];
       if (raw is List) {
         final result = raw.cast<Map<String, dynamic>>();
         return result;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
     return null;
   }
 
@@ -575,15 +584,9 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
       );
     }
 
-    // PopScope disables the navigator's swipe-to-pop gesture so it never
-    // calls didStopUserGesture() while our own GestureDetector is already
-    // owning the horizontal/vertical drag, preventing the framework assertion:
-    // '_userGesturesInProgress > 0' in navigator.dart.
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) Navigator.of(context).maybePop(result);
-      },
+      canPop: true,
+      onPopInvokedWithResult: (didPop, result) {},
       child: Scaffold(
         backgroundColor: Colors.black,
         body: GestureDetector(
@@ -597,7 +600,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
           onVerticalDragEnd: (details) {
             if (!_isLongPressing && _verticalDragOffset > 100) {
               // Swipe down to dismiss
-              Navigator.of(context).maybePop();
+              _safeCloseViewer();
             } else {
               setState(() {
                 _verticalDragOffset = 0.0;
@@ -662,7 +665,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                           );
                         } else {
                           // Last item: close
-                          Navigator.of(context).maybePop();
+                          _safeCloseViewer();
                         }
                       }
                     },
@@ -1005,14 +1008,21 @@ Future<void> openAnnouncementPageView(
   Function(int)? onAnnouncementViewed,
   Function(int)? onDelete,
 }) async {
-  
+  final sanitizedAnnouncements = _dedupeAnnouncements(announcements);
+  if (sanitizedAnnouncements.isEmpty) return;
+
+  final safeInitialIndex = initialIndex.clamp(
+    0,
+    sanitizedAnnouncements.length - 1,
+  );
+
   try {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) {
           return AnnouncementPageViewScreen(
-            announcements: announcements,
-            initialIndex: initialIndex,
+            announcements: sanitizedAnnouncements,
+            initialIndex: safeInitialIndex,
             currentUserId: currentUserId,
             onIndexChanged: onIndexChanged,
             onAnnouncementViewed: onAnnouncementViewed,
@@ -1024,6 +1034,59 @@ Future<void> openAnnouncementPageView(
   } catch (e) {
     rethrow;
   }
+}
+
+List<Map<String, dynamic>> _dedupeAnnouncements(
+  List<Map<String, dynamic>> announcements,
+) {
+  final unique = <String, Map<String, dynamic>>{};
+
+  String buildKey(Map<String, dynamic> a) {
+    final role = (a['role'] ?? '').toString();
+    final title = (a['title'] ?? '').toString();
+    final subtitle = (a['subtitle'] ?? '').toString();
+    final postedBy = (a['postedByLabel'] ?? '').toString();
+    final creatorId = (a['creatorId'] ?? '').toString();
+    final avatarUrl = (a['avatarUrl'] ?? '').toString();
+
+    final postedAt = a['postedAt'] is DateTime
+        ? (a['postedAt'] as DateTime).millisecondsSinceEpoch
+        : 0;
+    final expiresAt = a['expiresAt'] is DateTime
+        ? (a['expiresAt'] as DateTime).millisecondsSinceEpoch
+        : 0;
+
+    int imageCount = 0;
+    String firstImage = '';
+    final captions = a['imageCaptions'];
+    if (captions is List && captions.isNotEmpty) {
+      imageCount = captions.length;
+      final first = captions.first;
+      if (first is Map && first['url'] != null) {
+        firstImage = first['url'].toString();
+      }
+    }
+
+    return [
+      role,
+      title,
+      subtitle,
+      postedBy,
+      creatorId,
+      avatarUrl,
+      postedAt.toString(),
+      expiresAt.toString(),
+      imageCount.toString(),
+      firstImage,
+    ].join('|');
+  }
+
+  for (final item in announcements) {
+    final key = buildKey(item);
+    unique[key] = item;
+  }
+
+  return unique.values.toList();
 }
 
 /// Adaptive expandable post text widget that fills available space
@@ -1238,7 +1301,7 @@ class _ExpandableAnnouncementText extends StatefulWidget {
     required this.textColor,
     required this.accentColor,
     this.maxCollapsedLines = 3,
-  }); 
+  });
 
   @override
   State<_ExpandableAnnouncementText> createState() =>
