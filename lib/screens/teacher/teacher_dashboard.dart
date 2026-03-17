@@ -543,6 +543,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
       // Convert Timestamps to strings for Hive compatibility
       final sanitizedTeacherData = _sanitizeForHive(teacherData);
+      final sanitizedStudents = _sanitizeListForHive(students);
 
       await _cacheManager.cacheDashboard(
         userId: userId,
@@ -550,7 +551,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         dashboardData: {
           'teacherData': sanitizedTeacherData,
           'classes': classes,
-          'students': students,
+          'students': sanitizedStudents,
           'cachedAt': DateTime.now().toIso8601String(),
         },
       );

@@ -246,9 +246,7 @@ class NotificationService {
       final platform = defaultTargetPlatform.name;
       final tokenDocId = '${user.uid}_${token.hashCode.abs()}';
 
-      // Ensure this device token is uniquely owned by the active user.
-      // If this token is still linked to old accounts on the same device,
-      // those users can receive notifications meant for others.
+        // Clear duplicate token fields only on docs readable by this user.
       final sameTokenUsers = await FirebaseFirestore.instance
           .collection('users')
           .where('fcmToken', isEqualTo: token)
@@ -261,15 +259,15 @@ class NotificationService {
         }, SetOptions(merge: true));
       }
 
-      final sameTokenDevices = await FirebaseFirestore.instance
+      // IMPORTANT: Rules allow reading only docs where userId == request.auth.uid.
+      // So we only maintain this user's token docs here.
+      final myTokenDocs = await FirebaseFirestore.instance
           .collection('user_device_tokens')
-          .where('deviceToken', isEqualTo: token)
+          .where('userId', isEqualTo: user.uid)
           .where('active', isEqualTo: true)
           .get();
-      for (final doc in sameTokenDevices.docs) {
-        final data = doc.data();
-        final ownerId = (data['userId'] ?? '').toString();
-        if (ownerId == user.uid) continue;
+      for (final doc in myTokenDocs.docs) {
+        if (doc.id == tokenDocId) continue;
         await doc.reference.set({
           'active': false,
           'lastUpdated': FieldValue.serverTimestamp(),

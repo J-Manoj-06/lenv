@@ -248,8 +248,9 @@ class OfflineCacheManager {
   }) async {
     try {
       final key = '${role.toLowerCase()}_dashboard_$userId';
+      final sanitizedDashboardData = _sanitizeForHive(dashboardData);
       await _dashboardBox.put(key, {
-        'data': dashboardData,
+        'data': sanitizedDashboardData,
         'userId': userId,
         'role': role,
         'cachedAt': DateTime.now().toIso8601String(),
@@ -257,6 +258,40 @@ class OfflineCacheManager {
     } catch (e) {
       debugPrint('Error caching dashboard: $e');
     }
+  }
+
+  Map<String, dynamic> _sanitizeForHive(Map<String, dynamic> input) {
+    final out = <String, dynamic>{};
+    input.forEach((key, value) {
+      out[key] = _sanitizeValueForHive(value);
+    });
+    return out;
+  }
+
+  dynamic _sanitizeValueForHive(dynamic value) {
+    if (value == null) return null;
+
+    // Handle Firestore Timestamp without importing cloud_firestore.
+    if (value.runtimeType.toString() == 'Timestamp') {
+      final dynamic ts = value;
+      return ts.millisecondsSinceEpoch as int;
+    }
+
+    if (value is DateTime) return value.toIso8601String();
+
+    if (value is Map) {
+      final mapped = <String, dynamic>{};
+      value.forEach((k, v) {
+        mapped[k.toString()] = _sanitizeValueForHive(v);
+      });
+      return mapped;
+    }
+
+    if (value is List) {
+      return value.map(_sanitizeValueForHive).toList();
+    }
+
+    return value;
   }
 
   /// Get cached dashboard
