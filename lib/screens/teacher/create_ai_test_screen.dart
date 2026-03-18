@@ -874,66 +874,73 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         ),
 
         // Action buttons
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).brightness == Brightness.dark
-                ? const Color(0xFF1E1E1E)
-                : Colors.white,
-            border: Border(
-              top: BorderSide(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey.shade800
-                    : Theme.of(context).dividerColor,
-                width: 1,
+        SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF1E1E1E)
+                  : Colors.white,
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey.shade800
+                      : Theme.of(context).dividerColor,
+                  width: 1,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _regenerateTest,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Regenerate'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.teacherColor,
+                        side: const BorderSide(
+                          color: AppColors.teacherColor,
+                          width: 1.4,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _saveTest,
+                      icon: const Icon(Icons.save),
+                      label: const Text('Save Test'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        backgroundColor: const Color(0xFF16A34A),
+                        foregroundColor: Colors.white,
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _regenerateTest,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Regenerate'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.teacherColor,
-                    side: const BorderSide(
-                      color: AppColors.teacherColor,
-                      width: 1.4,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _saveTest,
-                  icon: const Icon(Icons.save),
-                  label: const Text('Save Test'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFF16A34A),
-                    foregroundColor: Colors.white,
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-            ],
           ),
         ),
       ],
@@ -1465,38 +1472,73 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Marks'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Marks',
-            border: OutlineInputBorder(),
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1F2026) : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: AppColors.teacherColor.withOpacity(0.45),
+              width: 1.4,
+            ),
           ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+          title: const Text(
+            'Edit Marks',
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
-          ElevatedButton(
-            onPressed: () {
-              final newMarks = int.tryParse(controller.text);
-              if (newMarks != null && newMarks > 0) {
-                setState(() {
-                  _generatedQuestions![index] = question.copyWith(
-                    marks: newMarks,
-                  );
-                });
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Save'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            cursorColor: AppColors.teacherColor,
+            decoration: InputDecoration(
+              labelText: 'Marks',
+              labelStyle: const TextStyle(
+                color: AppColors.teacherColor,
+                fontWeight: FontWeight.w600,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                  color: AppColors.teacherColor.withOpacity(0.55),
+                ),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(12)),
+                borderSide: BorderSide(color: AppColors.teacherColor, width: 2),
+              ),
+            ),
+            autofocus: true,
           ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.teacherColor,
+              ),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final newMarks = int.tryParse(controller.text);
+                if (newMarks != null && newMarks > 0) {
+                  setState(() {
+                    _generatedQuestions![index] = question.copyWith(
+                      marks: newMarks,
+                    );
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.teacherColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
   }
 

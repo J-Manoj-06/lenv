@@ -221,11 +221,32 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         });
         _resolveMissingFileSize();
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('❌ ${result.message}')));
+        _showDownloadFailureSnackBar(
+          message: result.message,
+          onRetry: _download,
+        );
       }
     }
+  }
+
+  void _showDownloadFailureSnackBar({
+    required String message,
+    required VoidCallback onRetry,
+  }) {
+    if (!mounted) return;
+
+    final compactMessage = message.trim().isEmpty
+        ? 'Download failed. Please retry.'
+        : message;
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(compactMessage, maxLines: 2, overflow: TextOverflow.fade),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(label: 'Retry', onPressed: onRetry),
+      ),
+    );
   }
 
   Future<void> _shareCurrentMedia() async {
@@ -417,15 +438,10 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
         throw Exception(result.message);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
+      _showDownloadFailureSnackBar(
+        message: 'Unable to open file right now. Please retry.',
+        onRetry: _openFromR2,
+      );
     }
   }
 

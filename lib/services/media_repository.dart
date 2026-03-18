@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
@@ -101,25 +102,36 @@ class MediaRepository {
 
       while (true) {
         attempt++;
-        final request = http.Request('GET', Uri.parse(url));
-        streamedResponse = await request.send();
+        try {
+          final request = http.Request('GET', Uri.parse(url));
+          streamedResponse = await request.send().timeout(
+            const Duration(seconds: 25),
+          );
+        } catch (e) {
+          if (attempt < maxRetries && _isRetryableException(e)) {
+            await Future.delayed(Duration(milliseconds: 700 * attempt));
+            continue;
+          }
+          return DownloadResult(
+            success: false,
+            message: _friendlyDownloadErrorMessage(e),
+          );
+        }
 
         if (streamedResponse.statusCode == 200) {
           break;
         }
 
-        // Retry on 404/403/5xx to handle propagation delays
+        // Retry on transient HTTP errors to handle slow connections and propagation delays
         if (attempt < maxRetries &&
-            (streamedResponse.statusCode == 404 ||
-                streamedResponse.statusCode == 403 ||
-                streamedResponse.statusCode >= 500)) {
-          await Future.delayed(const Duration(milliseconds: 800));
+            _isRetryableStatusCode(streamedResponse.statusCode)) {
+          await Future.delayed(Duration(milliseconds: 700 * attempt));
           continue;
         }
 
         return DownloadResult(
           success: false,
-          message: 'Download failed: HTTP ${streamedResponse.statusCode}',
+          message: _friendlyHttpErrorMessage(streamedResponse.statusCode),
         );
       }
 
@@ -159,7 +171,7 @@ class MediaRepository {
       } catch (e) {
         return DownloadResult(
           success: false,
-          message: 'Failed to save file: $e',
+          message: 'Downloaded but failed to save file. Please retry.',
         );
       }
 
@@ -191,8 +203,61 @@ class MediaRepository {
         message: 'Downloaded successfully',
       );
     } catch (e) {
-      return DownloadResult(success: false, message: 'Download failed: $e');
+      return DownloadResult(
+        success: false,
+        message: _friendlyDownloadErrorMessage(e),
+      );
     }
+  }
+
+  bool _isRetryableStatusCode(int statusCode) {
+    return statusCode == 403 ||
+        statusCode == 404 ||
+        statusCode == 408 ||
+        statusCode == 429 ||
+        statusCode >= 500;
+  }
+
+  bool _isRetryableException(Object error) {
+    if (error is TimeoutException ||
+        error is SocketException ||
+        error is HttpException ||
+        error is http.ClientException) {
+      return true;
+    }
+
+    final lower = error.toString().toLowerCase();
+    return lower.contains('failed host lookup') ||
+        lower.contains('connection reset') ||
+        lower.contains('timed out') ||
+        lower.contains('network is unreachable');
+  }
+
+  String _friendlyHttpErrorMessage(int statusCode) {
+    if (statusCode == 403 || statusCode == 404) {
+      return 'File is not ready yet. Please retry in a moment.';
+    }
+    if (statusCode == 408 || statusCode == 429 || statusCode >= 500) {
+      return 'Server is busy. Please retry.';
+    }
+    return 'Download failed (HTTP $statusCode). Please retry.';
+  }
+
+  String _friendlyDownloadErrorMessage(Object error) {
+    if (error is TimeoutException) {
+      return 'Download timed out. Please retry.';
+    }
+
+    if (error is SocketException || error is http.ClientException) {
+      final lower = error.toString().toLowerCase();
+      if (lower.contains('failed host lookup') ||
+          lower.contains('network is unreachable')) {
+        return 'No internet connection. Check network and retry.';
+      }
+      return 'Network error while downloading. Please retry.';
+    }
+
+    return 'Unable to download right now. Please retry.';
   }
 
   /// Delete downloaded media (file + metadata)
@@ -262,15 +327,6 @@ class MediaRepository {
     } catch (e) {
       return false;
     }
-  }
-
-  /// Format bytes for logging
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 }
 

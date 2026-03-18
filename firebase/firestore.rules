@@ -606,6 +606,36 @@ service cloud.firestore {
     match /test_submissions/{submissionId} {
       allow read, write: if isSignedIn();
     }
+
+    match /question_bank/{questionId} {
+      // Needed by AI test generation memory query.
+      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+
+      // Allow staff/admin to create question-bank entries for their own school.
+      allow create: if isSignedIn() && (
+        isAdmin()
+        || (
+          (isTeacher() || isPrincipal() || isInstitute())
+          && request.resource.data.schoolId is string
+          && request.resource.data.schoolId != ''
+          && request.resource.data.schoolId == instituteIdFromAnyDoc()
+        )
+      );
+
+      // Preserve immutable ownership/scope fields on updates.
+      allow update: if isSignedIn() && (
+        isAdmin()
+        || (
+          (isTeacher() || isPrincipal() || isInstitute())
+          && resource.data.schoolId == instituteIdFromAnyDoc()
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.createdByTeacherId == resource.data.createdByTeacherId
+          && request.resource.data.createdAt == resource.data.createdAt
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
     
     // ============================================
     // REWARDS SYSTEM

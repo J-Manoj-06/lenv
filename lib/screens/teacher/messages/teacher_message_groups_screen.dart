@@ -377,32 +377,10 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   DateTime? _networkBackoffUntil;
   bool _isNetworkFetchInProgress = false;
   bool _isAnyGroupChatOpen = false;
-  final Map<String, int> _recentOpenTimestamps = <String, int>{};
-
-  String _recentAccessCacheKey(MessageGroup group) {
-    return 'teacher_recent_open_${group.classId}_${group.subjectId}';
-  }
-
-  void _refreshRecentOpenTimestamps(List<MessageGroup> groups) {
-    for (final group in groups) {
-      final key = _recentAccessCacheKey(group);
-      final ts = _offlineService.getCachedLastMessageTimestamp(key);
-      if (ts != null && ts > 0) {
-        _recentOpenTimestamps[key] = ts;
-      }
-    }
-  }
-
-  int _effectiveGroupRecencyTs(MessageGroup group) {
-    final recentOpenTs =
-        _recentOpenTimestamps[_recentAccessCacheKey(group)] ?? 0;
-    final lastMessageTs = group.lastMessageTime?.millisecondsSinceEpoch ?? 0;
-    return recentOpenTs > lastMessageTs ? recentOpenTs : lastMessageTs;
-  }
 
   int _compareGroupsForDisplay(MessageGroup a, MessageGroup b) {
-    final aTs = _effectiveGroupRecencyTs(a);
-    final bTs = _effectiveGroupRecencyTs(b);
+    final aTs = a.lastMessageTime?.millisecondsSinceEpoch ?? 0;
+    final bTs = b.lastMessageTime?.millisecondsSinceEpoch ?? 0;
     final recentCmp = bTs.compareTo(aTs);
     if (recentCmp != 0) return recentCmp;
 
@@ -425,7 +403,6 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   void _applyDisplaySort(List<MessageGroup> groups) {
-    _refreshRecentOpenTimestamps(groups);
     groups.sort(_compareGroupsForDisplay);
   }
 
@@ -435,16 +412,6 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     final route = ModalRoute.of(context);
     if (route == null) return true;
     return route.isCurrent;
-  }
-
-  String _groupsFingerprint(List<MessageGroup> groups) {
-    final sorted = [...groups]..sort((a, b) => a.groupId.compareTo(b.groupId));
-    return sorted
-        .map(
-          (g) =>
-              '${g.groupId}|${g.unreadCount}|${g.lastMessage ?? ''}|${g.lastMessageTime?.millisecondsSinceEpoch ?? 0}',
-        )
-        .join('||');
   }
 
   @override
@@ -673,6 +640,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     // ✅ Try loading from cache first for instant display
     final cachedGroups = _offlineService.getCachedTeacherGroups(teacherId);
     final hasCachedGroups = cachedGroups != null && cachedGroups.isNotEmpty;
+    final shouldHydrateFromCache = _groups.isEmpty;
 
     if (cachedGroups != null && cachedGroups.isNotEmpty) {
       try {
@@ -696,12 +664,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           );
         }).toList();
 
-        final hasChanged =
-            _groupsFingerprint(parsedGroups) != _groupsFingerprint(_groups);
-
-        if (!hasChanged && !_isLoading) {
-          // Cache is already reflected in UI; skip redundant rebuild.
-        } else if (mounted) {
+        if (mounted && shouldHydrateFromCache) {
           _applyDisplaySort(parsedGroups);
           setState(() {
             _groups = parsedGroups;
@@ -1268,15 +1231,6 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
 
       // ✅ Mark group as read in cache immediately
       _service.markGroupAsRead(group.groupId);
-
-      final openedAt = DateTime.now().millisecondsSinceEpoch;
-      _recentOpenTimestamps[_recentAccessCacheKey(group)] = openedAt;
-      unawaited(
-        _offlineService.cacheLastMessageTimestamp(
-          chatId: _recentAccessCacheKey(group),
-          timestamp: openedAt,
-        ),
-      );
 
       // ✅ Update UI immediately to clear badge
       setState(() {
