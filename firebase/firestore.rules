@@ -602,6 +602,20 @@ service cloud.firestore {
     match /test_assignments/{assignmentId} {
       allow read, write: if isSignedIn();
     }
+
+    match /test_assignment_locks/{lockId} {
+      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+
+      allow create, update: if isSignedIn() && (
+        isAdmin()
+        || request.resource.data.teacherId == request.auth.uid
+      );
+
+      allow delete: if isSignedIn() && (
+        isAdmin()
+        || resource.data.teacherId == request.auth.uid
+      );
+    }
     
     match /test_submissions/{submissionId} {
       allow read, write: if isSignedIn();

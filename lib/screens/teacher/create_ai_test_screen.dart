@@ -1760,11 +1760,28 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1F2026)
+            : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: AppColors.teacherColor.withOpacity(0.45),
+            width: 1.4,
+          ),
+        ),
         title: Row(
           children: [
             const Icon(Icons.error_outline, color: Colors.red),
             const SizedBox(width: 8),
-            Text(title),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -1787,6 +1804,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.teacherColor,
+            ),
             child: const Text('Close'),
           ),
           if (retryAfter == null)
@@ -1795,6 +1815,10 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
                 Navigator.pop(context);
                 _generateTest();
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.teacherColor,
+                foregroundColor: Colors.white,
+              ),
               child: const Text('Retry'),
             ),
         ],
