@@ -19,6 +19,9 @@ class TeachingContext {
   final String className;
   final String section;
   final String subject;
+  final int indexedUnreadCount;
+  final String? indexedLastMessage;
+  final DateTime? indexedLastMessageTime;
   final String teacherId;
   final String teacherName;
   final String schoolCode;
@@ -28,6 +31,9 @@ class TeachingContext {
     required this.className,
     required this.section,
     required this.subject,
+    this.indexedUnreadCount = 0,
+    this.indexedLastMessage,
+    this.indexedLastMessageTime,
     required this.teacherId,
     required this.teacherName,
     required this.schoolCode,
@@ -186,12 +192,24 @@ class MessageGroupsService {
       // Convert each class/group to TeachingContext
       for (final classItem in classesData) {
         if (classItem is Map<String, dynamic>) {
+          final indexedUnreadCount =
+              (classItem['unreadCount'] as num?)?.toInt() ?? 0;
+          final indexedLastMessage = classItem['lastMessage'] as String?;
+          final indexedLastMessageAt = classItem['lastMessageAt'];
+
           contexts.add(
             TeachingContext(
               classId: classItem['classId'] ?? '',
               className: classItem['className'] ?? 'Unknown',
               section: classItem['section'] ?? '',
               subject: classItem['subject'] ?? '',
+              indexedUnreadCount: indexedUnreadCount,
+              indexedLastMessage: indexedLastMessage,
+              indexedLastMessageTime: indexedLastMessageAt != null
+                  ? DateTime.fromMillisecondsSinceEpoch(
+                      _toMillis(indexedLastMessageAt),
+                    )
+                  : null,
               teacherId: teacherId,
               teacherName: data['teacherName'] ?? 'Teacher',
               schoolCode: data['schoolCode'] ?? '',
@@ -231,6 +249,9 @@ class MessageGroupsService {
                 className: classData['className'] ?? 'Unknown',
                 section: classData['section'] ?? '',
                 subject: subject,
+                indexedUnreadCount: 0,
+                indexedLastMessage: null,
+                indexedLastMessageTime: null,
                 teacherId: teacherId,
                 teacherName: teacherData['teacherName'] ?? 'Teacher',
                 schoolCode: classData['schoolCode'] ?? '',
@@ -253,40 +274,46 @@ class MessageGroupsService {
     final subjectId = context.subject.toLowerCase().replaceAll(' ', '_');
 
     // Get last message from group chat - ✅ FIXED: Use correct Firestore path
-    String? lastMessage;
-    DateTime? lastMessageTime;
-    int unreadCount = 0;
+    String? lastMessage = context.indexedLastMessage;
+    DateTime? lastMessageTime = context.indexedLastMessageTime;
+    int unreadCount = context.indexedUnreadCount;
 
     try {
-      // ✅ Get last message
-      final messagesSnapshot = await _firestore
-          .collection('classes')
-          .doc(context.classId)
-          .collection('subjects')
-          .doc(subjectId)
-          .collection('messages')
-          .orderBy('timestamp', descending: true)
-          .limit(1) // Only need the last message
-          .get();
+      // ✅ Get last message only when not available from teacher_groups index
+      if (lastMessageTime == null ||
+          (lastMessage == null || lastMessage.isEmpty)) {
+        final messagesSnapshot = await _firestore
+            .collection('classes')
+            .doc(context.classId)
+            .collection('subjects')
+            .doc(subjectId)
+            .collection('messages')
+            .orderBy('timestamp', descending: true)
+            .limit(1) // Only need the last message
+            .get();
 
-      if (messagesSnapshot.docs.isNotEmpty) {
-        // Get last message (always first doc due to descending order)
-        final lastMsg = messagesSnapshot.docs.first.data();
-        lastMessage =
-            lastMsg['message'] as String?; // ✅ Fixed: Use 'message' field name
-        final timestampMs = _toMillis(lastMsg['timestamp']);
-        if (timestampMs > 0) {
-          lastMessageTime = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+        if (messagesSnapshot.docs.isNotEmpty) {
+          // Get last message (always first doc due to descending order)
+          final lastMsg = messagesSnapshot.docs.first.data();
+          lastMessage =
+              lastMsg['message']
+                  as String?; // ✅ Fixed: Use 'message' field name
+          final timestampMs = _toMillis(lastMsg['timestamp']);
+          if (timestampMs > 0) {
+            lastMessageTime = DateTime.fromMillisecondsSinceEpoch(timestampMs);
+          }
         }
       }
 
-      // ✅ NEW: Use persistent unread count from GroupMessagingService
-      final messagingService = GroupMessagingService();
-      unreadCount = await messagingService.getUnreadCount(
-        context.classId,
-        subjectId,
-        context.teacherId,
-      );
+      // Prefer indexed unread count; fallback to computed count only when missing.
+      if (unreadCount <= 0) {
+        final messagingService = GroupMessagingService();
+        unreadCount = await messagingService.getUnreadCount(
+          context.classId,
+          subjectId,
+          context.teacherId,
+        );
+      }
     } catch (e) {
       // Group chat may not exist yet
     }
@@ -349,6 +376,76 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   final Set<String> _openingGroupIds = <String>{};
   DateTime? _networkBackoffUntil;
   bool _isNetworkFetchInProgress = false;
+  bool _isAnyGroupChatOpen = false;
+  final Map<String, int> _recentOpenTimestamps = <String, int>{};
+
+  String _recentAccessCacheKey(MessageGroup group) {
+    return 'teacher_recent_open_${group.classId}_${group.subjectId}';
+  }
+
+  void _refreshRecentOpenTimestamps(List<MessageGroup> groups) {
+    for (final group in groups) {
+      final key = _recentAccessCacheKey(group);
+      final ts = _offlineService.getCachedLastMessageTimestamp(key);
+      if (ts != null && ts > 0) {
+        _recentOpenTimestamps[key] = ts;
+      }
+    }
+  }
+
+  int _effectiveGroupRecencyTs(MessageGroup group) {
+    final recentOpenTs =
+        _recentOpenTimestamps[_recentAccessCacheKey(group)] ?? 0;
+    final lastMessageTs = group.lastMessageTime?.millisecondsSinceEpoch ?? 0;
+    return recentOpenTs > lastMessageTs ? recentOpenTs : lastMessageTs;
+  }
+
+  int _compareGroupsForDisplay(MessageGroup a, MessageGroup b) {
+    final aTs = _effectiveGroupRecencyTs(a);
+    final bTs = _effectiveGroupRecencyTs(b);
+    final recentCmp = bTs.compareTo(aTs);
+    if (recentCmp != 0) return recentCmp;
+
+    final subjectCmp = a.subjectName.toLowerCase().compareTo(
+      b.subjectName.toLowerCase(),
+    );
+    if (subjectCmp != 0) return subjectCmp;
+
+    final classCmp = a.className.toLowerCase().compareTo(
+      b.className.toLowerCase(),
+    );
+    if (classCmp != 0) return classCmp;
+
+    final sectionCmp = a.sectionName.toLowerCase().compareTo(
+      b.sectionName.toLowerCase(),
+    );
+    if (sectionCmp != 0) return sectionCmp;
+
+    return a.groupId.compareTo(b.groupId);
+  }
+
+  void _applyDisplaySort(List<MessageGroup> groups) {
+    _refreshRecentOpenTimestamps(groups);
+    groups.sort(_compareGroupsForDisplay);
+  }
+
+  bool _canRunBackgroundRefresh() {
+    if (!mounted) return false;
+    if (_isAnyGroupChatOpen) return false;
+    final route = ModalRoute.of(context);
+    if (route == null) return true;
+    return route.isCurrent;
+  }
+
+  String _groupsFingerprint(List<MessageGroup> groups) {
+    final sorted = [...groups]..sort((a, b) => a.groupId.compareTo(b.groupId));
+    return sorted
+        .map(
+          (g) =>
+              '${g.groupId}|${g.unreadCount}|${g.lastMessage ?? ''}|${g.lastMessageTime?.millisecondsSinceEpoch ?? 0}',
+        )
+        .join('||');
+  }
 
   @override
   bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
@@ -467,7 +564,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       }
 
       setState(() {
-        _groups = cachedGroups.map((data) {
+        final parsedGroups = cachedGroups.map((data) {
           return MessageGroup(
             groupId: data['groupId'] ?? '',
             subjectId: data['subjectId'] ?? '',
@@ -486,6 +583,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
             classId: data['classId'] ?? '',
           );
         }).toList();
+
+        _applyDisplaySort(parsedGroups);
+        _groups = parsedGroups;
         _filteredGroups = _groups;
       });
     } catch (e) {
@@ -510,6 +610,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         .listen(
           (snapshot) async {
             if (!mounted) return;
+            if (!_canRunBackgroundRefresh()) return;
 
             // Always force refresh to get latest message timestamps
             _service.clearCache();
@@ -543,6 +644,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         timer.cancel();
         return;
       }
+      if (!_canRunBackgroundRefresh()) return;
       if (_isNetworkFetchInProgress) return;
       _service.clearCache();
       _loadGroupsFromFirestore(teacherId);
@@ -569,50 +671,60 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     }
 
     // ✅ Try loading from cache first for instant display
-    debugPrint('🔍 Attempting to load cached teacher groups for: $teacherId');
     final cachedGroups = _offlineService.getCachedTeacherGroups(teacherId);
-    debugPrint('🔍 Got cached groups: ${cachedGroups?.length ?? 0} groups');
     final hasCachedGroups = cachedGroups != null && cachedGroups.isNotEmpty;
 
     if (cachedGroups != null && cachedGroups.isNotEmpty) {
-      debugPrint('✅ Loading ${cachedGroups.length} groups from cache');
       try {
-        if (mounted) {
+        final parsedGroups = cachedGroups.map((data) {
+          return MessageGroup(
+            groupId: data['groupId'] ?? '',
+            subjectId: data['subjectId'] ?? '',
+            subjectName: data['subjectName'] ?? '',
+            className: data['className'] ?? '',
+            sectionName: data['sectionName'] ?? '',
+            teacherId: data['teacherId'] ?? '',
+            studentCount: data['studentCount'] ?? 0,
+            lastMessage: data['lastMessage'] as String?,
+            lastMessageTime: data['lastMessageTime'] != null
+                ? DateTime.fromMillisecondsSinceEpoch(
+                    data['lastMessageTime'] as int,
+                  )
+                : null,
+            unreadCount: data['unreadCount'] ?? 0,
+            classId: data['classId'] ?? '',
+          );
+        }).toList();
+
+        final hasChanged =
+            _groupsFingerprint(parsedGroups) != _groupsFingerprint(_groups);
+
+        if (!hasChanged && !_isLoading) {
+          // Cache is already reflected in UI; skip redundant rebuild.
+        } else if (mounted) {
+          _applyDisplaySort(parsedGroups);
           setState(() {
-            _groups = cachedGroups.map((data) {
-              try {
-                return MessageGroup(
-                  groupId: data['groupId'] ?? '',
-                  subjectId: data['subjectId'] ?? '',
-                  subjectName: data['subjectName'] ?? '',
-                  className: data['className'] ?? '',
-                  sectionName: data['sectionName'] ?? '',
-                  teacherId: data['teacherId'] ?? '',
-                  studentCount: data['studentCount'] ?? 0,
-                  lastMessage: data['lastMessage'] as String?,
-                  lastMessageTime: data['lastMessageTime'] != null
-                      ? DateTime.fromMillisecondsSinceEpoch(
-                          data['lastMessageTime'] as int,
-                        )
-                      : null,
-                  unreadCount: data['unreadCount'] ?? 0,
-                  classId: data['classId'] ?? '',
-                );
-              } catch (e) {
-                debugPrint('❌ Error creating MessageGroup from cache: $e');
-                debugPrint('   Data: $data');
-                rethrow;
-              }
-            }).toList();
+            _groups = parsedGroups;
             _filteredGroups = _groups;
             _isLoading = false;
-            debugPrint(
-              '✅ UI updated with ${_groups.length} groups, _isLoading=$_isLoading',
-            );
+          });
+        }
+
+        if (!mounted) return;
+
+        // Keep search results consistent if the query is active.
+        if (_isSearching) {
+          final query = _searchController.text.toLowerCase();
+          setState(() {
+            _filteredGroups = _groups.where((group) {
+              return group.subjectName.toLowerCase().contains(query) ||
+                  group.className.toLowerCase().contains(query) ||
+                  group.sectionName.toLowerCase().contains(query) ||
+                  group.displayName.toLowerCase().contains(query);
+            }).toList();
           });
         }
       } catch (e) {
-        debugPrint('❌ Fatal error loading cached groups: $e');
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -620,8 +732,6 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           });
         }
       }
-    } else {
-      debugPrint('⚠️ No cached groups found for teacherId: $teacherId');
     }
 
     // If cache exists and network recently timed out, avoid repeated fetch storms.
@@ -676,6 +786,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       }
 
       if (mounted) {
+        _applyDisplaySort(groups);
         setState(() {
           if (groups.isNotEmpty) {
             _groups = groups;
@@ -744,6 +855,8 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   Future<void> _refreshGroupsSilently() async {
+    if (!_canRunBackgroundRefresh()) return;
+
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     String? userId = authProvider.currentUser?.uid;
 
@@ -1133,6 +1246,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
 
     setState(() {
       _openingGroupIds.add(group.groupId);
+      _isAnyGroupChatOpen = true;
     });
 
     try {
@@ -1155,6 +1269,15 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       // ✅ Mark group as read in cache immediately
       _service.markGroupAsRead(group.groupId);
 
+      final openedAt = DateTime.now().millisecondsSinceEpoch;
+      _recentOpenTimestamps[_recentAccessCacheKey(group)] = openedAt;
+      unawaited(
+        _offlineService.cacheLastMessageTimestamp(
+          chatId: _recentAccessCacheKey(group),
+          timestamp: openedAt,
+        ),
+      );
+
       // ✅ Update UI immediately to clear badge
       setState(() {
         final index = _groups.indexWhere((g) => g.groupId == group.groupId);
@@ -1172,6 +1295,19 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
             lastMessageTime: group.lastMessageTime,
             classId: group.classId,
           );
+        }
+
+        _applyDisplaySort(_groups);
+        if (_isSearching) {
+          final query = _searchController.text.toLowerCase();
+          _filteredGroups = _groups.where((g) {
+            return g.subjectName.toLowerCase().contains(query) ||
+                g.className.toLowerCase().contains(query) ||
+                g.sectionName.toLowerCase().contains(query) ||
+                g.displayName.toLowerCase().contains(query);
+          }).toList();
+        } else {
+          _filteredGroups = _groups;
         }
       });
 
@@ -1204,6 +1340,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       if (mounted) {
         setState(() {
           _openingGroupIds.remove(group.groupId);
+          _isAnyGroupChatOpen = false;
         });
       }
 

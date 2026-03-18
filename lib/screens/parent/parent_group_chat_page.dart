@@ -78,6 +78,8 @@ class ParentGroupChatPage extends StatefulWidget {
 class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     with AutomaticKeepAliveClientMixin, MessageScrollAndHighlightMixin {
   static const bool _debugMultiImageGrid = true;
+  static const bool _debugPendingUploadTrace = true;
+  static const int _pendingUploadStaleTimeoutMs = 180000;
   static const int _initialRealtimeMessageLimit = 500;
   static const int _initialOfflineSyncLimit = 300;
 
@@ -241,6 +243,96 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     if (mt.startsWith('image/')) return 'image';
     if (mt.contains('pdf')) return 'pdf';
     return 'file';
+  }
+
+  bool _isPendingUploadInProgress(CommunityMessageModel pendingMsg) {
+    final notifiers = <ValueNotifier<double>>[];
+
+    final pendingNotifier = _pendingUploadNotifiers[pendingMsg.messageId];
+    if (pendingNotifier != null) {
+      notifiers.add(pendingNotifier);
+    }
+
+    final mediaIds = <String>{};
+    if (pendingMsg.mediaMetadata != null &&
+        pendingMsg.mediaMetadata!.messageId.isNotEmpty) {
+      mediaIds.add(pendingMsg.mediaMetadata!.messageId);
+    }
+    if (pendingMsg.multipleMedia != null) {
+      for (final media in pendingMsg.multipleMedia!) {
+        if (media.messageId.isNotEmpty) {
+          mediaIds.add(media.messageId);
+        }
+      }
+    }
+
+    for (final mediaId in mediaIds) {
+      final notifier = _pendingUploadNotifiers[mediaId];
+      if (notifier != null) {
+        notifiers.add(notifier);
+      }
+    }
+
+    if (notifiers.isEmpty) return false;
+    return notifiers.any((n) => n.value >= 0 && n.value < 100);
+  }
+
+  Set<String> _pendingTrackingKeys(CommunityMessageModel pendingMsg) {
+    final keys = <String>{};
+    final pendingId = pendingMsg.messageId;
+    final baseId = pendingId.replaceFirst('pending:', '');
+
+    keys.add(pendingId);
+    keys.add(baseId);
+
+    final singleMediaId = pendingMsg.mediaMetadata?.messageId;
+    if (singleMediaId != null && singleMediaId.isNotEmpty) {
+      keys.add(singleMediaId);
+    }
+
+    if (pendingMsg.multipleMedia != null) {
+      for (final media in pendingMsg.multipleMedia!) {
+        if (media.messageId.isNotEmpty) {
+          keys.add(media.messageId);
+        }
+      }
+    }
+
+    return keys;
+  }
+
+  void _disposePendingTracking(CommunityMessageModel pendingMsg) {
+    final keys = _pendingTrackingKeys(pendingMsg);
+    final baseId = pendingMsg.messageId.replaceFirst('pending:', '');
+    final legacyPrefix = 'pending_${baseId}_';
+
+    _pendingUploadNotifiers.removeWhere((key, notifier) {
+      final shouldRemove =
+          keys.contains(key) ||
+          (baseId.isNotEmpty && key.startsWith(legacyPrefix));
+      if (shouldRemove) {
+        notifier.dispose();
+      }
+      return shouldRemove;
+    });
+
+    _lastUploadPercent.removeWhere(
+      (key, _) =>
+          keys.contains(key) ||
+          (baseId.isNotEmpty && key.startsWith(legacyPrefix)),
+    );
+  }
+
+  void _logPendingUploadTrace(
+    String event, [
+    Map<String, Object?> extra = const {},
+  ]) {
+    if (!_debugPendingUploadTrace) return;
+    final parts = <String>['[PTG-UPLOAD-TRACE][$event]'];
+    extra.forEach((key, value) {
+      parts.add('$key=$value');
+    });
+    debugPrint(parts.join(' '));
   }
 
   void _toggleSelectedMessage({
@@ -767,6 +859,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         senderId: currentUser.uid,
       );
 
+      _logPendingUploadTrace('loadPendingMessages', {
+        'chatId': widget.groupId,
+        'count': pendingMessages.length,
+      });
+
       if (pendingMessages.isEmpty) {
         return;
       }
@@ -791,24 +888,15 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             .map((msg) => msg.messageId)
             .toSet();
 
-        // Remove only completed/stale messages, keep active uploads
+        // Remove only completed/stale messages, keep active uploads.
+        final removed = _pendingMessages
+            .where((msg) => !activeUploadIds.contains(msg.messageId))
+            .toList();
+        for (final msg in removed) {
+          _disposePendingTracking(msg);
+        }
         _pendingMessages.removeWhere(
           (msg) => !activeUploadIds.contains(msg.messageId),
-        );
-
-        // Clean up notifiers for removed messages only
-        final messagesToKeep = _pendingMessages.map((m) => m.messageId).toSet();
-        _pendingUploadNotifiers.removeWhere((key, notifier) {
-          final shouldRemove = !messagesToKeep.any(
-            (msgId) => key.startsWith(msgId.replaceFirst('pending:', '')),
-          );
-          if (shouldRemove) notifier.dispose();
-          return shouldRemove;
-        });
-        _lastUploadPercent.removeWhere(
-          (key, _) => !messagesToKeep.any(
-            (msgId) => key.startsWith(msgId.replaceFirst('pending:', '')),
-          ),
         );
 
         // Convert LocalMessage to CommunityMessageModel format
@@ -889,6 +977,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     ValueNotifier<double>(uploadProgress * 100);
                 _lastUploadPercent[pendingMessageId] = (uploadProgress * 100)
                     .toInt();
+
+                _logPendingUploadTrace('restoreSinglePending', {
+                  'pendingId': pendingMessageId,
+                  'mediaId': mediaId,
+                  'progress': (uploadProgress * 100).toStringAsFixed(1),
+                  'file': pendingMetadata.originalFileName ?? '',
+                });
               }
 
               continue;
@@ -1017,11 +1112,38 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         final cachedMsg = await _getCachedPendingMessageByPendingId(pendingId);
 
         if (cachedMsg == null || cachedMsg.isPending == false) {
-          // ✅ CRITICAL: Check if upload is still in progress before removing
-          final notifier = _pendingUploadNotifiers[pendingId];
-          if (notifier != null && notifier.value < 100) {
+          final uploadInProgress = _isPendingUploadInProgress(pendingMsg);
+          final pendingAgeMs =
+              DateTime.now().millisecondsSinceEpoch -
+              pendingMsg.createdAt.millisecondsSinceEpoch;
+          final isStale = pendingAgeMs > _pendingUploadStaleTimeoutMs;
+
+          if (uploadInProgress && !isStale) {
+            _logPendingUploadTrace('pollSkipRemoveActive', {
+              'pendingId': pendingId,
+              'progress':
+                  _pendingUploadNotifiers[pendingId]?.value.toStringAsFixed(
+                    1,
+                  ) ??
+                  'na',
+              'ageMs': pendingAgeMs,
+            });
             continue; // Still uploading, don't remove yet
           }
+
+          if (uploadInProgress && isStale) {
+            _logPendingUploadTrace('pollRemoveStaleUploading', {
+              'pendingId': pendingId,
+              'progress':
+                  _pendingUploadNotifiers[pendingId]?.value.toStringAsFixed(
+                    1,
+                  ) ??
+                  'na',
+              'ageMs': pendingAgeMs,
+            });
+          }
+
+          _logPendingUploadTrace('pollRemoveNoCache', {'pendingId': pendingId});
           toRemove.add(pendingId);
           continue;
         }
@@ -1042,6 +1164,22 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
               );
               _pendingUploadNotifiers[mediaId]!.value = nextValue;
               _lastUploadPercent[mediaId] = nextValue.toInt();
+
+              // Keep parent pending card progress in sync for single-media uploads.
+              final pendingCurrent =
+                  _pendingUploadNotifiers[pendingId]?.value ?? 0.0;
+              if ((nextValue - pendingCurrent).abs() > 0.5) {
+                _pendingUploadNotifiers[pendingId] ??= ValueNotifier<double>(
+                  nextValue,
+                );
+                _pendingUploadNotifiers[pendingId]!.value = nextValue;
+                _lastUploadPercent[pendingId] = nextValue.toInt();
+              }
+              _logPendingUploadTrace('pollProgressUpdate', {
+                'pendingId': pendingId,
+                'mediaId': mediaId,
+                'progress': nextValue.toStringAsFixed(1),
+              });
               hasChanges = true;
             }
           }
@@ -1053,16 +1191,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
     if (toRemove.isNotEmpty && mounted) {
       setState(() {
-        _pendingMessages.removeWhere((m) => toRemove.contains(m.messageId));
-        for (final pendingId in toRemove) {
-          final baseId = pendingId.replaceFirst('pending:', '');
-          _pendingUploadNotifiers.removeWhere(
-            (k, _) => k == pendingId || k.startsWith(baseId),
-          );
-          _lastUploadPercent.removeWhere(
-            (k, _) => k == pendingId || k.startsWith(baseId),
-          );
+        final removed = _pendingMessages
+            .where((m) => toRemove.contains(m.messageId))
+            .toList();
+        for (final msg in removed) {
+          _disposePendingTracking(msg);
         }
+        _pendingMessages.removeWhere((m) => toRemove.contains(m.messageId));
       });
       return;
     }
@@ -2122,6 +2257,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
                 // ✅ SMART MERGE: Remove pending messages that now exist in Firestore
                 final pendingIdsToRemove = <String>[];
+                final pendingById = {
+                  for (final pending in _pendingMessages)
+                    pending.messageId: pending,
+                };
                 final filteredPendingMessages = <CommunityMessageModel>[];
 
                 for (final pendingMsg in _pendingMessages) {
@@ -2130,65 +2269,34 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     '',
                   );
 
-                  // ✅ Check if upload is still in progress FIRST
-                  bool uploadInProgress = false;
-                  final notifier =
-                      _pendingUploadNotifiers[pendingMsg.messageId];
-                  if (notifier != null && notifier.value < 100) {
-                    uploadInProgress = true;
-                  }
-
-                  // ✅ If upload in progress, keep the message visible
-                  if (uploadInProgress) {
-                    final cachedPending =
-                        _messageCache[pendingMsg.messageId] ??= pendingMsg;
-                    filteredPendingMessages.add(cachedPending);
+                  // 1️⃣ FIRST: exact server-id match should always win,
+                  // even if local progress notifier is stale after navigation.
+                  final hasExactServerMatch = cachedFirestoreMessages.any(
+                    (serverMsg) => serverMsg.messageId == pendingId,
+                  );
+                  if (hasExactServerMatch) {
+                    _logPendingUploadTrace('dedupeExactServerMatch', {
+                      'pendingId': pendingMsg.messageId,
+                      'serverId': pendingId,
+                    });
+                    pendingIdsToRemove.add(pendingMsg.messageId);
                     continue;
                   }
-
-                  // 1️⃣ FIRST: Try exact ID matching (highest priority)
-                  bool foundExactMatch = false;
-                  for (final serverMsg in cachedFirestoreMessages) {
-                    if (serverMsg.messageId == pendingId) {
-                      // ✅ CRITICAL: Only remove pending if upload is complete (100%)
-                      bool uploadComplete = true;
-                      if (pendingMsg.multipleMedia != null) {
-                        for (final media in pendingMsg.multipleMedia!) {
-                          final notifier =
-                              _pendingUploadNotifiers[media.messageId];
-                          if (notifier != null && notifier.value < 100) {
-                            uploadComplete = false;
-                            break;
-                          }
-                        }
-                      } else {
-                        // Check single upload
-                        final notifier =
-                            _pendingUploadNotifiers[pendingMsg.messageId];
-                        if (notifier != null && notifier.value < 100) {
-                          uploadComplete = false;
-                        }
-                      }
-
-                      if (uploadComplete) {
-                        foundExactMatch = true;
-                        pendingIdsToRemove.add(pendingMsg.messageId);
-                      } else {
-                        // Still uploading - keep pending visible
-                      }
-                      break;
-                    }
-                  }
-
-                  if (foundExactMatch) continue;
 
                   // 2️⃣ FALLBACK: Content-based matching
                   final pendingSenderId = pendingMsg.senderId;
                   final pendingTimestamp =
                       pendingMsg.createdAt.millisecondsSinceEpoch;
+                  final pendingAgeMs =
+                      DateTime.now().millisecondsSinceEpoch - pendingTimestamp;
+                  final isStalePending =
+                      pendingAgeMs > _pendingUploadStaleTimeoutMs;
                   final pendingHasMultipleMedia =
                       pendingMsg.multipleMedia != null &&
                       pendingMsg.multipleMedia!.isNotEmpty;
+                  final pendingHasAttachment =
+                      pendingHasMultipleMedia ||
+                      pendingMsg.mediaMetadata != null;
 
                   // ✅ Add file name matching with case-insensitive comparison
                   final pendingFileKeys = <String>{};
@@ -2201,6 +2309,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                         );
                       }
                     }
+                  }
+                  if (pendingMsg.mediaMetadata?.originalFileName != null &&
+                      pendingMsg.mediaMetadata?.fileSize != null) {
+                    pendingFileKeys.add(
+                      '${pendingMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${pendingMsg.mediaMetadata!.fileSize}',
+                    );
                   }
 
                   // Check if this pending message now exists in Firestore
@@ -2215,24 +2329,38 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     final senderMatch = serverSenderId == pendingSenderId;
                     final timeDiff = (serverTimestamp - pendingTimestamp).abs();
                     // ✅ Extended time window for media uploads (5 minutes)
-                    final timeWindow = pendingHasMultipleMedia ? 300000 : 30000;
+                    final timeWindow = pendingHasAttachment ? 300000 : 30000;
                     final timeMatch = timeDiff < timeWindow;
 
                     // ✅ Check file name matching (case-insensitive)
                     bool fileMatch = false;
-                    if (pendingFileKeys.isNotEmpty &&
-                        msg.multipleMedia != null) {
+                    if (pendingFileKeys.isNotEmpty) {
                       final serverFileKeys = <String>{};
-                      for (final media in msg.multipleMedia!) {
-                        if (media.originalFileName != null &&
-                            media.fileSize != null) {
-                          serverFileKeys.add(
-                            '${media.originalFileName!.toLowerCase()}|${media.fileSize}',
-                          );
+                      if (msg.multipleMedia != null) {
+                        for (final media in msg.multipleMedia!) {
+                          if (media.originalFileName != null &&
+                              media.fileSize != null) {
+                            serverFileKeys.add(
+                              '${media.originalFileName!.toLowerCase()}|${media.fileSize}',
+                            );
+                          }
                         }
+                      }
+                      if (msg.mediaMetadata?.originalFileName != null &&
+                          msg.mediaMetadata?.fileSize != null) {
+                        serverFileKeys.add(
+                          '${msg.mediaMetadata!.originalFileName!.toLowerCase()}|${msg.mediaMetadata!.fileSize}',
+                        );
                       }
                       fileMatch = serverFileKeys.any(pendingFileKeys.contains);
                     }
+
+                    final serverHasAttachment =
+                        (msg.multipleMedia != null &&
+                            msg.multipleMedia!.isNotEmpty) ||
+                        msg.mediaMetadata != null ||
+                        msg.fileUrl.isNotEmpty ||
+                        msg.imageUrl.isNotEmpty;
 
                     // For multi-media messages, ONLY match if server has multipleMedia too
                     if (pendingHasMultipleMedia) {
@@ -2245,45 +2373,65 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                           (serverHasMultipleMedia || fileMatch);
                     }
 
+                    if (pendingHasAttachment) {
+                      if (pendingFileKeys.isNotEmpty) {
+                        return senderMatch && timeMatch && fileMatch;
+                      }
+                      return senderMatch && timeMatch && serverHasAttachment;
+                    }
+
                     return senderMatch && timeMatch;
                   }).firstOrNull;
 
                   if (matchingServerMsg != null) {
-                    // ✅ CRITICAL: Only remove pending if upload is complete (100%)
-                    bool uploadComplete = true;
-                    if (pendingMsg.multipleMedia != null) {
-                      for (final media in pendingMsg.multipleMedia!) {
-                        final notifier =
-                            _pendingUploadNotifiers[media.messageId];
-                        if (notifier != null && notifier.value < 100) {
-                          uploadComplete = false;
-                          break;
-                        }
-                      }
-                    } else {
-                      // Check single upload
-                      final notifier =
-                          _pendingUploadNotifiers[pendingMsg.messageId];
-                      if (notifier != null && notifier.value < 100) {
-                        uploadComplete = false;
-                      }
-                    }
+                    // Server message exists; remove pending duplicate.
+                    _logPendingUploadTrace('dedupeFallbackServerMatch', {
+                      'pendingId': pendingMsg.messageId,
+                      'serverId': matchingServerMsg.messageId,
+                    });
+                    pendingIdsToRemove.add(pendingMsg.messageId);
+                  } else {
+                    // Check upload state only after all server-match paths.
+                    final uploadInProgress = _isPendingUploadInProgress(
+                      pendingMsg,
+                    );
 
-                    if (uploadComplete) {
-                      // Upload complete - safe to remove pending and show server version
+                    if (uploadInProgress && !isStalePending) {
+                      _logPendingUploadTrace('dedupeKeepUploading', {
+                        'pendingId': pendingMsg.messageId,
+                        'progressPending':
+                            _pendingUploadNotifiers[pendingMsg.messageId]?.value
+                                .toStringAsFixed(1) ??
+                            'na',
+                        'ageMs': pendingAgeMs,
+                      });
+                      final cachedPending =
+                          _messageCache[pendingMsg.messageId] ??= pendingMsg;
+                      filteredPendingMessages.add(cachedPending);
+                    } else if (uploadInProgress && isStalePending) {
+                      _logPendingUploadTrace('dedupeDropStaleUploading', {
+                        'pendingId': pendingMsg.messageId,
+                        'progressPending':
+                            _pendingUploadNotifiers[pendingMsg.messageId]?.value
+                                .toStringAsFixed(1) ??
+                            'na',
+                        'ageMs': pendingAgeMs,
+                      });
+                      pendingIdsToRemove.add(pendingMsg.messageId);
+                    } else if (isStalePending) {
+                      _logPendingUploadTrace('dedupeDropStaleNoServer', {
+                        'pendingId': pendingMsg.messageId,
+                        'ageMs': pendingAgeMs,
+                      });
                       pendingIdsToRemove.add(pendingMsg.messageId);
                     } else {
-                      // Still uploading - keep pending message visible
+                      _logPendingUploadTrace('dedupeKeepNoServerMatch', {
+                        'pendingId': pendingMsg.messageId,
+                      });
                       final cachedPending =
                           _messageCache[pendingMsg.messageId] ??= pendingMsg;
                       filteredPendingMessages.add(cachedPending);
                     }
-                  } else {
-                    // Still uploading - keep in list
-                    // Cache pending to keep stable instance
-                    final cachedPending =
-                        _messageCache[pendingMsg.messageId] ??= pendingMsg;
-                    filteredPendingMessages.add(cachedPending);
                   }
                 }
 
@@ -2297,21 +2445,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                       );
                       // Clean up notifiers and cache for removed pending messages
                       for (final pendingId in pendingIdsToRemove) {
-                        final baseId = pendingId.replaceFirst('pending:', '');
-                        // Remove all notifiers for this message's media
-                        _pendingUploadNotifiers.forEach((key, notifier) {
-                          if (key == pendingId || key.startsWith(baseId)) {
-                            notifier.dispose();
-                          }
-                        });
-                        _pendingUploadNotifiers.removeWhere(
-                          (key, _) =>
-                              key == pendingId || key.startsWith(baseId),
-                        );
-                        _lastUploadPercent.removeWhere(
-                          (key, _) =>
-                              key == pendingId || key.startsWith(baseId),
-                        );
+                        final pendingMsg = pendingById[pendingId];
+                        if (pendingMsg != null) {
+                          _disposePendingTracking(pendingMsg);
+                        }
                         // Remove pending message from cache (but keep Firestore messages)
                         _messageCache.remove(pendingId);
                       }
@@ -3778,6 +3915,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         _lastUploadPercent[pendingId] = -1;
       });
 
+      _logPendingUploadTrace('imageUploadStarted', {
+        'pendingId': pendingId,
+        'file': file.path.split('/').last,
+        'size': file.lengthSync(),
+        'mime': 'image/jpeg',
+      });
+
       // Scroll to bottom to show new message
       Future.delayed(const Duration(milliseconds: 100), () {
         if (scrollController.hasClients) {
@@ -3804,6 +3948,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           }
         },
       );
+
+      _logPendingUploadTrace('cameraUploadCompleted', {
+        'pendingId': pendingId,
+        'serverMediaId': mediaMessage.id,
+      });
 
       if (mounted) {
         setState(() {
@@ -3925,6 +4074,16 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
           _lastUploadPercent[pendingId] = percent;
           _pendingUploadNotifiers[pendingId]?.value = percent.toDouble();
+
+          _logPendingUploadTrace('pdfUploadProgress', {
+            'pendingId': pendingId,
+            'percent': percent,
+          });
+
+          _logPendingUploadTrace('imageUploadProgress', {
+            'pendingId': pendingId,
+            'percent': percent,
+          });
         },
       );
 
@@ -3950,6 +4109,18 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         mediaType: 'image',
         mediaMetadata: metadata,
       );
+
+      _logPendingUploadTrace('pdfUploadServerSent', {
+        'pendingId': pendingId,
+        'serverMediaId': mediaMessage.id,
+        'r2Key': r2Key,
+      });
+
+      _logPendingUploadTrace('imageUploadServerSent', {
+        'pendingId': pendingId,
+        'serverMediaId': mediaMessage.id,
+        'r2Key': r2Key,
+      });
 
       // Cache the uploaded file so we don't re-download it
       await _mediaRepository.cacheUploadedMedia(
@@ -4553,6 +4724,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             _cacheMessageIdFromPendingId(pendingId),
           );
           await _localRepo.deletePendingMessage(pendingId);
+          _logPendingUploadTrace('pdfUploadPendingCacheDeleted', {
+            'pendingId': pendingId,
+          });
         } catch (_) {}
 
         // ✅ Scroll to bottom to show newly sent PDF
@@ -4563,6 +4737,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         final id = capPendingId;
         final path = capFilePath;
         final mime = capMime;
+        _logPendingUploadTrace('pdfUploadFailed', {
+          'pendingId': id,
+          'path': path,
+          'mime': mime,
+          'error': '$e',
+        });
         setState(() {
           _pendingUploadNotifiers[id]?.value = -1.0;
           _failedUploadLocalPaths[id] = path;

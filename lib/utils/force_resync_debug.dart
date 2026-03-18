@@ -10,7 +10,6 @@ class ForceResyncDebug {
     required String chatId,
     required String chatType,
   }) async {
-
     final localRepo = LocalMessageRepository();
     await localRepo.initialize();
 
@@ -31,14 +30,11 @@ class ForceResyncDebug {
     final messages = await localRepo.getMessagesForChat(chatId);
     final withAttachments = messages.where((m) => m.hasAttachment()).toList();
 
-
     if (withAttachments.isNotEmpty) {
       for (var i = 0; i < withAttachments.length; i++) {
         final msg = withAttachments[i];
       }
-    } else {
-    }
-
+    } else {}
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

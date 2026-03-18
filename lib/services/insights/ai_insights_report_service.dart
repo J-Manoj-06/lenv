@@ -49,14 +49,12 @@ class AIInsightsReportService {
       return report;
     }
 
-
     // Generate new report using AI
     final aiResponse = await _callDeepSeekAPI(metrics, metric);
 
     if (aiResponse == null) {
       return null;
     }
-
 
     // Parse response into structured report
     final reportId = '${schoolCode}_${range}_${scopeKey}_$metric';
@@ -106,7 +104,6 @@ class AIInsightsReportService {
           'max_tokens': 300,
         }),
       );
-
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

@@ -201,7 +201,6 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
 
     await _localRepo.initialize();
 
-
     // Load from cache first
     final cachedMessages = await _localRepo.getMessagesForChat(
       widget.chatId,
@@ -503,8 +502,7 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     _isRecording.value = false;

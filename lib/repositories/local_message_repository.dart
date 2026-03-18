@@ -32,7 +32,6 @@ class LocalMessageRepository {
     } else {
       _indexBox = Hive.box<Map>(_indexBoxName);
     }
-
   }
 
   /// Save a single message to local storage
@@ -42,7 +41,6 @@ class LocalMessageRepository {
 
     // Use messageId as key for easy lookup
     await _messageBox!.put(message.messageId, message);
-
   }
 
   /// Save multiple messages in batch
@@ -55,7 +53,6 @@ class LocalMessageRepository {
     };
 
     await _messageBox!.putAll(messageMap);
-
   }
 
   /// Get all messages for a specific chat
@@ -97,7 +94,6 @@ class LocalMessageRepository {
 
     final lowerQuery = query.toLowerCase();
 
-
     // Filter all messages
     var results = _messageBox!.values.where((msg) {
       // Skip deleted messages
@@ -132,8 +128,7 @@ class LocalMessageRepository {
       results = results.sublist(0, limit);
     }
 
-    if (results.isNotEmpty) {
-    }
+    if (results.isNotEmpty) {}
 
     return results;
   }
@@ -151,14 +146,12 @@ class LocalMessageRepository {
       return [];
     }
 
-
     // Filter messages with attachments
     var allMessagesWithAttachments = _messageBox!.values.where((msg) {
       if (msg.isDeleted) return false;
       if (chatId != null && msg.chatId != chatId) return false;
       return msg.hasAttachment();
     }).toList();
-
 
     if (allMessagesWithAttachments.isNotEmpty) {
       for (var i = 0; i < allMessagesWithAttachments.take(3).length; i++) {
@@ -178,8 +171,7 @@ class LocalMessageRepository {
       results = results.sublist(0, limit);
     }
 
-    if (results.isNotEmpty) {
-    }
+    if (results.isNotEmpty) {}
 
     return results;
   }
@@ -241,7 +233,6 @@ class LocalMessageRepository {
 
     await _messageBox!.clear();
     await _indexBox!.clear();
-
   }
 
   /// Delete messages for a specific chat
@@ -255,7 +246,6 @@ class LocalMessageRepository {
         .toList();
 
     await _messageBox!.deleteAll(keysToDelete);
-
   }
 
   /// Get total message count (all chats)
@@ -273,7 +263,6 @@ class LocalMessageRepository {
   }) async {
     await _ensureInitialized();
 
-
     final pendingMessages = _messageBox!.values.where((msg) {
       final matches =
           msg.chatId == chatId &&
@@ -285,8 +274,7 @@ class LocalMessageRepository {
           (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) ||
           (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty);
 
-      if (matches && !hasContent) {
-      }
+      if (matches && !hasContent) {}
 
       return matches && hasContent;
     }).toList();

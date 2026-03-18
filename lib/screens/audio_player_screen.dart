@@ -33,7 +33,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   Future<void> _initializeAudio() async {
     _audioPlayer = AudioPlayer();
     try {
-
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -52,7 +51,6 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           throw Exception('Audio file not found: ${widget.audioUrl}');
         }
 
-
         // Check if file is still being written to (size changes indicate active writing)
         final initialSize = originalFile.lengthSync();
         await Future.delayed(const Duration(milliseconds: 200));
@@ -64,10 +62,8 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
           );
         }
 
-
         // If file is in cache directory, copy it to a stable location
         if (widget.audioUrl.contains('/cache/')) {
-
           final appDir = await getApplicationDocumentsDirectory();
           final fileName = widget.audioUrl.split('/').last;
           final stableFile = File('${appDir.path}/$fileName');

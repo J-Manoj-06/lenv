@@ -62,8 +62,7 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
     // Only expand root node initially - users can expand others by tapping
     if (model != null) {
       // Only root is expanded by default (already in _expanded set)
-    } else {
-    }
+    } else {}
 
     setState(() {
       _mindmap = model;
@@ -121,7 +120,6 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
     // Calculate where we want the root to appear on screen (20% from left, 50% from top)
     final targetScreenX = size.width * 0.20;
     final targetScreenY = size.height * 0.5;
-
 
     // Create transformation that moves root to target position
     final matrix = Matrix4.identity()
@@ -331,7 +329,6 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   }
 
   Widget _buildCanvas(MindmapNode root) {
-
     final nodes = _computeLayout(root);
 
     final byPath = {for (final n in nodes) n.path: n};
@@ -346,8 +343,7 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
       return rect.overlaps(viewport);
     }).toList();
 
-    if (visibleNodes.isEmpty && nodes.isNotEmpty) {
-    }
+    if (visibleNodes.isEmpty && nodes.isNotEmpty) {}
     return SizedBox.expand(
       key: _viewerKey,
       child: Stack(

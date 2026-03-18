@@ -38,7 +38,6 @@ class DashboardSetup {
     if (!Hive.isAdapterRegistered(14)) {
       Hive.registerAdapter(AttendanceSummaryAdapter());
     }
-
   }
 
   /// Create provider instances with proper dependency injection

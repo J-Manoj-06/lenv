@@ -25,14 +25,11 @@ class InstituteAnnouncementCleanupService {
         return;
       }
 
-
       // Delete each expired announcement
       for (final doc in expiredQuery.docs) {
         await _deleteAnnouncement(doc.id, doc.data());
       }
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Delete a single announcement with all its data
@@ -41,7 +38,6 @@ class InstituteAnnouncementCleanupService {
     Map<String, dynamic> data,
   ) async {
     try {
-
       // 1. Delete images from R2
       final imageCaptions = data['imageCaptions'] as List?;
       if (imageCaptions != null) {
@@ -80,9 +76,7 @@ class InstituteAnnouncementCleanupService {
           .collection('institute_announcements')
           .doc(announcementId)
           .delete();
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Delete image from R2 via your Cloudflare Worker
@@ -103,8 +97,7 @@ class InstituteAnnouncementCleanupService {
       );
 
       if (response.statusCode == 200) {
-      } else {
-      }
+      } else {}
     } catch (e) {
       // Don't throw - image might be already deleted
     }

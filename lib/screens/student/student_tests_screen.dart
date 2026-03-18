@@ -878,31 +878,45 @@ class _TestCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Text(
-                    '$dateLabel ',
-                    style: Theme.of(context).textTheme.bodySmall,
+              Expanded(
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '$dateLabel ',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      TextSpan(
+                        text: dateValue,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    dateValue,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: _PrimaryButton(
+                      label: buttonText,
+                      onPressed: onPressed,
+                      isPrimary: item.isPending && !isExpired,
+                      enabled:
+                          (item.isPending &&
+                              !isExpired &&
+                              buttonText != 'Yet to start') ||
+                          buttonText == 'View Results',
                     ),
                   ),
-                ],
-              ),
-              _PrimaryButton(
-                label: buttonText,
-                onPressed: onPressed,
-                isPrimary: item.isPending && !isExpired,
-                enabled:
-                    (item.isPending &&
-                        !isExpired &&
-                        buttonText != 'Yet to start') ||
-                    buttonText == 'View Results',
+                ),
               ),
             ],
           ),

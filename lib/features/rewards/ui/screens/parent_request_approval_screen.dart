@@ -31,10 +31,8 @@ class _ParentRequestApprovalScreenState
     try {
       final repository = ref.read(rewardsRepositoryProvider);
       final cancelledCount = await repository.cancelExpiredRewardRequests();
-      if (cancelledCount > 0) {
-      }
-    } catch (e) {
-    }
+      if (cancelledCount > 0) {}
+    } catch (e) {}
   }
 
   @override

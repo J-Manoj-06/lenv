@@ -268,8 +268,7 @@ class _PrincipalAnnouncementViewerState
 
               // Debug logging
               if (announcement.imageCaptions != null) {
-                for (int i = 0; i < announcement.imageCaptions!.length; i++) {
-                }
+                for (int i = 0; i < announcement.imageCaptions!.length; i++) {}
               }
 
               return Scaffold(

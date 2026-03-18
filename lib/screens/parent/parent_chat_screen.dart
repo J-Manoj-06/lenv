@@ -220,8 +220,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
         if (await file.exists()) {
           await file.delete();
         }
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     setState(() {

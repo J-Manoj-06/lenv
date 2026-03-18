@@ -828,11 +828,12 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     return path;
   }
 
-  void _initOfflineFirst() async {
+  void _initOfflineFirst(String? currentUserId) async {
     _localRepo = LocalMessageRepository();
     _syncService = FirebaseMessageSyncService(_localRepo);
 
     await _localRepo.initialize();
+    if (!mounted) return;
 
     final chatId = '${widget.classId}_${widget.subjectId}';
 
@@ -855,15 +856,14 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         lastTimestamp: cachedMessages.first.timestamp,
       );
     }
+    if (!mounted) return;
 
     // Start real-time sync
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final currentUser = authProvider.currentUser;
-    if (currentUser != null) {
+    if (currentUserId != null && currentUserId.isNotEmpty) {
       await _syncService.startSyncForChat(
         chatId: chatId,
         chatType: 'group',
-        userId: currentUser.uid,
+        userId: currentUserId,
       );
     }
   }
@@ -889,7 +889,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     );
 
     // Initialize offline-first services
-    _initOfflineFirst();
+    final currentUserId = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.uid;
+    _initOfflineFirst(currentUserId);
 
     // Prime cached messages so repeat opens render instantly.
     unawaited(_primeCachedMessagesForInstantOpen());

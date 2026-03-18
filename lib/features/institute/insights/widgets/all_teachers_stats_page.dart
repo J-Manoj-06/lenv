@@ -109,15 +109,13 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
       }
 
       // Debug: Print first few teachers with their UIDs
-      for (var teacher in teachers.take(3)) {
-      }
+      for (var teacher in teachers.take(3)) {}
 
       // Fetch unique classes from students collection
       final studentsSnapshot = await FirebaseFirestore.instance
           .collection('students')
           .where('schoolCode', isEqualTo: widget.schoolCode)
           .get();
-
 
       // Extract unique class names and map teachers to classes via students
       final Set<String> classNamesSet = {};
@@ -178,7 +176,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
           .where('status', isEqualTo: 'completed')
           .get();
 
-
       // Track unique tests per teacher
       final Map<String, Set<String>> teacherTestsMap = {};
       final Set<String> uniqueTeacherIds = {};
@@ -189,8 +186,7 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
       }
 
       // Debug: Print teacher UIDs we're looking for
-      for (var teacher in teachers.take(5)) {
-      }
+      for (var teacher in teachers.take(5)) {}
 
       for (var result in testResultsSnapshot.docs) {
         final resultData = result.data();
@@ -215,7 +211,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         }
       }
 
-
       // Update teacher test counts based on unique test IDs
       // Try multiple matching strategies: UID, docId, email
       int matchedCount = 0;
@@ -234,8 +229,7 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
             teacherDocId != null &&
             teacherDocId != teacherUid) {
           uniqueTests = teacherTestsMap[teacherDocId]?.length ?? 0;
-          if (uniqueTests > 0) {
-          }
+          if (uniqueTests > 0) {}
         }
 
         // Strategy 3: If still no match, try by email
@@ -253,8 +247,9 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
         if (uniqueTests > 0) matchedCount++;
       }
 
-      for (var teacher in teachers.where((t) => (t['totalTests'] as int) > 0)) {
-      }
+      for (var teacher in teachers.where(
+        (t) => (t['totalTests'] as int) > 0,
+      )) {}
 
       // Also get class info from scheduledTests for additional metadata
       try {
@@ -262,7 +257,6 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
             .collection('scheduledTests')
             .where('schoolCode', isEqualTo: widget.schoolCode)
             .get();
-
 
         for (var test in scheduledTestsSnapshot.docs) {
           final testData = test.data();
@@ -288,8 +282,7 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
             }
           }
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       // Sort teachers by test count (highest first), then by name
       teachers.sort((a, b) {
@@ -306,8 +299,7 @@ class _AllTeachersStatsPageState extends State<AllTeachersStatsPage> {
           .length;
 
       final standards = classNamesSet.toList()..sort();
-      for (var teacher in teachers) {
-      }
+      for (var teacher in teachers) {}
 
       if (mounted) {
         setState(() {

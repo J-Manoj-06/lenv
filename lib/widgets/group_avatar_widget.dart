@@ -75,8 +75,7 @@ class GroupAvatarWidget extends StatelessWidget {
                           fadeInDuration: const Duration(milliseconds: 250),
                           fadeInCurve: Curves.easeIn,
                           placeholder: (_, _) => _buildShimmer(avatarColor),
-                          errorWidget: (_, _, _) =>
-                              _buildFallback(avatarColor),
+                          errorWidget: (_, _, _) => _buildFallback(avatarColor),
                         )
                       : _buildFallback(avatarColor),
                 ),

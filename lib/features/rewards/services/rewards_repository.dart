@@ -147,7 +147,6 @@ class RewardsRepository {
             ? lockedPointsRaw.toInt()
             : 0;
 
-
         // Check if student has enough points
         if (availablePoints < pointsRequired) {
           throw Exception(
@@ -548,8 +547,7 @@ class RewardsRepository {
           'deducted_points': deductedPoints,
         });
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Delete reward request
@@ -702,8 +700,7 @@ class RewardsRepository {
 
             cancelledCount++;
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       return cancelledCount;

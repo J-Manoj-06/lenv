@@ -158,7 +158,9 @@ class _CommunitiesScreenState extends State<CommunitiesScreen>
           .timeout(
             const Duration(seconds: 8),
             onTimeout: () {
-              debugPrint('⏱️ Network timeout loading communities - using cache');
+              debugPrint(
+                '⏱️ Network timeout loading communities - using cache',
+              );
               return [];
             },
           );

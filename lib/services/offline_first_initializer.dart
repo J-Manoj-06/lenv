@@ -11,7 +11,6 @@ import '../services/firebase_message_sync_service.dart';
 Future<void> initializeOfflineFirst() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-
   // 1. Initialize Hive
   await Hive.initFlutter();
 
@@ -23,7 +22,6 @@ Future<void> initializeOfflineFirst() async {
   // 3. Initialize local repository
   final localRepo = LocalMessageRepository();
   await localRepo.initialize();
-
 }
 
 /// Provider for offline message services
@@ -57,10 +55,8 @@ class OfflineMessageProvider extends ChangeNotifier {
   /// Cleanup on logout
   /// WHY: Stop sync listeners but KEEP cached messages for next login
   Future<void> cleanupOnLogout() async {
-
     // Only stop sync listeners - don't delete cached messages
     await _syncService?.stopAllSyncs();
-
 
     notifyListeners();
   }

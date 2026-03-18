@@ -347,7 +347,6 @@ class DailyChallengeProvider with ChangeNotifier {
   /// Update streak for a student
   Future<void> _updateStreak(String studentId, String today) async {
     try {
-
       // Get student document
       final studentDoc = await _firestore
           .collection('users')
@@ -362,7 +361,6 @@ class DailyChallengeProvider with ChangeNotifier {
       final lastStreakDate = _extractDateString(data['lastStreakDate']);
       final currentStreak = data['streak'] as int? ?? 0;
 
-
       int newStreak;
 
       if (lastStreakDate == null) {
@@ -376,7 +374,6 @@ class DailyChallengeProvider with ChangeNotifier {
         newStreak = currentStreak + 1;
       }
 
-
       // Update BOTH users and students collections for consistency
       // Use sequential writes to ensure atomicity
       await _firestore.collection('users').doc(studentId).set({
@@ -384,17 +381,14 @@ class DailyChallengeProvider with ChangeNotifier {
         'lastStreakDate': today,
       }, SetOptions(merge: true));
 
-
       await _firestore.collection('students').doc(studentId).set({
         'streak': newStreak,
         'lastStreakDate': today,
       }, SetOptions(merge: true));
 
-
       // Wait for Firestore to propagate (important for consistency)
       await Future.delayed(const Duration(milliseconds: 500));
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   String? _extractDateString(dynamic value) {

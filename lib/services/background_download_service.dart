@@ -122,8 +122,7 @@ class BackgroundDownloadService {
         if (result.success && result.localPath != null) {
           results[index] = result.localPath!;
         }
-      } catch (e) {
-      }
+      } catch (e) {}
 
       downloadedFiles++;
 

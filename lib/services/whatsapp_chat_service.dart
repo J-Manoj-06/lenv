@@ -36,8 +36,7 @@ class WhatsAppChatService {
         if (!contactExists) {
           await _createContact(studentName, cleanedNumber);
         }
-      } else {
-      }
+      } else {}
 
       // Step 4: Open WhatsApp chat
       return await _openWhatsAppChat(cleanedNumber);

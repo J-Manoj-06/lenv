@@ -7,7 +7,6 @@ class MindmapNode {
   const MindmapNode({required this.title, this.children = const []});
 
   factory MindmapNode.fromJson(Map<String, dynamic> json) {
-
     final childrenRaw = json['children'];
     final parsedChildren = childrenRaw is List
         ? childrenRaw
@@ -15,7 +14,6 @@ class MindmapNode {
               .map((e) => MindmapNode.fromJson(Map<String, dynamic>.from(e)))
               .toList()
         : <MindmapNode>[];
-
 
     return MindmapNode(
       title: (json['title'] ?? '').toString(),

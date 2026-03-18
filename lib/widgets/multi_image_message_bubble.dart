@@ -402,32 +402,32 @@ class _MultiImageMessageBubbleState extends State<MultiImageMessageBubble> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(
-                            width: 80,
-                            height: 80,
+                            width: 60,
+                            height: 60,
                             child: CircularProgressIndicator(
                               value: _downloadProgress,
-                              strokeWidth: 6,
+                              strokeWidth: 5,
                               valueColor: const AlwaysStoppedAnimation<Color>(
                                 Colors.white,
                               ),
                               backgroundColor: Colors.white24,
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 10),
                           Text(
                             'Downloading $_downloadedCount/$_totalToDownload',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
+                              fontSize: 13,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
                           Text(
                             '${(_downloadProgress * 100).toInt()}%',
                             style: const TextStyle(
                               color: Colors.white70,
-                              fontSize: 14,
+                              fontSize: 12,
                             ),
                           ),
                         ],

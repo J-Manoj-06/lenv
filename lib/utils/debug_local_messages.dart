@@ -7,7 +7,6 @@ class DebugLocalMessages {
     final repo = LocalMessageRepository();
     await repo.initialize();
 
-
     // Get all messages
     final allMessages = await repo.searchMessages('', limit: 10000);
 
@@ -34,30 +33,25 @@ class DebugLocalMessages {
         final type = msg.attachmentType ?? 'unknown';
         types[type] = (types[type] ?? 0) + 1;
       }
-      for (var entry in types.entries) {
-      }
+      for (var entry in types.entries) {}
 
       for (var i = 0; i < messagesWithAttachments.take(10).length; i++) {
         final msg = messagesWithAttachments[i];
       }
     }
-
   }
 
   static Future<void> testFileSearch(String query, String? chatId) async {
     final repo = LocalMessageRepository();
     await repo.initialize();
 
-
     final results = await repo.searchFilesAndMedia(query, chatId: chatId);
-
 
     if (results.isNotEmpty) {
       for (var i = 0; i < results.take(10).length; i++) {
         final msg = results[i];
       }
     } else {
-
       // Try to understand why
       final allInChat = chatId != null
           ? await repo.getMessagesForChat(chatId)
@@ -71,6 +65,5 @@ class DebugLocalMessages {
         final first = withAttachments.first;
       }
     }
-
   }
 }

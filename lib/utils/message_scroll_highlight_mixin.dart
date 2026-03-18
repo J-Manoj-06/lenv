@@ -78,7 +78,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     List<dynamic> messages, {
     Duration highlightDuration = const Duration(seconds: 2),
   }) async {
-
     // Cancel any existing highlight timer
     _highlightTimer?.cancel();
 
@@ -104,7 +103,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
       _clearHighlight();
       return;
     }
-
 
     // Try key-based scroll first (most accurate when widget is rendered)
     await Future.delayed(
@@ -160,7 +158,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     final maxScroll = scrollController.position.maxScrollExtent;
     final viewportHeight = scrollController.position.viewportDimension;
 
-
     // Calculate the percentage position in the list
     // For reverse list: index 0 = bottom (newest), high index = top (oldest)
     final percentage = (totalMessages - index - 1) / totalMessages;
@@ -172,7 +169,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
     // Clamp to valid range
     final clampedOffset = targetOffset.clamp(0.0, maxScroll);
 
-
     await scrollController.animateTo(
       clampedOffset,
       duration: const Duration(milliseconds: 600),
@@ -181,7 +177,6 @@ mixin MessageScrollAndHighlightMixin<T extends StatefulWidget> on State<T> {
 
     // Wait for animation to complete
     await Future.delayed(const Duration(milliseconds: 100));
-
   }
 
   /// Schedule highlight clearing after duration

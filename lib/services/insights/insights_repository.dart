@@ -43,8 +43,7 @@ class InsightsRepository {
       }
 
       final data = doc.data();
-      if (data?['standards'] != null) {
-      }
+      if (data?['standards'] != null) {}
 
       final summary = TopPerformersSummary.fromFirestore(doc);
       _topPerformersCache[cacheKey] = summary;
@@ -140,7 +139,6 @@ class InsightsRepository {
           .where('status', isEqualTo: 'completed')
           .get();
 
-
       if (testResultsSnapshot.docs.isEmpty) {
         // Return empty detail instead of null
         return TeacherTestsDetail(
@@ -180,7 +178,6 @@ class InsightsRepository {
         final score = (data['score'] as num?)?.toDouble() ?? 0.0;
         testScores[testId]!.add(score);
       }
-
 
       // Build TestSummary list with average scores
       final tests = uniqueTests.values.map((testData) {
@@ -277,7 +274,6 @@ class InsightsRepository {
         return null;
       }
 
-
       // Compute minimal aggregated metrics
       double totalScore = 0;
       int validScores = 0;
@@ -373,9 +369,7 @@ class InsightsRepository {
 
       // Update memory cache
       _aiReportCache[docId] = report;
-
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Clear all caches (useful for force refresh)

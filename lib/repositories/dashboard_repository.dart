@@ -53,8 +53,7 @@ class DashboardRepository {
     try {
       final box = await Hive.openBox<StudentDashboardData>(_boxName);
       await box.put(studentId, data);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Load dashboard data from cache
@@ -78,8 +77,7 @@ class DashboardRepository {
     try {
       final box = await Hive.openBox<StudentDashboardData>(_boxName);
       await box.delete(studentId);
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Clear all cached data
@@ -87,8 +85,7 @@ class DashboardRepository {
     try {
       final box = await Hive.openBox<StudentDashboardData>(_boxName);
       await box.clear();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   /// Check if cached data exists for a student

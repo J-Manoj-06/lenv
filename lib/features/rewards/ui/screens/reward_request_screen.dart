@@ -78,14 +78,12 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
           });
         }
       }
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
 
     return Scaffold(
       backgroundColor: isDark
@@ -107,14 +105,11 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
       body: FutureBuilder<DocumentSnapshot>(
         future: _catalogFuture,
         builder: (context, snapshot) {
-
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-
-          if (snapshot.hasError) {
-          }
+          if (snapshot.hasError) {}
 
           if (snapshot.hasError ||
               !snapshot.hasData ||

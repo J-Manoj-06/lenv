@@ -101,7 +101,8 @@ class _ParentRewardRequestDetailScreenState
       setState(() => _isLoading = false);
       _showResultSnackBar(result);
       // Navigate to product link after approval
-      if (result['success'] == true && widget.request.amazonLink.trim().isNotEmpty) {
+      if (result['success'] == true &&
+          widget.request.amazonLink.trim().isNotEmpty) {
         await Future.delayed(const Duration(milliseconds: 600));
         if (mounted) _openLink(widget.request.amazonLink);
       }

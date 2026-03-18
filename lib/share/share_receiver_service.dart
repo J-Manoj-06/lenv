@@ -20,17 +20,15 @@ class ShareReceiverService {
   /// Initialize the service and start listening for shared content
   Future<void> initialize() async {
     // Listen for shared media (images, files, audio) while app is running
-    _mediaStreamSubscription = _receiveSharingIntent.getMediaStream().listen(
-      (List<SharedMediaFile> value) {
-        if (value.isNotEmpty) {
-          final shareData = _processSharedMedia(value);
-          _currentShareData = shareData;
-          _shareDataController.add(shareData);
-        }
-      },
-      onError: (error) {
-      },
-    );
+    _mediaStreamSubscription = _receiveSharingIntent.getMediaStream().listen((
+      List<SharedMediaFile> value,
+    ) {
+      if (value.isNotEmpty) {
+        final shareData = _processSharedMedia(value);
+        _currentShareData = shareData;
+        _shareDataController.add(shareData);
+      }
+    }, onError: (error) {});
 
     // Check for initial shared media (when app was closed)
     final initialMedia = await _receiveSharingIntent.getInitialMedia();

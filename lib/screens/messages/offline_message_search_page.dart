@@ -109,8 +109,7 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
         for (var i = 0; i < files.take(3).length; i++) {
           final file = files[i];
         }
-      } else {
-      }
+      } else {}
     } catch (e) {
       setState(() {
         _isSearching = false;

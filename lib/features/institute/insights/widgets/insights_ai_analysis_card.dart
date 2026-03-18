@@ -68,13 +68,11 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
     setState(() => _isLoadingOptions = true);
 
     try {
-
       // Fetch students from the school
       final snapshot = await FirebaseFirestore.instance
           .collection('students')
           .where('schoolCode', isEqualTo: widget.schoolCode)
           .get();
-
 
       final Set<String> uniqueStandards = {};
       final Set<String> uniqueSections = {};
@@ -115,7 +113,6 @@ class _InsightsAIAnalysisCardState extends State<InsightsAIAnalysisCard> {
       final sortedStandards = uniqueStandards.toList()
         ..sort((a, b) => int.parse(a).compareTo(int.parse(b)));
       final sortedSections = uniqueSections.toList()..sort();
-
 
       setState(() {
         _standards = ['Select', ...sortedStandards];

@@ -35,13 +35,11 @@ class _ClassSectionsPerformersPageState
       // Extract just the number from className (e.g., "Grade 10" -> "10")
       final classNumber = widget.className.replaceAll(RegExp(r'[^0-9]'), '');
 
-
       // Fetch all students in this school first
       final snapshot = await FirebaseFirestore.instance
           .collection('students')
           .where('schoolCode', isEqualTo: widget.schoolCode)
           .get();
-
 
       // First pass: Filter students by class and collect UIDs
       final List<StudentModel> matchingStudents = [];
@@ -67,7 +65,6 @@ class _ClassSectionsPerformersPageState
         }
       }
 
-
       // Batch fetch user data (Firestore supports up to 10 items in whereIn)
       final Map<String, Map<String, dynamic>> userDataMap = {};
 
@@ -84,8 +81,7 @@ class _ClassSectionsPerformersPageState
               userDataMap[doc.id] = doc.data();
             }
           }
-        } catch (e) {
-        }
+        } catch (e) {}
       }
 
       // Enrich students with user data and group by section
@@ -124,7 +120,6 @@ class _ClassSectionsPerformersPageState
           (a, b) => b.rewardPoints.compareTo(a.rewardPoints),
         );
       }
-
 
       // Sort sections alphabetically
       final sortedSections = Map.fromEntries(

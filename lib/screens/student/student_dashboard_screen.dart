@@ -553,11 +553,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
             // Process teacher announcements
             for (final doc in combinedDocs) {
-              if (doc['type'] == 'teacher') {
-                final id = doc['id']?.toString() ?? '';
-                final rawData =
-                    (doc['data'] as Map<String, dynamic>?) ??
-                    const <String, dynamic>{};
+              final docMap = _normalizeAnnouncementMap(doc);
+              final docType = docMap['type']?.toString() ?? '';
+
+              if (docType == 'teacher') {
+                final id = docMap['id']?.toString() ?? '';
+                final rawData = _normalizeAnnouncementMap(docMap['data']);
                 if (id.isEmpty) continue;
                 final status = StatusModel.fromMap(id, rawData);
                 // Check if announcement is still valid (not expired) and meets visibility criteria
@@ -569,11 +570,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     )) {
                   announcements.add({'type': 'teacher', 'data': status});
                 }
-              } else if (doc['type'] == 'principal') {
-                final id = doc['id']?.toString() ?? '';
-                final rawData =
-                    (doc['data'] as Map<String, dynamic>?) ??
-                    const <String, dynamic>{};
+              } else if (docType == 'principal') {
+                final id = docMap['id']?.toString() ?? '';
+                final rawData = _normalizeAnnouncementMap(docMap['data']);
                 if (id.isEmpty) continue;
                 final announcement = InstituteAnnouncementModel.fromMap(
                   id,
@@ -991,6 +990,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     } catch (e) {
       debugPrint('Error marking announcement as viewed: $e');
     }
+  }
+
+  Map<String, dynamic> _normalizeAnnouncementMap(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      final normalized = <String, dynamic>{};
+      value.forEach((key, mapValue) {
+        normalized[key.toString()] = mapValue;
+      });
+      return normalized;
+    }
+    return const <String, dynamic>{};
   }
 
   /// Combine announcements from both teachers and principals

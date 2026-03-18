@@ -147,15 +147,13 @@ class StudentProvider with ChangeNotifier {
   // Refresh only student data (lightweight - just updates streak in UI)
   Future<void> refreshStudentStreak(String studentId) async {
     try {
-
       // Add small delay to ensure Firestore write has propagated
       await Future.delayed(const Duration(milliseconds: 200));
 
       // Only fetch current student - no full reload
       _currentStudent = await _studentService.getCurrentStudent();
       notifyListeners();
-    } catch (e) {
-    }
+    } catch (e) {}
   }
 
   // Update student stats
