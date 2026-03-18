@@ -86,18 +86,53 @@ class MediaUploadService {
 
       onProgress?.call(15);
 
-      // Upload to R2 using signed URL with smooth progress
-      final r2Url = await _r2Service.uploadFileWithSignedUrl(
-        fileBytes: uploadBytes,
-        signedUrl: signedUrlResponse['url'],
-        contentType: mimeType,
-        onProgress: (progress) {
-          // Scale progress from 20-80 range and emit smoothly
-          // progress comes as 0-100, we scale to 20-80
-          final scaledProgress = 20 + ((progress / 100) * 60).toInt();
-          onProgress?.call(scaledProgress);
+      // Upload to R2 with monotonic smooth progress updates.
+      // R2 PUT callbacks are sparse (often 0 then 100), so we animate during
+      // the network wait to avoid the UI appearing stuck at a single value.
+      int emittedProgress = 15;
+      int targetProgress = 20;
+
+      void emitProgressMonotonic(int value) {
+        final clamped = value.clamp(0, 100);
+        if (clamped > emittedProgress) {
+          emittedProgress = clamped;
+          onProgress?.call(emittedProgress);
+        }
+      }
+
+      final smoothProgressTimer = Timer.periodic(
+        const Duration(milliseconds: 180),
+        (_) {
+          if (emittedProgress < targetProgress) {
+            emitProgressMonotonic(emittedProgress + 1);
+            return;
+          }
+
+          // Gentle creep while waiting so progress feels alive.
+          if (emittedProgress < 75) {
+            emitProgressMonotonic(emittedProgress + 1);
+          }
         },
       );
+
+      String r2Url;
+      try {
+        r2Url = await _r2Service.uploadFileWithSignedUrl(
+          fileBytes: uploadBytes,
+          signedUrl: signedUrlResponse['url'],
+          contentType: mimeType,
+          onProgress: (progress) {
+            // Scale transport progress (0-100) to the upload phase window.
+            final scaledProgress = 20 + ((progress / 100) * 60).toInt();
+            targetProgress = scaledProgress.clamp(20, 80);
+            emitProgressMonotonic(targetProgress);
+          },
+        );
+      } finally {
+        smoothProgressTimer.cancel();
+      }
+
+      emitProgressMonotonic(80);
 
       // Generate thumbnail URL if image (upload separately)
       String? thumbnailUrl;

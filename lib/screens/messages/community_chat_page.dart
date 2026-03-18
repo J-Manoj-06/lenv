@@ -396,7 +396,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           }
           _uploadingMessageIds.add(messageId);
           _failedMessageIds.remove(messageId);
-          _pendingUploadProgress[messageId] = progress;
+          final current = _pendingUploadProgress[messageId] ?? 0.0;
+          // Keep progress monotonic to avoid UI jumping back to 0 from stale callbacks.
+          _pendingUploadProgress[messageId] = progress > current
+              ? progress
+              : current;
 
           // Update cache with progress so it survives navigation
           _updateCachedProgress(messageId, progress);
@@ -526,6 +530,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     try {
       // Throttle: Only update cache if progress changed by 5% or completed
       final lastSaved = _lastSavedProgress[mediaId] ?? 0.0;
+      // Never persist a lower progress value than what was already saved.
+      if (progress < lastSaved) return;
+
       final progressDiff = (progress - lastSaved).abs();
       final shouldSave = progressDiff >= 0.05 || progress >= 1.0;
 
@@ -613,10 +620,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           if (mediaId == null) continue;
 
           // Update progress from cache
-          final cachedProgress = media['uploadProgress'] as double?;
+          final cachedProgressRaw = media['uploadProgress'];
+          final cachedProgress = cachedProgressRaw is num
+              ? cachedProgressRaw.toDouble()
+              : null;
           if (cachedProgress != null) {
             final currentProgress = _pendingUploadProgress[mediaId] ?? 0.0;
-            if ((cachedProgress - currentProgress).abs() > 0.01) {
+            // Only advance progress from cache; don't regress to stale values.
+            if (cachedProgress > currentProgress + 0.01) {
               _pendingUploadProgress[mediaId] = cachedProgress;
               hasChanges = true;
             }
@@ -800,7 +811,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
               final first = msg.multipleMedia!.first as Map<String, dynamic>;
               final mediaId = first['messageId'] as String?;
               final localPath = first['localPath'] as String?;
-              final uploadProgress = first['uploadProgress'] as double? ?? 0.0;
+              final uploadProgressRaw = first['uploadProgress'];
+              final uploadProgress = uploadProgressRaw is num
+                  ? uploadProgressRaw.toDouble()
+                  : 0.01;
 
               final mediaMetadata = MediaMetadata(
                 messageId: mediaId ?? msg.messageId,
@@ -878,7 +892,10 @@ class _CommunityChatPageState extends State<CommunityChatPage>
               for (final media in msg.multipleMedia!) {
                 final mediaId = media['messageId'] as String?;
                 final localPath = media['localPath'] as String?;
-                final uploadProgress = media['uploadProgress'] as double?;
+                final uploadProgressRaw = media['uploadProgress'];
+                final uploadProgress = uploadProgressRaw is num
+                    ? uploadProgressRaw.toDouble()
+                    : null;
 
                 if (mediaId != null && uploadProgress != null) {
                   // ✅ Only add if not completed (progress < 1.0)
