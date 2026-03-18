@@ -347,6 +347,8 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   Timer? _refreshTimer;
   String _instituteId = ''; // ✅ Cached offline: used by Staff Room card onTap
   final Set<String> _openingGroupIds = <String>{};
+  DateTime? _networkBackoffUntil;
+  bool _isNetworkFetchInProgress = false;
 
   @override
   bool get wantKeepAlive => true; // ✅ Preserve state when switching tabs
@@ -498,7 +500,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     _groupsStreamSubscription?.cancel();
 
     // Load groups initially
-    _loadGroupsFromFirestore(teacherId);
+    _loadGroupsFromFirestore(teacherId, forceNetwork: true);
 
     // Listen to teacher_groups document for structural changes
     _groupsStreamSubscription = FirebaseFirestore.instance
@@ -534,19 +536,31 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           },
         );
 
-    // Set up periodic refresh every 10 seconds to catch new messages
+    // Set up periodic background refresh. Keep it conservative on weak networks.
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 25), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
+      if (_isNetworkFetchInProgress) return;
       _service.clearCache();
       _loadGroupsFromFirestore(teacherId);
     });
   }
 
-  Future<void> _loadGroupsFromFirestore(String teacherId) async {
+  Future<void> _loadGroupsFromFirestore(
+    String teacherId, {
+    bool forceNetwork = false,
+  }) async {
+    if (_isNetworkFetchInProgress && !forceNetwork) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final inBackoff =
+        _networkBackoffUntil != null && now.isBefore(_networkBackoffUntil!);
+
     // ✅ Ensure offline service is initialized
     try {
       await _offlineService.initialize();
@@ -558,6 +572,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
     debugPrint('🔍 Attempting to load cached teacher groups for: $teacherId');
     final cachedGroups = _offlineService.getCachedTeacherGroups(teacherId);
     debugPrint('🔍 Got cached groups: ${cachedGroups?.length ?? 0} groups');
+    final hasCachedGroups = cachedGroups != null && cachedGroups.isNotEmpty;
 
     if (cachedGroups != null && cachedGroups.isNotEmpty) {
       debugPrint('✅ Loading ${cachedGroups.length} groups from cache');
@@ -609,8 +624,14 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       debugPrint('⚠️ No cached groups found for teacherId: $teacherId');
     }
 
+    // If cache exists and network recently timed out, avoid repeated fetch storms.
+    if (!forceNetwork && hasCachedGroups && inBackoff) {
+      return;
+    }
+
     // ✅ Now fetch fresh data from network
     try {
+      _isNetworkFetchInProgress = true;
       final groups = await _service
           .getTeacherMessageGroups(teacherId)
           .timeout(
@@ -620,6 +641,13 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
               return <MessageGroup>[];
             },
           );
+
+      // Enter short cache-first backoff if network returned nothing while cache exists.
+      if (groups.isEmpty && hasCachedGroups) {
+        _networkBackoffUntil = DateTime.now().add(const Duration(seconds: 75));
+      } else if (groups.isNotEmpty) {
+        _networkBackoffUntil = null;
+      }
 
       // ✅ Cache the groups for offline access
       if (groups.isNotEmpty) {
@@ -667,6 +695,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         });
       }
     } catch (e) {
+      if (hasCachedGroups) {
+        _networkBackoffUntil = DateTime.now().add(const Duration(seconds: 75));
+      }
       // ✅ If network fails but we have cached data, keep showing it
       if (mounted) {
         setState(() {
@@ -676,6 +707,8 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           _isLoading = false;
         });
       }
+    } finally {
+      _isNetworkFetchInProgress = false;
     }
   }
 
@@ -707,6 +740,21 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       _service.clearCache();
     }
 
+    await _loadGroupsFromFirestore(userId);
+  }
+
+  Future<void> _refreshGroupsSilently() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    String? userId = authProvider.currentUser?.uid;
+
+    if (userId == null || userId.isEmpty) {
+      final session = await SessionManager.getLoginSession();
+      userId = session['userId'] as String?;
+    }
+
+    if (userId == null || userId.isEmpty || !mounted) return;
+
+    _service.clearCache();
     await _loadGroupsFromFirestore(userId);
   }
 
@@ -1087,23 +1135,23 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       _openingGroupIds.add(group.groupId);
     });
 
-    // Open chat immediately for responsive single-tap navigation.
-    final navFuture = Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => TeacherGroupChatPage(
-          classId: group.classId,
-          subjectId: group.subjectId,
-          subjectName: group.subjectName,
-          teacherName: 'Teacher',
-          icon: _getIconForSubject(group.subjectName),
-          className: group.className,
-          section: group.sectionName,
-        ),
-      ),
-    );
-
     try {
+      // Open chat immediately for responsive single-tap navigation.
+      final navFuture = Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TeacherGroupChatPage(
+            classId: group.classId,
+            subjectId: group.subjectId,
+            subjectName: group.subjectName,
+            teacherName: 'Teacher',
+            icon: _getIconForSubject(group.subjectName),
+            className: group.className,
+            section: group.sectionName,
+          ),
+        ),
+      );
+
       // ✅ Mark group as read in cache immediately
       _service.markGroupAsRead(group.groupId);
 
@@ -1144,8 +1192,6 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
       unawaited(_markGroupAsReadInFirestore(group));
 
       await navFuture;
-      // Refresh group list so new message pushes this group to the top.
-      await _loadGroups(forceRefresh: true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1159,6 +1205,11 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
         setState(() {
           _openingGroupIds.remove(group.groupId);
         });
+      }
+
+      // Keep refresh non-blocking so taps are never held by network latency.
+      if (mounted) {
+        unawaited(_refreshGroupsSilently());
       }
     }
   }

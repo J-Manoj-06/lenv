@@ -173,6 +173,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   // ✅ Message cache for stable instances (reserved for future use)
   // ignore: unused_field
   final Map<String, GroupChatMessage> _messageCache = {};
+  List<GroupChatMessage> _cachedSeedMessages = const [];
+  String? _lastCachedTopMessageId;
+  int _lastCachedMessageCount = -1;
 
   @override
   void didChangeDependencies() {
@@ -342,6 +345,70 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       return value.map((k, v) => MapEntry(k, _stripTimestamps(v)));
     }
     return value;
+  }
+
+  Future<void> _primeCachedMessagesForInstantOpen() async {
+    final chatId = '${widget.classId}_${widget.subjectId}';
+
+    try {
+      final cacheService = LocalCacheService();
+      await cacheService.initialize();
+      final cachedMessages = cacheService.getCachedMessages(chatId);
+
+      if (cachedMessages == null || cachedMessages.isEmpty || !mounted) {
+        return;
+      }
+
+      final parsed = <GroupChatMessage>[];
+      for (final item in cachedMessages) {
+        try {
+          final data = Map<String, dynamic>.from(item);
+          final id = (data['id'] ?? '').toString();
+          if (id.isEmpty) continue;
+          parsed.add(GroupChatMessage.fromFirestore(data, id));
+        } catch (_) {
+          // Ignore malformed cached entries and continue.
+        }
+      }
+
+      if (parsed.isEmpty || !mounted) return;
+
+      parsed.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      setState(() {
+        _cachedSeedMessages = parsed;
+      });
+    } catch (_) {
+      // If cache is unavailable, stream loading path continues as before.
+    }
+  }
+
+  void _cacheMessagesForInstantOpen(List<GroupChatMessage> messages) {
+    if (messages.isEmpty) return;
+
+    final topId = messages.first.id;
+    if (topId == _lastCachedTopMessageId &&
+        messages.length == _lastCachedMessageCount) {
+      return;
+    }
+
+    _lastCachedTopMessageId = topId;
+    _lastCachedMessageCount = messages.length;
+
+    try {
+      final cacheService = LocalCacheService();
+      final payload = messages.take(120).map((message) {
+        final map = message.toFirestore();
+        map['id'] = message.id;
+        return _stripTimestamps(map) as Map<String, dynamic>;
+      }).toList();
+
+      cacheService.cacheMessagesSync(
+        conversationId: '${widget.classId}_${widget.subjectId}',
+        messages: payload,
+      );
+    } catch (_) {
+      // Best effort cache write only.
+    }
   }
 
   /// Retry a failed upload: clears the failed flag and re-queues via BackgroundUploadService.
@@ -823,6 +890,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
     // Initialize offline-first services
     _initOfflineFirst();
+
+    // Prime cached messages so repeat opens render instantly.
+    unawaited(_primeCachedMessagesForInstantOpen());
 
     // Initialize cache keys for this chat session
     _pendingMessagesCacheKey =
@@ -2140,9 +2210,34 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                 child: StreamBuilder<List<GroupChatMessage>>(
                   stream: _messagesStream, // ✅ Use cached stream
                   builder: (context, snapshot) {
+                    final liveMessages =
+                        (snapshot.data ?? const <GroupChatMessage>[])
+                            .where(
+                              (m) =>
+                                  !(m.deletedFor?.contains(currentUserId) ??
+                                      false),
+                            )
+                            .toList();
+
+                    final shouldUseSeedMessages =
+                        snapshot.connectionState == ConnectionState.waiting &&
+                        liveMessages.isEmpty &&
+                        _cachedSeedMessages.isNotEmpty;
+
+                    final messages = shouldUseSeedMessages
+                        ? _cachedSeedMessages
+                              .where(
+                                (m) =>
+                                    !(m.deletedFor?.contains(currentUserId) ??
+                                        false),
+                              )
+                              .toList()
+                        : liveMessages;
+
                     // ✅ CRITICAL: Show pending messages immediately while Firestore loads
                     if (snapshot.connectionState == ConnectionState.waiting &&
-                        _pendingMessages.isEmpty) {
+                        _pendingMessages.isEmpty &&
+                        messages.isEmpty) {
                       return Center(
                         child: CircularProgressIndicator(
                           color: AppColors.insightsTeal,
@@ -2171,16 +2266,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                     // even while the stream is still connecting. This ensures
                     // the pending preview appears immediately.
 
-                    // Filter out messages deleted by current user
-                    // DO NOT merge pending messages here - let the nested StreamBuilder handle it
-                    final messages =
-                        (snapshot.data ?? const <GroupChatMessage>[])
-                            .where(
-                              (m) =>
-                                  !(m.deletedFor?.contains(currentUserId) ??
-                                      false),
-                            )
-                            .toList();
+                    if (!shouldUseSeedMessages && liveMessages.isNotEmpty) {
+                      _cacheMessagesForInstantOpen(liveMessages);
+                    }
 
                     // Auto-scroll when a new newest message arrives (keep latest in view)
                     final newestId = messages.isNotEmpty
