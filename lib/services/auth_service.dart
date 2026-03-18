@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import 'firestore_service.dart';
 
@@ -187,8 +188,12 @@ class AuthService {
                 .collection('users')
                 .doc(uid)
                 .set(normalizedUserData, SetOptions(merge: true));
-          } catch (_) {
+            debugPrint(
+              '✅ Profile synced to users/$uid with schoolId=$mappedInstituteId',
+            );
+          } catch (e) {
             // Non-blocking: auth should still continue even if profile sync fails
+            debugPrint('⚠️ Failed to sync profile to users/$uid: $e');
           }
 
           // UPDATE: Ensure the user document in 'users' collection has the correct Auth UID
@@ -209,10 +214,12 @@ class AuthService {
                 await _firestore.collection('users').doc(userDoc.id).update({
                   'uid': uid,
                 });
+                debugPrint('✅ UID updated in users/${userDoc.id} to $uid');
               }
             }
           } catch (e) {
             // Continue anyway - not critical
+            debugPrint('⚠️ Failed to update UID in users doc: $e');
           }
 
           return normalizedUser;

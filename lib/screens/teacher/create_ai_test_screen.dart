@@ -1200,6 +1200,20 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
     setState(() => _isGenerating = true);
 
     try {
+      // Debug: Check auth context
+      final authUser = FirebaseAuth.instance.currentUser;
+      final authProvider = Provider.of<auth_provider.AuthProvider>(
+        context,
+        listen: false,
+      );
+      final currentUser = authProvider.currentUser;
+      debugPrint('🔐 Auth Debug:');
+      debugPrint('   Firebase UID: ${authUser?.uid}');
+      debugPrint('   User Role: ${currentUser?.role}');
+      debugPrint('   Institute ID: ${currentUser?.instituteId}');
+      debugPrint(
+        '   Standard: $_selectedClass, Subject: $_selectedSubject, Topic: ${_topicController.text}',
+      );
       // Show premium loading dialog
       if (mounted) {
         showDialog(
