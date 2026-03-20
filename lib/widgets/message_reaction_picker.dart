@@ -32,11 +32,19 @@ Future<String?> showMessageReactionPicker({
   }
 
   final mediaSize = MediaQuery.of(context).size;
+  final mediaPadding = MediaQuery.of(context).padding;
   const barHeight = 48.0;
-  final approximateWidth = (quickEmojis.length + 1) * 36.0 + 24.0;
+  // Keep extra safety margin so the trailing "+" button never clips at edges.
+  final approximateWidth = quickEmojis.length * 42.0 + 60.0;
+  final minLeft = 12.0 + mediaPadding.left;
+  final maxLeft =
+      (mediaSize.width - approximateWidth - 12.0 - mediaPadding.right).clamp(
+        minLeft,
+        mediaSize.width,
+      );
   final left = (globalPosition.dx - (approximateWidth / 2)).clamp(
-    12.0,
-    mediaSize.width - approximateWidth - 12.0,
+    minLeft,
+    maxLeft,
   );
   final showAbove = globalPosition.dy > 120;
   final top = showAbove

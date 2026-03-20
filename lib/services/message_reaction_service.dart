@@ -105,6 +105,11 @@ class MessageReactionService {
       if (!messageSnap.exists) {
         throw StateError('Message no longer exists');
       }
+
+      final messageData = messageSnap.data() ?? const <String, dynamic>{};
+      final summary = _parseSummaryFromMessageData(messageData);
+      final legacyReactions = _parseLegacyReactionsFromMessageData(messageData);
+
       final existingDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
 
       // Always inspect direct doc IDs for aliases (covers legacy docs without userId field).
@@ -112,15 +117,23 @@ class MessageReactionService {
         final aliasRef = target.reactionsRef.doc(alias);
         final liveAlias = await tx.get(aliasRef);
         if (liveAlias.exists) {
-          existingDocs.add(liveAlias);
+          final alreadyAdded = existingDocs.any(
+            (e) => e.reference.path == liveAlias.reference.path,
+          );
+          if (!alreadyAdded) {
+            existingDocs.add(liveAlias);
+          }
         }
       }
 
+      // Include query-prefetched alias docs by userId field.
       for (final doc in prefetchedDocs) {
         final live = await tx.get(doc.reference);
         if (!live.exists) continue;
         final liveUserId = live.data()?['userId']?.toString().trim() ?? '';
-        final alreadyAdded = existingDocs.any((e) => e.reference.path == live.reference.path);
+        final alreadyAdded = existingDocs.any(
+          (e) => e.reference.path == live.reference.path,
+        );
         if (aliasSet.contains(liveUserId) && !alreadyAdded) {
           existingDocs.add(live);
         }
@@ -129,32 +142,35 @@ class MessageReactionService {
       String? previousEmoji;
       for (final doc in existingDocs) {
         if (doc.id == userId) {
-          final map = doc.data();
-          previousEmoji = map == null ? null : map['emoji']?.toString();
+          previousEmoji = doc.data()?['emoji']?.toString();
           break;
         }
       }
       if (previousEmoji == null && existingDocs.isNotEmpty) {
-        final firstMap = existingDocs.first.data();
-        previousEmoji = firstMap == null ? null : firstMap['emoji']?.toString();
+        previousEmoji = existingDocs.first.data()?['emoji']?.toString();
       }
-
-      final summary = _coerceSummary(messageSnap.data());
 
       // Clean up any previous reactions from alias IDs before applying new state.
       for (final doc in existingDocs) {
         final map = doc.data();
         final existingEmoji = map == null ? null : map['emoji']?.toString();
+        final existingUserId =
+            (map == null ? null : map['userId']?.toString()) ?? doc.id;
+
         if (existingEmoji != null && existingEmoji.isNotEmpty) {
           _decrement(summary, existingEmoji);
+          _removeLegacyUser(legacyReactions, existingEmoji, existingUserId);
         }
         tx.delete(doc.reference);
       }
 
-      if (previousEmoji == emoji && existingDocs.isNotEmpty) {
-        // Same emoji tapped: fully toggle off after cleanup.
-      } else {
+      if (!(previousEmoji == emoji && existingDocs.isNotEmpty)) {
         summary[emoji] = (summary[emoji] ?? 0) + 1;
+        legacyReactions.putIfAbsent(emoji, () => <String>[]);
+        if (!legacyReactions[emoji]!.contains(userId)) {
+          legacyReactions[emoji]!.add(userId);
+        }
+
         tx.set(reactionDocRef, {
           'emoji': emoji,
           'userId': userId,
@@ -162,11 +178,17 @@ class MessageReactionService {
         });
       }
 
-      tx.set(target.messageRef, {
+      final reactionCount = summary.values.fold<int>(
+        0,
+        (total, value) => total + value,
+      );
+
+      tx.update(target.messageRef, {
         'reactionSummary': summary,
-        'reactionCount': summary.values.fold<int>(0, (sum, v) => sum + v),
+        'reactionCount': reactionCount,
+        'reactions': legacyReactions,
         'reactionUpdatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      });
     });
   }
 
@@ -186,8 +208,8 @@ class MessageReactionService {
       if (!snap.exists) continue;
       final value = snap.data()?['emoji'];
       final emoji = value?.toString().trim() ?? '';
-      if (emoji.isNotEmpty) {
-        if (alias == userId) return emoji;
+      if (emoji.isNotEmpty && alias == userId) {
+        return emoji;
       }
     }
 
@@ -219,40 +241,61 @@ class MessageReactionService {
     return fallbackEmoji.isEmpty ? null : fallbackEmoji;
   }
 
-  Map<String, int> _coerceSummary(Map<String, dynamic>? data) {
-    final out = <String, int>{};
-
-    final dynamicSummary = data?['reactionSummary'];
-    if (dynamicSummary is Map) {
-      for (final entry in dynamicSummary.entries) {
+  Map<String, int> _parseSummaryFromMessageData(Map<String, dynamic> data) {
+    final summary = <String, int>{};
+    final rawSummary = data['reactionSummary'];
+    if (rawSummary is Map) {
+      for (final entry in rawSummary.entries) {
         final key = entry.key.toString();
         final value = entry.value;
         if (key.isEmpty) continue;
         if (value is int && value > 0) {
-          out[key] = value;
+          summary[key] = value;
         } else if (value is num && value > 0) {
-          out[key] = value.toInt();
-        }
-      }
-      if (out.isNotEmpty) return out;
-    }
-
-    final legacy = data?['reactions'];
-    if (legacy is Map) {
-      for (final entry in legacy.entries) {
-        final key = entry.key.toString();
-        final value = entry.value;
-        if (key.isEmpty) continue;
-        if (value is List) {
-          final count = value.where((e) => e != null).length;
-          if (count > 0) {
-            out[key] = count;
-          }
+          summary[key] = value.toInt();
         }
       }
     }
+    return summary;
+  }
 
-    return out;
+  Map<String, List<String>> _parseLegacyReactionsFromMessageData(
+    Map<String, dynamic> data,
+  ) {
+    final parsed = <String, List<String>>{};
+    final rawLegacy = data['reactions'];
+    if (rawLegacy is! Map) return parsed;
+
+    for (final entry in rawLegacy.entries) {
+      final emoji = entry.key.toString();
+      if (emoji.isEmpty) continue;
+      final value = entry.value;
+      if (value is! List) continue;
+
+      final users = value
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+      if (users.isNotEmpty) {
+        parsed[emoji] = List<String>.from(users);
+      }
+    }
+
+    return parsed;
+  }
+
+  void _removeLegacyUser(
+    Map<String, List<String>> legacy,
+    String emoji,
+    String userId,
+  ) {
+    final users = legacy[emoji];
+    if (users == null || users.isEmpty) return;
+    users.remove(userId);
+    if (users.isEmpty) {
+      legacy.remove(emoji);
+    }
   }
 
   void _decrement(Map<String, int> summary, String emoji) {

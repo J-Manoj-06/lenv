@@ -284,6 +284,141 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     }
   }
 
+  Future<void> _showReactionViewerForMessage(GroupChatMessage message) async {
+    if (message.reactionSummary.isEmpty) return;
+
+    final currentUserId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    final providerUserId = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.uid;
+    final userAliases = <String>[
+      if (providerUserId != null && providerUserId.isNotEmpty) providerUserId,
+    ];
+
+    String? myReaction;
+    try {
+      myReaction = await MessageReactionService.instance.getUserReaction(
+        target: ReactionTarget.classSubjectMessage(
+          classId: widget.classId,
+          subjectId: widget.subjectId,
+          messageId: message.id,
+        ),
+        userId: currentUserId,
+        userAliases: userAliases,
+      );
+    } catch (_) {
+      myReaction = null;
+    }
+
+    if (!mounted) return;
+
+    final summaryEntries = message.reactionSummary.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final total = summaryEntries.fold<int>(0, (sum, e) => sum + e.value);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '$total reaction${total == 1 ? '' : 's'}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: summaryEntries.map((entry) {
+                    final selected = myReaction == entry.key;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? theme.colorScheme.primary.withValues(alpha: 0.18)
+                            : theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${entry.key} ${entry.value}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (myReaction != null) ...[
+                  const SizedBox(height: 14),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: theme.colorScheme.primary.withValues(
+                        alpha: 0.14,
+                      ),
+                      child: Text(
+                        myReaction!,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    title: const Text('You'),
+                    subtitle: const Text('Tap to remove'),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+                      await MessageReactionService.instance.toggleReaction(
+                        target: ReactionTarget.classSubjectMessage(
+                          classId: widget.classId,
+                          subjectId: widget.subjectId,
+                          messageId: message.id,
+                        ),
+                        userId: currentUserId,
+                        emoji: myReaction!,
+                        userAliases: userAliases,
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ===== Pending messages persistence =====
   void _restorePendingMessagesFromCacheSync() {
     try {
@@ -892,6 +1027,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                     MessageReactionSummary(
                       summary: message.reactionSummary,
                       isMe: isMe,
+                      onTap: () => _showReactionViewerForMessage(message),
                     ),
                   ],
                 ),
