@@ -217,9 +217,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     DailyChallengeProvider dailyChallengeProvider,
   ) async {
     try {
-      // Process ended tests in background
-      FirestoreService().processEndedTests().catchError((_) {});
-
       // Initialize daily challenge in background
       dailyChallengeProvider.initialize(userId).catchError((_) {});
     } catch (e) {
@@ -1010,6 +1007,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Stream<List<Map<String, dynamic>>> _combineAnnouncementStreams(
     String instituteId,
   ) async* {
+    if (FirebaseAuth.instance.currentUser == null) {
+      yield const <Map<String, dynamic>>[];
+      return;
+    }
+
     try {
       await _offlineCacheManager.initialize();
     } catch (_) {}
@@ -1028,6 +1030,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               .collection('class_highlights')
               .where('instituteId', isEqualTo: instituteId)
               .snapshots()) {
+        if (FirebaseAuth.instance.currentUser == null) {
+          break;
+        }
+
         final combined = <Map<String, dynamic>>[];
 
         // Add teacher announcements
@@ -1065,6 +1071,16 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         yield combined;
       }
     } catch (e) {
+      final msg = e.toString().toLowerCase();
+      final isSignedOut = FirebaseAuth.instance.currentUser == null;
+      if (isSignedOut &&
+          (msg.contains('permission-denied') ||
+              msg.contains('permission denied') ||
+              msg.contains('insufficient permissions'))) {
+        yield const <Map<String, dynamic>>[];
+        return;
+      }
+
       debugPrint('_combineAnnouncementStreams error: $e');
       final fallback = _offlineCacheManager.getCachedAnnouncements(
         scope: 'student_dashboard',

@@ -246,19 +246,6 @@ class NotificationService {
       final platform = defaultTargetPlatform.name;
       final tokenDocId = '${user.uid}_${token.hashCode.abs()}';
 
-      // Clear duplicate token fields only on docs readable by this user.
-      final sameTokenUsers = await FirebaseFirestore.instance
-          .collection('users')
-          .where('fcmToken', isEqualTo: token)
-          .get();
-      for (final doc in sameTokenUsers.docs) {
-        if (doc.id == user.uid) continue;
-        await doc.reference.set({
-          'fcmToken': FieldValue.delete(),
-          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-
       // IMPORTANT: Rules allow reading only docs where userId == request.auth.uid.
       // So we only maintain this user's token docs here.
       final myTokenDocs = await FirebaseFirestore.instance

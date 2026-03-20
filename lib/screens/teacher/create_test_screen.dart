@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import '../../models/test_model.dart' as tm;
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
@@ -35,6 +36,7 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
   // Scheduling fields (always enabled with current date/time by default)
   DateTime? scheduledDate;
   TimeOfDay? scheduledTime;
+  String? _lastSaveError;
 
   List<Question> questions = [
     Question(
@@ -1231,8 +1233,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                 );
               });
             } else {
+              final reason = _lastSaveError ?? 'Unknown error';
               scaffoldMessenger.showSnackBar(
-                const SnackBar(content: Text('Failed to schedule test')),
+                SnackBar(content: Text('Failed to schedule test: $reason')),
               );
             }
           }
@@ -1279,8 +1282,12 @@ extension on _CreateTestScreenState {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final testProv = Provider.of<TestProvider>(context, listen: false);
     final user = auth.currentUser;
+    _lastSaveError = null;
+    final canonicalTeacherId =
+      fb_auth.FirebaseAuth.instance.currentUser?.uid ?? user?.uid ?? '';
 
-    if (user == null || user.role != UserRole.teacher) {
+    if (user == null || user.role != UserRole.teacher || canonicalTeacherId.isEmpty) {
+      _lastSaveError = 'Please login as a teacher to continue';
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please login as a teacher to continue')),
       );
@@ -1288,6 +1295,7 @@ extension on _CreateTestScreenState {
     }
 
     if (_titleController.text.trim().isEmpty) {
+      _lastSaveError = 'Please enter a test title';
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a test title')),
       );
@@ -1295,18 +1303,21 @@ extension on _CreateTestScreenState {
     }
 
     if (selectedSubject == null || selectedSubject!.trim().isEmpty) {
+      _lastSaveError = 'Please select a subject';
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a subject')));
       return false;
     }
     if (selectedClass == null || selectedClass!.trim().isEmpty) {
+      _lastSaveError = 'Please select a class';
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a class')));
       return false;
     }
     if (selectedSection == null || selectedSection!.trim().isEmpty) {
+      _lastSaveError = 'Please select a section';
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Please select a section')));
@@ -1400,7 +1411,7 @@ extension on _CreateTestScreenState {
       id: '',
       title: _titleController.text.trim(),
       description: '',
-      teacherId: user.uid,
+      teacherId: canonicalTeacherId,
       teacherName: user.name,
       instituteId: user.instituteId ?? '',
       subject: selectedSubject!,
@@ -1428,36 +1439,56 @@ extension on _CreateTestScreenState {
       classId: gradeClassId,
       sectionId: normalizedSection,
       subjectName: selectedSubject!,
-      teacherId: user.uid,
+      teacherId: canonicalTeacherId,
       teacherName: user.name,
       nextAvailableTimestamp: endDate,
     );
 
     if (!lockAcquired) {
-      if (mounted) {
-        final existingLock = lockProv.currentLock;
-        final when = existingLock != null
-            ? _formatLockTime(existingLock.nextAvailableTimestamp)
-            : 'a later time';
-        final who = existingLock?.assignedByTeacherName ?? 'Another teacher';
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Test Already Assigned'),
-            content: Text(
-              '$who has already assigned a test for this class.\n\n'
-              'You can assign the next test after $when or choose a later time.',
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
+      final existingLock = lockProv.lockForOther(canonicalTeacherId);
+      if (existingLock != null) {
+        _lastSaveError =
+            'Another teacher has already assigned this class for now.';
+        if (mounted) {
+          final when = _formatLockTime(existingLock.nextAvailableTimestamp);
+          final who = existingLock.assignedByTeacherName;
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Test Already Assigned'),
+              content: Text(
+                '$who has already assigned a test for this class.\n\n'
+                'You can assign the next test after $when or choose a later time.',
               ),
-            ],
+              actions: [
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return false;
+      }
+
+      // Lock check failed (permissions/network), but no conflicting active lock
+      // was found; proceed so scheduling is not incorrectly blocked.
+      debugPrint(
+        '⚠️ Lock verification unavailable, continuing save without lock. '
+        'Error: ${lockProv.errorMessage ?? 'unknown'}',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not verify active assignment lock. Scheduling anyway.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
           ),
         );
       }
-      return false;
     }
     // ── End lock acquisition ────────────────────────────────────────────────
 
@@ -1469,23 +1500,33 @@ extension on _CreateTestScreenState {
         scheduledTime: scheduledTime!,
       );
       if (!ok) {
+        _lastSaveError = testProv.errorMessage?.trim().isNotEmpty == true
+            ? testProv.errorMessage!.trim()
+            : 'Unknown error';
+      }
+      if (!ok) {
         // Release lock if test creation failed
         await lockProv.releaseLock(
           instituteId: user.instituteId ?? '',
           classId: gradeClassId,
           sectionId: normalizedSection,
-          teacherId: user.uid,
+          teacherId: canonicalTeacherId,
         );
       }
       return ok;
     } else {
       final ok = await testProv.createTest(test);
       if (!ok) {
+        _lastSaveError = testProv.errorMessage?.trim().isNotEmpty == true
+            ? testProv.errorMessage!.trim()
+            : 'Unknown error';
+      }
+      if (!ok) {
         await lockProv.releaseLock(
           instituteId: user.instituteId ?? '',
           classId: gradeClassId,
           sectionId: normalizedSection,
-          teacherId: user.uid,
+          teacherId: canonicalTeacherId,
         );
       }
       return ok;

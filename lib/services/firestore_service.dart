@@ -100,6 +100,9 @@ class FirestoreService {
   // Assign test to all students in the specified class/section using teacher's schoolCode and test's target class
   Future<void> assignTestToClass(String testId, String teacherAuthUid) async {
     try {
+      final effectiveTeacherUid =
+          FirebaseAuth.instance.currentUser?.uid ?? teacherAuthUid;
+
       // Fetch test document to get the target className and section
       final testDoc = await _db.collection('scheduledTests').doc(testId).get();
       if (!testDoc.exists) {
@@ -117,7 +120,7 @@ class FirestoreService {
       // Fetch teacher document
       var teacherDoc = await _db
           .collection('teachers')
-          .doc(teacherAuthUid)
+          .doc(effectiveTeacherUid)
           .get();
       Map<String, dynamic>? teacherData;
 
@@ -201,8 +204,18 @@ class FirestoreService {
 
         String? uid;
         if (userQuery.docs.isNotEmpty) {
-          final userData = userQuery.docs.first.data();
-          uid = (userData['uid'] as String?)?.trim();
+          final userDoc = userQuery.docs.first;
+          final userData = userDoc.data();
+          final docIdUid = userDoc.id.trim();
+          final storedUid = (userData['uid'] as String?)?.trim() ?? '';
+
+          // Canonical UID must be auth UID (users document ID).
+          uid = docIdUid.isNotEmpty ? docIdUid : storedUid;
+
+          // Keep users.uid in sync for legacy flows that still read this field.
+          if (docIdUid.isNotEmpty && storedUid != docIdUid) {
+            usersToCreate[docIdUid] = {'uid': docIdUid, 'email': email};
+          }
         } else {
           // User doesn't exist, prepare to create
           uid = studentInfo['docId'] as String;
@@ -224,7 +237,7 @@ class FirestoreService {
           };
         }
 
-        if (uid != null && uid.isNotEmpty) {
+        if (uid.isNotEmpty) {
           studentAssignments.add({
             'studentId': uid,
             'studentEmail': email,
@@ -245,6 +258,7 @@ class FirestoreService {
         final existingAssignments = await _db
             .collection('testResults')
             .where('testId', isEqualTo: testId)
+          .where('teacherId', isEqualTo: effectiveTeacherUid)
             .where('studentId', whereIn: chunk)
             .get();
 
@@ -308,7 +322,7 @@ class FirestoreService {
           'subject': subject,
           'className': targetClassName,
           'section': targetSection,
-          'teacherId': teacherAuthUid,
+          'teacherId': effectiveTeacherUid,
           'teacherName': teacherName,
           'teacherEmail': teacherData['email'] ?? '',
           'status': 'assigned',
@@ -369,7 +383,7 @@ class FirestoreService {
             testId: testId,
             title: testTitle.toString(),
             subject: subject.toString(),
-            teacherId: teacherAuthUid,
+            teacherId: effectiveTeacherUid,
             className: targetClassName,
             section: targetSection,
             schoolCode: schoolCode,
@@ -398,7 +412,21 @@ class FirestoreService {
     if (test.className != null &&
         test.className!.isNotEmpty &&
         test.status == TestStatus.published) {
-      await assignTestToClass(testId, test.teacherId);
+      try {
+        await assignTestToClass(testId, test.teacherId);
+      } on FirebaseException catch (e) {
+        // Auto-assignment Cloud Function listens on scheduledTests/{testId}.
+        // If direct client writes are blocked by Firestore rules, do not fail
+        // test creation; backend assignment will still process the test.
+        if (e.code == 'permission-denied') {
+          debugPrint(
+            'createTestAndAssignToClass: direct assignment denied for $testId; '
+            'continuing with backend auto-assignment.',
+          );
+        } else {
+          rethrow;
+        }
+      }
     } else {}
 
     return testId;
@@ -529,7 +557,21 @@ class FirestoreService {
     // Assign to students in the target class (just like published tests)
     // This ensures students can see the test in their dashboard
     if (test.className != null && test.className!.isNotEmpty) {
-      await assignTestToClass(testId, test.teacherId);
+      try {
+        await assignTestToClass(testId, test.teacherId);
+      } on FirebaseException catch (e) {
+        // Auto-assignment Cloud Function listens on scheduledTests/{testId}.
+        // If direct client writes are blocked by Firestore rules, do not fail
+        // scheduling; backend assignment will still process the test.
+        if (e.code == 'permission-denied') {
+          debugPrint(
+            'createScheduledTest: direct assignment denied for $testId; '
+            'continuing with backend auto-assignment.',
+          );
+        } else {
+          rethrow;
+        }
+      }
     }
 
     return testId;
@@ -1683,6 +1725,27 @@ class FirestoreService {
   /// This should be called when the app starts or when viewing dashboard
   Future<void> processEndedTests() async {
     try {
+      final authUser = FirebaseAuth.instance.currentUser;
+      if (authUser == null) return;
+
+      // This job must run only for staff/admin contexts.
+      final authDoc = await _db.collection('users').doc(authUser.uid).get();
+      final role =
+          ((authDoc.data()?['role'] ?? authDoc.data()?['userRole'] ?? '')
+                  .toString())
+              .toLowerCase()
+              .trim();
+      const allowedRoles = {
+        'teacher',
+        'teaching',
+        'principal',
+        'institute',
+        'admin',
+      };
+      if (!allowedRoles.contains(role)) {
+        return;
+      }
+
       final now = DateTime.now();
 
       // Find completed results that have not yet awarded points

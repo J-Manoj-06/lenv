@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
@@ -106,7 +107,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Center(
       child: Padding(
@@ -545,14 +545,17 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
           section: t.section,
           schoolCode: t.instituteId,
           onDelete: () async {
+            if (!mounted) return;
+            final messenger = ScaffoldMessenger.maybeOf(context);
             final prov = Provider.of<TestProvider>(context, listen: false);
             final ok = await prov.deleteTest(t.id);
-            if (ok && mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Deleted ${t.title}')));
+            if (!mounted || messenger == null) return;
+            if (ok) {
+              messenger.showSnackBar(
+                SnackBar(content: Text('Deleted ${t.title}')),
+              );
             } else {
-              ScaffoldMessenger.of(context).showSnackBar(
+              messenger.showSnackBar(
                 SnackBar(
                   content: Text(
                     'Failed to delete: ${prov.errorMessage ?? 'Unknown error'}',
@@ -568,9 +571,12 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
 
   Future<int> _getCompletedCount(String testId) async {
     try {
+      final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || uid.isEmpty) return 0;
       final snapshot = await FirebaseFirestore.instance
           .collection('testResults')
           .where('testId', isEqualTo: testId)
+          .where('teacherId', isEqualTo: uid)
           .where('status', isEqualTo: 'completed')
           .get();
       return snapshot.docs.length;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import '../../providers/unread_count_provider.dart';
 import '../../utils/unread_count_mixins.dart';
 import '../../utils/chat_type_config.dart';
@@ -153,10 +154,11 @@ class _GroupsListPageState extends State<GroupsListPage>
       },
       onError: (e) {
         final msg = e.toString().toLowerCase();
+        final isSignedOut = fb_auth.FirebaseAuth.instance.currentUser == null;
         if (msg.contains('permission-denied') ||
             msg.contains('permission denied') ||
             msg.contains('insufficient permissions')) {
-          if (_messageErrorLogged.add(chatId)) {
+          if (!isSignedOut && _messageErrorLogged.add(chatId)) {
             debugPrint('Permission denied listening messages for $chatId');
           }
           _messageListeners[chatId]?.cancel?.call();
@@ -193,10 +195,11 @@ class _GroupsListPageState extends State<GroupsListPage>
       },
       onError: (e) {
         final msg = e.toString().toLowerCase();
+        final isSignedOut = fb_auth.FirebaseAuth.instance.currentUser == null;
         if (msg.contains('permission-denied') ||
             msg.contains('permission denied') ||
             msg.contains('insufficient permissions')) {
-          if (_subjectErrorLogged.add(chatId)) {
+          if (!isSignedOut && _subjectErrorLogged.add(chatId)) {
             debugPrint('Permission denied listening subject for $chatId');
           }
           _subjectListeners[chatId]?.cancel?.call();

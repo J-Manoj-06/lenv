@@ -145,6 +145,39 @@ class ProfileDPProvider extends ChangeNotifier {
         );
   }
 
+  /// Clear all active listeners and transient session state on logout.
+  void clearSession() {
+    _dpSubscription?.cancel();
+    _dpSubscription = null;
+
+    for (final sub in _groupDPSubscriptions.values) {
+      sub.cancel();
+    }
+    _groupDPSubscriptions.clear();
+
+    for (final sub in _staffRoomDPSubscriptions.values) {
+      sub.cancel();
+    }
+    _staffRoomDPSubscriptions.clear();
+
+    _currentUserId = null;
+    _currentUserDP = null;
+    _hasProfileImage = false;
+    _isUploading = false;
+    _uploadProgress = 0;
+    _uploadError = null;
+
+    _userDPCache.clear();
+    _cacheTimestamps.clear();
+    _userDPUpdatedAt.clear();
+    _groupDPCache.clear();
+    _groupDPUpdatedAt.clear();
+    _staffRoomDPCache.clear();
+    _staffRoomDPUpdatedAt.clear();
+
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _dpSubscription?.cancel();

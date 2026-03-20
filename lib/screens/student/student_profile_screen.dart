@@ -707,6 +707,12 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     if (confirmed != true) return;
 
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final profileDpProvider = Provider.of<ProfileDPProvider>(
+        context,
+        listen: false,
+      );
+
       if (mounted) {
         // Clear all provider states before sign out
         final dailyChallengeProvider = Provider.of<DailyChallengeProvider>(
@@ -721,17 +727,24 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         );
         await studentProvider.clear();
 
-        // Clear auth provider and SharedPreferences (handled in signOut)
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        await authProvider.signOut();
+        // Stop profile/group DP streams immediately to avoid auth-null races.
+        profileDpProvider.clearSession();
       }
 
-      // Navigate to role selection and clear all previous routes
+      // Navigate first so dashboard tabs dispose and detach Firestore listeners.
       if (mounted) {
         Navigator.of(
           context,
         ).pushNamedAndRemoveUntil('/role-selection', (route) => false);
       }
+
+      // Sign out after route replacement settles to avoid auth-null listener races.
+      unawaited(
+        Future<void>(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+          await authProvider.signOut();
+        }),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

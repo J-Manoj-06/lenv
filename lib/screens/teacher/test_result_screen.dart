@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import '../../models/test_result_model.dart';
 import 'teacher_student_result_detail_screen.dart';
 import 'dart:math' as math;
@@ -45,11 +46,19 @@ class _TestResultScreenState extends State<TestResultScreen> {
 
     try {
       final firestore = FirebaseFirestore.instance;
+      final teacherUid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+      if (teacherUid == null || teacherUid.isEmpty) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
 
       // Get all assignments for this test (both completed and pending)
       final assignmentsSnapshot = await firestore
           .collection('testResults')
           .where('testId', isEqualTo: widget.testId)
+          .where('teacherId', isEqualTo: teacherUid)
           .get();
 
       // Separate completed and pending, deduplicating by studentId
