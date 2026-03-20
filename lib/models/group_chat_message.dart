@@ -17,6 +17,8 @@ class GroupChatMessage {
   final Map<String, dynamic>? rawData; // Store raw Firestore data for polls
   final String? classId; // Class ID for group chat
   final String? subjectId; // Subject ID for group chat
+  final Map<String, int> reactionSummary; // emoji -> count
+  final int reactionCount;
 
   GroupChatMessage({
     required this.id,
@@ -33,6 +35,8 @@ class GroupChatMessage {
     this.rawData,
     this.classId,
     this.subjectId,
+    this.reactionSummary = const <String, int>{},
+    this.reactionCount = 0,
   });
 
   factory GroupChatMessage.fromFirestore(Map<String, dynamic> data, String id) {
@@ -77,7 +81,51 @@ class GroupChatMessage {
       rawData: data,
       classId: data['classId'],
       subjectId: data['subjectId'],
+      reactionSummary: _parseReactionSummary(data),
+      reactionCount: _parseReactionCount(data),
     );
+  }
+
+  static Map<String, int> _parseReactionSummary(Map<String, dynamic> data) {
+    final summary = <String, int>{};
+    final rawSummary = data['reactionSummary'];
+    if (rawSummary is Map) {
+      for (final entry in rawSummary.entries) {
+        final key = entry.key.toString();
+        final value = entry.value;
+        if (key.isEmpty) continue;
+        if (value is int && value > 0) {
+          summary[key] = value;
+        } else if (value is num && value > 0) {
+          summary[key] = value.toInt();
+        }
+      }
+      if (summary.isNotEmpty) return summary;
+    }
+
+    // Backward compatibility with legacy map: emoji -> list<userId>
+    final legacy = data['reactions'];
+    if (legacy is Map) {
+      for (final entry in legacy.entries) {
+        final key = entry.key.toString();
+        if (key.isEmpty) continue;
+        final value = entry.value;
+        if (value is List && value.isNotEmpty) {
+          summary[key] = value.length;
+        }
+      }
+    }
+
+    return summary;
+  }
+
+  static int _parseReactionCount(Map<String, dynamic> data) {
+    final raw = data['reactionCount'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+
+    final summary = _parseReactionSummary(data);
+    return summary.values.fold<int>(0, (sum, value) => sum + value);
   }
 
   Map<String, dynamic> toFirestore() {
@@ -92,6 +140,8 @@ class GroupChatMessage {
       'deletedFor': deletedFor,
       'isDeleted': isDeleted,
       'type': type,
+      'reactionSummary': reactionSummary,
+      'reactionCount': reactionCount,
     };
   }
 

@@ -10,6 +10,8 @@ class ChatMessage {
   final bool readByParent;
   // True while the write hasn't been committed on the server yet
   final bool isPending;
+  final Map<String, int> reactionSummary;
+  final int reactionCount;
 
   ChatMessage({
     required this.id,
@@ -20,6 +22,8 @@ class ChatMessage {
     this.readByTeacher = false,
     this.readByParent = false,
     this.isPending = false,
+    this.reactionSummary = const <String, int>{},
+    this.reactionCount = 0,
   });
 
   factory ChatMessage.fromFirestore(DocumentSnapshot doc) {
@@ -33,7 +37,36 @@ class ChatMessage {
       readByTeacher: data['readByTeacher'] ?? false,
       readByParent: data['readByParent'] ?? false,
       isPending: doc.metadata.hasPendingWrites,
+      reactionSummary: _parseReactionSummary(data),
+      reactionCount: _parseReactionCount(data),
     );
+  }
+
+  static Map<String, int> _parseReactionSummary(Map<String, dynamic> data) {
+    final summary = <String, int>{};
+    final rawSummary = data['reactionSummary'];
+    if (rawSummary is Map) {
+      for (final entry in rawSummary.entries) {
+        final key = entry.key.toString();
+        final value = entry.value;
+        if (key.isEmpty) continue;
+        if (value is int && value > 0) {
+          summary[key] = value;
+        } else if (value is num && value > 0) {
+          summary[key] = value.toInt();
+        }
+      }
+    }
+    return summary;
+  }
+
+  static int _parseReactionCount(Map<String, dynamic> data) {
+    final raw = data['reactionCount'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return _parseReactionSummary(
+      data,
+    ).values.fold<int>(0, (sum, value) => sum + value);
   }
 
   Map<String, dynamic> toFirestore() {
@@ -44,6 +77,8 @@ class ChatMessage {
       'createdAt': Timestamp.fromDate(createdAt),
       'readByTeacher': readByTeacher,
       'readByParent': readByParent,
+      'reactionSummary': reactionSummary,
+      'reactionCount': reactionCount,
     };
   }
 }

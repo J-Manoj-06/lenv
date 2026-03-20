@@ -5,6 +5,7 @@ import 'package:record/record.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:path/path.dart' as p;
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../../models/chat_message.dart';
@@ -15,6 +16,9 @@ import '../../../services/cloudflare_r2_service.dart';
 import '../../../services/local_cache_service.dart';
 import '../../../config/cloudflare_config.dart';
 import '../../../services/connectivity_service.dart';
+import '../../../services/message_reaction_service.dart';
+import '../../../widgets/message_reaction_picker.dart';
+import '../../../widgets/message_reaction_summary.dart';
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -57,6 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
   double _slideOffsetX = 0;
   bool _isCancelled = false;
   late Timer _recordingTimer;
+  bool _isReactionPickerOpen = false;
 
   @override
   void initState() {
@@ -116,6 +121,60 @@ class _ChatScreenState extends State<ChatScreen> {
       conversationId: widget.conversationId,
       userRole: 'teacher',
     );
+  }
+
+  Future<void> _showReactionPickerForMessage({
+    required ChatMessage message,
+    required Offset globalPosition,
+  }) async {
+    if (_isReactionPickerOpen) return;
+    final currentUserId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    _isReactionPickerOpen = true;
+    try {
+      final providerUserId = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).currentUser?.uid;
+      final userAliases = <String>[
+        if (providerUserId != null && providerUserId.isNotEmpty) providerUserId,
+      ];
+
+      final selectedEmoji = await MessageReactionService.instance
+          .getUserReaction(
+            target: ReactionTarget.conversationMessage(
+              conversationId: widget.conversationId,
+              messageId: message.id,
+            ),
+            userId: currentUserId,
+            userAliases: userAliases,
+          );
+
+      final emoji = await showMessageReactionPicker(
+        context: context,
+        globalPosition: globalPosition,
+        selectedEmoji: selectedEmoji,
+      );
+      if (emoji == null || emoji.isEmpty) return;
+
+      await MessageReactionService.instance.toggleReaction(
+        target: ReactionTarget.conversationMessage(
+          conversationId: widget.conversationId,
+          messageId: message.id,
+        ),
+        userId: currentUserId,
+        emoji: emoji,
+        userAliases: userAliases,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update reaction right now')),
+      );
+    } finally {
+      _isReactionPickerOpen = false;
+    }
   }
 
   @override
@@ -791,33 +850,45 @@ class _ChatScreenState extends State<ChatScreen> {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
-            Material(
-              elevation: isDark ? 0 : 1,
-              color: isTeacher
-                  ? (isDark
-                        ? theme.colorScheme.surface
-                        : theme.colorScheme.surfaceContainerHighest)
-                  : (isDark ? theme.colorScheme.surface : theme.cardColor),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(12),
-                topRight: const Radius.circular(12),
-                bottomLeft: Radius.circular(isTeacher ? 12 : 6),
-                bottomRight: Radius.circular(isTeacher ? 6 : 12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
+            GestureDetector(
+              onLongPressStart: (details) {
+                _showReactionPickerForMessage(
+                  message: message,
+                  globalPosition: details.globalPosition,
+                );
+              },
+              child: Material(
+                elevation: isDark ? 0 : 1,
+                color: isTeacher
+                    ? (isDark
+                          ? theme.colorScheme.surface
+                          : theme.colorScheme.surfaceContainerHighest)
+                    : (isDark ? theme.colorScheme.surface : theme.cardColor),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(12),
+                  topRight: const Radius.circular(12),
+                  bottomLeft: Radius.circular(isTeacher ? 12 : 6),
+                  bottomRight: Radius.circular(isTeacher ? 6 : 12),
                 ),
-                child: Text(
-                  message.text,
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface,
-                    fontSize: 14,
-                    height: 1.5,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: Text(
+                    message.text,
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface,
+                      fontSize: 14,
+                      height: 1.5,
+                    ),
                   ),
                 ),
               ),
+            ),
+            MessageReactionSummary(
+              summary: message.reactionSummary,
+              isMe: isTeacher,
             ),
             const SizedBox(height: 5),
             Padding(

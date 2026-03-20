@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:record/record.dart';
@@ -48,6 +49,9 @@ import '../../models/local_message.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/active_chat_service.dart';
 import '../../utils/session_manager.dart';
+import '../../services/message_reaction_service.dart';
+import '../../widgets/message_reaction_picker.dart';
+import '../../widgets/message_reaction_summary.dart';
 
 class ParentGroupChatPage extends StatefulWidget {
   final String groupId;
@@ -157,6 +161,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
   Future<bool>? _forwardEligibilityFuture;
+  bool _isReactionPickerOpen = false;
   final ValueNotifier<bool> _hasText = ValueNotifier<bool>(false);
 
   // ✅ NEW: Use ValueNotifier for loading state to avoid full rebuilds
@@ -230,6 +235,63 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       Set<String>.from(selectedIds),
     );
     return _forwardEligibilityFuture!;
+  }
+
+  Future<void> _showReactionPickerForMessage({
+    required CommunityMessageModel msg,
+    required Offset globalPosition,
+  }) async {
+    if (_isReactionPickerOpen) return;
+
+    final userId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null || userId.isEmpty) return;
+
+    _isReactionPickerOpen = true;
+    try {
+      final providerUserId = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).currentUser?.uid;
+      final resolvedUserId = await _resolveCurrentUserId();
+      final userAliases = <String>[
+        if (providerUserId != null && providerUserId.isNotEmpty) providerUserId,
+        if (resolvedUserId != null && resolvedUserId.isNotEmpty) resolvedUserId,
+      ];
+
+      final selectedEmoji = await MessageReactionService.instance
+          .getUserReaction(
+            target: ReactionTarget.parentTeacherGroupMessage(
+              groupId: widget.groupId,
+              messageId: msg.messageId,
+            ),
+            userId: userId,
+            userAliases: userAliases,
+          );
+
+      final emoji = await showMessageReactionPicker(
+        context: context,
+        globalPosition: globalPosition,
+        selectedEmoji: selectedEmoji,
+      );
+      if (emoji == null || emoji.isEmpty) return;
+
+      await MessageReactionService.instance.toggleReaction(
+        target: ReactionTarget.parentTeacherGroupMessage(
+          groupId: widget.groupId,
+          messageId: msg.messageId,
+        ),
+        userId: userId,
+        emoji: emoji,
+        userAliases: userAliases,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update reaction right now')),
+      );
+    } finally {
+      _isReactionPickerOpen = false;
+    }
   }
 
   bool _isImageMime(String? mimeType) {
@@ -2748,17 +2810,25 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                       Expanded(
                                         child: GestureDetector(
                                           behavior: HitTestBehavior.opaque,
-                                          onLongPress: () {
-                                            if (!_selectionMode &&
+                                          onLongPressStart: (details) {
+                                            if (_selectionMode &&
                                                 !isPending &&
                                                 isCurrentUser) {
-                                              // Batch state updates to prevent flickering
                                               _selectionMode = true;
                                               setState(() {
                                                 _selectedMessages.value = {
                                                   msg.messageId,
                                                 };
                                               });
+                                              return;
+                                            }
+
+                                            if (!isPending) {
+                                              _showReactionPickerForMessage(
+                                                msg: msg,
+                                                globalPosition:
+                                                    details.globalPosition,
+                                              );
                                             }
                                           },
                                           onTap: _selectionMode && isCurrentUser
@@ -2768,6 +2838,19 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                     isPending: isPending,
                                                     isSelected: isSelected,
                                                   );
+                                                }
+                                              : null,
+                                          onDoubleTap:
+                                              (!_selectionMode &&
+                                                  !isPending &&
+                                                  isCurrentUser)
+                                              ? () {
+                                                  _selectionMode = true;
+                                                  setState(() {
+                                                    _selectedMessages.value = {
+                                                      msg.messageId,
+                                                    };
+                                                  });
                                                 }
                                               : null,
                                           child: Align(
@@ -3322,6 +3405,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                       ),
                                                     ),
                                                   ),
+                                                ),
+                                                MessageReactionSummary(
+                                                  summary: msg.reactionSummary,
+                                                  isMe: isCurrentUser,
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Padding(

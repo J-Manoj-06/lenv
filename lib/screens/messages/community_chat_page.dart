@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
@@ -45,6 +46,9 @@ import '../../services/media_storage_helper.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
 import '../../services/active_chat_service.dart';
+import '../../services/message_reaction_service.dart';
+import '../../widgets/message_reaction_picker.dart';
+import '../../widgets/message_reaction_summary.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -205,6 +209,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
   Future<bool>? _forwardEligibilityFuture;
+  bool _isReactionPickerOpen = false;
 
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
@@ -312,6 +317,60 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       Set<String>.from(selectedIds),
     );
     return _forwardEligibilityFuture!;
+  }
+
+  Future<void> _showReactionPickerForMessage({
+    required GroupChatMessage message,
+    required Offset globalPosition,
+  }) async {
+    if (_isReactionPickerOpen) return;
+    final currentUserId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    _isReactionPickerOpen = true;
+    try {
+      final providerUserId = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).currentUser?.uid;
+      final userAliases = <String>[
+        if (providerUserId != null && providerUserId.isNotEmpty) providerUserId,
+      ];
+
+      final selectedEmoji = await MessageReactionService.instance
+          .getUserReaction(
+            target: ReactionTarget.communityMessage(
+              communityId: widget.communityId,
+              messageId: message.id,
+            ),
+            userId: currentUserId,
+            userAliases: userAliases,
+          );
+
+      final emoji = await showMessageReactionPicker(
+        context: context,
+        globalPosition: globalPosition,
+        selectedEmoji: selectedEmoji,
+      );
+      if (emoji == null || emoji.isEmpty) return;
+
+      await MessageReactionService.instance.toggleReaction(
+        target: ReactionTarget.communityMessage(
+          communityId: widget.communityId,
+          messageId: message.id,
+        ),
+        userId: currentUserId,
+        emoji: emoji,
+        userAliases: userAliases,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update reaction right now')),
+      );
+    } finally {
+      _isReactionPickerOpen = false;
+    }
   }
 
   @override
@@ -2733,13 +2792,21 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                       key: getMessageKey(message.id),
                                       isHighlighted: isHighlighted,
                                       child: GestureDetector(
-                                        onLongPress: () {
-                                          _isSelectionMode.value = true;
-                                          _selectedMessages.value = {
-                                            ...selectedMessages,
-                                            message.id,
-                                          };
-                                          _invalidateShareEligibilityCache();
+                                        onLongPressStart: (details) {
+                                          if (isSelectionMode) {
+                                            _selectedMessages.value = {
+                                              ...selectedMessages,
+                                              message.id,
+                                            };
+                                            _invalidateShareEligibilityCache();
+                                            return;
+                                          }
+
+                                          _showReactionPickerForMessage(
+                                            message: message,
+                                            globalPosition:
+                                                details.globalPosition,
+                                          );
                                         },
                                         onTap: isSelectionMode
                                             ? () {
@@ -2763,23 +2830,43 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                                 _invalidateShareEligibilityCache();
                                               }
                                             : null,
-                                        child: _MessageBubble(
-                                          message: message,
-                                          isMe: isMe,
-                                          uploading: isPending,
-                                          uploadProgress: uploadProgress,
-                                          localSenderMediaPaths:
-                                              _localSenderMediaPaths,
-                                          uploadingMessageIds:
-                                              _uploadingMessageIds,
-                                          pendingUploadProgress:
-                                              _pendingUploadProgress,
-                                          selectionMode: isSelectionMode,
-                                          isSelected: isSelected,
-                                          communityId: widget.communityId,
-                                          userRole: userRole,
-                                          failedMessageIds: _failedMessageIds,
-                                          onRetry: _retryUpload,
+                                        onDoubleTap: isSelectionMode
+                                            ? null
+                                            : () {
+                                                _isSelectionMode.value = true;
+                                                _selectedMessages.value = {
+                                                  ...selectedMessages,
+                                                  message.id,
+                                                };
+                                                _invalidateShareEligibilityCache();
+                                              },
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            _MessageBubble(
+                                              message: message,
+                                              isMe: isMe,
+                                              uploading: isPending,
+                                              uploadProgress: uploadProgress,
+                                              localSenderMediaPaths:
+                                                  _localSenderMediaPaths,
+                                              uploadingMessageIds:
+                                                  _uploadingMessageIds,
+                                              pendingUploadProgress:
+                                                  _pendingUploadProgress,
+                                              selectionMode: isSelectionMode,
+                                              isSelected: isSelected,
+                                              communityId: widget.communityId,
+                                              userRole: userRole,
+                                              failedMessageIds:
+                                                  _failedMessageIds,
+                                              onRetry: _retryUpload,
+                                            ),
+                                            MessageReactionSummary(
+                                              summary: message.reactionSummary,
+                                              isMe: isMe,
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ),

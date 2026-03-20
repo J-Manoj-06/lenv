@@ -28,6 +28,8 @@ class CommunityMessageModel {
   final int reportCount;
   final List<String>? deletedFor; // List of user IDs who deleted this message
   final DocumentSnapshot? documentSnapshot; // ✅ For pagination support
+  final Map<String, int> reactionSummary; // emoji -> count
+  final int reactionCount;
 
   CommunityMessageModel({
     required this.messageId,
@@ -55,6 +57,8 @@ class CommunityMessageModel {
     required this.reportCount,
     this.deletedFor,
     this.documentSnapshot,
+    this.reactionSummary = const <String, int>{},
+    this.reactionCount = 0,
   });
 
   factory CommunityMessageModel.fromFirestore(DocumentSnapshot doc) {
@@ -115,6 +119,36 @@ class CommunityMessageModel {
         }
       });
     }
+
+    final parsedReactionSummary = <String, int>{};
+    if (data['reactionSummary'] is Map) {
+      final reactionSummaryData = Map<dynamic, dynamic>.from(
+        data['reactionSummary'] as Map,
+      );
+      reactionSummaryData.forEach((key, value) {
+        final emoji = asString(key);
+        if (emoji.isEmpty) return;
+        if (value is int && value > 0) {
+          parsedReactionSummary[emoji] = value;
+        } else if (value is num && value > 0) {
+          parsedReactionSummary[emoji] = value.toInt();
+        }
+      });
+    }
+
+    if (parsedReactionSummary.isEmpty) {
+      reactionsMap.forEach((emoji, userIds) {
+        if (userIds.isNotEmpty) {
+          parsedReactionSummary[emoji] = userIds.length;
+        }
+      });
+    }
+
+    final parsedReactionCount = data['reactionCount'] is int
+        ? data['reactionCount'] as int
+        : data['reactionCount'] is num
+        ? (data['reactionCount'] as num).toInt()
+        : parsedReactionSummary.values.fold<int>(0, (sum, c) => sum + c);
 
     MediaMetadata? parsedMediaMetadata;
     try {
@@ -180,6 +214,8 @@ class CommunityMessageModel {
                 .toList()
           : null,
       documentSnapshot: doc, // ✅ Store for pagination
+      reactionSummary: parsedReactionSummary,
+      reactionCount: parsedReactionCount,
     );
   }
 
@@ -209,6 +245,8 @@ class CommunityMessageModel {
       'isReported': isReported,
       'reportCount': reportCount,
       'deletedFor': deletedFor,
+      'reactionSummary': reactionSummary,
+      'reactionCount': reactionCount,
     };
   }
 

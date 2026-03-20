@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:path_provider/path_provider.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:intl/intl.dart';
@@ -54,6 +55,9 @@ import 'mindmap_create_page.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
 import '../../services/active_chat_service.dart';
+import '../../services/message_reaction_service.dart';
+import '../../widgets/message_reaction_picker.dart';
+import '../../widgets/message_reaction_summary.dart';
 
 class TeacherGroupChatPage extends StatefulWidget {
   final String classId;
@@ -126,6 +130,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+  bool _isReactionPickerOpen = false;
   String? _shareEligibilitySelectionKey;
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
@@ -221,6 +226,62 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       Set<String>.from(selectedIds),
     );
     return _forwardEligibilityFuture!;
+  }
+
+  Future<void> _showReactionPickerForMessage({
+    required GroupChatMessage message,
+    required Offset globalPosition,
+  }) async {
+    if (_isReactionPickerOpen) return;
+    final currentUserId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    _isReactionPickerOpen = true;
+    try {
+      final providerUserId = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).currentUser?.uid;
+      final userAliases = <String>[
+        if (providerUserId != null && providerUserId.isNotEmpty) providerUserId,
+      ];
+
+      final selectedEmoji = await MessageReactionService.instance
+          .getUserReaction(
+            target: ReactionTarget.classSubjectMessage(
+              classId: widget.classId,
+              subjectId: widget.subjectId,
+              messageId: message.id,
+            ),
+            userId: currentUserId,
+            userAliases: userAliases,
+          );
+
+      final emoji = await showMessageReactionPicker(
+        context: context,
+        globalPosition: globalPosition,
+        selectedEmoji: selectedEmoji,
+      );
+      if (emoji == null || emoji.isEmpty) return;
+
+      await MessageReactionService.instance.toggleReaction(
+        target: ReactionTarget.classSubjectMessage(
+          classId: widget.classId,
+          subjectId: widget.subjectId,
+          messageId: message.id,
+        ),
+        userId: currentUserId,
+        emoji: emoji,
+        userAliases: userAliases,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update reaction right now')),
+      );
+    } finally {
+      _isReactionPickerOpen = false;
+    }
   }
 
   // ===== Pending messages persistence =====
@@ -755,12 +816,18 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
               },
               child: GestureDetector(
                 key: ValueKey('msg-${message.id}'),
-                onLongPress: () {
-                  setState(() {
-                    _isSelectionMode = true;
-                    _selectedMessages.add(message.id);
-                    _invalidateShareEligibilityCache();
-                  });
+                onLongPressStart: (details) {
+                  if (_isSelectionMode) {
+                    setState(() {
+                      _selectedMessages.add(message.id);
+                      _invalidateShareEligibilityCache();
+                    });
+                    return;
+                  }
+                  _showReactionPickerForMessage(
+                    message: message,
+                    globalPosition: details.globalPosition,
+                  );
                 },
                 onTap: _isSelectionMode
                     ? () {
@@ -777,38 +844,55 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         });
                       }
                     : null,
-                child: Row(
+                onDoubleTap: _isSelectionMode
+                    ? null
+                    : () {
+                        setState(() {
+                          _isSelectionMode = true;
+                          _selectedMessages.add(message.id);
+                          _invalidateShareEligibilityCache();
+                        });
+                      },
+                child: Column(
                   children: [
-                    Expanded(
-                      child: _MessageBubble(
-                        message: message,
-                        isMe: isMe,
-                        uploading: isPending,
-                        uploadProgress: uploadProgress,
-                        localSenderMediaPaths: _localSenderMediaPaths,
-                        selectionMode: _isSelectionMode,
-                        uploadingMessageIds: _uploadingMessageIds,
-                        pendingUploadProgress: _pendingUploadProgress,
-                        classId: widget.classId,
-                        subjectId: widget.subjectId,
-                        failedMessageIds: _failedMessageIds,
-                        onRetry: _retryUpload,
-                        key: ValueKey('bubble-${message.id}'),
-                      ),
-                    ),
-                    if (_isSelectionMode)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Icon(
-                          isSelected
-                              ? Icons.check_circle
-                              : Icons.radio_button_unchecked,
-                          color: isSelected
-                              ? const Color(0xFFFFA929)
-                              : Colors.grey,
-                          size: 24,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _MessageBubble(
+                            message: message,
+                            isMe: isMe,
+                            uploading: isPending,
+                            uploadProgress: uploadProgress,
+                            localSenderMediaPaths: _localSenderMediaPaths,
+                            selectionMode: _isSelectionMode,
+                            uploadingMessageIds: _uploadingMessageIds,
+                            pendingUploadProgress: _pendingUploadProgress,
+                            classId: widget.classId,
+                            subjectId: widget.subjectId,
+                            failedMessageIds: _failedMessageIds,
+                            onRetry: _retryUpload,
+                            key: ValueKey('bubble-${message.id}'),
+                          ),
                         ),
-                      ),
+                        if (_isSelectionMode)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Icon(
+                              isSelected
+                                  ? Icons.check_circle
+                                  : Icons.radio_button_unchecked,
+                              color: isSelected
+                                  ? const Color(0xFFFFA929)
+                                  : Colors.grey,
+                              size: 24,
+                            ),
+                          ),
+                      ],
+                    ),
+                    MessageReactionSummary(
+                      summary: message.reactionSummary,
+                      isMe: isMe,
+                    ),
                   ],
                 ),
               ),

@@ -121,6 +121,14 @@ service cloud.firestore {
         || hasTeacherGroupAssignment(groupId)
       );
     }
+
+    function reactionAggregateUpdateOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'reactionSummary',
+        'reactionCount',
+        'reactionUpdatedAt'
+      ]);
+    }
     
     function hasRole(role) {
       return isSignedIn() && userRole() == role;
@@ -436,6 +444,11 @@ service cloud.firestore {
         match /messages/{messageId} {
           allow read, create: if isSignedIn();
           allow update, delete: if isSignedIn();
+
+          match /reactions/{reactionUserId} {
+            allow read: if isSignedIn();
+            allow create, update, delete: if isSignedIn() && uidIs(reactionUserId);
+          }
         }
       }
     }
@@ -453,8 +466,15 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create: if isSignedIn();
         allow update, delete: if isSignedIn() && (
-          resource.data.senderId == request.auth.uid || isAdmin()
+          resource.data.senderId == request.auth.uid
+          || isAdmin()
+          || reactionAggregateUpdateOnly()
         );
+
+        match /reactions/{reactionUserId} {
+          allow read: if isSignedIn();
+          allow create, update, delete: if isSignedIn() && uidIs(reactionUserId);
+        }
       }
     }
     
@@ -530,8 +550,15 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create: if isSignedIn();
         allow update, delete: if isSignedIn() && (
-          resource.data.senderId == request.auth.uid || isAdmin()
+          resource.data.senderId == request.auth.uid
+          || isAdmin()
+          || reactionAggregateUpdateOnly()
         );
+
+        match /reactions/{reactionUserId} {
+          allow read: if isSignedIn();
+          allow create, update, delete: if isSignedIn() && uidIs(reactionUserId);
+        }
       }
       
       // Members subcollection (join/leave community)
@@ -581,8 +608,15 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow create: if isSignedIn();
         allow update, delete: if isSignedIn() && (
-          resource.data.senderId == request.auth.uid || isAdmin()
+          resource.data.senderId == request.auth.uid
+          || isAdmin()
+          || reactionAggregateUpdateOnly()
         );
+
+        match /reactions/{reactionUserId} {
+          allow read: if isSignedIn();
+          allow create, update, delete: if isSignedIn() && uidIs(reactionUserId);
+        }
       }
     }
     
@@ -594,7 +628,15 @@ service cloud.firestore {
         allow create: if isSignedIn()
           && request.resource.data.senderId == request.auth.uid;
         allow update, delete: if isSignedIn()
-          && resource.data.senderId == request.auth.uid;
+          && (
+            resource.data.senderId == request.auth.uid
+            || reactionAggregateUpdateOnly()
+          );
+
+        match /reactions/{reactionUserId} {
+          allow read: if isSignedIn();
+          allow create, update, delete: if isSignedIn() && uidIs(reactionUserId);
+        }
       }
       
       match /media/{mediaId} {

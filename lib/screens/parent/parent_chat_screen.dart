@@ -18,6 +18,9 @@ import '../../config/cloudflare_config.dart';
 import '../../models/media_metadata.dart';
 import '../../widgets/modern_attachment_sheet.dart';
 import '../../services/connectivity_service.dart';
+import '../../services/message_reaction_service.dart';
+import '../../widgets/message_reaction_picker.dart';
+import '../../widgets/message_reaction_summary.dart';
 
 class ParentChatScreen extends StatefulWidget {
   final String teacherId;
@@ -61,6 +64,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   final Map<String, ValueNotifier<double>> _progressNotifiers = {};
   final Map<String, String> _localMediaPaths = {};
   final Map<String, int> _lastUploadPercent = {};
+  bool _isReactionPickerOpen = false;
 
   // Audio recording
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -180,6 +184,69 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
     );
 
     setState(() => _conversationId = id);
+  }
+
+  Map<String, int> _reactionSummaryForMap(Map<String, dynamic> msg) {
+    final summary = <String, int>{};
+    final raw = msg['reactionSummary'];
+    if (raw is Map) {
+      for (final entry in raw.entries) {
+        final key = entry.key.toString();
+        final value = entry.value;
+        if (key.isEmpty) continue;
+        if (value is int && value > 0) {
+          summary[key] = value;
+        } else if (value is num && value > 0) {
+          summary[key] = value.toInt();
+        }
+      }
+    }
+    return summary;
+  }
+
+  Future<void> _reactToConversationMessage({
+    required String messageId,
+    required Offset globalPosition,
+  }) async {
+    if (_isReactionPickerOpen) return;
+    if (_conversationId == null) return;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    _isReactionPickerOpen = true;
+    try {
+      final selectedEmoji = await MessageReactionService.instance
+          .getUserReaction(
+            target: ReactionTarget.conversationMessage(
+              conversationId: _conversationId!,
+              messageId: messageId,
+            ),
+            userId: currentUserId,
+          );
+
+      final emoji = await showMessageReactionPicker(
+        context: context,
+        globalPosition: globalPosition,
+        selectedEmoji: selectedEmoji,
+      );
+      if (emoji == null || emoji.isEmpty) return;
+
+      await MessageReactionService.instance.toggleReaction(
+        target: ReactionTarget.conversationMessage(
+          conversationId: _conversationId!,
+          messageId: messageId,
+        ),
+        userId: currentUserId,
+        emoji: emoji,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update reaction right now')),
+      );
+    } finally {
+      _isReactionPickerOpen = false;
+    }
   }
 
   Future<void> _startRecording() async {
@@ -466,6 +533,12 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                         padding: const EdgeInsets.all(16),
                         itemBuilder: (context, index) {
                           final msg = allMessages[index];
+                          final messageId =
+                              (msg['_docId'] ?? msg['messageId'] ?? '')
+                                  .toString();
+                          final isPendingMessage = messageId.startsWith(
+                            'pending:',
+                          );
                           final isParent = msg['senderRole'] == 'parent';
                           final deliveredToTeacher =
                               (msg['deliveredToTeacher'] ?? false) as bool;
@@ -479,86 +552,115 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                             alignment: isParent
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 360),
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: hasMedia
-                                      ? Colors.transparent
-                                      : (isParent
-                                            ? const Color(0xFF1362EB)
-                                            : (isDark
-                                                  ? const Color(0xFF2A2A2A)
-                                                  : Colors.grey.shade200)),
-                                  borderRadius: BorderRadius.circular(12)
-                                      .copyWith(
-                                        bottomRight: isParent
-                                            ? const Radius.circular(4)
-                                            : null,
-                                        bottomLeft: !isParent
-                                            ? const Radius.circular(4)
-                                            : null,
-                                      ),
+                            child: GestureDetector(
+                              onLongPressStart: isPendingMessage
+                                  ? null
+                                  : (details) {
+                                      _reactToConversationMessage(
+                                        messageId: messageId,
+                                        globalPosition: details.globalPosition,
+                                      );
+                                    },
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 360,
                                 ),
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: hasMedia ? 4 : 16,
-                                    vertical: hasMedia ? 4 : 12,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // Media preview
-                                      if (hasMedia) ...[
-                                        Text(
-                                          'Media attachment: ${mediaMetadata.originalFileName ?? "file"}',
-                                          style: TextStyle(
-                                            color: isParent
-                                                ? Colors.white
-                                                : (isDark
-                                                      ? Colors.white
-                                                      : Colors.black87),
-                                            fontStyle: FontStyle.italic,
-                                          ),
+                                child: Column(
+                                  crossAxisAlignment: isParent
+                                      ? CrossAxisAlignment.end
+                                      : CrossAxisAlignment.start,
+                                  children: [
+                                    DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: hasMedia
+                                            ? Colors.transparent
+                                            : (isParent
+                                                  ? const Color(0xFF1362EB)
+                                                  : (isDark
+                                                        ? const Color(
+                                                            0xFF2A2A2A,
+                                                          )
+                                                        : Colors
+                                                              .grey
+                                                              .shade200)),
+                                        borderRadius: BorderRadius.circular(12)
+                                            .copyWith(
+                                              bottomRight: isParent
+                                                  ? const Radius.circular(4)
+                                                  : null,
+                                              bottomLeft: !isParent
+                                                  ? const Radius.circular(4)
+                                                  : null,
+                                            ),
+                                      ),
+                                      child: Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: hasMedia ? 4 : 16,
+                                          vertical: hasMedia ? 4 : 12,
                                         ),
-                                        if ((msg['text'] ?? '').isNotEmpty)
-                                          const SizedBox(height: 8),
-                                      ],
-                                      // Text content
-                                      if ((msg['text'] ?? '').isNotEmpty)
-                                        Text(
-                                          msg['text'] ?? '',
-                                          style: TextStyle(
-                                            color: isParent
-                                                ? Colors.white
-                                                : (isDark
-                                                      ? Colors.white
-                                                      : Colors.black87),
-                                          ),
-                                        ),
-                                      if (isParent) ...[
-                                        const SizedBox(height: 4),
-                                        Row(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Icon(
-                                              readByTeacher
-                                                  ? Icons.done_all
-                                                  : deliveredToTeacher
-                                                  ? Icons.done_all
-                                                  : Icons.done,
-                                              size: 16,
-                                              // Use lighter accent so blue ticks are visible on blue bubble
-                                              color: readByTeacher
-                                                  ? Colors.lightBlueAccent
-                                                  : Colors.white70,
-                                            ),
+                                            // Media preview
+                                            if (hasMedia) ...[
+                                              Text(
+                                                'Media attachment: ${mediaMetadata.originalFileName ?? "file"}',
+                                                style: TextStyle(
+                                                  color: isParent
+                                                      ? Colors.white
+                                                      : (isDark
+                                                            ? Colors.white
+                                                            : Colors.black87),
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                              if ((msg['text'] ?? '')
+                                                  .isNotEmpty)
+                                                const SizedBox(height: 8),
+                                            ],
+                                            // Text content
+                                            if ((msg['text'] ?? '').isNotEmpty)
+                                              Text(
+                                                msg['text'] ?? '',
+                                                style: TextStyle(
+                                                  color: isParent
+                                                      ? Colors.white
+                                                      : (isDark
+                                                            ? Colors.white
+                                                            : Colors.black87),
+                                                ),
+                                              ),
+                                            if (isParent) ...[
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    readByTeacher
+                                                        ? Icons.done_all
+                                                        : deliveredToTeacher
+                                                        ? Icons.done_all
+                                                        : Icons.done,
+                                                    size: 16,
+                                                    // Use lighter accent so blue ticks are visible on blue bubble
+                                                    color: readByTeacher
+                                                        ? Colors.lightBlueAccent
+                                                        : Colors.white70,
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ],
                                         ),
-                                      ],
-                                    ],
-                                  ),
+                                      ),
+                                    ),
+                                    MessageReactionSummary(
+                                      summary: _reactionSummaryForMap(msg),
+                                      isMe: isParent,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
