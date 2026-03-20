@@ -58,6 +58,12 @@ class FirestoreService {
     final docRef = _db.collection('scheduledTests').doc();
     final data = test.toJson();
     data['id'] = docRef.id;
+    final canonicalTeacherUid =
+        FirebaseAuth.instance.currentUser?.uid ?? test.teacherId;
+    if (canonicalTeacherUid.isNotEmpty) {
+      data['teacherId'] = canonicalTeacherUid;
+      data['createdBy'] = canonicalTeacherUid;
+    }
 
     // Best-effort: attach schoolCode from teacher profile to avoid cross-school confusion
     try {
@@ -65,7 +71,7 @@ class FirestoreService {
       // Try direct teacher document by UID
       final teacherByUid = await _db
           .collection('teachers')
-          .doc(test.teacherId)
+          .doc(canonicalTeacherUid)
           .get();
       if (teacherByUid.exists) {
         schoolCode = (teacherByUid.data()?['schoolCode'] as String?)?.trim();
@@ -86,6 +92,20 @@ class FirestoreService {
           }
         }
       }
+
+      // Final fallback: users/{uid} profile often has schoolCode/instituteId
+      if (schoolCode == null || schoolCode.isEmpty) {
+        final userDoc = await _db
+            .collection('users')
+            .doc(canonicalTeacherUid)
+            .get();
+        if (userDoc.exists) {
+          final u = userDoc.data() ?? <String, dynamic>{};
+          schoolCode = ((u['schoolCode'] ?? u['instituteId'] ?? '') as String?)
+              ?.trim();
+        }
+      }
+
       if (schoolCode != null && schoolCode.isNotEmpty) {
         data['schoolCode'] = schoolCode;
       }
@@ -102,6 +122,7 @@ class FirestoreService {
     try {
       final effectiveTeacherUid =
           FirebaseAuth.instance.currentUser?.uid ?? teacherAuthUid;
+      final currentAuthUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
       // Fetch test document to get the target className and section
       final testDoc = await _db.collection('scheduledTests').doc(testId).get();
@@ -109,9 +130,11 @@ class FirestoreService {
         return;
       }
       final testData = testDoc.data()!;
+      final scheduledTeacherId = (testData['teacherId'] as String? ?? '')
+          .trim();
       final targetClassName =
-          testData['class'] ?? testData['className'] as String? ?? '';
-      final targetSection = testData['section'] as String? ?? '';
+          ((testData['class'] ?? testData['className'] ?? '') as String).trim();
+      final targetSection = ((testData['section'] ?? '') as String).trim();
       final testTitle =
           testData['title'] ?? testData['testTitle'] ?? 'Untitled Test';
       final subject = testData['subject'] ?? '';
@@ -143,25 +166,92 @@ class FirestoreService {
         teacherData = teacherDoc.data();
       }
 
-      if (teacherData == null) {
-        return;
+      // Fallback to users/{uid} when teacher profile is missing or incomplete.
+      if (teacherData == null ||
+          ((teacherData['schoolCode'] as String?)?.trim().isEmpty ?? true)) {
+        final userDoc = await _db
+            .collection('users')
+            .doc(effectiveTeacherUid)
+            .get();
+        if (userDoc.exists) {
+          final u = userDoc.data() ?? <String, dynamic>{};
+          teacherData = {
+            ...(teacherData ?? <String, dynamic>{}),
+            'email': (teacherData?['email'] ?? u['email'] ?? '').toString(),
+            'schoolCode':
+                (teacherData?['schoolCode'] ??
+                        u['schoolCode'] ??
+                        u['instituteId'] ??
+                        testData['schoolCode'] ??
+                        '')
+                    .toString(),
+          };
+        }
       }
 
-      final schoolCode = teacherData['schoolCode'] as String? ?? '';
+      final schoolCode =
+          (teacherData?['schoolCode'] as String? ??
+                  testData['schoolCode'] as String? ??
+                  '')
+              .trim();
+
+      debugPrint(
+        '[ASSIGN_DEBUG] testId=$testId authUid=$currentAuthUid '
+        'effectiveTeacherUid=$effectiveTeacherUid scheduledTeacherId=$scheduledTeacherId '
+        'schoolCode=$schoolCode class=$targetClassName section=$targetSection',
+      );
 
       if (schoolCode.isEmpty || targetClassName.isEmpty) {
+        debugPrint(
+          'assignTestToClass: missing schoolCode/className for $testId '
+          '(schoolCode=$schoolCode, className=$targetClassName)',
+        );
         return;
       }
 
-      // Query students by schoolCode, className, section
-      var query = _db
+      // Query students by schoolCode + className, with format fallback:
+      // e.g. "Grade 10" <-> "10".
+      final classCandidates = <String>{targetClassName};
+      if (targetClassName.toLowerCase().startsWith('grade ')) {
+        classCandidates.add(targetClassName.substring(6).trim());
+      } else {
+        classCandidates.add('Grade $targetClassName');
+      }
+
+      Query<Map<String, dynamic>> baseQuery = _db
           .collection('students')
           .where('schoolCode', isEqualTo: schoolCode)
           .where('className', isEqualTo: targetClassName);
       if (targetSection.isNotEmpty) {
-        query = query.where('section', isEqualTo: targetSection);
+        baseQuery = baseQuery.where('section', isEqualTo: targetSection);
       }
-      final snapshot = await query.get();
+      QuerySnapshot<Map<String, dynamic>> snapshot = await baseQuery.get();
+
+      if (snapshot.docs.isEmpty) {
+        for (final className in classCandidates) {
+          if (className == targetClassName) continue;
+          Query<Map<String, dynamic>> q = _db
+              .collection('students')
+              .where('schoolCode', isEqualTo: schoolCode)
+              .where('className', isEqualTo: className);
+          if (targetSection.isNotEmpty) {
+            q = q.where('section', isEqualTo: targetSection);
+          }
+          final alt = await q.get();
+          if (alt.docs.isNotEmpty) {
+            snapshot = alt;
+            break;
+          }
+        }
+      }
+
+      if (snapshot.docs.isEmpty) {
+        debugPrint(
+          '[ASSIGN_DEBUG] no students found for schoolCode=$schoolCode, '
+          'class=$targetClassName, section=$targetSection, '
+          'classCandidates=${classCandidates.join(',')}',
+        );
+      }
 
       // Batch fetch all user documents at once for better performance
       final studentEmails = <String>[];
@@ -195,7 +285,6 @@ class FirestoreService {
       );
 
       final studentAssignments = <Map<String, String>>[];
-      final usersToCreate = <String, Map<String, dynamic>>{};
 
       for (var i = 0; i < studentEmails.length; i++) {
         final email = studentEmails[i];
@@ -209,32 +298,11 @@ class FirestoreService {
           final docIdUid = userDoc.id.trim();
           final storedUid = (userData['uid'] as String?)?.trim() ?? '';
 
-          // Canonical UID must be auth UID (users document ID).
-          uid = docIdUid.isNotEmpty ? docIdUid : storedUid;
-
-          // Keep users.uid in sync for legacy flows that still read this field.
-          if (docIdUid.isNotEmpty && storedUid != docIdUid) {
-            usersToCreate[docIdUid] = {'uid': docIdUid, 'email': email};
-          }
+          // Prefer explicit auth UID field when present; fallback to doc ID.
+          uid = storedUid.isNotEmpty ? storedUid : docIdUid;
         } else {
           // User doesn't exist, prepare to create
           uid = studentInfo['docId'] as String;
-          usersToCreate[uid] = {
-            'uid': uid,
-            'email': email,
-            'name': studentInfo['name'],
-            'role': 'student',
-            'schoolCode': schoolCode,
-            'className': studentInfo['data']['className'] ?? targetClassName,
-            'section': studentInfo['data']['section'] ?? targetSection,
-            'pendingTests': 0,
-            'completedTests': 0,
-            'newNotifications': 0,
-            'totalPoints': studentInfo['data']['totalPoints'] ?? 0,
-            'rewardPoints': studentInfo['data']['rewardPoints'] ?? 0,
-            'createdAt': FieldValue.serverTimestamp(),
-            'autoCreated': true,
-          };
         }
 
         if (uid.isNotEmpty) {
@@ -252,13 +320,19 @@ class FirestoreService {
           .map((s) => s['studentId']!)
           .toList();
 
+      debugPrint(
+        '[ASSIGN_DEBUG] studentsFetched=${snapshot.docs.length} '
+        'studentsWithEmail=${studentEmails.length} '
+        'studentAssignmentsPrepared=${studentAssignments.length}',
+      );
+
       // Query in chunks of 10 (Firestore whereIn limit)
       for (var i = 0; i < allStudentIds.length; i += 10) {
         final chunk = allStudentIds.skip(i).take(10).toList();
         final existingAssignments = await _db
             .collection('testResults')
             .where('testId', isEqualTo: testId)
-          .where('teacherId', isEqualTo: effectiveTeacherUid)
+            .where('teacherId', isEqualTo: effectiveTeacherUid)
             .where('studentId', whereIn: chunk)
             .get();
 
@@ -301,17 +375,6 @@ class FirestoreService {
           continue;
         }
 
-        // Create user document if needed
-        if (usersToCreate.containsKey(student['studentId'])) {
-          final userRef = _db.collection('users').doc(student['studentId']);
-          batch.set(
-            userRef,
-            usersToCreate[student['studentId']]!,
-            SetOptions(merge: true),
-          );
-          batchCount++;
-        }
-
         // Create assignment document
         final assignmentDoc = {
           'testId': testId,
@@ -324,7 +387,7 @@ class FirestoreService {
           'section': targetSection,
           'teacherId': effectiveTeacherUid,
           'teacherName': teacherName,
-          'teacherEmail': teacherData['email'] ?? '',
+          'teacherEmail': teacherData?['email'] ?? '',
           'status': 'assigned',
           'assignedAt': FieldValue.serverTimestamp(),
           'startedAt': null,
@@ -348,18 +411,21 @@ class FirestoreService {
               : [],
         };
 
+        if (notifiedStudentIds.isEmpty) {
+          debugPrint(
+            '[ASSIGN_DEBUG] firstAssignmentPayload '
+            'testId=${assignmentDoc['testId']} '
+            'teacherId=${assignmentDoc['teacherId']} '
+            'studentId=${assignmentDoc['studentId']} '
+            'schoolCode=${assignmentDoc['schoolCode']} '
+            'class=${assignmentDoc['className']} section=${assignmentDoc['section']}',
+          );
+        }
+
         final assignmentRef = _db.collection('testResults').doc();
         batch.set(assignmentRef, assignmentDoc);
         batchCount++;
         notifiedStudentIds.add(student['studentId']!);
-
-        // Update user counters - use set with merge to avoid errors if doc doesn't exist
-        final userDocRef = _db.collection('users').doc(student['studentId']);
-        batch.set(userDocRef, {
-          'pendingTests': FieldValue.increment(1),
-          'newNotifications': FieldValue.increment(1),
-        }, SetOptions(merge: true));
-        batchCount++;
 
         // Firestore batch limit is 500 operations
         if (batchCount >= 450) {
@@ -374,8 +440,31 @@ class FirestoreService {
         batches.add(batch);
       }
 
+      debugPrint(
+        '[ASSIGN_DEBUG] existingAssignmentsFound=${existingStudentIds.length} '
+        'newAssignmentsToWrite=${notifiedStudentIds.length} '
+        'totalBatches=${batches.length}',
+      );
+      debugPrint(
+        '[ASSIGN_DEBUG] users write-skipped in client assignment flow '
+        '(rules restrict teacher writes to users docs)',
+      );
+
       // Commit all batches
-      await Future.wait(batches.map((b) => b.commit()));
+      for (var i = 0; i < batches.length; i++) {
+        try {
+          await batches[i].commit();
+          debugPrint('[ASSIGN_DEBUG] batchCommit success index=$i');
+        } on FirebaseException catch (e) {
+          debugPrint(
+            '[ASSIGN_DEBUG] batchCommit failed index=$i code=${e.code} '
+            'message=${e.message} testId=$testId '
+            'authUid=$currentAuthUid effectiveTeacherUid=$effectiveTeacherUid '
+            'scheduledTeacherId=$scheduledTeacherId',
+          );
+          rethrow;
+        }
+      }
 
       if (notifiedStudentIds.isNotEmpty) {
         unawaited(
@@ -399,7 +488,15 @@ class FirestoreService {
           }),
         );
       }
+    } on FirebaseException catch (e) {
+      debugPrint(
+        '[ASSIGN_DEBUG] assignTestToClass FirebaseException '
+        'code=${e.code} message=${e.message} testId=$testId '
+        'teacherAuthUid=$teacherAuthUid',
+      );
+      rethrow;
     } catch (e) {
+      debugPrint('[ASSIGN_DEBUG] assignTestToClass error: $e');
       rethrow;
     }
   }
@@ -438,6 +535,9 @@ class FirestoreService {
     required DateTime scheduledDate,
     required TimeOfDay scheduledTime,
   }) async {
+    final canonicalTeacherUid =
+        FirebaseAuth.instance.currentUser?.uid ?? test.teacherId;
+
     // Create test document first
     final testId = await createTest(test);
 
@@ -464,7 +564,7 @@ class FirestoreService {
       // Try direct teacher doc by UID
       final teacherDoc = await _db
           .collection('teachers')
-          .doc(test.teacherId)
+          .doc(canonicalTeacherUid)
           .get();
       if (teacherDoc.exists) {
         final data = teacherDoc.data() ?? {};
@@ -485,6 +585,23 @@ class FirestoreService {
             teacherEmail = (data['email'] as String?)?.trim() ?? '';
             schoolCode = (data['schoolCode'] as String?)?.trim() ?? '';
           }
+        }
+      }
+
+      // Final fallback from users profile if teacher doc or email lookup is missing.
+      if (teacherEmail.isEmpty || schoolCode.isEmpty) {
+        final userDoc = await _db
+            .collection('users')
+            .doc(canonicalTeacherUid)
+            .get();
+        if (userDoc.exists) {
+          final u = userDoc.data() ?? <String, dynamic>{};
+          teacherEmail = teacherEmail.isNotEmpty
+              ? teacherEmail
+              : ((u['email'] ?? '') as String).trim();
+          schoolCode = schoolCode.isNotEmpty
+              ? schoolCode
+              : ((u['schoolCode'] ?? u['instituteId'] ?? '') as String).trim();
         }
       }
     } catch (_) {
@@ -526,7 +643,7 @@ class FirestoreService {
       'id': testId,
       'title': test.title,
       'description': test.description,
-      'teacherId': test.teacherId,
+      'teacherId': canonicalTeacherUid,
       'teacherName': test.teacherName,
       'teacherEmail': teacherEmail,
       'schoolCode': schoolCode,
@@ -551,14 +668,14 @@ class FirestoreService {
       // Notifications & audit
       'notifyStudents': true,
       'createdAt': FieldValue.serverTimestamp(),
-      'createdBy': test.teacherId,
+      'createdBy': canonicalTeacherUid,
     });
 
     // Assign to students in the target class (just like published tests)
     // This ensures students can see the test in their dashboard
     if (test.className != null && test.className!.isNotEmpty) {
       try {
-        await assignTestToClass(testId, test.teacherId);
+        await assignTestToClass(testId, canonicalTeacherUid);
       } on FirebaseException catch (e) {
         // Auto-assignment Cloud Function listens on scheduledTests/{testId}.
         // If direct client writes are blocked by Firestore rules, do not fail
@@ -647,10 +764,17 @@ class FirestoreService {
       await testRef.delete();
     } catch (e) {
       // Fallback to simple delete if anything goes wrong
+      var deletedScheduledTest = false;
       try {
         await _db.collection('scheduledTests').doc(testId).delete();
+        deletedScheduledTest = true;
       } catch (_) {}
-      rethrow;
+
+      // If the primary test doc was deleted, treat this as success even if
+      // cleanup of related assignments was blocked by stricter rules.
+      if (!deletedScheduledTest) {
+        rethrow;
+      }
     }
   }
 
@@ -839,8 +963,38 @@ class FirestoreService {
         .snapshots();
 
     await for (var assignmentsSnapshot in assignmentsQuery) {
+      // Fallback for legacy assignment docs that stored studentEmail but used a
+      // non-auth studentId value.
+      QuerySnapshot<Map<String, dynamic>>? emailSnapshot;
+      final email = (studentEmail ?? '').trim();
+      if (email.isNotEmpty) {
+        try {
+          emailSnapshot = await _db
+              .collection('testResults')
+              .where('studentEmail', isEqualTo: email)
+              .where('status', whereIn: ['assigned', 'started'])
+              .get();
+        } on FirebaseException catch (e) {
+          debugPrint(
+            '[ASSIGN_DEBUG] email fallback query denied for $email '
+            'code=${e.code} message=${e.message}',
+          );
+        }
+      }
+
+      final assignmentDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+      assignmentDocs.addAll(assignmentsSnapshot.docs);
+      if (emailSnapshot != null) {
+        final seenIds = assignmentsSnapshot.docs.map((d) => d.id).toSet();
+        for (final doc in emailSnapshot.docs) {
+          if (!seenIds.contains(doc.id)) {
+            assignmentDocs.add(doc);
+          }
+        }
+      }
+
       // Extract unique test IDs from assignments
-      final testIds = assignmentsSnapshot.docs
+      final testIds = assignmentDocs
           .map((doc) => doc.data()['testId'] as String?)
           .where((id) => id != null && id.isNotEmpty)
           .toSet()

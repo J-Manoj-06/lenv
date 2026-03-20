@@ -203,6 +203,34 @@ service cloud.firestore {
       // when the users/{uid} profile doc has the correct data.
       return isSignedIn() && roomId != null && roomId != '';
     }
+
+    function scheduledTestDocPath(testId) {
+      return /databases/$(database)/documents/scheduledTests/$(testId);
+    }
+
+    function ownsScheduledTest(testId) {
+      return isSignedIn()
+        && testId != null
+        && testId != ''
+        && exists(scheduledTestDocPath(testId))
+        && get(scheduledTestDocPath(testId)).data.teacherId == request.auth.uid;
+    }
+
+    function matchesScheduledTestTeacher(testId, teacherId) {
+      return isSignedIn()
+        && testId != null
+        && testId != ''
+        && teacherId != null
+        && teacherId != ''
+        && exists(scheduledTestDocPath(testId))
+        && get(scheduledTestDocPath(testId)).data.teacherId == teacherId;
+    }
+
+    function authEmail() {
+      return isSignedIn() && request.auth.token.email != null
+        ? request.auth.token.email
+        : '';
+    }
     
     function uidIs(id) {
       return isSignedIn() && request.auth.uid == id;
@@ -597,7 +625,9 @@ service cloud.firestore {
         || isPrincipal()
         || isInstitute()
         || resource.data.studentId == request.auth.uid
+        || (authEmail() != '' && resource.data.studentEmail == authEmail())
         || resource.data.teacherId == request.auth.uid
+        || ownsScheduledTest(resource.data.testId)
       );
 
       allow create: if isSignedIn() && (
@@ -606,7 +636,13 @@ service cloud.firestore {
         || isPrincipal()
         || isInstitute()
         || request.resource.data.studentId == request.auth.uid
+        || (authEmail() != '' && request.resource.data.studentEmail == authEmail())
         || request.resource.data.teacherId == request.auth.uid
+        || ownsScheduledTest(request.resource.data.testId)
+        || matchesScheduledTestTeacher(
+          request.resource.data.testId,
+          request.resource.data.teacherId
+        )
       );
 
       allow update, delete: if isSignedIn() && (
@@ -615,7 +651,10 @@ service cloud.firestore {
         || isPrincipal()
         || isInstitute()
         || resource.data.studentId == request.auth.uid
+        || (authEmail() != '' && resource.data.studentEmail == authEmail())
         || resource.data.teacherId == request.auth.uid
+        || ownsScheduledTest(resource.data.testId)
+        || matchesScheduledTestTeacher(resource.data.testId, resource.data.teacherId)
       );
     }
     

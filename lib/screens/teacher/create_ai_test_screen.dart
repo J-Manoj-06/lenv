@@ -1645,7 +1645,9 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
       final canonicalTeacherId =
           FirebaseAuth.instance.currentUser?.uid ?? user?.uid ?? '';
 
-      if (user == null || user.role != UserRole.teacher || canonicalTeacherId.isEmpty) {
+      if (user == null ||
+          user.role != UserRole.teacher ||
+          canonicalTeacherId.isEmpty) {
         throw Exception('Please login as a teacher to continue');
       }
 

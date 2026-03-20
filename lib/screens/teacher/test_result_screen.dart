@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import '../../models/test_result_model.dart';
+import '../../services/firestore_service.dart';
 import 'teacher_student_result_detail_screen.dart';
 import 'dart:math' as math;
 
@@ -34,6 +35,7 @@ class _TestResultScreenState extends State<TestResultScreen> {
   double _highestScore = 0.0;
   double _lowestScore = 0.0;
   List<Map<String, dynamic>> _questions = [];
+  bool _attemptedAssignmentBackfill = false;
 
   @override
   void initState() {
@@ -60,6 +62,34 @@ class _TestResultScreenState extends State<TestResultScreen> {
           .where('testId', isEqualTo: widget.testId)
           .where('teacherId', isEqualTo: teacherUid)
           .get();
+
+      // Self-heal legacy tests where assignment docs were not created at schedule time.
+      if (assignmentsSnapshot.docs.isEmpty && !_attemptedAssignmentBackfill) {
+        _attemptedAssignmentBackfill = true;
+        try {
+          await FirestoreService().assignTestToClass(widget.testId, teacherUid);
+          final repairedSnapshot = await firestore
+              .collection('testResults')
+              .where('testId', isEqualTo: widget.testId)
+              .where('teacherId', isEqualTo: teacherUid)
+              .get();
+          if (repairedSnapshot.docs.isNotEmpty) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Recovered student assignments.')),
+              );
+            }
+            return _loadTestResults();
+          }
+        } catch (e) {
+          debugPrint('[ASSIGN_DEBUG] resultScreen backfill failed: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Backfill failed: $e')));
+          }
+        }
+      }
 
       // Separate completed and pending, deduplicating by studentId
       // (prefer 'completed' entry over 'assigned' for the same student)

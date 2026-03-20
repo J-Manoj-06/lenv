@@ -76,6 +76,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
             }
 
             final studentId = auth.currentUser!.uid;
+            final studentEmail = auth.currentUser!.email;
 
             return Column(
               children: [
@@ -116,9 +117,18 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      _AllTestsTab(studentId: studentId),
-                      _UpcomingTab(studentId: studentId),
-                      _CompletedTab(studentId: studentId),
+                      _AllTestsTab(
+                        studentId: studentId,
+                        studentEmail: studentEmail,
+                      ),
+                      _UpcomingTab(
+                        studentId: studentId,
+                        studentEmail: studentEmail,
+                      ),
+                      _CompletedTab(
+                        studentId: studentId,
+                        studentEmail: studentEmail,
+                      ),
                     ],
                   ),
                 ),
@@ -155,7 +165,8 @@ class _Header extends StatelessWidget {
 
 class _AllTestsTab extends StatefulWidget {
   final String studentId;
-  const _AllTestsTab({required this.studentId});
+  final String? studentEmail;
+  const _AllTestsTab({required this.studentId, this.studentEmail});
 
   @override
   State<_AllTestsTab> createState() => _AllTestsTabState();
@@ -166,14 +177,27 @@ class _AllTestsTabState extends State<_AllTestsTab> {
   Widget build(BuildContext context) {
     // Unified query: get all student assignments, then fetch test details and classify locally.
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('testResults')
-          .where('studentId', isEqualTo: widget.studentId)
-          .where(
-            'status',
-            whereIn: ['assigned', 'started', 'completed', 'submitted'],
-          )
-          .snapshots(),
+      stream: (() {
+        final email = (widget.studentEmail ?? '').trim();
+        if (email.isNotEmpty) {
+          return FirebaseFirestore.instance
+              .collection('testResults')
+              .where('studentEmail', isEqualTo: email)
+              .where(
+                'status',
+                whereIn: ['assigned', 'started', 'completed', 'submitted'],
+              )
+              .snapshots();
+        }
+        return FirebaseFirestore.instance
+            .collection('testResults')
+            .where('studentId', isEqualTo: widget.studentId)
+            .where(
+              'status',
+              whereIn: ['assigned', 'started', 'completed', 'submitted'],
+            )
+            .snapshots();
+      })(),
       builder: (context, assignedSnap) {
         if (assignedSnap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -316,20 +340,34 @@ class _AllTestsTabState extends State<_AllTestsTab> {
 
 class _UpcomingTab extends StatelessWidget {
   final String studentId;
-  const _UpcomingTab({required this.studentId});
+  final String? studentEmail;
+  const _UpcomingTab({required this.studentId, this.studentEmail});
 
   @override
   Widget build(BuildContext context) {
     // Query assigned tests from student's testResults
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('testResults')
-          .where('studentId', isEqualTo: studentId)
-          .where(
-            'status',
-            whereIn: ['assigned', 'started', 'completed', 'submitted'],
-          )
-          .snapshots(),
+      stream: (() {
+        final email = (studentEmail ?? '').trim();
+        if (email.isNotEmpty) {
+          return FirebaseFirestore.instance
+              .collection('testResults')
+              .where('studentEmail', isEqualTo: email)
+              .where(
+                'status',
+                whereIn: ['assigned', 'started', 'completed', 'submitted'],
+              )
+              .snapshots();
+        }
+        return FirebaseFirestore.instance
+            .collection('testResults')
+            .where('studentId', isEqualTo: studentId)
+            .where(
+              'status',
+              whereIn: ['assigned', 'started', 'completed', 'submitted'],
+            )
+            .snapshots();
+      })(),
       builder: (context, assignedSnap) {
         if (assignedSnap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -412,20 +450,34 @@ class _UpcomingTab extends StatelessWidget {
 
 class _CompletedTab extends StatelessWidget {
   final String studentId;
-  const _CompletedTab({required this.studentId});
+  final String? studentEmail;
+  const _CompletedTab({required this.studentId, this.studentEmail});
 
   @override
   Widget build(BuildContext context) {
     // Query completed assignments from testResults collection
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('testResults')
-          .where('studentId', isEqualTo: studentId)
-          .where(
-            'status',
-            whereIn: ['assigned', 'started', 'completed', 'submitted'],
-          )
-          .snapshots(),
+      stream: (() {
+        final email = (studentEmail ?? '').trim();
+        if (email.isNotEmpty) {
+          return FirebaseFirestore.instance
+              .collection('testResults')
+              .where('studentEmail', isEqualTo: email)
+              .where(
+                'status',
+                whereIn: ['assigned', 'started', 'completed', 'submitted'],
+              )
+              .snapshots();
+        }
+        return FirebaseFirestore.instance
+            .collection('testResults')
+            .where('studentId', isEqualTo: studentId)
+            .where(
+              'status',
+              whereIn: ['assigned', 'started', 'completed', 'submitted'],
+            )
+            .snapshots();
+      })(),
       builder: (context, assignmentsSnap) {
         if (assignmentsSnap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());

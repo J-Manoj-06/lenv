@@ -1284,9 +1284,11 @@ extension on _CreateTestScreenState {
     final user = auth.currentUser;
     _lastSaveError = null;
     final canonicalTeacherId =
-      fb_auth.FirebaseAuth.instance.currentUser?.uid ?? user?.uid ?? '';
+        fb_auth.FirebaseAuth.instance.currentUser?.uid ?? user?.uid ?? '';
 
-    if (user == null || user.role != UserRole.teacher || canonicalTeacherId.isEmpty) {
+    if (user == null ||
+        user.role != UserRole.teacher ||
+        canonicalTeacherId.isEmpty) {
       _lastSaveError = 'Please login as a teacher to continue';
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please login as a teacher to continue')),
