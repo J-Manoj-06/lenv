@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -131,6 +132,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
   bool _isReactionPickerOpen = false;
+  final Map<String, Map<String, int>> _optimisticReactionSummaries = {};
+  final Map<String, String?> _optimisticUserReactions = {};
+  final Set<String> _pendingReactionMessageIds = {};
   String? _shareEligibilitySelectionKey;
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
@@ -228,6 +232,60 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     return _forwardEligibilityFuture!;
   }
 
+  Map<String, int> _applyReactionLocally({
+    required Map<String, int> baseSummary,
+    required String? previousEmoji,
+    required String nextEmoji,
+  }) {
+    final updated = Map<String, int>.from(baseSummary);
+    if (previousEmoji != null && previousEmoji.isNotEmpty) {
+      final current = updated[previousEmoji] ?? 0;
+      if (current <= 1) {
+        updated.remove(previousEmoji);
+      } else {
+        updated[previousEmoji] = current - 1;
+      }
+    }
+
+    if (previousEmoji == nextEmoji) {
+      return updated;
+    }
+
+    updated[nextEmoji] = (updated[nextEmoji] ?? 0) + 1;
+    return updated;
+  }
+
+  void _clearOptimisticReaction(String messageId) {
+    if (!_optimisticReactionSummaries.containsKey(messageId) &&
+        !_optimisticUserReactions.containsKey(messageId) &&
+        !_pendingReactionMessageIds.contains(messageId)) {
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _optimisticReactionSummaries.remove(messageId);
+      _optimisticUserReactions.remove(messageId);
+      _pendingReactionMessageIds.remove(messageId);
+    });
+  }
+
+  Map<String, int> _effectiveReactionSummaryForMessage(
+    GroupChatMessage message,
+  ) {
+    final optimistic = _optimisticReactionSummaries[message.id];
+    if (optimistic == null) return message.reactionSummary;
+
+    if (mapEquals(optimistic, message.reactionSummary)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _clearOptimisticReaction(message.id);
+      });
+      return message.reactionSummary;
+    }
+
+    return optimistic;
+  }
+
   Future<void> _showReactionPickerForMessage({
     required GroupChatMessage message,
     required Offset globalPosition,
@@ -264,6 +322,22 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       );
       if (emoji == null || emoji.isEmpty) return;
 
+      final baseSummary = _effectiveReactionSummaryForMessage(message);
+      final optimisticSummary = _applyReactionLocally(
+        baseSummary: baseSummary,
+        previousEmoji: selectedEmoji,
+        nextEmoji: emoji,
+      );
+      final optimisticUserReaction = selectedEmoji == emoji ? null : emoji;
+
+      if (mounted) {
+        setState(() {
+          _optimisticReactionSummaries[message.id] = optimisticSummary;
+          _optimisticUserReactions[message.id] = optimisticUserReaction;
+          _pendingReactionMessageIds.add(message.id);
+        });
+      }
+
       await MessageReactionService.instance.toggleReaction(
         target: ReactionTarget.classSubjectMessage(
           classId: widget.classId,
@@ -275,17 +349,24 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         userAliases: userAliases,
       );
     } catch (_) {
+      _clearOptimisticReaction(message.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not update reaction right now')),
       );
     } finally {
+      if (mounted) {
+        setState(() {
+          _pendingReactionMessageIds.remove(message.id);
+        });
+      }
       _isReactionPickerOpen = false;
     }
   }
 
   Future<void> _showReactionViewerForMessage(GroupChatMessage message) async {
-    if (message.reactionSummary.isEmpty) return;
+    final effectiveSummary = _effectiveReactionSummaryForMessage(message);
+    if (effectiveSummary.isEmpty) return;
 
     final currentUserId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null || currentUserId.isEmpty) return;
@@ -315,7 +396,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
     if (!mounted) return;
 
-    final summaryEntries = message.reactionSummary.entries.toList()
+    myReaction = _optimisticUserReactions.containsKey(message.id)
+        ? _optimisticUserReactions[message.id]
+        : myReaction;
+
+    final summaryEntries = effectiveSummary.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final total = summaryEntries.fold<int>(0, (sum, e) => sum + e.value);
 
@@ -398,16 +483,44 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                     subtitle: const Text('Tap to remove'),
                     onTap: () async {
                       Navigator.of(ctx).pop();
-                      await MessageReactionService.instance.toggleReaction(
-                        target: ReactionTarget.classSubjectMessage(
-                          classId: widget.classId,
-                          subjectId: widget.subjectId,
-                          messageId: message.id,
-                        ),
-                        userId: currentUserId,
-                        emoji: myReaction!,
-                        userAliases: userAliases,
+                      final baseSummary = _effectiveReactionSummaryForMessage(
+                        message,
                       );
+                      final optimisticSummary = _applyReactionLocally(
+                        baseSummary: baseSummary,
+                        previousEmoji: myReaction,
+                        nextEmoji: myReaction!,
+                      );
+
+                      if (mounted) {
+                        setState(() {
+                          _optimisticReactionSummaries[message.id] =
+                              optimisticSummary;
+                          _optimisticUserReactions[message.id] = null;
+                          _pendingReactionMessageIds.add(message.id);
+                        });
+                      }
+
+                      try {
+                        await MessageReactionService.instance.toggleReaction(
+                          target: ReactionTarget.classSubjectMessage(
+                            classId: widget.classId,
+                            subjectId: widget.subjectId,
+                            messageId: message.id,
+                          ),
+                          userId: currentUserId,
+                          emoji: myReaction!,
+                          userAliases: userAliases,
+                        );
+                      } catch (_) {
+                        _clearOptimisticReaction(message.id);
+                      } finally {
+                        if (mounted) {
+                          setState(() {
+                            _pendingReactionMessageIds.remove(message.id);
+                          });
+                        }
+                      }
                     },
                   ),
                 ],
@@ -1025,7 +1138,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                       ],
                     ),
                     MessageReactionSummary(
-                      summary: message.reactionSummary,
+                      summary: _effectiveReactionSummaryForMessage(message),
                       isMe: isMe,
                       onTap: () => _showReactionViewerForMessage(message),
                     ),
