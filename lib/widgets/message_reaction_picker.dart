@@ -52,41 +52,55 @@ Future<String?> showMessageReactionPicker({
       : (globalPosition.dy + 14).clamp(8.0, mediaSize.height - 64);
 
   entry = OverlayEntry(
-    builder: (context) => Material(
-      color: Colors.black26,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => close(),
-              child: const SizedBox.expand(),
+    builder: (context) {
+      return Material(
+        color: Colors.black26,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => close(),
+                child: const SizedBox.expand(),
+              ),
             ),
-          ),
-          Positioned(
-            left: left,
-            top: top,
-            child: _QuickReactionBar(
-              quickEmojis: quickEmojis,
-              selectedEmoji: selectedEmoji,
-              onEmojiTap: (emoji) => close(emoji),
-              onMoreTap: () async {
-                entry.remove();
-                final picked = await showModalBottomSheet<String>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (sheetContext) {
-                    return _ExpandedReactionPanel(selectedEmoji: selectedEmoji);
-                  },
-                );
-                close(picked);
-              },
+            Positioned(
+              left: left,
+              top: top,
+              child: AnimatedScale(
+                scale: 1.0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutBack,
+                child: AnimatedOpacity(
+                  opacity: 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  child: _QuickReactionBar(
+                    quickEmojis: quickEmojis,
+                    selectedEmoji: selectedEmoji,
+                    onEmojiTap: (emoji) => close(emoji),
+                    onMoreTap: () async {
+                      entry.remove();
+                      final picked = await showModalBottomSheet<String>(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (sheetContext) {
+                          return _ExpandedReactionPanel(
+                            selectedEmoji: selectedEmoji,
+                          );
+                        },
+                      );
+                      close(picked);
+                    },
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
-    ),
+          ],
+        ),
+      );
+    },
   );
 
   overlay.insert(entry);

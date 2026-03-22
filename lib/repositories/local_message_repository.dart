@@ -210,6 +210,10 @@ class LocalMessageRepository {
         pollData: message.pollData,
         isDeleted: true, // Mark as deleted
         replyToMessageId: message.replyToMessageId,
+        multipleMedia: message.multipleMedia,
+        isPending: message.isPending,
+        reactionSummary: message.reactionSummary,
+        reactionCount: message.reactionCount,
       );
 
       await _messageBox!.put(messageId, updated);

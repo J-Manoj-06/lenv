@@ -108,7 +108,6 @@ class MessageReactionService {
 
       final messageData = messageSnap.data() ?? const <String, dynamic>{};
       final summary = _parseSummaryFromMessageData(messageData);
-      final legacyReactions = _parseLegacyReactionsFromMessageData(messageData);
 
       final existingDocs = <DocumentSnapshot<Map<String, dynamic>>>[];
 
@@ -150,26 +149,21 @@ class MessageReactionService {
         previousEmoji = existingDocs.first.data()?['emoji']?.toString();
       }
 
-      // Clean up any previous reactions from alias IDs before applying new state.
-      for (final doc in existingDocs) {
-        final map = doc.data();
-        final existingEmoji = map == null ? null : map['emoji']?.toString();
-        final existingUserId =
-            (map == null ? null : map['userId']?.toString()) ?? doc.id;
+      // Decrement the previous reaction once and only delete the canonical
+      // reaction doc for the signed-in Firebase UID. Alias docs may use
+      // legacy IDs that current rules do not allow this user to delete.
+      if (previousEmoji != null && previousEmoji.isNotEmpty) {
+        _decrement(summary, previousEmoji);
+      }
 
-        if (existingEmoji != null && existingEmoji.isNotEmpty) {
-          _decrement(summary, existingEmoji);
-          _removeLegacyUser(legacyReactions, existingEmoji, existingUserId);
+      for (final doc in existingDocs) {
+        if (doc.id == userId) {
+          tx.delete(doc.reference);
         }
-        tx.delete(doc.reference);
       }
 
       if (!(previousEmoji == emoji && existingDocs.isNotEmpty)) {
         summary[emoji] = (summary[emoji] ?? 0) + 1;
-        legacyReactions.putIfAbsent(emoji, () => <String>[]);
-        if (!legacyReactions[emoji]!.contains(userId)) {
-          legacyReactions[emoji]!.add(userId);
-        }
 
         tx.set(reactionDocRef, {
           'emoji': emoji,
@@ -186,7 +180,6 @@ class MessageReactionService {
       tx.update(target.messageRef, {
         'reactionSummary': summary,
         'reactionCount': reactionCount,
-        'reactions': legacyReactions,
         'reactionUpdatedAt': FieldValue.serverTimestamp(),
       });
     });
@@ -257,45 +250,6 @@ class MessageReactionService {
       }
     }
     return summary;
-  }
-
-  Map<String, List<String>> _parseLegacyReactionsFromMessageData(
-    Map<String, dynamic> data,
-  ) {
-    final parsed = <String, List<String>>{};
-    final rawLegacy = data['reactions'];
-    if (rawLegacy is! Map) return parsed;
-
-    for (final entry in rawLegacy.entries) {
-      final emoji = entry.key.toString();
-      if (emoji.isEmpty) continue;
-      final value = entry.value;
-      if (value is! List) continue;
-
-      final users = value
-          .map((e) => e.toString().trim())
-          .where((e) => e.isNotEmpty)
-          .toSet()
-          .toList(growable: false);
-      if (users.isNotEmpty) {
-        parsed[emoji] = List<String>.from(users);
-      }
-    }
-
-    return parsed;
-  }
-
-  void _removeLegacyUser(
-    Map<String, List<String>> legacy,
-    String emoji,
-    String userId,
-  ) {
-    final users = legacy[emoji];
-    if (users == null || users.isEmpty) return;
-    users.remove(userId);
-    if (users.isEmpty) {
-      legacy.remove(emoji);
-    }
   }
 
   void _decrement(Map<String, int> summary, String emoji) {

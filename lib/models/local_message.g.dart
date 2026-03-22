@@ -31,13 +31,20 @@ class LocalMessageAdapter extends TypeAdapter<LocalMessage> {
       replyToMessageId: fields[11] as String?,
       multipleMedia: (fields[12] as List?)?.cast<dynamic>(),
       isPending: fields[13] as bool,
+      reactionSummary:
+          (fields[14] as Map?)?.map(
+            (dynamic key, dynamic value) =>
+                MapEntry(key.toString(), (value as num).toInt()),
+          ) ??
+          const <String, int>{},
+      reactionCount: (fields[15] as num?)?.toInt() ?? 0,
     );
   }
 
   @override
   void write(BinaryWriter writer, LocalMessage obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(16)
       ..writeByte(0)
       ..write(obj.messageId)
       ..writeByte(1)
@@ -65,7 +72,11 @@ class LocalMessageAdapter extends TypeAdapter<LocalMessage> {
       ..writeByte(12)
       ..write(obj.multipleMedia)
       ..writeByte(13)
-      ..write(obj.isPending);
+      ..write(obj.isPending)
+      ..writeByte(14)
+      ..write(obj.reactionSummary)
+      ..writeByte(15)
+      ..write(obj.reactionCount);
   }
 
   @override

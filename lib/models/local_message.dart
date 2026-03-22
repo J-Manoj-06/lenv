@@ -49,6 +49,12 @@ class LocalMessage extends HiveObject {
   @HiveField(13)
   final bool isPending; // For pending upload messages
 
+  @HiveField(14)
+  final Map<String, int> reactionSummary; // emoji -> count
+
+  @HiveField(15)
+  final int reactionCount;
+
   LocalMessage({
     required this.messageId,
     required this.chatId,
@@ -64,6 +70,8 @@ class LocalMessage extends HiveObject {
     this.replyToMessageId,
     this.multipleMedia,
     this.isPending = false,
+    this.reactionSummary = const <String, int>{},
+    this.reactionCount = 0,
   });
 
   /// Convert from Firebase document
@@ -234,7 +242,50 @@ class LocalMessage extends HiveObject {
       replyToMessageId: data['replyToMessageId'],
       multipleMedia: multipleMedia,
       isPending: false, // Firebase messages are never pending
+      reactionSummary: _parseReactionSummary(data),
+      reactionCount: _parseReactionCount(data),
     );
+  }
+
+  static Map<String, int> _parseReactionSummary(Map<String, dynamic> data) {
+    final summary = <String, int>{};
+    final raw = data['reactionSummary'];
+    if (raw is Map) {
+      for (final entry in raw.entries) {
+        final key = entry.key.toString();
+        final value = entry.value;
+        if (key.isEmpty) continue;
+        if (value is int && value > 0) {
+          summary[key] = value;
+        } else if (value is num && value > 0) {
+          summary[key] = value.toInt();
+        }
+      }
+      if (summary.isNotEmpty) return summary;
+    }
+
+    final legacy = data['reactions'];
+    if (legacy is Map) {
+      for (final entry in legacy.entries) {
+        final key = entry.key.toString();
+        if (key.isEmpty) continue;
+        final value = entry.value;
+        if (value is List && value.isNotEmpty) {
+          summary[key] = value.length;
+        }
+      }
+    }
+
+    return summary;
+  }
+
+  static int _parseReactionCount(Map<String, dynamic> data) {
+    final raw = data['reactionCount'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+
+    final summary = _parseReactionSummary(data);
+    return summary.values.fold<int>(0, (sum, count) => sum + count);
   }
 
   /// Helper to recursively clean Timestamp objects from maps

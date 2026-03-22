@@ -294,6 +294,155 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     }
   }
 
+  Future<void> _showReactionViewerForMessage(CommunityMessageModel msg) async {
+    if (msg.reactionSummary.isEmpty) return;
+
+    final userId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null || userId.isEmpty) return;
+
+    final providerUserId = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.uid;
+    final resolvedUserId = await _resolveCurrentUserId();
+    final userAliases = <String>[
+      if (providerUserId != null && providerUserId.isNotEmpty) providerUserId,
+      if (resolvedUserId != null && resolvedUserId.isNotEmpty) resolvedUserId,
+    ];
+
+    String? myReaction;
+    try {
+      myReaction = await MessageReactionService.instance.getUserReaction(
+        target: ReactionTarget.parentTeacherGroupMessage(
+          groupId: widget.groupId,
+          messageId: msg.messageId,
+        ),
+        userId: userId,
+        userAliases: userAliases,
+      );
+    } catch (_) {
+      myReaction = null;
+    }
+
+    if (!mounted) return;
+
+    final entries = msg.reactionSummary.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final total = entries.fold<int>(0, (sum, e) => sum + e.value);
+    final selectedReaction = myReaction;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '$total reaction${total == 1 ? '' : 's'}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: entries.map((entry) {
+                    final selected = selectedReaction == entry.key;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? theme.colorScheme.primary.withValues(alpha: 0.18)
+                            : theme.colorScheme.surfaceContainerHighest
+                                  .withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${entry.key} ${entry.value}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (selectedReaction != null &&
+                    selectedReaction.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: theme.colorScheme.primary.withValues(
+                        alpha: 0.14,
+                      ),
+                      child: Text(
+                        selectedReaction,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    title: const Text('You'),
+                    subtitle: const Text('Tap to remove'),
+                    onTap: () async {
+                      Navigator.of(ctx).pop();
+
+                      try {
+                        await MessageReactionService.instance.toggleReaction(
+                          target: ReactionTarget.parentTeacherGroupMessage(
+                            groupId: widget.groupId,
+                            messageId: msg.messageId,
+                          ),
+                          userId: userId,
+                          emoji: selectedReaction,
+                          userAliases: userAliases,
+                        );
+                      } catch (_) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Could not remove reaction right now',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   bool _isImageMime(String? mimeType) {
     final mt = (mimeType ?? '').toLowerCase();
     return mt.startsWith('image/');
@@ -738,6 +887,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       multipleMedia: multipleMedia,
       pollData: pollData,
       isPending: false,
+      reactionSummary: msg.reactionSummary,
+      reactionCount: msg.reactionCount,
     );
   }
 
@@ -840,6 +991,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       isReported: false,
       reportCount: 0,
       documentSnapshot: null,
+      reactionSummary: msg.reactionSummary,
+      reactionCount: msg.reactionCount,
     );
   }
 
@@ -1557,6 +1710,15 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     return parts.join('|');
   }
 
+  bool _sameReactionSummary(Map<String, int> a, Map<String, int> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
   String? _legacyMultiImageGroupKey(CommunityMessageModel msg) {
     if (msg.multipleMedia != null && msg.multipleMedia!.length > 1) {
       return null;
@@ -1693,6 +1855,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           isDeleted: false,
           isPinned: grouped.any((m) => m.isPinned),
           reactions: current.reactions,
+          reactionSummary: current.reactionSummary,
+          reactionCount: current.reactionCount,
           replyTo: current.replyTo,
           replyCount: grouped.fold<int>(0, (sum, m) => sum + m.replyCount),
           isReported: grouped.any((m) => m.isReported),
@@ -2291,6 +2455,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                         cached.type != msg.type ||
                         cached.updatedAt != msg.updatedAt ||
                         cached.createdAt != msg.createdAt ||
+                        cached.reactionCount != msg.reactionCount ||
+                        !_sameReactionSummary(
+                          cached.reactionSummary,
+                          msg.reactionSummary,
+                        ) ||
                         _messageMediaFingerprint(cached) !=
                             _messageMediaFingerprint(msg);
 
@@ -3409,6 +3578,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                 MessageReactionSummary(
                                                   summary: msg.reactionSummary,
                                                   isMe: isCurrentUser,
+                                                  onTap: _selectionMode
+                                                      ? null
+                                                      : () =>
+                                                            _showReactionViewerForMessage(
+                                                              msg,
+                                                            ),
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Padding(

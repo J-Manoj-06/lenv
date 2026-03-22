@@ -475,7 +475,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         alpha: 0.14,
                       ),
                       child: Text(
-                        myReaction!,
+                        myReaction,
                         style: const TextStyle(fontSize: 16),
                       ),
                     ),
@@ -509,7 +509,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                             messageId: message.id,
                           ),
                           userId: currentUserId,
-                          emoji: myReaction!,
+                          emoji: myReaction,
                           userAliases: userAliases,
                         );
                       } catch (_) {
@@ -526,6 +526,134 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                 ],
               ],
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  bool _messageHasMedia(GroupChatMessage message) {
+    final hasLegacyUrl = (message.imageUrl?.isNotEmpty ?? false);
+    final hasSingleMedia = message.mediaMetadata != null;
+    final hasMultipleMedia = message.multipleMedia?.isNotEmpty ?? false;
+    return hasLegacyUrl || hasSingleMedia || hasMultipleMedia;
+  }
+
+  bool _isMessageDownloaded(GroupChatMessage message) {
+    if (!_messageHasMedia(message)) return true;
+
+    final rawLocalPath = message.rawData?['localPath'];
+    if (rawLocalPath is String && rawLocalPath.isNotEmpty) {
+      return true;
+    }
+
+    final singleMedia = message.mediaMetadata;
+    if (singleMedia != null) {
+      final singleLocalPath =
+          singleMedia.localPath ??
+          _localSenderMediaPaths[singleMedia.messageId] ??
+          _localSenderMediaPaths[message.id];
+      if (singleLocalPath != null && singleLocalPath.isNotEmpty) {
+        return true;
+      }
+    }
+
+    final multipleMedia = message.multipleMedia;
+    if (multipleMedia != null && multipleMedia.isNotEmpty) {
+      for (final media in multipleMedia) {
+        final localPath =
+            media.localPath ??
+            _localSenderMediaPaths[media.messageId] ??
+            _localSenderMediaPaths[message.id];
+        if (localPath == null || localPath.isEmpty) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    final legacyLocalPath = _localSenderMediaPaths[message.id];
+    return legacyLocalPath != null && legacyLocalPath.isNotEmpty;
+  }
+
+  void _selectSingleMessageForAction(String messageId) {
+    if (!mounted) return;
+    setState(() {
+      _isSelectionMode = true;
+      _selectedMessages
+        ..clear()
+        ..add(messageId);
+      _invalidateShareEligibilityCache();
+    });
+  }
+
+  Future<void> _showMessageActionSheet({
+    required BuildContext context,
+    required GroupChatMessage message,
+    required bool isDownloaded,
+  }) async {
+    if (!mounted) return;
+
+    final hasMedia = _messageHasMedia(message);
+    final needsDownload = hasMedia && !isDownloaded;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.forward_to_inbox_rounded),
+                title: const Text('Forward'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  if (needsDownload) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Download this media before forwarding'),
+                      ),
+                    );
+                    return;
+                  }
+                  _selectSingleMessageForAction(message.id);
+                  _forwardSelectedMessages();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share_rounded),
+                title: const Text('Share'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  if (needsDownload) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Download this media before sharing'),
+                      ),
+                    );
+                    return;
+                  }
+                  _selectSingleMessageForAction(message.id);
+                  _shareSelectedMessages();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('Delete'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _selectSingleMessageForAction(message.id);
+                  _showDeleteDialog();
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
         );
       },
@@ -1076,6 +1204,14 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                     message: message,
                     globalPosition: details.globalPosition,
                   );
+                  // Show animated action sheet for forward/share/delete
+                  Future.delayed(const Duration(milliseconds: 180), () {
+                    _showMessageActionSheet(
+                      context: context,
+                      message: message,
+                      isDownloaded: _isMessageDownloaded(message),
+                    );
+                  });
                 },
                 onTap: _isSelectionMode
                     ? () {
