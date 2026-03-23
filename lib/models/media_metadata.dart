@@ -58,12 +58,45 @@ class MediaMetadata {
     return value.toString();
   }
 
+  static String _deriveR2KeyFromUrl(String url) {
+    if (url.isEmpty) return '';
+
+    final parsed = Uri.tryParse(url);
+    if (parsed == null) return '';
+
+    var path = parsed.path;
+    while (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+    if (path.isEmpty) return '';
+
+    final mediaIndex = path.indexOf('media/');
+    if (mediaIndex >= 0) {
+      path = path.substring(mediaIndex);
+    } else {
+      path = 'media/$path';
+    }
+
+    return Uri.decodeFull(path);
+  }
+
   /// Create from Firestore document
   factory MediaMetadata.fromFirestore(Map<String, dynamic> data) {
-    final parsedR2Key = _parseString(data['r2Key']);
     final parsedPublicUrl = _parseString(data['publicUrl']).isNotEmpty
-        ? _parseString(data['publicUrl'])
-        : _parseString(data['url']);
+      ? _parseString(data['publicUrl'])
+      : (_parseString(data['url']).isNotEmpty
+          ? _parseString(data['url'])
+          : (_parseString(data['downloadUrl']).isNotEmpty
+            ? _parseString(data['downloadUrl'])
+            : _parseString(data['fileUrl'])));
+
+    final parsedR2Key = _parseString(data['r2Key']).isNotEmpty
+      ? _parseString(data['r2Key'])
+      : (_parseString(data['key']).isNotEmpty
+          ? _parseString(data['key'])
+          : (_parseString(data['mediaKey']).isNotEmpty
+            ? _parseString(data['mediaKey'])
+            : _deriveR2KeyFromUrl(parsedPublicUrl)));
 
     return MediaMetadata(
       messageId: _parseString(data['messageId']),

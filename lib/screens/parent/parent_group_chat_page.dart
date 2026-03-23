@@ -928,12 +928,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     MediaMetadata? mediaMetadata;
     if (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty) {
       final first = multipleMedia.isNotEmpty ? multipleMedia.first : null;
+      final resolvedPublicUrl = first?.publicUrl.isNotEmpty == true
+          ? first!.publicUrl
+          : msg.attachmentUrl!;
       mediaMetadata = MediaMetadata(
         messageId: msg.messageId,
-        r2Key: '',
-        publicUrl: first?.publicUrl.isNotEmpty == true
-            ? first!.publicUrl
-            : msg.attachmentUrl!,
+        r2Key: _extractR2KeyFromMediaUrl(resolvedPublicUrl),
+        publicUrl: resolvedPublicUrl,
         thumbnail: '',
         expiresAt: DateTime.now().add(const Duration(days: 30)),
         uploadedAt: DateTime.fromMillisecondsSinceEpoch(msg.timestamp),
@@ -1613,15 +1614,18 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   }
 
   MediaMetadata _normalizeMediaMetadata(MediaMetadata media) {
+    final normalizedR2Key = media.r2Key.isNotEmpty
+        ? media.r2Key
+        : _extractR2KeyFromMediaUrl(media.publicUrl);
     final normalizedPublicUrl = media.publicUrl.isNotEmpty
         ? media.publicUrl
-        : (media.r2Key.isNotEmpty
-              ? '${CloudflareConfig.r2Domain}/${media.r2Key}'
+        : (normalizedR2Key.isNotEmpty
+              ? '${CloudflareConfig.r2Domain}/$normalizedR2Key'
               : '');
 
     return MediaMetadata(
       messageId: media.messageId,
-      r2Key: media.r2Key,
+      r2Key: normalizedR2Key,
       publicUrl: normalizedPublicUrl,
       localPath: media.localPath,
       thumbnail: media.thumbnail,
@@ -1633,6 +1637,28 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       mimeType: media.mimeType,
       originalFileName: media.originalFileName,
     );
+  }
+
+  String _extractR2KeyFromMediaUrl(String url) {
+    if (url.trim().isEmpty) return '';
+
+    final parsed = Uri.tryParse(url.trim());
+    if (parsed == null) return '';
+
+    var path = parsed.path;
+    while (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+    if (path.isEmpty) return '';
+
+    final mediaIndex = path.indexOf('media/');
+    if (mediaIndex >= 0) {
+      path = path.substring(mediaIndex);
+    } else {
+      path = 'media/$path';
+    }
+
+    return Uri.decodeFull(path);
   }
 
   String _resolvedMediaDisplaySource(
@@ -2980,25 +3006,24 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                         child: GestureDetector(
                                           behavior: HitTestBehavior.opaque,
                                           onLongPressStart: (details) {
-                                            if (_selectionMode &&
-                                                !isPending &&
-                                                isCurrentUser) {
-                                              _selectionMode = true;
+                                            if (isPending) return;
+
+                                            if (isCurrentUser) {
                                               setState(() {
-                                                _selectedMessages.value = {
-                                                  msg.messageId,
-                                                };
+                                                _selectionMode = true;
                                               });
-                                              return;
+                                              _selectedMessages.value = {
+                                                ..._selectedMessages.value,
+                                                msg.messageId,
+                                              };
+                                              _invalidateSelectionEligibilityCache();
                                             }
 
-                                            if (!isPending) {
-                                              _showReactionPickerForMessage(
-                                                msg: msg,
-                                                globalPosition:
-                                                    details.globalPosition,
-                                              );
-                                            }
+                                            _showReactionPickerForMessage(
+                                              msg: msg,
+                                              globalPosition:
+                                                  details.globalPosition,
+                                            );
                                           },
                                           onTap: _selectionMode && isCurrentUser
                                               ? () {

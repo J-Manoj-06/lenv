@@ -80,9 +80,30 @@ class MediaRepository {
     String? thumbnailBase64,
   }) async {
     try {
+      final rawInput = r2Key.trim();
+      final inputUri = Uri.tryParse(rawInput);
+      final isAbsoluteInputUrl =
+          inputUri != null &&
+          (inputUri.scheme == 'http' || inputUri.scheme == 'https');
+      final cloudflareHost = Uri.parse(cloudflareBaseUrl).host;
+      final shouldUseDirectUrl =
+          isAbsoluteInputUrl && !inputUri.host.contains(cloudflareHost);
+      final normalizedKey = _normalizeMediaKey(r2Key);
+
+      if (normalizedKey == null && !shouldUseDirectUrl) {
+        return DownloadResult(
+          success: false,
+          message: 'File is still being prepared. Please retry in a moment.',
+        );
+      }
+
+      final cacheKey = shouldUseDirectUrl
+          ? rawInput
+          : (normalizedKey ?? rawInput);
+
       // Check if already downloaded
-      if (await isDownloaded(r2Key)) {
-        final metadata = await _storageHelper.getMediaMetadata(r2Key);
+      if (await isDownloaded(cacheKey)) {
+        final metadata = await _storageHelper.getMediaMetadata(cacheKey);
         return DownloadResult(
           success: true,
           localPath: metadata!.localPath,
@@ -90,11 +111,10 @@ class MediaRepository {
         );
       }
 
-      // Normalize r2Key: add 'media/' prefix if missing (for backward compatibility with old messages)
-      final normalizedKey = r2Key.startsWith('media/') ? r2Key : 'media/$r2Key';
-
       // Build Cloudflare Worker URL
-      final url = '$cloudflareBaseUrl/$normalizedKey';
+      final url = shouldUseDirectUrl
+          ? rawInput
+          : '$cloudflareBaseUrl/$normalizedKey';
 
       const maxRetries = 3;
       int attempt = 0;
@@ -154,11 +174,12 @@ class MediaRepository {
       }
 
       // Determine target file name from key
-      final segmentsForName = r2Key.split('/');
-      final baseName = segmentsForName.isNotEmpty
-          ? segmentsForName.last
-          : fileName;
-      final targetFileName = baseName;
+        final keyForName = shouldUseDirectUrl
+            ? inputUri.path
+          : (normalizedKey ?? '');
+        final segmentsForName = keyForName.split('/');
+          final baseName = segmentsForName.isNotEmpty ? segmentsForName.last : '';
+          final targetFileName = baseName.isNotEmpty ? baseName : fileName;
 
       // Save to public storage (Android MediaStore) or fallback app storage
       String savedPath;
@@ -186,7 +207,7 @@ class MediaRepository {
 
       // Save metadata
       final media = DownloadedMedia(
-        key: r2Key,
+        key: cacheKey,
         localPath: savedPath,
         fileName: fileName,
         mimeType: mimeType,
@@ -208,6 +229,38 @@ class MediaRepository {
         message: _friendlyDownloadErrorMessage(e),
       );
     }
+  }
+
+  String? _normalizeMediaKey(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    String candidate = trimmed;
+
+    // Older payloads may pass a full URL instead of an R2 key.
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      final uri = Uri.tryParse(trimmed);
+      if (uri == null || uri.path.isEmpty) return null;
+
+      candidate = uri.path;
+      while (candidate.startsWith('/')) {
+        candidate = candidate.substring(1);
+      }
+      if (candidate.isEmpty) return null;
+    }
+
+    if (!candidate.startsWith('media/')) {
+      final mediaSegmentIndex = candidate.indexOf('media/');
+      if (mediaSegmentIndex > 0) {
+        candidate = candidate.substring(mediaSegmentIndex);
+      }
+    }
+
+    if (!candidate.startsWith('media/')) {
+      candidate = 'media/$candidate';
+    }
+
+    return candidate;
   }
 
   bool _isRetryableStatusCode(int statusCode) {
