@@ -458,35 +458,57 @@ class NotificationService {
           ? message.data['notificationId']!.toString().trim()
           : 'n_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(9999)}';
 
-      await FirebaseFirestore.instance
+      final docRef = FirebaseFirestore.instance
           .collection('notifications')
-          .doc(notificationId)
-          .set({
-            'notificationId': notificationId,
-            'userId': userId,
-            'role': message.data['role'] ?? '',
-            'schoolId': message.data['schoolId'] ?? '',
-            'category': category,
-            'title': message.notification?.title ?? '',
-            'body': message.notification?.body ?? '',
-            'iconType': message.data['iconType'] ?? category,
-            'priority': message.data['priority'] ?? 'normal',
-            'soundEnabled': message.data['soundEnabled']?.toString() == 'true',
-            'vibrationEnabled':
-                message.data['vibrationEnabled']?.toString() == 'true',
-            'isRead': false,
-            'createdAt': FieldValue.serverTimestamp(),
-            'timestamp': FieldValue.serverTimestamp(),
-            'targetType': message.data['targetType'],
-            'targetId': targetId,
-            'referenceId': targetId,
-            'deepLinkRoute': message.data['deepLinkRoute'],
-            'metadata': message.data,
-            'data': message.data,
-            'dedupeKey': message.data['dedupeKey'],
-          }, SetOptions(merge: true));
+          .doc(notificationId);
+
+      // Worker-created docs are already canonical. Skip duplicate client writes.
+      final existing = await docRef.get();
+      if (existing.exists) {
+        debugPrint('Skip notification save: already exists ($notificationId)');
+        return;
+      }
+
+      await docRef.set({
+        'notificationId': notificationId,
+        'userId': userId,
+        'role': message.data['role'] ?? '',
+        'schoolId': message.data['schoolId'] ?? '',
+        'category': category,
+        'title': message.notification?.title ?? '',
+        'body': message.notification?.body ?? '',
+        'iconType': message.data['iconType'] ?? category,
+        'priority': message.data['priority'] ?? 'normal',
+        'soundEnabled': message.data['soundEnabled']?.toString() == 'true',
+        'vibrationEnabled':
+            message.data['vibrationEnabled']?.toString() == 'true',
+        'isRead': false,
+        'createdAt': FieldValue.serverTimestamp(),
+        'timestamp': FieldValue.serverTimestamp(),
+        'targetType': message.data['targetType'],
+        'targetId': targetId,
+        'referenceId': targetId,
+        'deepLinkRoute': message.data['deepLinkRoute'],
+        'metadata': message.data,
+        'data': message.data,
+        'dedupeKey': message.data['dedupeKey'],
+      });
 
       debugPrint('Notification saved to Firestore');
+    } on FirebaseException catch (e) {
+      // Expected in race conditions when worker/client both attempt first write.
+      if (e.code == 'already-exists') {
+        debugPrint('Skip notification save: create race, already exists');
+        return;
+      }
+      // Expected if server-owned document already exists and client cannot mutate.
+      if (e.code == 'permission-denied') {
+        debugPrint(
+          'Skip notification save: permission denied (server-managed notification)',
+        );
+        return;
+      }
+      debugPrint('Error saving notification to Firestore: $e');
     } catch (e) {
       debugPrint('Error saving notification to Firestore: $e');
     }

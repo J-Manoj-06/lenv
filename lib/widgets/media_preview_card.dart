@@ -636,7 +636,7 @@ class _MediaPreviewCardState extends State<MediaPreviewCard> {
                 const SizedBox(height: 10),
 
                 // Action button (Download/Open/Progress)
-                if (_isDownloading && !widget.isMe)
+                if (_isDownloading)
                   Column(
                     children: [
                       LinearProgressIndicator(
