@@ -279,29 +279,27 @@ class MessageGroupsService {
     int unreadCount = context.indexedUnreadCount;
 
     try {
-      // ✅ Get last message only when not available from teacher_groups index
-      if (lastMessageTime == null ||
-          (lastMessage == null || lastMessage.isEmpty)) {
-        final messagesSnapshot = await _firestore
-            .collection('classes')
-            .doc(context.classId)
-            .collection('subjects')
-            .doc(subjectId)
-            .collection('messages')
-            .orderBy('timestamp', descending: true)
-            .limit(1) // Only need the last message
-            .get();
+      // Always reconcile with latest message from Firestore to avoid stale
+      // teacher_groups index timestamps preventing reordering after send/receive.
+      final messagesSnapshot = await _firestore
+          .collection('classes')
+          .doc(context.classId)
+          .collection('subjects')
+          .doc(subjectId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
 
-        if (messagesSnapshot.docs.isNotEmpty) {
-          // Get last message (always first doc due to descending order)
-          final lastMsg = messagesSnapshot.docs.first.data();
-          lastMessage =
-              lastMsg['message']
-                  as String?; // ✅ Fixed: Use 'message' field name
-          final timestampMs = _toMillis(lastMsg['timestamp']);
-          if (timestampMs > 0) {
-            lastMessageTime = DateTime.fromMillisecondsSinceEpoch(timestampMs);
-          }
+      if (messagesSnapshot.docs.isNotEmpty) {
+        final lastMsg = messagesSnapshot.docs.first.data();
+        final latestMessage = lastMsg['message'] as String?;
+        final timestampMs = _toMillis(lastMsg['timestamp']);
+        if (latestMessage != null && latestMessage.isNotEmpty) {
+          lastMessage = latestMessage;
+        }
+        if (timestampMs > 0) {
+          lastMessageTime = DateTime.fromMillisecondsSinceEpoch(timestampMs);
         }
       }
 
