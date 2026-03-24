@@ -33,25 +33,23 @@ class _GroupsListPageState extends State<GroupsListPage>
   bool _isLoadingFromCache = false;
   String? _classId;
   bool _hasAttemptedLoad = false;
-  final Map<String, int> _lastMessageTs = {}; // chatId -> latest timestamp
+  final Map<String, int> _lastMessageTs =
+      {}; // chatId -> last message timestamp
   final Map<String, dynamic> _messageListeners =
       {}; // Store listeners for cleanup
-  final Map<String, dynamic> _subjectListeners =
-      {}; // Track subject doc listeners for lastActivity updates
   final Set<String> _messageErrorLogged = <String>{};
-  final Set<String> _subjectErrorLogged = <String>{};
   final Set<String> _openingChats = <String>{};
-
-  int _toMillis(dynamic raw) {
-    if (raw is int) return raw;
-    if (raw is Timestamp) return raw.millisecondsSinceEpoch;
-    if (raw is num) return raw.toInt();
-    if (raw is DateTime) return raw.millisecondsSinceEpoch;
-    return 0;
-  }
 
   String _chatIdForSubject(String subjectId) {
     return '$_classId|$subjectId';
+  }
+
+  int _toMillis(dynamic ts) {
+    if (ts is Timestamp) return ts.toDate().millisecondsSinceEpoch;
+    if (ts is DateTime) return ts.millisecondsSinceEpoch;
+    if (ts is int) return ts;
+    if (ts is num) return ts.toInt();
+    return 0;
   }
 
   int _compareSubjectsByRecent(GroupSubject a, GroupSubject b) {
@@ -91,12 +89,6 @@ class _GroupsListPageState extends State<GroupsListPage>
       listener?.cancel?.call();
     }
     _messageListeners.clear();
-
-    // Cancel subject listeners
-    for (final listener in _subjectListeners.values) {
-      listener?.cancel?.call();
-    }
-    _subjectListeners.clear();
     super.dispose();
   }
 
@@ -119,38 +111,42 @@ class _GroupsListPageState extends State<GroupsListPage>
 
   void _listenForMessageUpdates(String classId, GroupSubject subject) {
     final chatId = '$classId|${subject.id}';
-    // Listen to all messages, not just the latest one, to ensure we catch every update
+    // Listen to message updates for sorting by newest message and unread badge refreshes.
     final query = FirebaseFirestore.instance
         .collection('classes')
         .doc(classId)
         .collection('subjects')
         .doc(subject.id)
         .collection('messages')
-        .orderBy('timestamp', descending: true);
+        .orderBy('timestamp', descending: true)
+        .limit(1);
 
     // Store the listener so we can cancel it on dispose
     _messageListeners[chatId] = query.snapshots().listen(
       (snapshot) {
-        if (snapshot.docs.isNotEmpty && mounted) {
-          final rawTs = snapshot.docs.first.data()['timestamp'];
-          final newTs = _toMillis(rawTs);
-
-          // Update timestamp and resort immediately
-          _lastMessageTs[chatId] = newTs;
-          _resortGroups();
-
-          // Refresh unread count for this chat
-          try {
-            final unread = Provider.of<UnreadCountProvider>(
-              context,
-              listen: false,
-            );
-            unread.loadUnreadCount(
-              chatId: chatId,
-              chatType: ChatTypeConfig.groupChat,
-            );
-          } catch (_) {}
-        }
+        if (!mounted) return;
+        try {
+          // Update message timestamp for sorting
+          if (snapshot.docs.isNotEmpty) {
+            final lastMsg = snapshot.docs.first.data();
+            final msgTs = _toMillis(lastMsg['timestamp']);
+            if (msgTs > 0) {
+              final previousTs = _lastMessageTs[chatId] ?? 0;
+              if (msgTs != previousTs) {
+                _lastMessageTs[chatId] = msgTs;
+                _resortGroups();
+              }
+            }
+          }
+          final unread = Provider.of<UnreadCountProvider>(
+            context,
+            listen: false,
+          );
+          unread.loadUnreadCount(
+            chatId: chatId,
+            chatType: ChatTypeConfig.groupChat,
+          );
+        } catch (_) {}
       },
       onError: (e) {
         final msg = e.toString().toLowerCase();
@@ -167,47 +163,6 @@ class _GroupsListPageState extends State<GroupsListPage>
         }
         if (_messageErrorLogged.add('other:$chatId')) {
           debugPrint('Error listening to messages for $chatId: $e');
-        }
-      },
-    );
-  }
-
-  void _listenForSubjectActivity(String classId, GroupSubject subject) {
-    final chatId = '$classId|${subject.id}';
-    final docRef = FirebaseFirestore.instance
-        .collection('classes')
-        .doc(classId)
-        .collection('subjects')
-        .doc(subject.id);
-
-    _subjectListeners[chatId] = docRef.snapshots().listen(
-      (doc) {
-        if (!mounted || !doc.exists) return;
-        final data = doc.data();
-        final activityTs = (data?['lastActivity'] as int?) ?? 0;
-        if (activityTs == 0) return;
-
-        final previous = _lastMessageTs[chatId] ?? 0;
-        if (activityTs > previous) {
-          _lastMessageTs[chatId] = activityTs;
-          _resortGroups();
-        }
-      },
-      onError: (e) {
-        final msg = e.toString().toLowerCase();
-        final isSignedOut = fb_auth.FirebaseAuth.instance.currentUser == null;
-        if (msg.contains('permission-denied') ||
-            msg.contains('permission denied') ||
-            msg.contains('insufficient permissions')) {
-          if (!isSignedOut && _subjectErrorLogged.add(chatId)) {
-            debugPrint('Permission denied listening subject for $chatId');
-          }
-          _subjectListeners[chatId]?.cancel?.call();
-          _subjectListeners.remove(chatId);
-          return;
-        }
-        if (_subjectErrorLogged.add('other:$chatId')) {
-          debugPrint('Error listening to subject $chatId: $e');
         }
       },
     );
@@ -280,21 +235,12 @@ class _GroupsListPageState extends State<GroupsListPage>
               false; // ✅ Don't show loading spinner if we have cached data
         });
 
-        // Load cached timestamps for sorting
+        // ✅ Message listeners will load timestamps and trigger sort
         for (final s in cachedSubjects) {
           if (_classId != null) {
-            final chatId = '$_classId|${s.id}';
-            final cachedTs = _offlineService.getCachedLastMessageTimestamp(
-              chatId,
-            );
-            if (cachedTs != null) {
-              _lastMessageTs[chatId] = cachedTs;
-            }
+            _listenForMessageUpdates(_classId!, s);
           }
         }
-
-        // Sort by cached timestamps
-        _sortSubjectsByRecent();
       }
       debugPrint('✅ Loaded ${cachedSubjects.length} groups from cache');
     } else {
@@ -405,55 +351,9 @@ class _GroupsListPageState extends State<GroupsListPage>
       };
       await loadUnreadCountsForChats(chatIds: chatIds, chatTypes: chatTypes);
 
-      // Fetch latest message timestamp for sorting like WhatsApp
-      for (final s in subjects) {
-        final chatId = '$_classId|${s.id}';
-        try {
-          final snap = await FirebaseFirestore.instance
-              .collection('classes')
-              .doc(_classId!)
-              .collection('subjects')
-              .doc(s.id)
-              .collection('messages')
-              .orderBy('timestamp', descending: true)
-              .limit(1)
-              .get();
-          if (snap.docs.isNotEmpty) {
-            final ts = _toMillis(snap.docs.first.data()['timestamp']);
-            _lastMessageTs[chatId] = ts;
-            // ✅ Cache timestamp for offline sorting
-            await _offlineService.cacheLastMessageTimestamp(
-              chatId: chatId,
-              timestamp: ts,
-            );
-          } else {
-            _lastMessageTs[chatId] = 0;
-          }
-        } catch (_) {
-          _lastMessageTs[chatId] = 0;
-        }
-      }
-      if (mounted) {
-        setState(() {
-          _sortSubjectsByRecent();
-        });
-      }
-
-      // Cancel old listeners before setting up new ones
-      for (final listener in _messageListeners.values) {
-        listener?.cancel?.call();
-      }
-      _messageListeners.clear();
-
-      for (final listener in _subjectListeners.values) {
-        listener?.cancel?.call();
-      }
-      _subjectListeners.clear();
-
-      // Set up real-time listeners for all subjects to resort on new messages
+      // ✅ Message listeners will load timestamps and trigger sort
       for (final s in subjects) {
         _listenForMessageUpdates(_classId!, s);
-        _listenForSubjectActivity(_classId!, s);
       }
     } catch (e) {
       if (!mounted) return;
@@ -470,16 +370,10 @@ class _GroupsListPageState extends State<GroupsListPage>
           if (cachedData != null && cachedData.isNotEmpty) {
             _subjects = cachedData;
 
-            // Load cached timestamps
+            // Start listeners to load message timestamps
             if (_classId != null) {
               for (final s in cachedData) {
-                final chatId = '$_classId|${s.id}';
-                final cachedTs = _offlineService.getCachedLastMessageTimestamp(
-                  chatId,
-                );
-                if (cachedTs != null) {
-                  _lastMessageTs[chatId] = cachedTs;
-                }
+                _listenForMessageUpdates(_classId!, s);
               }
             }
           }
@@ -590,7 +484,7 @@ class _GroupsListPageState extends State<GroupsListPage>
             separatorBuilder: (context, index) => const SizedBox(height: 14),
             itemBuilder: (context, index) {
               final subject = _subjects[index];
-              final chatId = '$_classId|${subject.id}';
+              final chatId = '${_classId ?? ''}|${subject.id}';
 
               return _SubjectGroupCard(
                 subject: subject,
@@ -625,6 +519,8 @@ class _GroupsListPageState extends State<GroupsListPage>
                   }
 
                   try {
+                    final resolvedChatId = '$resolvedClassId|${subject.id}';
+
                     // Navigate and wait for return
                     await Navigator.push(
                       navContext,
@@ -646,9 +542,9 @@ class _GroupsListPageState extends State<GroupsListPage>
                           navContext,
                           listen: false,
                         );
-                        unreadProvider.refreshChat(chatId);
+                        unreadProvider.refreshChat(resolvedChatId);
                         unreadProvider.loadUnreadCount(
-                          chatId: chatId,
+                          chatId: resolvedChatId,
                           chatType: ChatTypeConfig.groupChat,
                         );
                       } catch (e) {}

@@ -94,7 +94,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
 
   Widget _buildTabButton(String label, int index) {
     final isSelected = _selectedIndex == index;
-    const primaryColor = Color(0xFF355872);
+    const primaryColor = Color(0xFFF97316);
 
     return GestureDetector(
       onTap: () {

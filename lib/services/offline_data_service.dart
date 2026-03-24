@@ -240,6 +240,35 @@ class OfflineDataService {
     }
   }
 
+  /// Store last time the current user actively used/opened a group chat.
+  Future<void> cacheGroupLastUsedTimestamp({
+    required String chatId,
+    required int timestamp,
+  }) async {
+    try {
+      final key = 'group_last_used_ts_$chatId';
+      await _userDataCache.put(key, {
+        'timestamp': timestamp,
+        'cachedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error caching group last-used timestamp: $e');
+    }
+  }
+
+  /// Get cached last time the current user actively used/opened a group chat.
+  int? getCachedGroupLastUsedTimestamp(String chatId) {
+    try {
+      final key = 'group_last_used_ts_$chatId';
+      final cached = _userDataCache.get(key);
+      if (cached == null) return null;
+      return cached['timestamp'] as int?;
+    } catch (e) {
+      debugPrint('Error reading cached group last-used timestamp: $e');
+      return null;
+    }
+  }
+
   // ==================== COMMUNITIES ====================
 
   /// Cache communities list

@@ -113,6 +113,9 @@ class BackgroundUploadService extends ChangeNotifier {
   final Map<String, List<MediaMetadata>> _completedGroups = {};
 
   // Callback for UI to track uploading messages
+  // Track groups that have already sent notifications to prevent duplicates
+  final Set<String> _sentGroups = {};
+
   Function(String messageId, bool isUploading, double progress)?
   onUploadProgress;
 
@@ -368,6 +371,16 @@ class BackgroundUploadService extends ChangeNotifier {
               // All uploads in group are done - send one message with multipleMedia
               final allMetadata = _completedGroups[upload.groupId!]!;
 
+              // ✅ PREVENT DUPLICATE: Only send if this group hasn't already sent
+              if (_sentGroups.contains(upload.groupId!)) {
+                debugPrint(
+                  'ℹ️ Group ${upload.groupId} already sent - skipping duplicate',
+                );
+                continue; // Skip - group already processed by another upload
+              }
+
+              _sentGroups.add(upload.groupId!); // Mark as sent
+
               // Route to the correct messaging service based on chatType
               if (upload.chatType == 'group' || upload.senderRole == 'group') {
                 final parts = upload.conversationId.split('_');
@@ -447,6 +460,7 @@ class BackgroundUploadService extends ChangeNotifier {
               // Clean up completed group
               _completedGroups.remove(upload.groupId);
               _uploads.removeWhere((u) => u.groupId == upload.groupId);
+              _sentGroups.remove(upload.groupId!); // Clear flag for reuse
 
               // Notify UI that group upload is complete (remove all pending messages in group)
               if (onGroupComplete != null) {

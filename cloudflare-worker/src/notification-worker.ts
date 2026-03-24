@@ -1526,7 +1526,13 @@ export default {
         case 'test_assignment':
           return await handleTestAssignment(payload, env, accessToken);
         case 'announcement':
-          return await handleAnnouncement(payload, env, accessToken);
+          return jsonResponse(
+            {
+              success: false,
+              message: 'Announcement notifications are disabled',
+            },
+            410
+          );
         default:
           return jsonResponse({ success: false, message: `Unsupported type: ${type}` }, 400);
       }
