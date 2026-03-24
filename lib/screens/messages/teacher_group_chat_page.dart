@@ -201,6 +201,33 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     return sorted.join('|');
   }
 
+  List<String> _buildGroupDpFallbackIds() {
+    final candidates = <String>{};
+
+    final normalizedSubjectId = widget.subjectId
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '_');
+    final normalizedSubjectName = widget.subjectName
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '_');
+
+    if (normalizedSubjectId.isNotEmpty) {
+      candidates.add('${widget.classId}_$normalizedSubjectId');
+    }
+    if (normalizedSubjectName.isNotEmpty) {
+      candidates.add('${widget.classId}_$normalizedSubjectName');
+    }
+
+    candidates.add('${widget.classId}_${widget.subjectName}');
+
+    final primary = '${widget.classId}_${widget.subjectId}';
+    candidates.remove(primary);
+
+    return candidates.where((id) => id.trim().isNotEmpty).toList();
+  }
+
   void _invalidateShareEligibilityCache() {
     _shareEligibilitySelectionKey = null;
     _shareEligibilityFuture = null;
@@ -2407,621 +2434,647 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     final currentUserId = authProvider.currentUser?.uid;
     final theme = Theme.of(context);
 
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: theme.scaffoldBackgroundColor,
-          appBar: AppBar(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isSelectionMode) {
+          setState(() {
+            _isSelectionMode = false;
+            _selectedMessages.clear();
+            _invalidateShareEligibilityCache();
+          });
+          return false;
+        }
+        return true;
+      },
+      child: Stack(
+        children: [
+          Scaffold(
             backgroundColor: theme.scaffoldBackgroundColor,
-            elevation: 0,
-            leading: IconButton(
-              icon: Icon(
-                _isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
-                color: theme.iconTheme.color,
-                size: 20,
+            appBar: AppBar(
+              backgroundColor: theme.scaffoldBackgroundColor,
+              elevation: 0,
+              leading: IconButton(
+                icon: Icon(
+                  _isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
+                  color: theme.iconTheme.color,
+                  size: 20,
+                ),
+                onPressed: () {
+                  if (_isSelectionMode) {
+                    setState(() {
+                      _isSelectionMode = false;
+                      _selectedMessages.clear();
+                      _invalidateShareEligibilityCache();
+                    });
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
               ),
-              onPressed: () {
-                if (_isSelectionMode) {
-                  setState(() {
-                    _isSelectionMode = false;
-                    _selectedMessages.clear();
-                    _invalidateShareEligibilityCache();
-                  });
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            ),
-            title: _isSelectionMode
-                ? Text(
-                    '${_selectedMessages.length} selected',
-                    style: TextStyle(
-                      color: theme.textTheme.bodyLarge?.color,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                : GestureDetector(
-                    onTap: () {
-                      final authProv = Provider.of<AuthProvider>(
-                        context,
-                        listen: false,
-                      );
-                      final isTeacher =
-                          authProv.currentUser?.role == UserRole.teacher;
-                      final groupId = '${widget.classId}_${widget.subjectId}';
-                      // Start watching group DP
-                      context.read<ProfileDPProvider>().watchGroupDP(groupId);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => GroupInfoScreen(
-                            groupId: groupId,
-                            groupName: widget.subjectName,
-                            subjectName: widget.subjectName,
-                            className: widget.className ?? '',
-                            section: widget.section,
-                            isTeacher: isTeacher,
-                            icon: widget.icon,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Row(
-                      children: [
-                        GroupAvatarWidget(
-                          groupId: '${widget.classId}_${widget.subjectId}',
-                          groupName: widget.subjectName,
-                          size: 38,
-                          icon: widget.icon,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.subjectName,
-                                style: TextStyle(
-                                  color: theme.textTheme.bodyLarge?.color,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                widget.className != null &&
-                                        widget.section != null
-                                    ? '${widget.className} - Section ${widget.section}'
-                                    : widget.teacherName,
-                                style: TextStyle(
-                                  color: theme.textTheme.bodySmall?.color,
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-            actions: _isSelectionMode
-                ? [
-                    FutureBuilder<bool>(
-                      future: _getForwardEligibilityFuture(_selectedMessages),
-                      builder: (context, snapshot) {
-                        final canForward = snapshot.data == true;
-                        if (!canForward) return const SizedBox.shrink();
-                        return IconButton(
-                          icon: const Icon(
-                            Icons.reply_all_rounded,
-                            color: Colors.blueAccent,
-                            size: 24,
-                          ),
-                          tooltip: 'Forward',
-                          onPressed: _selectedMessages.isEmpty
-                              ? null
-                              : _forwardSelectedMessages,
-                        );
-                      },
-                    ),
-                    FutureBuilder<bool>(
-                      future: _getShareEligibilityFuture(_selectedMessages),
-                      builder: (context, snapshot) {
-                        final canShare = snapshot.data == true;
-                        if (!canShare) return const SizedBox.shrink();
-                        return IconButton(
-                          icon: Icon(
-                            Icons.share_rounded,
-                            color: theme.brightness == Brightness.dark
-                                ? Colors.white70
-                                : const Color(0xFF475569),
-                            size: 24,
-                          ),
-                          tooltip: 'Share',
-                          onPressed: _shareSelectedMessages,
-                        );
-                      },
-                    ),
-                    FutureBuilder<bool>(
-                      future: _getDeleteEligibilityFuture(_selectedMessages),
-                      builder: (context, snapshot) {
-                        final canDelete = snapshot.data == true;
-                        if (!canDelete) return const SizedBox.shrink();
-                        return IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.redAccent,
-                            size: 24,
-                          ),
-                          tooltip: 'Delete',
-                          onPressed: _selectedMessages.isEmpty
-                              ? null
-                              : _showDeleteDialog,
-                        );
-                      },
-                    ),
-                  ]
-                : [
-                    IconButton(
-                      icon: Icon(
-                        Icons.search,
-                        color: Theme.of(context).iconTheme.color,
+              title: _isSelectionMode
+                  ? Text(
+                      '${_selectedMessages.length} selected',
+                      style: TextStyle(
+                        color: theme.textTheme.bodyLarge?.color,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
-                      onPressed: _openSearch,
+                    )
+                  : GestureDetector(
+                      onTap: () {
+                        final authProv = Provider.of<AuthProvider>(
+                          context,
+                          listen: false,
+                        );
+                        final isTeacher =
+                            authProv.currentUser?.role == UserRole.teacher;
+                        final groupId = '${widget.classId}_${widget.subjectId}';
+                        // Start watching group DP
+                        context.read<ProfileDPProvider>().watchGroupDP(groupId);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => GroupInfoScreen(
+                              groupId: groupId,
+                              groupName: widget.subjectName,
+                              subjectName: widget.subjectName,
+                              className: widget.className ?? '',
+                              section: widget.section,
+                              isTeacher: isTeacher,
+                              icon: widget.icon,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Row(
+                        children: [
+                          GroupAvatarWidget(
+                            groupId: '${widget.classId}_${widget.subjectId}',
+                            groupName: widget.subjectName,
+                            size: 38,
+                            icon: widget.icon,
+                            fallbackGroupIds: _buildGroupDpFallbackIds(),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.subjectName,
+                                  style: TextStyle(
+                                    color: theme.textTheme.bodyLarge?.color,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  widget.className != null &&
+                                          widget.section != null
+                                      ? '${widget.className} - Section ${widget.section}'
+                                      : widget.teacherName,
+                                  style: TextStyle(
+                                    color: theme.textTheme.bodySmall?.color,
+                                    fontSize: 12,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(1),
-              child: Container(
-                height: 1,
-                color: theme.dividerColor.withOpacity(0.1),
+              actions: _isSelectionMode
+                  ? [
+                      FutureBuilder<bool>(
+                        future: _getForwardEligibilityFuture(_selectedMessages),
+                        builder: (context, snapshot) {
+                          final canForward = snapshot.data == true;
+                          if (!canForward) return const SizedBox.shrink();
+                          return IconButton(
+                            icon: const Icon(
+                              Icons.reply_all_rounded,
+                              color: Colors.blueAccent,
+                              size: 24,
+                            ),
+                            tooltip: 'Forward',
+                            onPressed: _selectedMessages.isEmpty
+                                ? null
+                                : _forwardSelectedMessages,
+                          );
+                        },
+                      ),
+                      FutureBuilder<bool>(
+                        future: _getShareEligibilityFuture(_selectedMessages),
+                        builder: (context, snapshot) {
+                          final canShare = snapshot.data == true;
+                          if (!canShare) return const SizedBox.shrink();
+                          return IconButton(
+                            icon: Icon(
+                              Icons.share_rounded,
+                              color: theme.brightness == Brightness.dark
+                                  ? Colors.white70
+                                  : const Color(0xFF475569),
+                              size: 24,
+                            ),
+                            tooltip: 'Share',
+                            onPressed: _shareSelectedMessages,
+                          );
+                        },
+                      ),
+                      FutureBuilder<bool>(
+                        future: _getDeleteEligibilityFuture(_selectedMessages),
+                        builder: (context, snapshot) {
+                          final canDelete = snapshot.data == true;
+                          if (!canDelete) return const SizedBox.shrink();
+                          return IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                              size: 24,
+                            ),
+                            tooltip: 'Delete',
+                            onPressed: _selectedMessages.isEmpty
+                                ? null
+                                : _showDeleteDialog,
+                          );
+                        },
+                      ),
+                    ]
+                  : [
+                      IconButton(
+                        icon: Icon(
+                          Icons.search,
+                          color: Theme.of(context).iconTheme.color,
+                        ),
+                        onPressed: _openSearch,
+                      ),
+                    ],
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(1),
+                child: Container(
+                  height: 1,
+                  color: theme.dividerColor.withOpacity(0.1),
+                ),
               ),
             ),
-          ),
-          body: Column(
-            children: [
-              // Messages List
-              Expanded(
-                child: StreamBuilder<List<GroupChatMessage>>(
-                  stream: _messagesStream, // ✅ Use cached stream
-                  builder: (context, snapshot) {
-                    final liveMessages =
-                        (snapshot.data ?? const <GroupChatMessage>[])
-                            .where(
-                              (m) =>
-                                  !(m.deletedFor?.contains(currentUserId) ??
-                                      false),
-                            )
-                            .toList();
-
-                    final shouldUseSeedMessages =
-                        snapshot.connectionState == ConnectionState.waiting &&
-                        liveMessages.isEmpty &&
-                        _cachedSeedMessages.isNotEmpty;
-
-                    final messages = shouldUseSeedMessages
-                        ? _cachedSeedMessages
+            body: Column(
+              children: [
+                // Messages List
+                Expanded(
+                  child: StreamBuilder<List<GroupChatMessage>>(
+                    stream: _messagesStream, // ✅ Use cached stream
+                    builder: (context, snapshot) {
+                      final liveMessages =
+                          (snapshot.data ?? const <GroupChatMessage>[])
                               .where(
                                 (m) =>
                                     !(m.deletedFor?.contains(currentUserId) ??
                                         false),
                               )
-                              .toList()
-                        : liveMessages;
+                              .toList();
 
-                    // ✅ CRITICAL: Show pending messages immediately while Firestore loads
-                    if (snapshot.connectionState == ConnectionState.waiting &&
-                        _pendingMessages.isEmpty &&
-                        messages.isEmpty) {
-                      return Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.insightsTeal,
-                        ),
-                      );
-                    }
+                      final shouldUseSeedMessages =
+                          snapshot.connectionState == ConnectionState.waiting &&
+                          liveMessages.isEmpty &&
+                          _cachedSeedMessages.isNotEmpty;
 
-                    if (snapshot.hasError) {
-                      // ✅ Show pending messages even if Firestore has error
-                      debugPrint(
-                        '❌ Firestore stream error for '
-                        '${widget.classId}/${widget.subjectId}: ${snapshot.error}',
-                      );
-                      if (_pendingMessages.isEmpty) {
+                      final messages = shouldUseSeedMessages
+                          ? _cachedSeedMessages
+                                .where(
+                                  (m) =>
+                                      !(m.deletedFor?.contains(currentUserId) ??
+                                          false),
+                                )
+                                .toList()
+                          : liveMessages;
+
+                      // ✅ CRITICAL: Show pending messages immediately while Firestore loads
+                      if (snapshot.connectionState == ConnectionState.waiting &&
+                          _pendingMessages.isEmpty &&
+                          messages.isEmpty) {
                         return Center(
-                          child: Text(
-                            'Error loading messages',
-                            style: TextStyle(color: Colors.white70),
+                          child: CircularProgressIndicator(
+                            color: AppColors.insightsTeal,
                           ),
                         );
                       }
-                      // Continue building with pending messages
-                    }
 
-                    // Always proceed to merge with optimistic pending messages,
-                    // even while the stream is still connecting. This ensures
-                    // the pending preview appears immediately.
-
-                    if (!shouldUseSeedMessages && liveMessages.isNotEmpty) {
-                      _cacheMessagesForInstantOpen(liveMessages);
-                    }
-
-                    // Auto-scroll when a new newest message arrives (keep latest in view)
-                    final newestId = messages.isNotEmpty
-                        ? messages.first.id
-                        : null;
-                    if (newestId != null && newestId != _lastTopMessageId) {
-                      _lastTopMessageId = newestId;
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _scrollToLatest();
-                      });
-                      // Play subtle pop for new incoming messages (not self, not pending)
-                      final newestMsg = messages.first;
-                      final isIncoming =
-                          newestMsg.senderId != currentUserId &&
-                          !(newestMsg.id.startsWith('pending:'));
-                      final now = DateTime.now();
-                      if (_initializedFirstSnapshot &&
-                          isIncoming &&
-                          now.difference(_lastSoundPlayedAt) > _soundDebounce &&
-                          _lastIncomingTopMessageId != newestId) {
-                        _lastIncomingTopMessageId = newestId;
-                        _lastSoundPlayedAt = now;
-                        SystemSound.play(SystemSoundType.click);
-                      }
-                      // Avoid playing sound on the very first snapshot
-                      _initializedFirstSnapshot = true;
-                    }
-
-                    // If no Firestore messages but we have pending messages, show them
-                    if (messages.isEmpty && _pendingMessages.isNotEmpty) {
-                      return _buildMessageList(
-                        _pendingMessages,
-                        0, // No last read timestamp since no messages yet
-                        currentUserId,
-                        showDivider: false,
-                      );
-                    }
-
-                    if (messages.isEmpty) {
-                      final theme = Theme.of(context);
-                      final isDark = theme.brightness == Brightness.dark;
-                      final emptyStateColor =
-                          (theme.textTheme.bodyMedium?.color ??
-                                  (isDark ? Colors.white : Colors.black))
-                              .withOpacity(isDark ? 0.6 : 0.55);
-
-                      return Center(
-                        child: Text(
-                          'No messages yet.\nBe the first to say hello! 👋',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: emptyStateColor),
-                        ),
-                      );
-                    }
-
-                    return StreamBuilder<Timestamp?>(
-                      stream: _lastReadAtStream,
-                      builder: (context, readSnapshot) {
-                        // Only consider it valid data if we actually received a non-null timestamp
-                        final hasValidData = readSnapshot.data != null;
-                        final lastReadMs =
-                            readSnapshot.data
-                                ?.toDate()
-                                .millisecondsSinceEpoch ??
-                            DateTime.now()
-                                .subtract(const Duration(days: 30))
-                                .millisecondsSinceEpoch;
-
-                        // Merge pending messages with Firestore messages, removing duplicates
-                        // (pending messages that have been successfully uploaded to Firestore)
-                        final allMessages = <GroupChatMessage>[
-                          ..._pendingMessages,
-                          ...messages,
-                        ];
-
-                        // SAFETY CHECK: Snapshot uploading IDs before dedup
-                        final uploadingMessageIds = <String>{
-                          ..._uploadingMessageIds,
-                        };
-
-                        // Track which pending messages to remove from state
-                        final pendingIdsToRemove = <String>[];
-
-                        // Remove pending messages that now have a corresponding Firestore message
-                        allMessages.removeWhere((pendingMsg) {
-                          // Only process pending messages
-                          if (!pendingMsg.id.startsWith('pending:')) {
-                            return false;
-                          }
-
-                          // ✅ CRITICAL: Extract actual ID from "pending:upload_..." format
-                          final pendingId = pendingMsg.id.replaceFirst(
-                            'pending:',
-                            '',
+                      if (snapshot.hasError) {
+                        // ✅ Show pending messages even if Firestore has error
+                        debugPrint(
+                          '❌ Firestore stream error for '
+                          '${widget.classId}/${widget.subjectId}: ${snapshot.error}',
+                        );
+                        if (_pendingMessages.isEmpty) {
+                          return Center(
+                            child: Text(
+                              'Error loading messages',
+                              style: TextStyle(color: Colors.white70),
+                            ),
                           );
+                        }
+                        // Continue building with pending messages
+                      }
 
-                          // 1️⃣ FIRST: Try exact ID matching (highest priority)
-                          bool foundExactMatch = false;
-                          for (final fsMsg in messages) {
-                            if (fsMsg.id.startsWith('pending:')) continue;
+                      // Always proceed to merge with optimistic pending messages,
+                      // even while the stream is still connecting. This ensures
+                      // the pending preview appears immediately.
 
-                            // Check if Firestore doc ID matches our pending ID
-                            if (fsMsg.id == pendingId) {
-                              foundExactMatch = true;
-                              break;
+                      if (!shouldUseSeedMessages && liveMessages.isNotEmpty) {
+                        _cacheMessagesForInstantOpen(liveMessages);
+                      }
+
+                      // Auto-scroll when a new newest message arrives (keep latest in view)
+                      final newestId = messages.isNotEmpty
+                          ? messages.first.id
+                          : null;
+                      if (newestId != null && newestId != _lastTopMessageId) {
+                        _lastTopMessageId = newestId;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _scrollToLatest();
+                        });
+                        // Play subtle pop for new incoming messages (not self, not pending)
+                        final newestMsg = messages.first;
+                        final isIncoming =
+                            newestMsg.senderId != currentUserId &&
+                            !(newestMsg.id.startsWith('pending:'));
+                        final now = DateTime.now();
+                        if (_initializedFirstSnapshot &&
+                            isIncoming &&
+                            now.difference(_lastSoundPlayedAt) >
+                                _soundDebounce &&
+                            _lastIncomingTopMessageId != newestId) {
+                          _lastIncomingTopMessageId = newestId;
+                          _lastSoundPlayedAt = now;
+                          SystemSound.play(SystemSoundType.click);
+                        }
+                        // Avoid playing sound on the very first snapshot
+                        _initializedFirstSnapshot = true;
+                      }
+
+                      // If no Firestore messages but we have pending messages, show them
+                      if (messages.isEmpty && _pendingMessages.isNotEmpty) {
+                        return _buildMessageList(
+                          _pendingMessages,
+                          0, // No last read timestamp since no messages yet
+                          currentUserId,
+                          showDivider: false,
+                        );
+                      }
+
+                      if (messages.isEmpty) {
+                        final theme = Theme.of(context);
+                        final isDark = theme.brightness == Brightness.dark;
+                        final emptyStateColor =
+                            (theme.textTheme.bodyMedium?.color ??
+                                    (isDark ? Colors.white : Colors.black))
+                                .withOpacity(isDark ? 0.6 : 0.55);
+
+                        return Center(
+                          child: Text(
+                            'No messages yet.\nBe the first to say hello! 👋',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: emptyStateColor),
+                          ),
+                        );
+                      }
+
+                      return StreamBuilder<Timestamp?>(
+                        stream: _lastReadAtStream,
+                        builder: (context, readSnapshot) {
+                          // Only consider it valid data if we actually received a non-null timestamp
+                          final hasValidData = readSnapshot.data != null;
+                          final lastReadMs =
+                              readSnapshot.data
+                                  ?.toDate()
+                                  .millisecondsSinceEpoch ??
+                              DateTime.now()
+                                  .subtract(const Duration(days: 30))
+                                  .millisecondsSinceEpoch;
+
+                          // Merge pending messages with Firestore messages, removing duplicates
+                          // (pending messages that have been successfully uploaded to Firestore)
+                          final allMessages = <GroupChatMessage>[
+                            ..._pendingMessages,
+                            ...messages,
+                          ];
+
+                          // SAFETY CHECK: Snapshot uploading IDs before dedup
+                          final uploadingMessageIds = <String>{
+                            ..._uploadingMessageIds,
+                          };
+
+                          // Track which pending messages to remove from state
+                          final pendingIdsToRemove = <String>[];
+
+                          // Remove pending messages that now have a corresponding Firestore message
+                          allMessages.removeWhere((pendingMsg) {
+                            // Only process pending messages
+                            if (!pendingMsg.id.startsWith('pending:')) {
+                              return false;
                             }
-                          }
 
-                          if (foundExactMatch) {
-                            // Cleanup pending state
-                            if (pendingMsg.multipleMedia != null) {
-                              for (final pm in pendingMsg.multipleMedia!) {
-                                if (pm.localPath != null &&
-                                    pm.localPath!.isNotEmpty) {
-                                  _localSenderMediaPaths[pm.messageId] =
-                                      pm.localPath!;
-                                }
-                                _uploadingMessageIds.remove(pm.messageId);
-                                _pendingUploadProgress.remove(pm.messageId);
-                                _progressNotifiers[pm.messageId]?.dispose();
-                                _progressNotifiers.remove(pm.messageId);
+                            // ✅ CRITICAL: Extract actual ID from "pending:upload_..." format
+                            final pendingId = pendingMsg.id.replaceFirst(
+                              'pending:',
+                              '',
+                            );
+
+                            // 1️⃣ FIRST: Try exact ID matching (highest priority)
+                            bool foundExactMatch = false;
+                            for (final fsMsg in messages) {
+                              if (fsMsg.id.startsWith('pending:')) continue;
+
+                              // Check if Firestore doc ID matches our pending ID
+                              if (fsMsg.id == pendingId) {
+                                foundExactMatch = true;
+                                break;
                               }
+                            }
+
+                            if (foundExactMatch) {
+                              // Cleanup pending state
+                              if (pendingMsg.multipleMedia != null) {
+                                for (final pm in pendingMsg.multipleMedia!) {
+                                  if (pm.localPath != null &&
+                                      pm.localPath!.isNotEmpty) {
+                                    _localSenderMediaPaths[pm.messageId] =
+                                        pm.localPath!;
+                                  }
+                                  _uploadingMessageIds.remove(pm.messageId);
+                                  _pendingUploadProgress.remove(pm.messageId);
+                                  _progressNotifiers[pm.messageId]?.dispose();
+                                  _progressNotifiers.remove(pm.messageId);
+                                }
+                              }
+                              if (pendingMsg.mediaMetadata != null) {
+                                final mediaId =
+                                    pendingMsg.mediaMetadata!.messageId;
+                                if (pendingMsg.mediaMetadata!.localPath !=
+                                    null) {
+                                  _localSenderMediaPaths[mediaId] =
+                                      pendingMsg.mediaMetadata!.localPath!;
+                                }
+                                _uploadingMessageIds.remove(mediaId);
+                                _pendingUploadProgress.remove(mediaId);
+                                _progressNotifiers[mediaId]?.dispose();
+                                _progressNotifiers.remove(mediaId);
+                              }
+                              pendingIdsToRemove.add(pendingMsg.id);
+                              return true; // Remove pending message
+                            }
+
+                            // 2️⃣ FALLBACK: Build a set of media IDs for reliable matching
+                            final pendingMediaIds = <String>{};
+                            if (pendingMsg.multipleMedia != null) {
+                              pendingMediaIds.addAll(
+                                pendingMsg.multipleMedia!.map(
+                                  (m) => m.messageId,
+                                ),
+                              );
                             }
                             if (pendingMsg.mediaMetadata != null) {
-                              final mediaId =
-                                  pendingMsg.mediaMetadata!.messageId;
-                              if (pendingMsg.mediaMetadata!.localPath != null) {
-                                _localSenderMediaPaths[mediaId] =
-                                    pendingMsg.mediaMetadata!.localPath!;
-                              }
-                              _uploadingMessageIds.remove(mediaId);
-                              _pendingUploadProgress.remove(mediaId);
-                              _progressNotifiers[mediaId]?.dispose();
-                              _progressNotifiers.remove(mediaId);
+                              pendingMediaIds.add(
+                                pendingMsg.mediaMetadata!.messageId,
+                              );
                             }
-                            pendingIdsToRemove.add(pendingMsg.id);
-                            return true; // Remove pending message
-                          }
 
-                          // 2️⃣ FALLBACK: Build a set of media IDs for reliable matching
-                          final pendingMediaIds = <String>{};
-                          if (pendingMsg.multipleMedia != null) {
-                            pendingMediaIds.addAll(
-                              pendingMsg.multipleMedia!.map((m) => m.messageId),
-                            );
-                          }
-                          if (pendingMsg.mediaMetadata != null) {
-                            pendingMediaIds.add(
-                              pendingMsg.mediaMetadata!.messageId,
-                            );
-                          }
-
-                          // ✅ Add file name matching with case-insensitive comparison
-                          final pendingAttachmentKeys = <String>{};
-                          if (pendingMsg.mediaMetadata?.originalFileName !=
-                                  null &&
-                              pendingMsg.mediaMetadata?.fileSize != null) {
-                            pendingAttachmentKeys.add(
-                              '${pendingMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${pendingMsg.mediaMetadata!.fileSize}',
-                            );
-                          }
-                          if (pendingMsg.multipleMedia != null) {
-                            for (final m in pendingMsg.multipleMedia!) {
-                              if (m.originalFileName != null &&
-                                  m.fileSize != null) {
-                                pendingAttachmentKeys.add(
-                                  '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
-                                );
+                            // ✅ Add file name matching with case-insensitive comparison
+                            final pendingAttachmentKeys = <String>{};
+                            if (pendingMsg.mediaMetadata?.originalFileName !=
+                                    null &&
+                                pendingMsg.mediaMetadata?.fileSize != null) {
+                              pendingAttachmentKeys.add(
+                                '${pendingMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${pendingMsg.mediaMetadata!.fileSize}',
+                              );
+                            }
+                            if (pendingMsg.multipleMedia != null) {
+                              for (final m in pendingMsg.multipleMedia!) {
+                                if (m.originalFileName != null &&
+                                    m.fileSize != null) {
+                                  pendingAttachmentKeys.add(
+                                    '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
+                                  );
+                                }
                               }
                             }
-                          }
 
-                          // 3️⃣ Media ID matching
-                          final hasMatchingMedia =
-                              pendingMediaIds.isNotEmpty &&
-                              messages.any((fsMsg) {
-                                if (fsMsg.id.startsWith('pending:')) {
-                                  return false;
-                                }
-                                final fsMediaIds = <String>{};
-                                if (fsMsg.multipleMedia != null) {
-                                  fsMediaIds.addAll(
-                                    fsMsg.multipleMedia!.map(
-                                      (m) => m.messageId,
-                                    ),
+                            // 3️⃣ Media ID matching
+                            final hasMatchingMedia =
+                                pendingMediaIds.isNotEmpty &&
+                                messages.any((fsMsg) {
+                                  if (fsMsg.id.startsWith('pending:')) {
+                                    return false;
+                                  }
+                                  final fsMediaIds = <String>{};
+                                  if (fsMsg.multipleMedia != null) {
+                                    fsMediaIds.addAll(
+                                      fsMsg.multipleMedia!.map(
+                                        (m) => m.messageId,
+                                      ),
+                                    );
+                                  }
+                                  if (fsMsg.mediaMetadata != null) {
+                                    fsMediaIds.add(
+                                      fsMsg.mediaMetadata!.messageId,
+                                    );
+                                  }
+                                  if (fsMediaIds.isEmpty) return false;
+                                  return fsMediaIds.any(
+                                    pendingMediaIds.contains,
                                   );
-                                }
-                                if (fsMsg.mediaMetadata != null) {
-                                  fsMediaIds.add(
-                                    fsMsg.mediaMetadata!.messageId,
-                                  );
-                                }
-                                if (fsMediaIds.isEmpty) return false;
-                                return fsMediaIds.any(pendingMediaIds.contains);
-                              });
+                                });
 
-                          // 4️⃣ File name matching (case-insensitive)
-                          final hasMatchingAttachment =
-                              pendingAttachmentKeys.isNotEmpty &&
-                              messages.any((fsMsg) {
-                                if (fsMsg.id.startsWith('pending:')) {
-                                  return false;
-                                }
-                                final fsAttachmentKeys = <String>{};
-                                if (fsMsg.mediaMetadata?.originalFileName !=
-                                        null &&
-                                    fsMsg.mediaMetadata?.fileSize != null) {
-                                  fsAttachmentKeys.add(
-                                    '${fsMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${fsMsg.mediaMetadata!.fileSize}',
-                                  );
-                                }
-                                if (fsMsg.multipleMedia != null) {
-                                  for (final m in fsMsg.multipleMedia!) {
-                                    if (m.originalFileName != null &&
-                                        m.fileSize != null) {
-                                      fsAttachmentKeys.add(
-                                        '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
-                                      );
+                            // 4️⃣ File name matching (case-insensitive)
+                            final hasMatchingAttachment =
+                                pendingAttachmentKeys.isNotEmpty &&
+                                messages.any((fsMsg) {
+                                  if (fsMsg.id.startsWith('pending:')) {
+                                    return false;
+                                  }
+                                  final fsAttachmentKeys = <String>{};
+                                  if (fsMsg.mediaMetadata?.originalFileName !=
+                                          null &&
+                                      fsMsg.mediaMetadata?.fileSize != null) {
+                                    fsAttachmentKeys.add(
+                                      '${fsMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${fsMsg.mediaMetadata!.fileSize}',
+                                    );
+                                  }
+                                  if (fsMsg.multipleMedia != null) {
+                                    for (final m in fsMsg.multipleMedia!) {
+                                      if (m.originalFileName != null &&
+                                          m.fileSize != null) {
+                                        fsAttachmentKeys.add(
+                                          '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
+                                        );
+                                      }
                                     }
                                   }
-                                }
-                                if (fsAttachmentKeys.isEmpty) return false;
-                                return fsAttachmentKeys.any(
-                                  pendingAttachmentKeys.contains,
-                                );
-                              });
+                                  if (fsAttachmentKeys.isEmpty) return false;
+                                  return fsAttachmentKeys.any(
+                                    pendingAttachmentKeys.contains,
+                                  );
+                                });
 
-                          // 5️⃣ Fallback: match sender + wider time window
-                          final hasServerVersion =
-                              hasMatchingMedia ||
-                              hasMatchingAttachment ||
-                              messages.any((fsMsg) {
-                                final senderMatch =
-                                    fsMsg.senderId == pendingMsg.senderId;
-                                final diff =
-                                    (fsMsg.timestamp - pendingMsg.timestamp)
-                                        .abs();
-                                // ✅ Extended time window for single attachments (5 minutes)
-                                final timeWindow =
-                                    pendingMsg.mediaMetadata != null
-                                    ? 300000
-                                    : 30000;
-                                final timeMatch = diff < timeWindow;
-                                final isNotPending = !fsMsg.id.startsWith(
-                                  'pending:',
-                                );
-                                return senderMatch && timeMatch && isNotPending;
-                              });
+                            // 5️⃣ Fallback: match sender + wider time window
+                            final hasServerVersion =
+                                hasMatchingMedia ||
+                                hasMatchingAttachment ||
+                                messages.any((fsMsg) {
+                                  final senderMatch =
+                                      fsMsg.senderId == pendingMsg.senderId;
+                                  final diff =
+                                      (fsMsg.timestamp - pendingMsg.timestamp)
+                                          .abs();
+                                  // ✅ Extended time window for single attachments (5 minutes)
+                                  final timeWindow =
+                                      pendingMsg.mediaMetadata != null
+                                      ? 300000
+                                      : 30000;
+                                  final timeMatch = diff < timeWindow;
+                                  final isNotPending = !fsMsg.id.startsWith(
+                                    'pending:',
+                                  );
+                                  return senderMatch &&
+                                      timeMatch &&
+                                      isNotPending;
+                                });
 
-                          if (hasServerVersion) {
-                            // Preserve local paths before removing
-                            if (pendingMsg.multipleMedia != null) {
-                              for (final pm in pendingMsg.multipleMedia!) {
-                                if (pm.localPath != null &&
-                                    pm.localPath!.isNotEmpty) {
-                                  _localSenderMediaPaths[pm.messageId] =
-                                      pm.localPath!;
+                            if (hasServerVersion) {
+                              // Preserve local paths before removing
+                              if (pendingMsg.multipleMedia != null) {
+                                for (final pm in pendingMsg.multipleMedia!) {
+                                  if (pm.localPath != null &&
+                                      pm.localPath!.isNotEmpty) {
+                                    _localSenderMediaPaths[pm.messageId] =
+                                        pm.localPath!;
+                                  }
+                                  _uploadingMessageIds.remove(pm.messageId);
+                                  _pendingUploadProgress.remove(pm.messageId);
+                                  // ✅ Dispose ValueNotifiers
+                                  _progressNotifiers[pm.messageId]?.dispose();
+                                  _progressNotifiers.remove(pm.messageId);
                                 }
-                                _uploadingMessageIds.remove(pm.messageId);
-                                _pendingUploadProgress.remove(pm.messageId);
+                              }
+                              if (pendingMsg.mediaMetadata?.localPath != null) {
+                                _localSenderMediaPaths[pendingMsg
+                                        .mediaMetadata!
+                                        .messageId] =
+                                    pendingMsg.mediaMetadata!.localPath!;
+                              }
+                              if (pendingMsg.mediaMetadata != null) {
+                                final mediaId =
+                                    pendingMsg.mediaMetadata!.messageId;
+                                _uploadingMessageIds.remove(mediaId);
+                                _pendingUploadProgress.remove(mediaId);
                                 // ✅ Dispose ValueNotifiers
-                                _progressNotifiers[pm.messageId]?.dispose();
-                                _progressNotifiers.remove(pm.messageId);
+                                _progressNotifiers[mediaId]?.dispose();
+                                _progressNotifiers.remove(mediaId);
+                              }
+
+                              // Track for state removal
+                              pendingIdsToRemove.add(pendingMsg.id);
+                              return true; // Remove from merged list
+                            }
+
+                            // GOLDEN RULE: Keep any message where ANY media is still uploading
+                            if (pendingMsg.multipleMedia != null &&
+                                pendingMsg.multipleMedia!.isNotEmpty) {
+                              final anyStillUploading = pendingMsg
+                                  .multipleMedia!
+                                  .any(
+                                    (m) => uploadingMessageIds.contains(
+                                      m.messageId,
+                                    ),
+                                  );
+                              if (anyStillUploading) {
+                                return false; // Keep it
+                              }
+                            } else if (pendingMsg.mediaMetadata != null) {
+                              if (uploadingMessageIds.contains(
+                                pendingMsg.mediaMetadata!.messageId,
+                              )) {
+                                return false; // Keep it
                               }
                             }
-                            if (pendingMsg.mediaMetadata?.localPath != null) {
-                              _localSenderMediaPaths[pendingMsg
-                                      .mediaMetadata!
-                                      .messageId] =
-                                  pendingMsg.mediaMetadata!.localPath!;
-                            }
-                            if (pendingMsg.mediaMetadata != null) {
-                              final mediaId =
-                                  pendingMsg.mediaMetadata!.messageId;
-                              _uploadingMessageIds.remove(mediaId);
-                              _pendingUploadProgress.remove(mediaId);
-                              // ✅ Dispose ValueNotifiers
-                              _progressNotifiers[mediaId]?.dispose();
-                              _progressNotifiers.remove(mediaId);
-                            }
 
-                            // Track for state removal
-                            pendingIdsToRemove.add(pendingMsg.id);
-                            return true; // Remove from merged list
-                          }
-
-                          // GOLDEN RULE: Keep any message where ANY media is still uploading
-                          if (pendingMsg.multipleMedia != null &&
-                              pendingMsg.multipleMedia!.isNotEmpty) {
-                            final anyStillUploading = pendingMsg.multipleMedia!
-                                .any(
-                                  (m) =>
-                                      uploadingMessageIds.contains(m.messageId),
-                                );
-                            if (anyStillUploading) {
-                              return false; // Keep it
-                            }
-                          } else if (pendingMsg.mediaMetadata != null) {
-                            if (uploadingMessageIds.contains(
-                              pendingMsg.mediaMetadata!.messageId,
-                            )) {
-                              return false; // Keep it
-                            }
-                          }
-
-                          return false; // Keep in merged list
-                        });
-
-                        // Remove confirmed messages from _pendingMessages state
-                        if (pendingIdsToRemove.isNotEmpty) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            setState(() {
-                              _pendingMessages.removeWhere(
-                                (m) => pendingIdsToRemove.contains(m.id),
-                              );
-                            });
-                            // Persist updated pending list
-                            _cachePendingMessages();
+                            return false; // Keep in merged list
                           });
-                        }
 
-                        // Immediately hide messages queued for deletion.
-                        allMessages.removeWhere(
-                          (msg) =>
-                              _optimisticallyDeletedMessageIds.contains(msg.id),
-                        );
+                          // Remove confirmed messages from _pendingMessages state
+                          if (pendingIdsToRemove.isNotEmpty) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (!mounted) return;
+                              setState(() {
+                                _pendingMessages.removeWhere(
+                                  (m) => pendingIdsToRemove.contains(m.id),
+                                );
+                              });
+                              // Persist updated pending list
+                              _cachePendingMessages();
+                            });
+                          }
 
-                        // Sort by timestamp (newest first)
-                        allMessages.sort(
-                          (a, b) => b.timestamp.compareTo(a.timestamp),
-                        );
+                          // Immediately hide messages queued for deletion.
+                          allMessages.removeWhere(
+                            (msg) => _optimisticallyDeletedMessageIds.contains(
+                              msg.id,
+                            ),
+                          );
 
-                        return _buildMessageList(
-                          allMessages,
-                          lastReadMs,
-                          currentUserId,
-                          showDivider:
-                              hasValidData, // Only show divider with valid Firestore data
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
+                          // Sort by timestamp (newest first)
+                          allMessages.sort(
+                            (a, b) => b.timestamp.compareTo(a.timestamp),
+                          );
 
-              // Input Bar
-              _buildInputBar(),
-              if (_showEmojiPicker)
-                EmojiPicker(
-                  onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-                  onBackspacePressed: _onBackspacePressed,
-                  config: Config(
-                    height: 300,
-                    checkPlatformCompatibility: false,
-                    emojiViewConfig: EmojiViewConfig(
-                      backgroundColor: const Color(0xFF1A1A1A),
-                      columns: 7,
-                      emojiSizeMax: 28,
-                    ),
-                    categoryViewConfig: CategoryViewConfig(
-                      backgroundColor: const Color(0xFF1A1A1A),
-                      iconColorSelected: const Color(0xFF00A884),
-                      indicatorColor: const Color(0xFF00A884),
-                    ),
-                    bottomActionBarConfig: BottomActionBarConfig(
-                      backgroundColor: const Color(0xFF1A1A1A),
-                    ),
+                          return _buildMessageList(
+                            allMessages,
+                            lastReadMs,
+                            currentUserId,
+                            showDivider:
+                                hasValidData, // Only show divider with valid Firestore data
+                          );
+                        },
+                      );
+                    },
                   ),
                 ),
-            ],
+
+                // Input Bar
+                _buildInputBar(),
+                if (_showEmojiPicker)
+                  EmojiPicker(
+                    onEmojiSelected: (category, emoji) =>
+                        _onEmojiSelected(emoji),
+                    onBackspacePressed: _onBackspacePressed,
+                    config: Config(
+                      height: 300,
+                      checkPlatformCompatibility: false,
+                      emojiViewConfig: EmojiViewConfig(
+                        backgroundColor: const Color(0xFF1A1A1A),
+                        columns: 7,
+                        emojiSizeMax: 28,
+                      ),
+                      categoryViewConfig: CategoryViewConfig(
+                        backgroundColor: const Color(0xFF1A1A1A),
+                        iconColorSelected: const Color(0xFF00A884),
+                        indicatorColor: const Color(0xFF00A884),
+                      ),
+                      bottomActionBarConfig: BottomActionBarConfig(
+                        backgroundColor: const Color(0xFF1A1A1A),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-        _buildRecordingOverlay(),
-      ],
+          _buildRecordingOverlay(),
+        ],
+      ),
     );
   }
 

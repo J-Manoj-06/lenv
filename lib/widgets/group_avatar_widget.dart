@@ -16,6 +16,7 @@ class GroupAvatarWidget extends StatelessWidget {
   final bool isTeacher;
   final VoidCallback? onTap;
   final String? icon; // emoji icon fallback
+  final List<String> fallbackGroupIds;
 
   const GroupAvatarWidget({
     super.key,
@@ -25,16 +26,35 @@ class GroupAvatarWidget extends StatelessWidget {
     this.isTeacher = false,
     this.onTap,
     this.icon,
+    this.fallbackGroupIds = const [],
   });
 
   @override
   Widget build(BuildContext context) {
     return Consumer<ProfileDPProvider>(
       builder: (ctx, dpProvider, _) {
-        // Subscribe for real-time update
-        dpProvider.watchGroupDP(groupId);
-        final imageUrl = dpProvider.getGroupDP(groupId);
-        final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+        // Subscribe for real-time updates across primary + fallback IDs.
+        final allGroupIds = <String>{groupId};
+        for (final id in fallbackGroupIds) {
+          if (id.isNotEmpty) {
+            allGroupIds.add(id);
+          }
+        }
+
+        String? imageUrl;
+        String resolvedGroupId = groupId;
+
+        for (final id in allGroupIds) {
+          dpProvider.watchGroupDP(id);
+          final cachedUrl = dpProvider.getGroupDP(id);
+          if (imageUrl == null && cachedUrl != null && cachedUrl.isNotEmpty) {
+            imageUrl = cachedUrl;
+            resolvedGroupId = id;
+          }
+        }
+
+        final resolvedImageUrl = imageUrl ?? '';
+        final hasImage = resolvedImageUrl.isNotEmpty;
         final avatarColor = Color(ProfileDPService.getAvatarColor(groupName));
 
         return GestureDetector(
@@ -43,7 +63,7 @@ class GroupAvatarWidget extends StatelessWidget {
               (hasImage
                   ? () => Navigator.of(context).push(
                       FullScreenDPViewer.route(
-                        imageUrl: imageUrl,
+                        imageUrl: resolvedImageUrl,
                         userName: groupName,
                       ),
                     )
@@ -67,8 +87,10 @@ class GroupAvatarWidget extends StatelessWidget {
                       ? _buildUploadProgress(dpProvider, avatarColor)
                       : hasImage
                       ? CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          cacheKey: dpProvider.getGroupCacheKey(groupId),
+                          imageUrl: resolvedImageUrl,
+                          cacheKey: dpProvider.getGroupCacheKey(
+                            resolvedGroupId,
+                          ),
                           width: size,
                           height: size,
                           fit: BoxFit.cover,

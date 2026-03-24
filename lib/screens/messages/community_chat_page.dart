@@ -2132,204 +2132,84 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         : const Color(0xFF94A3B8);
     final primaryColor = const Color(0xFF00A884);
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: appBarColor,
-        elevation: 0,
-        leading: ValueListenableBuilder<bool>(
-          valueListenable: _isSelectionMode,
-          builder: (context, isSelectionMode, _) {
-            return IconButton(
-              icon: Icon(
-                isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
-                color: isDark ? Colors.white70 : const Color(0xFF475569),
-              ),
-              onPressed: () {
-                if (isSelectionMode) {
-                  _isSelectionMode.value = false;
-                  _selectedMessages.value = {};
-                  _invalidateShareEligibilityCache();
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            );
-          },
-        ),
-        title: ValueListenableBuilder<bool>(
-          valueListenable: _isSelectionMode,
-          builder: (context, isSelectionMode, _) {
-            return ValueListenableBuilder<Set<String>>(
-              valueListenable: _selectedMessages,
-              builder: (context, selectedMessages, _) {
-                return isSelectionMode
-                    ? Text(
-                        '${selectedMessages.length} selected',
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    : Row(
-                        children: [
-                          Text(
-                            widget.icon,
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  widget.communityName,
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  'Open Community',
-                                  style: TextStyle(
-                                    color: subtitleColor,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      );
-              },
-            );
-          },
-        ),
-        actions: [
-          ValueListenableBuilder<bool>(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isSelectionMode.value) {
+          _isSelectionMode.value = false;
+          _selectedMessages.value = {};
+          _invalidateShareEligibilityCache();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: bgColor,
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          elevation: 0,
+          leading: ValueListenableBuilder<bool>(
+            valueListenable: _isSelectionMode,
+            builder: (context, isSelectionMode, _) {
+              return IconButton(
+                icon: Icon(
+                  isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
+                  color: isDark ? Colors.white70 : const Color(0xFF475569),
+                ),
+                onPressed: () {
+                  if (isSelectionMode) {
+                    _isSelectionMode.value = false;
+                    _selectedMessages.value = {};
+                    _invalidateShareEligibilityCache();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              );
+            },
+          ),
+          title: ValueListenableBuilder<bool>(
             valueListenable: _isSelectionMode,
             builder: (context, isSelectionMode, _) {
               return ValueListenableBuilder<Set<String>>(
                 valueListenable: _selectedMessages,
                 builder: (context, selectedMessages, _) {
                   return isSelectionMode
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            FutureBuilder<bool>(
-                              future: _getForwardEligibilityFuture(
-                                selectedMessages,
-                              ),
-                              builder: (context, snapshot) {
-                                final canForward = snapshot.data == true;
-                                if (!canForward) return const SizedBox.shrink();
-                                return IconButton(
-                                  icon: const Icon(
-                                    Icons.reply_all_rounded,
-                                    color: Colors.blueAccent,
-                                    size: 24,
-                                  ),
-                                  tooltip: 'Forward',
-                                  onPressed: selectedMessages.isEmpty
-                                      ? null
-                                      : _forwardSelectedMessages,
-                                );
-                              },
-                            ),
-                            FutureBuilder<bool>(
-                              future: _getShareEligibilityFuture(
-                                selectedMessages,
-                              ),
-                              builder: (context, snapshot) {
-                                final canShare = snapshot.data == true;
-                                if (!canShare) return const SizedBox.shrink();
-                                return IconButton(
-                                  icon: Icon(
-                                    Icons.share_rounded,
-                                    color: isDark
-                                        ? Colors.white70
-                                        : const Color(0xFF475569),
-                                    size: 24,
-                                  ),
-                                  tooltip: 'Share',
-                                  onPressed: _shareSelectedMessages,
-                                );
-                              },
-                            ),
-                            FutureBuilder<bool>(
-                              future: _getDeleteEligibilityFuture(
-                                selectedMessages,
-                              ),
-                              builder: (context, snapshot) {
-                                final canDelete = snapshot.data == true;
-                                if (!canDelete) {
-                                  return const SizedBox.shrink();
-                                }
-                                return IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.redAccent,
-                                    size: 24,
-                                  ),
-                                  tooltip: 'Delete',
-                                  onPressed: selectedMessages.isEmpty
-                                      ? null
-                                      : _showDeleteDialog,
-                                );
-                              },
-                            ),
-                          ],
+                      ? Text(
+                          '${selectedMessages.length} selected',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         )
                       : Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Search Icon
-                            IconButton(
-                              icon: Icon(
-                                Icons.search,
-                                color: isDark
-                                    ? Colors.white70
-                                    : const Color(0xFF475569),
-                              ),
-                              onPressed: _openSearchPage,
-                              tooltip: 'Search messages',
+                            Text(
+                              widget.icon,
+                              style: const TextStyle(fontSize: 24),
                             ),
-                            // More options menu
-                            PopupMenuButton<String>(
-                              icon: Icon(
-                                Icons.more_vert,
-                                color: isDark
-                                    ? Colors.white70
-                                    : const Color(0xFF475569),
-                              ),
-                              onSelected: (value) {
-                                if (value == 'leave') {
-                                  _showLeaveCommunityDialog();
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'leave',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.exit_to_app,
-                                        color: Colors.redAccent,
-                                        size: 20,
-                                      ),
-                                      SizedBox(width: 12),
-                                      Text(
-                                        'Leave Community',
-                                        style: TextStyle(
-                                          color: Colors.redAccent,
-                                        ),
-                                      ),
-                                    ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.communityName,
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Text(
+                                    'Open Community',
+                                    style: TextStyle(
+                                      color: subtitleColor,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         );
@@ -2337,757 +2217,901 @@ class _CommunityChatPageState extends State<CommunityChatPage>
               );
             },
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Messages List
-          Expanded(
-            child: StreamBuilder<List<GroupChatMessage>>(
-              stream: _messagesStream, // ✅ Use cached stream
-              builder: (context, snapshot) {
-                // ✅ CRITICAL: Show pending messages immediately while Firestore loads
-                if (snapshot.connectionState == ConnectionState.waiting &&
-                    _pendingMessages.isEmpty) {
-                  return Center(
-                    child: CircularProgressIndicator(color: primaryColor),
-                  );
-                }
+          actions: [
+            ValueListenableBuilder<bool>(
+              valueListenable: _isSelectionMode,
+              builder: (context, isSelectionMode, _) {
+                return ValueListenableBuilder<Set<String>>(
+                  valueListenable: _selectedMessages,
+                  builder: (context, selectedMessages, _) {
+                    return isSelectionMode
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FutureBuilder<bool>(
+                                future: _getForwardEligibilityFuture(
+                                  selectedMessages,
+                                ),
+                                builder: (context, snapshot) {
+                                  final canForward = snapshot.data == true;
+                                  if (!canForward)
+                                    return const SizedBox.shrink();
+                                  return IconButton(
+                                    icon: const Icon(
+                                      Icons.reply_all_rounded,
+                                      color: Colors.blueAccent,
+                                      size: 24,
+                                    ),
+                                    tooltip: 'Forward',
+                                    onPressed: selectedMessages.isEmpty
+                                        ? null
+                                        : _forwardSelectedMessages,
+                                  );
+                                },
+                              ),
+                              FutureBuilder<bool>(
+                                future: _getShareEligibilityFuture(
+                                  selectedMessages,
+                                ),
+                                builder: (context, snapshot) {
+                                  final canShare = snapshot.data == true;
+                                  if (!canShare) return const SizedBox.shrink();
+                                  return IconButton(
+                                    icon: Icon(
+                                      Icons.share_rounded,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : const Color(0xFF475569),
+                                      size: 24,
+                                    ),
+                                    tooltip: 'Share',
+                                    onPressed: _shareSelectedMessages,
+                                  );
+                                },
+                              ),
+                              FutureBuilder<bool>(
+                                future: _getDeleteEligibilityFuture(
+                                  selectedMessages,
+                                ),
+                                builder: (context, snapshot) {
+                                  final canDelete = snapshot.data == true;
+                                  if (!canDelete) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.redAccent,
+                                      size: 24,
+                                    ),
+                                    tooltip: 'Delete',
+                                    onPressed: selectedMessages.isEmpty
+                                        ? null
+                                        : _showDeleteDialog,
+                                  );
+                                },
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Search Icon
+                              IconButton(
+                                icon: Icon(
+                                  Icons.search,
+                                  color: isDark
+                                      ? Colors.white70
+                                      : const Color(0xFF475569),
+                                ),
+                                onPressed: _openSearchPage,
+                                tooltip: 'Search messages',
+                              ),
+                              // More options menu
+                              PopupMenuButton<String>(
+                                icon: Icon(
+                                  Icons.more_vert,
+                                  color: isDark
+                                      ? Colors.white70
+                                      : const Color(0xFF475569),
+                                ),
+                                onSelected: (value) {
+                                  if (value == 'leave') {
+                                    _showLeaveCommunityDialog();
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'leave',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.exit_to_app,
+                                          color: Colors.redAccent,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 12),
+                                        Text(
+                                          'Leave Community',
+                                          style: TextStyle(
+                                            color: Colors.redAccent,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            // Messages List
+            Expanded(
+              child: StreamBuilder<List<GroupChatMessage>>(
+                stream: _messagesStream, // ✅ Use cached stream
+                builder: (context, snapshot) {
+                  // ✅ CRITICAL: Show pending messages immediately while Firestore loads
+                  if (snapshot.connectionState == ConnectionState.waiting &&
+                      _pendingMessages.isEmpty) {
+                    return Center(
+                      child: CircularProgressIndicator(color: primaryColor),
+                    );
+                  }
 
-                if (snapshot.hasError) {
-                  // ✅ Show pending messages even if Firestore has error
-                  if (_pendingMessages.isEmpty) {
+                  if (snapshot.hasError) {
+                    // ✅ Show pending messages even if Firestore has error
+                    if (_pendingMessages.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'Error loading messages',
+                          style: TextStyle(color: subtitleColor),
+                        ),
+                      );
+                    }
+                    // Continue building with pending messages
+                  }
+
+                  // Proceed even while connecting so pending messages render immediately
+                  final firestoreMessages =
+                      snapshot.data ?? const <GroupChatMessage>[];
+
+                  if (firestoreMessages.isEmpty && _pendingMessages.isEmpty) {
                     return Center(
                       child: Text(
-                        'Error loading messages',
-                        style: TextStyle(color: subtitleColor),
+                        'No messages yet.\nBe the first to say hello! 👋',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: hintColor),
                       ),
                     );
                   }
-                  // Continue building with pending messages
-                }
 
-                // Proceed even while connecting so pending messages render immediately
-                final firestoreMessages =
-                    snapshot.data ?? const <GroupChatMessage>[];
-
-                if (firestoreMessages.isEmpty && _pendingMessages.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No messages yet.\nBe the first to say hello! 👋',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: hintColor),
-                    ),
-                  );
-                }
-
-                return StreamBuilder<Timestamp?>(
-                  stream: _lastReadAtStream,
-                  builder: (context, readSnapshot) {
-                    for (int i = 0; i < _pendingMessages.length; i++) {
-                      final msg = _pendingMessages[i];
-                    }
-
-                    final hasValidData = readSnapshot.data != null;
-                    final lastReadMs =
-                        readSnapshot.data?.toDate().millisecondsSinceEpoch ??
-                        DateTime.now()
-                            .subtract(const Duration(days: 30))
-                            .millisecondsSinceEpoch;
-
-                    // Merge pending + Firestore messages and de-duplicate when server versions arrive
-                    final allMessages = <GroupChatMessage>[
-                      ..._pendingMessages,
-                      ...firestoreMessages,
-                    ];
-                    final uploadingMessageIds = <String>{
-                      ..._uploadingMessageIds,
-                    };
-                    final pendingIdsToRemove = <String>[];
-
-                    allMessages.removeWhere((pendingMsg) {
-                      if (!pendingMsg.id.startsWith('pending:')) return false;
-
-                      // ✅ CRITICAL: Extract actual ID from "pending:upload_..." format
-                      final pendingId = pendingMsg.id.replaceFirst(
-                        'pending:',
-                        '',
-                      );
-
-                      // 1️⃣ FIRST: Try exact ID matching (highest priority)
-                      bool foundExactMatch = false;
-                      for (final fsMsg in firestoreMessages) {
-                        if (fsMsg.id.startsWith('pending:')) continue;
-
-                        // Check if Firestore doc ID matches our pending ID
-                        if (fsMsg.id == pendingId) {
-                          foundExactMatch = true;
-                          break;
-                        }
+                  return StreamBuilder<Timestamp?>(
+                    stream: _lastReadAtStream,
+                    builder: (context, readSnapshot) {
+                      for (int i = 0; i < _pendingMessages.length; i++) {
+                        final msg = _pendingMessages[i];
                       }
 
-                      if (foundExactMatch) {
-                        // Cleanup pending state
-                        if (pendingMsg.multipleMedia != null) {
-                          for (final pm in pendingMsg.multipleMedia!) {
-                            if (pm.localPath != null &&
-                                pm.localPath!.isNotEmpty) {
-                              _localSenderMediaPaths[pm.messageId] =
-                                  pm.localPath!;
-                            }
-                            _uploadingMessageIds.remove(pm.messageId);
-                            _pendingUploadProgress.remove(pm.messageId);
-                            _progressNotifiers[pm.messageId]?.dispose();
-                            _progressNotifiers.remove(pm.messageId);
+                      final hasValidData = readSnapshot.data != null;
+                      final lastReadMs =
+                          readSnapshot.data?.toDate().millisecondsSinceEpoch ??
+                          DateTime.now()
+                              .subtract(const Duration(days: 30))
+                              .millisecondsSinceEpoch;
+
+                      // Merge pending + Firestore messages and de-duplicate when server versions arrive
+                      final allMessages = <GroupChatMessage>[
+                        ..._pendingMessages,
+                        ...firestoreMessages,
+                      ];
+                      final uploadingMessageIds = <String>{
+                        ..._uploadingMessageIds,
+                      };
+                      final pendingIdsToRemove = <String>[];
+
+                      allMessages.removeWhere((pendingMsg) {
+                        if (!pendingMsg.id.startsWith('pending:')) return false;
+
+                        // ✅ CRITICAL: Extract actual ID from "pending:upload_..." format
+                        final pendingId = pendingMsg.id.replaceFirst(
+                          'pending:',
+                          '',
+                        );
+
+                        // 1️⃣ FIRST: Try exact ID matching (highest priority)
+                        bool foundExactMatch = false;
+                        for (final fsMsg in firestoreMessages) {
+                          if (fsMsg.id.startsWith('pending:')) continue;
+
+                          // Check if Firestore doc ID matches our pending ID
+                          if (fsMsg.id == pendingId) {
+                            foundExactMatch = true;
+                            break;
                           }
                         }
+
+                        if (foundExactMatch) {
+                          // Cleanup pending state
+                          if (pendingMsg.multipleMedia != null) {
+                            for (final pm in pendingMsg.multipleMedia!) {
+                              if (pm.localPath != null &&
+                                  pm.localPath!.isNotEmpty) {
+                                _localSenderMediaPaths[pm.messageId] =
+                                    pm.localPath!;
+                              }
+                              _uploadingMessageIds.remove(pm.messageId);
+                              _pendingUploadProgress.remove(pm.messageId);
+                              _progressNotifiers[pm.messageId]?.dispose();
+                              _progressNotifiers.remove(pm.messageId);
+                            }
+                          }
+                          if (pendingMsg.mediaMetadata != null) {
+                            final mediaId = pendingMsg.mediaMetadata!.messageId;
+                            if (pendingMsg.mediaMetadata!.localPath != null) {
+                              _localSenderMediaPaths[mediaId] =
+                                  pendingMsg.mediaMetadata!.localPath!;
+                            }
+                            _uploadingMessageIds.remove(mediaId);
+                            _pendingUploadProgress.remove(mediaId);
+                            _progressNotifiers[mediaId]?.dispose();
+                            _progressNotifiers.remove(mediaId);
+                          }
+                          return true; // Remove pending message
+                        }
+
+                        // 2️⃣ FALLBACK: Media ID and attachment matching
+                        final pendingMediaIds = <String>{};
+                        if (pendingMsg.multipleMedia != null) {
+                          pendingMediaIds.addAll(
+                            pendingMsg.multipleMedia!.map((m) => m.messageId),
+                          );
+                        }
                         if (pendingMsg.mediaMetadata != null) {
-                          final mediaId = pendingMsg.mediaMetadata!.messageId;
-                          if (pendingMsg.mediaMetadata!.localPath != null) {
+                          pendingMediaIds.add(
+                            pendingMsg.mediaMetadata!.messageId,
+                          );
+                        }
+
+                        final pendingAttachmentKeys = <String>{};
+                        if (pendingMsg.mediaMetadata?.originalFileName !=
+                                null &&
+                            pendingMsg.mediaMetadata?.fileSize != null) {
+                          // ✅ Case-insensitive file name matching
+                          pendingAttachmentKeys.add(
+                            '${pendingMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${pendingMsg.mediaMetadata!.fileSize}',
+                          );
+                        }
+                        if (pendingMsg.multipleMedia != null) {
+                          for (final m in pendingMsg.multipleMedia!) {
+                            if (m.originalFileName != null &&
+                                m.fileSize != null) {
+                              // ✅ Case-insensitive file name matching
+                              pendingAttachmentKeys.add(
+                                '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
+                              );
+                            }
+                          }
+                        }
+
+                        final hasMatchingMedia =
+                            pendingMediaIds.isNotEmpty &&
+                            firestoreMessages.any((fsMsg) {
+                              if (fsMsg.id.startsWith('pending:')) return false;
+                              final fsMediaIds = <String>{};
+                              if (fsMsg.multipleMedia != null) {
+                                fsMediaIds.addAll(
+                                  fsMsg.multipleMedia!.map((m) => m.messageId),
+                                );
+                              }
+                              if (fsMsg.mediaMetadata != null) {
+                                fsMediaIds.add(fsMsg.mediaMetadata!.messageId);
+                              }
+                              if (fsMediaIds.isEmpty) return false;
+                              return fsMediaIds.any(pendingMediaIds.contains);
+                            });
+
+                        final hasMatchingAttachment =
+                            pendingAttachmentKeys.isNotEmpty &&
+                            firestoreMessages.any((fsMsg) {
+                              if (fsMsg.id.startsWith('pending:')) return false;
+                              final fsAttachmentKeys = <String>{};
+                              if (fsMsg.mediaMetadata?.originalFileName !=
+                                      null &&
+                                  fsMsg.mediaMetadata?.fileSize != null) {
+                                // ✅ Case-insensitive file name matching
+                                fsAttachmentKeys.add(
+                                  '${fsMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${fsMsg.mediaMetadata!.fileSize}',
+                                );
+                              }
+                              if (fsMsg.multipleMedia != null) {
+                                for (final m in fsMsg.multipleMedia!) {
+                                  if (m.originalFileName != null &&
+                                      m.fileSize != null) {
+                                    // ✅ Case-insensitive file name matching
+                                    fsAttachmentKeys.add(
+                                      '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
+                                    );
+                                  }
+                                }
+                              }
+                              if (fsAttachmentKeys.isEmpty) return false;
+                              return fsAttachmentKeys.any(
+                                pendingAttachmentKeys.contains,
+                              );
+                            });
+
+                        final isMediaMessage =
+                            (pendingMsg.multipleMedia != null &&
+                                pendingMsg.multipleMedia!.isNotEmpty) ||
+                            pendingMsg.mediaMetadata != null;
+                        final hasServerVersion =
+                            hasMatchingMedia ||
+                            hasMatchingAttachment ||
+                            (!isMediaMessage &&
+                                firestoreMessages.any((fsMsg) {
+                                  final senderMatch =
+                                      fsMsg.senderId == pendingMsg.senderId;
+                                  final diff =
+                                      (fsMsg.timestamp - pendingMsg.timestamp)
+                                          .abs();
+                                  final timeWindow = 30000;
+                                  final timeMatch = diff < timeWindow;
+                                  final isNotPending = !fsMsg.id.startsWith(
+                                    'pending:',
+                                  );
+                                  return senderMatch &&
+                                      timeMatch &&
+                                      isNotPending;
+                                }));
+
+                        if (hasServerVersion) {
+                          if (pendingMsg.multipleMedia != null) {
+                            for (final pm in pendingMsg.multipleMedia!) {
+                              if (pm.localPath != null &&
+                                  pm.localPath!.isNotEmpty) {
+                                _localSenderMediaPaths[pm.messageId] =
+                                    pm.localPath!;
+                              }
+                              _uploadingMessageIds.remove(pm.messageId);
+                              _pendingUploadProgress.remove(pm.messageId);
+                              // ✅ Dispose ValueNotifiers to prevent memory leaks
+                              _progressNotifiers[pm.messageId]?.dispose();
+                              _progressNotifiers.remove(pm.messageId);
+                            }
+                          }
+                          if (pendingMsg.mediaMetadata?.localPath != null) {
+                            final mediaId = pendingMsg.mediaMetadata!.messageId;
                             _localSenderMediaPaths[mediaId] =
                                 pendingMsg.mediaMetadata!.localPath!;
                           }
-                          _uploadingMessageIds.remove(mediaId);
-                          _pendingUploadProgress.remove(mediaId);
-                          _progressNotifiers[mediaId]?.dispose();
-                          _progressNotifiers.remove(mediaId);
-                        }
-                        return true; // Remove pending message
-                      }
-
-                      // 2️⃣ FALLBACK: Media ID and attachment matching
-                      final pendingMediaIds = <String>{};
-                      if (pendingMsg.multipleMedia != null) {
-                        pendingMediaIds.addAll(
-                          pendingMsg.multipleMedia!.map((m) => m.messageId),
-                        );
-                      }
-                      if (pendingMsg.mediaMetadata != null) {
-                        pendingMediaIds.add(
-                          pendingMsg.mediaMetadata!.messageId,
-                        );
-                      }
-
-                      final pendingAttachmentKeys = <String>{};
-                      if (pendingMsg.mediaMetadata?.originalFileName != null &&
-                          pendingMsg.mediaMetadata?.fileSize != null) {
-                        // ✅ Case-insensitive file name matching
-                        pendingAttachmentKeys.add(
-                          '${pendingMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${pendingMsg.mediaMetadata!.fileSize}',
-                        );
-                      }
-                      if (pendingMsg.multipleMedia != null) {
-                        for (final m in pendingMsg.multipleMedia!) {
-                          if (m.originalFileName != null &&
-                              m.fileSize != null) {
-                            // ✅ Case-insensitive file name matching
-                            pendingAttachmentKeys.add(
-                              '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
-                            );
-                          }
-                        }
-                      }
-
-                      final hasMatchingMedia =
-                          pendingMediaIds.isNotEmpty &&
-                          firestoreMessages.any((fsMsg) {
-                            if (fsMsg.id.startsWith('pending:')) return false;
-                            final fsMediaIds = <String>{};
-                            if (fsMsg.multipleMedia != null) {
-                              fsMediaIds.addAll(
-                                fsMsg.multipleMedia!.map((m) => m.messageId),
-                              );
-                            }
-                            if (fsMsg.mediaMetadata != null) {
-                              fsMediaIds.add(fsMsg.mediaMetadata!.messageId);
-                            }
-                            if (fsMediaIds.isEmpty) return false;
-                            return fsMediaIds.any(pendingMediaIds.contains);
-                          });
-
-                      final hasMatchingAttachment =
-                          pendingAttachmentKeys.isNotEmpty &&
-                          firestoreMessages.any((fsMsg) {
-                            if (fsMsg.id.startsWith('pending:')) return false;
-                            final fsAttachmentKeys = <String>{};
-                            if (fsMsg.mediaMetadata?.originalFileName != null &&
-                                fsMsg.mediaMetadata?.fileSize != null) {
-                              // ✅ Case-insensitive file name matching
-                              fsAttachmentKeys.add(
-                                '${fsMsg.mediaMetadata!.originalFileName!.toLowerCase()}|${fsMsg.mediaMetadata!.fileSize}',
-                              );
-                            }
-                            if (fsMsg.multipleMedia != null) {
-                              for (final m in fsMsg.multipleMedia!) {
-                                if (m.originalFileName != null &&
-                                    m.fileSize != null) {
-                                  // ✅ Case-insensitive file name matching
-                                  fsAttachmentKeys.add(
-                                    '${m.originalFileName!.toLowerCase()}|${m.fileSize}',
-                                  );
-                                }
-                              }
-                            }
-                            if (fsAttachmentKeys.isEmpty) return false;
-                            return fsAttachmentKeys.any(
-                              pendingAttachmentKeys.contains,
-                            );
-                          });
-
-                      final isMediaMessage =
-                          (pendingMsg.multipleMedia != null &&
-                              pendingMsg.multipleMedia!.isNotEmpty) ||
-                          pendingMsg.mediaMetadata != null;
-                      final hasServerVersion =
-                          hasMatchingMedia ||
-                          hasMatchingAttachment ||
-                          (!isMediaMessage &&
-                              firestoreMessages.any((fsMsg) {
-                                final senderMatch =
-                                    fsMsg.senderId == pendingMsg.senderId;
-                                final diff =
-                                    (fsMsg.timestamp - pendingMsg.timestamp)
-                                        .abs();
-                                final timeWindow = 30000;
-                                final timeMatch = diff < timeWindow;
-                                final isNotPending = !fsMsg.id.startsWith(
-                                  'pending:',
-                                );
-                                return senderMatch && timeMatch && isNotPending;
-                              }));
-
-                      if (hasServerVersion) {
-                        if (pendingMsg.multipleMedia != null) {
-                          for (final pm in pendingMsg.multipleMedia!) {
-                            if (pm.localPath != null &&
-                                pm.localPath!.isNotEmpty) {
-                              _localSenderMediaPaths[pm.messageId] =
-                                  pm.localPath!;
-                            }
-                            _uploadingMessageIds.remove(pm.messageId);
-                            _pendingUploadProgress.remove(pm.messageId);
+                          if (pendingMsg.mediaMetadata != null) {
+                            final mediaId = pendingMsg.mediaMetadata!.messageId;
+                            _uploadingMessageIds.remove(mediaId);
+                            _pendingUploadProgress.remove(mediaId);
                             // ✅ Dispose ValueNotifiers to prevent memory leaks
-                            _progressNotifiers[pm.messageId]?.dispose();
-                            _progressNotifiers.remove(pm.messageId);
+                            _progressNotifiers[mediaId]?.dispose();
+                            _progressNotifiers.remove(mediaId);
+                          }
+
+                          pendingIdsToRemove.add(pendingMsg.id);
+                          return true;
+                        }
+
+                        if (pendingMsg.multipleMedia != null &&
+                            pendingMsg.multipleMedia!.isNotEmpty) {
+                          final anyStillUploading = pendingMsg.multipleMedia!
+                              .any(
+                                (m) =>
+                                    uploadingMessageIds.contains(m.messageId),
+                              );
+                          if (anyStillUploading) return false;
+                        } else if (pendingMsg.mediaMetadata != null) {
+                          if (uploadingMessageIds.contains(
+                            pendingMsg.mediaMetadata!.messageId,
+                          )) {
+                            return false;
                           }
                         }
-                        if (pendingMsg.mediaMetadata?.localPath != null) {
-                          final mediaId = pendingMsg.mediaMetadata!.messageId;
-                          _localSenderMediaPaths[mediaId] =
-                              pendingMsg.mediaMetadata!.localPath!;
-                        }
-                        if (pendingMsg.mediaMetadata != null) {
-                          final mediaId = pendingMsg.mediaMetadata!.messageId;
-                          _uploadingMessageIds.remove(mediaId);
-                          _pendingUploadProgress.remove(mediaId);
-                          // ✅ Dispose ValueNotifiers to prevent memory leaks
-                          _progressNotifiers[mediaId]?.dispose();
-                          _progressNotifiers.remove(mediaId);
-                        }
 
-                        pendingIdsToRemove.add(pendingMsg.id);
-                        return true;
-                      }
-
-                      if (pendingMsg.multipleMedia != null &&
-                          pendingMsg.multipleMedia!.isNotEmpty) {
-                        final anyStillUploading = pendingMsg.multipleMedia!.any(
-                          (m) => uploadingMessageIds.contains(m.messageId),
-                        );
-                        if (anyStillUploading) return false;
-                      } else if (pendingMsg.mediaMetadata != null) {
-                        if (uploadingMessageIds.contains(
-                          pendingMsg.mediaMetadata!.messageId,
-                        )) {
-                          return false;
-                        }
-                      }
-
-                      return false;
-                    });
-
-                    if (pendingIdsToRemove.isNotEmpty) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!mounted) return;
-                        setState(() {
-                          _pendingMessages.removeWhere(
-                            (m) => pendingIdsToRemove.contains(m.id),
-                          );
-                        });
+                        return false;
                       });
-                    }
 
-                    // Immediately hide messages queued for deletion.
-                    allMessages.removeWhere(
-                      (msg) =>
-                          _optimisticallyDeletedMessageIds.contains(msg.id),
-                    );
-
-                    allMessages.sort(
-                      (a, b) => b.timestamp.compareTo(a.timestamp),
-                    );
-
-                    // Auto-mark as read when newest message is seen and newer than our last mark
-                    if (allMessages.isNotEmpty) {
-                      final latest = DateTime.fromMillisecondsSinceEpoch(
-                        allMessages.first.timestamp,
-                      );
-                      if (_lastMarkedMessageAt == null ||
-                          latest.isAfter(_lastMarkedMessageAt!)) {
+                      if (pendingIdsToRemove.isNotEmpty) {
                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _markAsRead();
-                          _lastMarkedMessageAt = latest;
+                          if (!mounted) return;
+                          setState(() {
+                            _pendingMessages.removeWhere(
+                              (m) => pendingIdsToRemove.contains(m.id),
+                            );
+                          });
                         });
                       }
-                    }
 
-                    int? unreadDividerIndex;
-                    bool hasUnread = false;
-                    bool hasRead = false;
-                    for (int i = 0; i < allMessages.length; i++) {
-                      final isUnread = allMessages[i].timestamp > lastReadMs;
-                      hasUnread = hasUnread || isUnread;
-                      hasRead = hasRead || !isUnread;
-                      if (i > 0) {
-                        final prevUnread =
-                            allMessages[i - 1].timestamp > lastReadMs;
-                        final currUnread = isUnread;
-                        if (prevUnread &&
-                            !currUnread &&
-                            unreadDividerIndex == null) {
-                          unreadDividerIndex = i;
-                        }
-                      }
-                    }
-                    if (unreadDividerIndex == null && hasUnread && hasRead) {
-                      unreadDividerIndex = allMessages.length - 1;
-                    }
+                      // Immediately hide messages queued for deletion.
+                      allMessages.removeWhere(
+                        (msg) =>
+                            _optimisticallyDeletedMessageIds.contains(msg.id),
+                      );
 
-                    // Count unread messages from others for separator label
-                    final unreadCount = allMessages
-                        .where(
-                          (m) =>
-                              m.timestamp > lastReadMs &&
-                              m.senderId != currentUserId,
-                        )
-                        .length;
+                      allMessages.sort(
+                        (a, b) => b.timestamp.compareTo(a.timestamp),
+                      );
 
-                    // Scroll to first unread on initial open (WhatsApp-style)
-                    if (_showUnreadDivider &&
-                        hasValidData &&
-                        unreadDividerIndex != null &&
-                        !_hasScrolledToUnread &&
-                        !_userHasScrolled) {
-                      _hasScrolledToUnread = true;
-                      final targetIdx = unreadDividerIndex;
-                      final totalItems = allMessages.length;
-                      WidgetsBinding.instance.addPostFrameCallback((_) async {
-                        await Future.delayed(const Duration(milliseconds: 300));
-                        if (!mounted || !scrollController.hasClients) return;
-                        final maxExtent =
-                            scrollController.position.maxScrollExtent;
-                        if (maxExtent <= 0) return;
-                        final target = (targetIdx / totalItems) * maxExtent;
-                        scrollController.animateTo(
-                          target.clamp(0.0, maxExtent),
-                          duration: const Duration(milliseconds: 400),
-                          curve: Curves.easeOut,
+                      // Auto-mark as read when newest message is seen and newer than our last mark
+                      if (allMessages.isNotEmpty) {
+                        final latest = DateTime.fromMillisecondsSinceEpoch(
+                          allMessages.first.timestamp,
                         );
-                        _userHasScrolled = true;
-                      });
-                    }
-
-                    // Handle pending scroll request from search
-                    if (_scrollToMessageId != null &&
-                        !_isScrollingToMessage &&
-                        !_isProcessingScroll) {
-                      final messageId = _scrollToMessageId!;
-                      _scrollToMessageId = null; // Clear pending request
-                      _isScrollingToMessage = true;
-                      _userHasScrolled = true;
-
-                      // Convert GroupChatMessage list to Map format for mixin
-                      final messagesList = allMessages
-                          .map((msg) => {'id': msg.id})
-                          .toList();
-
-                      // Schedule scroll after frame is rendered (single callback)
-                      WidgetsBinding.instance.addPostFrameCallback((_) async {
-                        if (!mounted) return;
-
-                        await scrollToMessage(messageId, messagesList);
-
-                        // Wait for scroll animation to complete
-                        await Future.delayed(const Duration(seconds: 3));
-                        if (mounted) {
-                          setState(() {
-                            _isScrollingToMessage = false;
-                            // Keep _userHasScrolled true
+                        if (_lastMarkedMessageAt == null ||
+                            latest.isAfter(_lastMarkedMessageAt!)) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _markAsRead();
+                            _lastMarkedMessageAt = latest;
                           });
                         }
-                      });
-                    }
+                      }
 
-                    // Check if item count changed (avoid redundant callbacks)
-                    final itemCountChanged =
-                        allMessages.length != _lastItemCount;
+                      int? unreadDividerIndex;
+                      bool hasUnread = false;
+                      bool hasRead = false;
+                      for (int i = 0; i < allMessages.length; i++) {
+                        final isUnread = allMessages[i].timestamp > lastReadMs;
+                        hasUnread = hasUnread || isUnread;
+                        hasRead = hasRead || !isUnread;
+                        if (i > 0) {
+                          final prevUnread =
+                              allMessages[i - 1].timestamp > lastReadMs;
+                          final currUnread = isUnread;
+                          if (prevUnread &&
+                              !currUnread &&
+                              unreadDividerIndex == null) {
+                            unreadDividerIndex = i;
+                          }
+                        }
+                      }
+                      if (unreadDividerIndex == null && hasUnread && hasRead) {
+                        unreadDividerIndex = allMessages.length - 1;
+                      }
 
-                    // Check if should auto-scroll
-                    final shouldAutoScroll =
-                        itemCountChanged &&
-                        allMessages.length > _lastItemCount &&
-                        !_userHasScrolled &&
-                        !_isScrollingToMessage &&
-                        !_isProcessingScroll &&
-                        scrollController.hasClients &&
-                        scrollController.offset < 100;
+                      // Count unread messages from others for separator label
+                      final unreadCount = allMessages
+                          .where(
+                            (m) =>
+                                m.timestamp > lastReadMs &&
+                                m.senderId != currentUserId,
+                          )
+                          .length;
 
-                    // Only schedule callback when item count actually changed
-                    if (itemCountChanged && !_isProcessingScroll) {
-                      _isProcessingScroll = true;
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        _lastItemCount = allMessages.length;
-                        _isProcessingScroll = false;
-
-                        // Only auto-scroll if all conditions are met
-                        if (shouldAutoScroll &&
-                            scrollController.hasClients &&
-                            !_isScrollingToMessage) {
+                      // Scroll to first unread on initial open (WhatsApp-style)
+                      if (_showUnreadDivider &&
+                          hasValidData &&
+                          unreadDividerIndex != null &&
+                          !_hasScrolledToUnread &&
+                          !_userHasScrolled) {
+                        _hasScrolledToUnread = true;
+                        final targetIdx = unreadDividerIndex;
+                        final totalItems = allMessages.length;
+                        WidgetsBinding.instance.addPostFrameCallback((_) async {
+                          await Future.delayed(
+                            const Duration(milliseconds: 300),
+                          );
+                          if (!mounted || !scrollController.hasClients) return;
+                          final maxExtent =
+                              scrollController.position.maxScrollExtent;
+                          if (maxExtent <= 0) return;
+                          final target = (targetIdx / totalItems) * maxExtent;
                           scrollController.animateTo(
-                            0,
-                            duration: const Duration(milliseconds: 300),
+                            target.clamp(0.0, maxExtent),
+                            duration: const Duration(milliseconds: 400),
                             curve: Curves.easeOut,
                           );
-                        }
-                      });
-                    }
+                          _userHasScrolled = true;
+                        });
+                      }
 
-                    return ListView.builder(
-                      key: const PageStorageKey('community_messages'),
-                      controller: scrollController,
-                      reverse: true,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: allMessages.length,
-                      physics: const ClampingScrollPhysics(),
-                      itemBuilder: (context, index) {
-                        final message = allMessages[index];
-                        if (index < 5) {
-                          // Log first 5 messages
-                        }
-                        final isMe = message.senderId == currentUserId;
-                        final currentDate = DateTime.fromMillisecondsSinceEpoch(
-                          message.timestamp,
-                        );
-                        final isOldest = index == allMessages.length - 1;
-                        final nextDate = isOldest
-                            ? null
-                            : DateTime.fromMillisecondsSinceEpoch(
-                                allMessages[index + 1].timestamp,
+                      // Handle pending scroll request from search
+                      if (_scrollToMessageId != null &&
+                          !_isScrollingToMessage &&
+                          !_isProcessingScroll) {
+                        final messageId = _scrollToMessageId!;
+                        _scrollToMessageId = null; // Clear pending request
+                        _isScrollingToMessage = true;
+                        _userHasScrolled = true;
+
+                        // Convert GroupChatMessage list to Map format for mixin
+                        final messagesList = allMessages
+                            .map((msg) => {'id': msg.id})
+                            .toList();
+
+                        // Schedule scroll after frame is rendered (single callback)
+                        WidgetsBinding.instance.addPostFrameCallback((_) async {
+                          if (!mounted) return;
+
+                          await scrollToMessage(messageId, messagesList);
+
+                          // Wait for scroll animation to complete
+                          await Future.delayed(const Duration(seconds: 3));
+                          if (mounted) {
+                            setState(() {
+                              _isScrollingToMessage = false;
+                              // Keep _userHasScrolled true
+                            });
+                          }
+                        });
+                      }
+
+                      // Check if item count changed (avoid redundant callbacks)
+                      final itemCountChanged =
+                          allMessages.length != _lastItemCount;
+
+                      // Check if should auto-scroll
+                      final shouldAutoScroll =
+                          itemCountChanged &&
+                          allMessages.length > _lastItemCount &&
+                          !_userHasScrolled &&
+                          !_isScrollingToMessage &&
+                          !_isProcessingScroll &&
+                          scrollController.hasClients &&
+                          scrollController.offset < 100;
+
+                      // Only schedule callback when item count actually changed
+                      if (itemCountChanged && !_isProcessingScroll) {
+                        _isProcessingScroll = true;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _lastItemCount = allMessages.length;
+                          _isProcessingScroll = false;
+
+                          // Only auto-scroll if all conditions are met
+                          if (shouldAutoScroll &&
+                              scrollController.hasClients &&
+                              !_isScrollingToMessage) {
+                            scrollController.animateTo(
+                              0,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                        });
+                      }
+
+                      return ListView.builder(
+                        key: const PageStorageKey('community_messages'),
+                        controller: scrollController,
+                        reverse: true,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: allMessages.length,
+                        physics: const ClampingScrollPhysics(),
+                        itemBuilder: (context, index) {
+                          final message = allMessages[index];
+                          if (index < 5) {
+                            // Log first 5 messages
+                          }
+                          final isMe = message.senderId == currentUserId;
+                          final currentDate =
+                              DateTime.fromMillisecondsSinceEpoch(
+                                message.timestamp,
                               );
-                        final showDayDivider =
-                            isOldest ||
-                            _formatDayLabel(currentDate) !=
-                                _formatDayLabel(nextDate!);
-
-                        final isPending =
-                            message.id.startsWith('pending:') ||
-                            (message.mediaMetadata?.r2Key.startsWith(
-                                  'pending/',
-                                ) ??
-                                false);
-                        final uploadProgress = isPending
-                            ? _pendingUploadProgress[message
-                                  .mediaMetadata
-                                  ?.messageId]
-                            : null;
-
-                        return ValueListenableBuilder<bool>(
-                          valueListenable: _isSelectionMode,
-                          builder: (context, isSelectionMode, _) {
-                            return ValueListenableBuilder<Set<String>>(
-                              valueListenable: _selectedMessages,
-                              builder: (context, selectedMessages, _) {
-                                final isSelected = selectedMessages.contains(
-                                  message.id,
+                          final isOldest = index == allMessages.length - 1;
+                          final nextDate = isOldest
+                              ? null
+                              : DateTime.fromMillisecondsSinceEpoch(
+                                  allMessages[index + 1].timestamp,
                                 );
-                                final isHighlighted =
-                                    highlightedMessageId == message.id;
+                          final showDayDivider =
+                              isOldest ||
+                              _formatDayLabel(currentDate) !=
+                                  _formatDayLabel(nextDate!);
 
-                                return Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (_showUnreadDivider &&
-                                        hasValidData &&
-                                        unreadDividerIndex == index)
-                                      _buildUnreadDivider(count: unreadCount),
-                                    if (showDayDivider)
-                                      _buildDayDivider(currentDate),
-                                    HighlightedMessageWrapper(
-                                      key: getMessageKey(message.id),
-                                      isHighlighted: isHighlighted,
-                                      child: GestureDetector(
-                                        onLongPressStart: (details) {
-                                          if (isSelectionMode) {
+                          final isPending =
+                              message.id.startsWith('pending:') ||
+                              (message.mediaMetadata?.r2Key.startsWith(
+                                    'pending/',
+                                  ) ??
+                                  false);
+                          final uploadProgress = isPending
+                              ? _pendingUploadProgress[message
+                                    .mediaMetadata
+                                    ?.messageId]
+                              : null;
+
+                          return ValueListenableBuilder<bool>(
+                            valueListenable: _isSelectionMode,
+                            builder: (context, isSelectionMode, _) {
+                              return ValueListenableBuilder<Set<String>>(
+                                valueListenable: _selectedMessages,
+                                builder: (context, selectedMessages, _) {
+                                  final isSelected = selectedMessages.contains(
+                                    message.id,
+                                  );
+                                  final isHighlighted =
+                                      highlightedMessageId == message.id;
+
+                                  return Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_showUnreadDivider &&
+                                          hasValidData &&
+                                          unreadDividerIndex == index)
+                                        _buildUnreadDivider(count: unreadCount),
+                                      if (showDayDivider)
+                                        _buildDayDivider(currentDate),
+                                      HighlightedMessageWrapper(
+                                        key: getMessageKey(message.id),
+                                        isHighlighted: isHighlighted,
+                                        child: GestureDetector(
+                                          onLongPressStart: (details) {
+                                            if (isSelectionMode) {
+                                              _selectedMessages.value = {
+                                                ...selectedMessages,
+                                                message.id,
+                                              };
+                                              _invalidateShareEligibilityCache();
+                                              return;
+                                            }
+
+                                            _isSelectionMode.value = true;
                                             _selectedMessages.value = {
                                               ...selectedMessages,
                                               message.id,
                                             };
                                             _invalidateShareEligibilityCache();
-                                            return;
-                                          }
 
-                                          _isSelectionMode.value = true;
-                                          _selectedMessages.value = {
-                                            ...selectedMessages,
-                                            message.id,
-                                          };
-                                          _invalidateShareEligibilityCache();
-
-                                          _showReactionPickerForMessage(
-                                            message: message,
-                                            globalPosition:
-                                                details.globalPosition,
-                                          );
-                                        },
-                                        onTap: isSelectionMode
-                                            ? () {
-                                                if (isSelected) {
-                                                  final newSelection =
-                                                      Set<String>.from(
-                                                        selectedMessages,
-                                                      )..remove(message.id);
-                                                  _selectedMessages.value =
-                                                      newSelection;
-                                                  if (newSelection.isEmpty) {
-                                                    _isSelectionMode.value =
-                                                        false;
+                                            _showReactionPickerForMessage(
+                                              message: message,
+                                              globalPosition:
+                                                  details.globalPosition,
+                                            );
+                                          },
+                                          onTap: isSelectionMode
+                                              ? () {
+                                                  if (isSelected) {
+                                                    final newSelection =
+                                                        Set<String>.from(
+                                                          selectedMessages,
+                                                        )..remove(message.id);
+                                                    _selectedMessages.value =
+                                                        newSelection;
+                                                    if (newSelection.isEmpty) {
+                                                      _isSelectionMode.value =
+                                                          false;
+                                                    }
+                                                  } else {
+                                                    _selectedMessages.value = {
+                                                      ...selectedMessages,
+                                                      message.id,
+                                                    };
                                                   }
-                                                } else {
+                                                  _invalidateShareEligibilityCache();
+                                                }
+                                              : null,
+                                          onDoubleTap: isSelectionMode
+                                              ? null
+                                              : () {
+                                                  _isSelectionMode.value = true;
                                                   _selectedMessages.value = {
                                                     ...selectedMessages,
                                                     message.id,
                                                   };
-                                                }
-                                                _invalidateShareEligibilityCache();
-                                              }
-                                            : null,
-                                        onDoubleTap: isSelectionMode
-                                            ? null
-                                            : () {
-                                                _isSelectionMode.value = true;
-                                                _selectedMessages.value = {
-                                                  ...selectedMessages,
-                                                  message.id,
-                                                };
-                                                _invalidateShareEligibilityCache();
-                                              },
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            _MessageBubble(
-                                              message: message,
-                                              isMe: isMe,
-                                              uploading: isPending,
-                                              uploadProgress: uploadProgress,
-                                              localSenderMediaPaths:
-                                                  _localSenderMediaPaths,
-                                              uploadingMessageIds:
-                                                  _uploadingMessageIds,
-                                              pendingUploadProgress:
-                                                  _pendingUploadProgress,
-                                              selectionMode: isSelectionMode,
-                                              isSelected: isSelected,
-                                              communityId: widget.communityId,
-                                              userRole: userRole,
-                                              failedMessageIds:
-                                                  _failedMessageIds,
-                                              onRetry: _retryUpload,
-                                            ),
-                                            MessageReactionSummary(
-                                              summary: message.reactionSummary,
-                                              isMe: isMe,
-                                            ),
-                                          ],
+                                                  _invalidateShareEligibilityCache();
+                                                },
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              _MessageBubble(
+                                                message: message,
+                                                isMe: isMe,
+                                                uploading: isPending,
+                                                uploadProgress: uploadProgress,
+                                                localSenderMediaPaths:
+                                                    _localSenderMediaPaths,
+                                                uploadingMessageIds:
+                                                    _uploadingMessageIds,
+                                                pendingUploadProgress:
+                                                    _pendingUploadProgress,
+                                                selectionMode: isSelectionMode,
+                                                isSelected: isSelected,
+                                                communityId: widget.communityId,
+                                                userRole: userRole,
+                                                failedMessageIds:
+                                                    _failedMessageIds,
+                                                onRetry: _retryUpload,
+                                              ),
+                                              MessageReactionSummary(
+                                                summary:
+                                                    message.reactionSummary,
+                                                isMe: isMe,
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                );
-                              },
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                );
-              },
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
-          ),
 
-          // Input Bar with Recording UI
-          if (_isRecording)
-            ValueListenableBuilder<int>(
-              valueListenable: _recordingDuration,
-              builder: (context, duration, _) {
-                final minutes = duration ~/ 60;
-                final seconds = duration % 60;
-                final timeStr =
-                    '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+            // Input Bar with Recording UI
+            if (_isRecording)
+              ValueListenableBuilder<int>(
+                valueListenable: _recordingDuration,
+                builder: (context, duration, _) {
+                  final minutes = duration ~/ 60;
+                  final seconds = duration % 60;
+                  final timeStr =
+                      '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
-                return SafeArea(
-                  top: false,
-                  child: Container(
-                    margin: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom > 0
-                          ? 0
-                          : 2,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 16,
-                    ),
-                    color: isDark ? const Color(0xFF222222) : Colors.white,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Delete button
-                        GestureDetector(
-                          onTap: () async {
-                            try {
-                              _recordingTimer?.cancel();
-                              await _audioRecorder.stop();
+                  return SafeArea(
+                    top: false,
+                    child: Container(
+                      margin: EdgeInsets.only(
+                        bottom: MediaQuery.of(context).viewInsets.bottom > 0
+                            ? 0
+                            : 2,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
+                      color: isDark ? const Color(0xFF222222) : Colors.white,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Delete button
+                          GestureDetector(
+                            onTap: () async {
+                              try {
+                                _recordingTimer?.cancel();
+                                await _audioRecorder.stop();
 
-                              if (_recordingPath != null) {
-                                final file = File(_recordingPath!);
-                                if (await file.exists()) {
-                                  await file.delete();
+                                if (_recordingPath != null) {
+                                  final file = File(_recordingPath!);
+                                  if (await file.exists()) {
+                                    await file.delete();
+                                  }
                                 }
-                              }
 
-                              setState(() {
-                                _isRecording = false;
-                                _recordingPath = null;
-                                _recordingDuration.value = 0;
-                              });
+                                setState(() {
+                                  _isRecording = false;
+                                  _recordingPath = null;
+                                  _recordingDuration.value = 0;
+                                });
 
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Recording discarded'),
-                                    duration: Duration(milliseconds: 800),
-                                  ),
-                                );
-                              }
-                            } catch (e) {}
-                          },
-                          child: Container(
-                            width: 52,
-                            height: 52,
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Recording discarded'),
+                                      duration: Duration(milliseconds: 800),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {}
+                            },
+                            child: Container(
+                              width: 52,
+                              height: 52,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          // Recording indicator dot
+                          Container(
+                            width: 14,
+                            height: 14,
                             decoration: const BoxDecoration(
                               color: Colors.red,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
-                              Icons.delete,
-                              color: Colors.white,
-                              size: 26,
+                          ),
+
+                          const SizedBox(width: 16),
+
+                          // Timer
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
                             ),
-                          ),
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        // Recording indicator dot
-                        Container(
-                          width: 14,
-                          height: 14,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-
-                        const SizedBox(width: 16),
-
-                        // Timer
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.all(Radius.circular(18)),
-                          ),
-                          child: Text(
-                            timeStr,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'monospace',
-                            ),
-                          ),
-                        ),
-
-                        const Spacer(),
-
-                        // Send button
-                        GestureDetector(
-                          onTap: _sendRecording,
-                          child: Container(
-                            width: 52,
-                            height: 52,
                             decoration: const BoxDecoration(
-                              color: Color(0xFF00A884),
-                              shape: BoxShape.circle,
+                              color: Colors.red,
+                              borderRadius: BorderRadius.all(
+                                Radius.circular(18),
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.send,
-                              color: Colors.white,
-                              size: 26,
+                            child: Text(
+                              timeStr,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                fontFamily: 'monospace',
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+
+                          const Spacer(),
+
+                          // Send button
+                          GestureDetector(
+                            onTap: _sendRecording,
+                            child: Container(
+                              width: 52,
+                              height: 52,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF00A884),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.send,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                  );
+                },
+              )
+            else
+              _buildInputBar(
+                cardColor: cardColor,
+                inputBgColor: inputBgColor,
+                textColor: textColor,
+                hintColor: hintColor,
+                primaryColor: primaryColor,
+                isDark: isDark,
+              ),
+            if (_showEmojiPicker)
+              EmojiPicker(
+                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+                onBackspacePressed: _onBackspacePressed,
+                config: Config(
+                  height: 250,
+                  checkPlatformCompatibility: false,
+                  emojiViewConfig: EmojiViewConfig(
+                    backgroundColor: cardColor,
+                    columns: 7,
+                    emojiSizeMax: 28,
                   ),
-                );
-              },
-            )
-          else
-            _buildInputBar(
-              cardColor: cardColor,
-              inputBgColor: inputBgColor,
-              textColor: textColor,
-              hintColor: hintColor,
-              primaryColor: primaryColor,
-              isDark: isDark,
-            ),
-          if (_showEmojiPicker)
-            EmojiPicker(
-              onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-              onBackspacePressed: _onBackspacePressed,
-              config: Config(
-                height: 250,
-                checkPlatformCompatibility: false,
-                emojiViewConfig: EmojiViewConfig(
-                  backgroundColor: cardColor,
-                  columns: 7,
-                  emojiSizeMax: 28,
-                ),
-                categoryViewConfig: CategoryViewConfig(
-                  backgroundColor: cardColor,
-                  iconColorSelected: primaryColor,
-                  indicatorColor: primaryColor,
-                ),
-                bottomActionBarConfig: BottomActionBarConfig(
-                  backgroundColor: cardColor,
+                  categoryViewConfig: CategoryViewConfig(
+                    backgroundColor: cardColor,
+                    iconColorSelected: primaryColor,
+                    indicatorColor: primaryColor,
+                  ),
+                  bottomActionBarConfig: BottomActionBarConfig(
+                    backgroundColor: cardColor,
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

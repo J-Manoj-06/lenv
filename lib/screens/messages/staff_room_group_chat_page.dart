@@ -2168,184 +2168,101 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        elevation: 0,
-        leading: ValueListenableBuilder<bool>(
-          valueListenable: _isSelectionMode,
-          builder: (context, isSelectionMode, _) {
-            return IconButton(
-              icon: Icon(
-                isSelectionMode ? Icons.close : Icons.chevron_left,
-                color: textColor,
-                size: isSelectionMode ? 24 : 32,
-              ),
-              onPressed: () {
-                if (isSelectionMode) {
-                  _isSelectionMode.value = false;
-                  _selectedMessages.value = {};
-                  _invalidateShareEligibilityCache();
-                } else {
-                  Navigator.pop(context);
-                }
-              },
-            );
-          },
-        ),
-        title: ValueListenableBuilder<bool>(
-          valueListenable: _isSelectionMode,
-          builder: (context, isSelectionMode, _) {
-            return ValueListenableBuilder<Set<String>>(
-              valueListenable: _selectedMessages,
-              builder: (context, selectedMessages, _) {
-                return isSelectionMode
-                    ? Text(
-                        '${selectedMessages.length} selected',
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    : Row(
-                        children: [
-                          StaffRoomAvatarWidget(
-                            roomId: widget.instituteId,
-                            roomName: 'Staff Room',
-                            size: 34,
-                            canEdit: !widget.isTeacher,
-                            onTap: () {
-                              final dpProvider = context
-                                  .read<ProfileDPProvider>();
-                              final currentImageUrl = dpProvider.getStaffRoomDP(
-                                widget.instituteId,
-                              );
-
-                              if (widget.isTeacher) {
-                                if (currentImageUrl != null &&
-                                    currentImageUrl.isNotEmpty) {
-                                  Navigator.of(context).push(
-                                    FullScreenDPViewer.route(
-                                      imageUrl: currentImageUrl,
-                                      userName: 'Staff Room',
-                                    ),
-                                  );
-                                }
-                                return;
-                              }
-
-                              DPOptionsBottomSheet.show(
-                                context: context,
-                                userId: widget.instituteId,
-                                userName: 'Staff Room',
-                                currentImageUrl: currentImageUrl,
-                                isStaffRoomDP: true,
-                                staffRoomId: widget.instituteId,
-                              );
-                            },
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Staff Room',
-                              style: TextStyle(
-                                color: textColor,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      );
-              },
-            );
-          },
-        ),
-        actions: [
-          ValueListenableBuilder<bool>(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isSelectionMode.value) {
+          _isSelectionMode.value = false;
+          _selectedMessages.value = {};
+          _invalidateShareEligibilityCache();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: bgColor,
+          elevation: 0,
+          leading: ValueListenableBuilder<bool>(
+            valueListenable: _isSelectionMode,
+            builder: (context, isSelectionMode, _) {
+              return IconButton(
+                icon: Icon(
+                  isSelectionMode ? Icons.close : Icons.chevron_left,
+                  color: textColor,
+                  size: isSelectionMode ? 24 : 32,
+                ),
+                onPressed: () {
+                  if (isSelectionMode) {
+                    _isSelectionMode.value = false;
+                    _selectedMessages.value = {};
+                    _invalidateShareEligibilityCache();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              );
+            },
+          ),
+          title: ValueListenableBuilder<bool>(
             valueListenable: _isSelectionMode,
             builder: (context, isSelectionMode, _) {
               return ValueListenableBuilder<Set<String>>(
                 valueListenable: _selectedMessages,
                 builder: (context, selectedMessages, _) {
                   return isSelectionMode
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            FutureBuilder<bool>(
-                              future: _getForwardEligibilityFuture(
-                                selectedMessages,
-                              ),
-                              builder: (context, snapshot) {
-                                final canForward = snapshot.data == true;
-                                if (!canForward) return const SizedBox.shrink();
-                                return IconButton(
-                                  icon: const Icon(
-                                    Icons.reply_all_rounded,
-                                    color: Colors.blueAccent,
-                                    size: 24,
-                                  ),
-                                  tooltip: 'Forward',
-                                  onPressed: selectedMessages.isEmpty
-                                      ? null
-                                      : _forwardSelectedMessages,
-                                );
-                              },
-                            ),
-                            FutureBuilder<bool>(
-                              future: _getShareEligibilityFuture(
-                                selectedMessages,
-                              ),
-                              builder: (context, snapshot) {
-                                final canShare = snapshot.data == true;
-                                if (!canShare) return const SizedBox.shrink();
-                                return IconButton(
-                                  icon: Icon(
-                                    Icons.share_rounded,
-                                    color: isDark
-                                        ? Colors.white70
-                                        : const Color(0xFF475569),
-                                    size: 24,
-                                  ),
-                                  tooltip: 'Share',
-                                  onPressed: _shareSelectedMessages,
-                                );
-                              },
-                            ),
-                            FutureBuilder<bool>(
-                              future: _getDeleteEligibilityFuture(
-                                selectedMessages,
-                              ),
-                              builder: (context, snapshot) {
-                                final canDelete = snapshot.data == true;
-                                if (!canDelete) {
-                                  return const SizedBox.shrink();
-                                }
-                                return IconButton(
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.redAccent,
-                                    size: 24,
-                                  ),
-                                  tooltip: 'Delete',
-                                  onPressed: selectedMessages.isEmpty
-                                      ? null
-                                      : _showDeleteDialog,
-                                );
-                              },
-                            ),
-                          ],
+                      ? Text(
+                          '${selectedMessages.length} selected',
+                          style: TextStyle(
+                            color: textColor,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         )
                       : Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: Icon(Icons.search, color: textColor),
-                              onPressed: () => _openOfflineSearch(
-                                context,
-                                theme,
-                                primaryColor,
+                            StaffRoomAvatarWidget(
+                              roomId: widget.instituteId,
+                              roomName: 'Staff Room',
+                              size: 34,
+                              canEdit: !widget.isTeacher,
+                              onTap: () {
+                                final dpProvider = context
+                                    .read<ProfileDPProvider>();
+                                final currentImageUrl = dpProvider
+                                    .getStaffRoomDP(widget.instituteId);
+
+                                if (widget.isTeacher) {
+                                  if (currentImageUrl != null &&
+                                      currentImageUrl.isNotEmpty) {
+                                    Navigator.of(context).push(
+                                      FullScreenDPViewer.route(
+                                        imageUrl: currentImageUrl,
+                                        userName: 'Staff Room',
+                                      ),
+                                    );
+                                  }
+                                  return;
+                                }
+
+                                DPOptionsBottomSheet.show(
+                                  context: context,
+                                  userId: widget.instituteId,
+                                  userName: 'Staff Room',
+                                  currentImageUrl: currentImageUrl,
+                                  isStaffRoomDP: true,
+                                  staffRoomId: widget.instituteId,
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Staff Room',
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ],
@@ -2354,13 +2271,107 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               );
             },
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(child: _buildNormalMessages(theme, primaryColor)),
-          _buildMessageInput(theme, primaryColor),
-        ],
+          actions: [
+            ValueListenableBuilder<bool>(
+              valueListenable: _isSelectionMode,
+              builder: (context, isSelectionMode, _) {
+                return ValueListenableBuilder<Set<String>>(
+                  valueListenable: _selectedMessages,
+                  builder: (context, selectedMessages, _) {
+                    return isSelectionMode
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FutureBuilder<bool>(
+                                future: _getForwardEligibilityFuture(
+                                  selectedMessages,
+                                ),
+                                builder: (context, snapshot) {
+                                  final canForward = snapshot.data == true;
+                                  if (!canForward)
+                                    return const SizedBox.shrink();
+                                  return IconButton(
+                                    icon: const Icon(
+                                      Icons.reply_all_rounded,
+                                      color: Colors.blueAccent,
+                                      size: 24,
+                                    ),
+                                    tooltip: 'Forward',
+                                    onPressed: selectedMessages.isEmpty
+                                        ? null
+                                        : _forwardSelectedMessages,
+                                  );
+                                },
+                              ),
+                              FutureBuilder<bool>(
+                                future: _getShareEligibilityFuture(
+                                  selectedMessages,
+                                ),
+                                builder: (context, snapshot) {
+                                  final canShare = snapshot.data == true;
+                                  if (!canShare) return const SizedBox.shrink();
+                                  return IconButton(
+                                    icon: Icon(
+                                      Icons.share_rounded,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : const Color(0xFF475569),
+                                      size: 24,
+                                    ),
+                                    tooltip: 'Share',
+                                    onPressed: _shareSelectedMessages,
+                                  );
+                                },
+                              ),
+                              FutureBuilder<bool>(
+                                future: _getDeleteEligibilityFuture(
+                                  selectedMessages,
+                                ),
+                                builder: (context, snapshot) {
+                                  final canDelete = snapshot.data == true;
+                                  if (!canDelete) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.redAccent,
+                                      size: 24,
+                                    ),
+                                    tooltip: 'Delete',
+                                    onPressed: selectedMessages.isEmpty
+                                        ? null
+                                        : _showDeleteDialog,
+                                  );
+                                },
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.search, color: textColor),
+                                onPressed: () => _openOfflineSearch(
+                                  context,
+                                  theme,
+                                  primaryColor,
+                                ),
+                              ),
+                            ],
+                          );
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            Expanded(child: _buildNormalMessages(theme, primaryColor)),
+            _buildMessageInput(theme, primaryColor),
+          ],
+        ),
       ),
     );
   }
