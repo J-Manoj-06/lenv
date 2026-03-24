@@ -13,12 +13,6 @@ const messaging = admin.messaging();
 const PRINCIPAL_ROLES = new Set(['principal', 'institute', 'admin']);
 const DEFAULT_TTL_DAYS = 30;
 
-function toBool(value, fallback = false) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value.toLowerCase() === 'true';
-  return fallback;
-}
-
 function asString(value, fallback = '') {
   if (value === undefined || value === null) return fallback;
   return String(value).trim();
@@ -318,84 +312,6 @@ async function sendNotificationToUser({
   };
 }
 
-function roleMatchesTarget(userRole, targetRole) {
-  if (!targetRole || targetRole === 'all') return true;
-  if (targetRole === 'principal') return PRINCIPAL_ROLES.has(userRole);
-  return userRole === targetRole;
-}
-
-function announcementVisibleToUser(announcement, user) {
-  const targetRole = normalizeRole(announcement.targetRole || announcement.audienceRole || 'all');
-  if (!roleMatchesTarget(user.role, targetRole)) return false;
-
-  const schoolId = asString(announcement.schoolId || announcement.schoolCode || announcement.instituteId);
-  if (schoolId && user.schoolId && schoolId !== user.schoolId) return false;
-
-  const standards = Array.isArray(announcement.standards)
-    ? announcement.standards.map((x) => asString(x))
-    : [];
-  if (standards.length && user.standard && !standards.includes(user.standard)) {
-    return false;
-  }
-
-  const sections = Array.isArray(announcement.sections)
-    ? announcement.sections.map((x) => asString(x))
-    : [];
-  if (sections.length && user.section && !sections.includes(user.section)) {
-    return false;
-  }
-
-  const groupIds = Array.isArray(announcement.groupIds)
-    ? announcement.groupIds.map((x) => asString(x))
-    : [];
-  if (groupIds.length) {
-    const overlap = user.groupIds.some((g) => groupIds.includes(g));
-    if (!overlap) return false;
-  }
-
-  const communityIds = Array.isArray(announcement.communityIds)
-    ? announcement.communityIds.map((x) => asString(x))
-    : [];
-  if (communityIds.length) {
-    const overlap = user.communityIds.some((g) => communityIds.includes(g));
-    if (!overlap) return false;
-  }
-
-  return true;
-}
-
-async function getAnnouncementRecipients(announcement) {
-  let query = db.collection('users');
-  const schoolId = asString(announcement.schoolId || announcement.schoolCode || announcement.instituteId);
-  if (schoolId) {
-    query = query.where('schoolId', '==', schoolId);
-  }
-
-  const usersSnapshot = await query.get();
-  const recipients = [];
-
-  usersSnapshot.docs.forEach((doc) => {
-    const raw = doc.data() || {};
-    const user = {
-      userId: doc.id,
-      role: normalizeRole(raw.role),
-      schoolId: asString(raw.schoolId || raw.schoolCode || raw.instituteId),
-      standard: asString(raw.standard || raw.class || raw.className),
-      section: asString(raw.section),
-      groupIds: Array.isArray(raw.groupIds) ? raw.groupIds.map((x) => String(x)) : [],
-      communityIds: Array.isArray(raw.communityIds)
-        ? raw.communityIds.map((x) => String(x))
-        : [],
-    };
-
-    if (announcementVisibleToUser(announcement, user)) {
-      recipients.push(user.userId);
-    }
-  });
-
-  return recipients;
-}
-
 exports.sendChatNotification = functions.firestore
   .document('messages/{messageId}')
   .onCreate(async (snap, context) => {
@@ -489,42 +405,6 @@ exports.sendAssignmentNotification = functions.firestore
 
     await Promise.all(tasks);
     return { success: true, count: tasks.length };
-  });
-
-exports.sendAnnouncementNotification = functions.firestore
-  .document('announcements/{announcementId}')
-  .onCreate(async (snap, context) => {
-    const announcement = snap.data() || {};
-    const announcementId = context.params.announcementId;
-    const important = toBool(announcement.important, false);
-
-    const recipients = await getAnnouncementRecipients(announcement);
-    const title = asString(announcement.title, 'Announcement');
-
-    await Promise.all(
-      recipients.map((userId) =>
-        sendNotificationToUser({
-          userId,
-          category: 'announcements',
-          title: important ? 'Important announcement' : 'Announcement',
-          body: title,
-          priority: important ? 'high' : 'low',
-          soundEnabled: important,
-          vibrationEnabled: important,
-          iconType: 'announcement',
-          targetType: 'announcement',
-          targetId: announcementId,
-          deepLinkRoute: '/notifications',
-          metadata: {
-            announcementId,
-            important: String(important),
-          },
-          dedupeKey: `announcement_${announcementId}`,
-        })
-      )
-    );
-
-    return { success: true, count: recipients.length };
   });
 
 exports.sendRewardStatusNotification = functions.firestore

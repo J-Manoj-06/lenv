@@ -647,7 +647,6 @@ exports.deleteExpiredTeacherAnnouncementsManual = deleteExpiredTeacherAnnounceme
 const { 
   sendChatNotification, 
   sendAssignmentNotification, 
-  sendAnnouncementNotification,
   sendRewardStatusNotification,
   sendPrincipalMissedTestAlert,
   weeklyPrincipalSummary,
@@ -655,7 +654,6 @@ const {
 } = require('./notifications');
 exports.sendChatNotification = sendChatNotification;
 exports.sendAssignmentNotification = sendAssignmentNotification;
-exports.sendAnnouncementNotification = sendAnnouncementNotification;
 exports.sendRewardStatusNotification = sendRewardStatusNotification;
 exports.sendPrincipalMissedTestAlert = sendPrincipalMissedTestAlert;
 exports.weeklyPrincipalSummary = weeklyPrincipalSummary;

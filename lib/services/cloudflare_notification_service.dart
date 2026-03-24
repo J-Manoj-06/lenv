@@ -202,14 +202,10 @@ class CloudflareNotificationService {
     String targetRole = 'all', // 'student', 'parent', 'teacher', 'all'
     required String createdBy,
   }) async {
-    return _post({
-      'type': 'announcement',
-      'announcementId': announcementId,
-      'title': title,
-      'description': description,
-      'targetRole': targetRole,
-      'createdBy': createdBy,
-    });
+    debugPrint(
+      'Announcement notifications are disabled. Skipping sendAnnouncementNotification for $announcementId',
+    );
+    return false;
   }
 
   static Future<bool> sendAudienceAnnouncementNotification({
@@ -226,21 +222,10 @@ class CloudflareNotificationService {
     String? deepLinkRoute,
     Map<String, dynamic>? metadata,
   }) {
-    return _post({
-      'type': 'announcement',
-      'announcementId': announcementId,
-      'collection': collection,
-      'createdBy': createdBy,
-      'text': text,
-      'audienceType': audienceType,
-      'schoolId': schoolId,
-      'important': important,
-      if (title != null && title.isNotEmpty) 'title': title,
-      'standards': ?standards,
-      'sections': ?sections,
-      'deepLinkRoute': ?deepLinkRoute,
-      'metadata': ?metadata,
-    });
+    debugPrint(
+      'Announcement notifications are disabled. Skipping sendAudienceAnnouncementNotification for $announcementId',
+    );
+    return Future.value(false);
   }
 
   /// Check worker health
