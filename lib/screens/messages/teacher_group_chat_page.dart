@@ -139,6 +139,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
   Future<bool>? _forwardEligibilityFuture;
+  String? _deleteEligibilitySelectionKey;
+  Future<bool>? _deleteEligibilityFuture;
 
   // Optimistic UI: pending messages added locally before Firestore confirms
   final List<GroupChatMessage> _pendingMessages = [];
@@ -204,6 +206,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     _shareEligibilityFuture = null;
     _forwardEligibilitySelectionKey = null;
     _forwardEligibilityFuture = null;
+    _deleteEligibilitySelectionKey = null;
+    _deleteEligibilityFuture = null;
   }
 
   Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
@@ -230,6 +234,19 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       Set<String>.from(selectedIds),
     );
     return _forwardEligibilityFuture!;
+  }
+
+  Future<bool> _getDeleteEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_deleteEligibilityFuture != null &&
+        _deleteEligibilitySelectionKey == nextKey) {
+      return _deleteEligibilityFuture!;
+    }
+    _deleteEligibilitySelectionKey = nextKey;
+    _deleteEligibilityFuture = _canDeleteSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _deleteEligibilityFuture!;
   }
 
   Map<String, int> _applyReactionLocally({
@@ -321,6 +338,14 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         selectedEmoji: selectedEmoji,
       );
       if (emoji == null || emoji.isEmpty) return;
+
+      if (mounted && _isSelectionMode) {
+        setState(() {
+          _isSelectionMode = false;
+          _selectedMessages.clear();
+          _invalidateShareEligibilityCache();
+        });
+      }
 
       final baseSummary = _effectiveReactionSummaryForMessage(message);
       final optimisticSummary = _applyReactionLocally(
@@ -526,134 +551,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                 ],
               ],
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  bool _messageHasMedia(GroupChatMessage message) {
-    final hasLegacyUrl = (message.imageUrl?.isNotEmpty ?? false);
-    final hasSingleMedia = message.mediaMetadata != null;
-    final hasMultipleMedia = message.multipleMedia?.isNotEmpty ?? false;
-    return hasLegacyUrl || hasSingleMedia || hasMultipleMedia;
-  }
-
-  bool _isMessageDownloaded(GroupChatMessage message) {
-    if (!_messageHasMedia(message)) return true;
-
-    final rawLocalPath = message.rawData?['localPath'];
-    if (rawLocalPath is String && rawLocalPath.isNotEmpty) {
-      return true;
-    }
-
-    final singleMedia = message.mediaMetadata;
-    if (singleMedia != null) {
-      final singleLocalPath =
-          singleMedia.localPath ??
-          _localSenderMediaPaths[singleMedia.messageId] ??
-          _localSenderMediaPaths[message.id];
-      if (singleLocalPath != null && singleLocalPath.isNotEmpty) {
-        return true;
-      }
-    }
-
-    final multipleMedia = message.multipleMedia;
-    if (multipleMedia != null && multipleMedia.isNotEmpty) {
-      for (final media in multipleMedia) {
-        final localPath =
-            media.localPath ??
-            _localSenderMediaPaths[media.messageId] ??
-            _localSenderMediaPaths[message.id];
-        if (localPath == null || localPath.isEmpty) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    final legacyLocalPath = _localSenderMediaPaths[message.id];
-    return legacyLocalPath != null && legacyLocalPath.isNotEmpty;
-  }
-
-  void _selectSingleMessageForAction(String messageId) {
-    if (!mounted) return;
-    setState(() {
-      _isSelectionMode = true;
-      _selectedMessages
-        ..clear()
-        ..add(messageId);
-      _invalidateShareEligibilityCache();
-    });
-  }
-
-  Future<void> _showMessageActionSheet({
-    required BuildContext context,
-    required GroupChatMessage message,
-    required bool isDownloaded,
-  }) async {
-    if (!mounted) return;
-
-    final hasMedia = _messageHasMedia(message);
-    final needsDownload = hasMedia && !isDownloaded;
-
-    await showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.forward_to_inbox_rounded),
-                title: const Text('Forward'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  if (needsDownload) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Download this media before forwarding'),
-                      ),
-                    );
-                    return;
-                  }
-                  _selectSingleMessageForAction(message.id);
-                  _forwardSelectedMessages();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.share_rounded),
-                title: const Text('Share'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  if (needsDownload) {
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Download this media before sharing'),
-                      ),
-                    );
-                    return;
-                  }
-                  _selectSingleMessageForAction(message.id);
-                  _shareSelectedMessages();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline_rounded),
-                title: const Text('Delete'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _selectSingleMessageForAction(message.id);
-                  _showDeleteDialog();
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
           ),
         );
       },
@@ -1200,18 +1097,17 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                     });
                     return;
                   }
+
+                  setState(() {
+                    _isSelectionMode = true;
+                    _selectedMessages.add(message.id);
+                    _invalidateShareEligibilityCache();
+                  });
+
                   _showReactionPickerForMessage(
                     message: message,
                     globalPosition: details.globalPosition,
                   );
-                  // Show animated action sheet for forward/share/delete
-                  Future.delayed(const Duration(milliseconds: 180), () {
-                    _showMessageActionSheet(
-                      context: context,
-                      message: message,
-                      isDownloaded: _isMessageDownloaded(message),
-                    );
-                  });
                 },
                 onTap: _isSelectionMode
                     ? () {
@@ -2637,9 +2533,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         final canShare = snapshot.data == true;
                         if (!canShare) return const SizedBox.shrink();
                         return IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.share_rounded,
-                            color: Colors.white70,
+                            color: theme.brightness == Brightness.dark
+                                ? Colors.white70
+                                : const Color(0xFF475569),
                             size: 24,
                           ),
                           tooltip: 'Share',
@@ -2647,16 +2545,23 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         );
                       },
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.redAccent,
-                        size: 24,
-                      ),
-                      tooltip: 'Delete',
-                      onPressed: _selectedMessages.isEmpty
-                          ? null
-                          : _showDeleteDialog,
+                    FutureBuilder<bool>(
+                      future: _getDeleteEligibilityFuture(_selectedMessages),
+                      builder: (context, snapshot) {
+                        final canDelete = snapshot.data == true;
+                        if (!canDelete) return const SizedBox.shrink();
+                        return IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.redAccent,
+                            size: 24,
+                          ),
+                          tooltip: 'Delete',
+                          onPressed: _selectedMessages.isEmpty
+                              ? null
+                              : _showDeleteDialog,
+                        );
+                      },
                     ),
                   ]
                 : [
@@ -2781,11 +2686,18 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                     }
 
                     if (messages.isEmpty) {
-                      return const Center(
+                      final theme = Theme.of(context);
+                      final isDark = theme.brightness == Brightness.dark;
+                      final emptyStateColor =
+                          (theme.textTheme.bodyMedium?.color ??
+                                  (isDark ? Colors.white : Colors.black))
+                              .withOpacity(isDark ? 0.6 : 0.55);
+
+                      return Center(
                         child: Text(
                           'No messages yet.\nBe the first to say hello! 👋',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white54),
+                          style: TextStyle(color: emptyStateColor),
                         ),
                       );
                     }
@@ -3960,6 +3872,33 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         };
         final localPath = await _resolveDownloadedLocalPath(legacyMedia);
         if (localPath == null) return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<bool> _canDeleteSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+    final currentUserId = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return false;
+
+    for (final id in selectedIds) {
+      final doc = await FirebaseFirestore.instance
+          .collection('classes')
+          .doc(widget.classId)
+          .collection('subjects')
+          .doc(widget.subjectId)
+          .collection('messages')
+          .doc(id)
+          .get();
+      if (!doc.exists) return false;
+      final senderId = doc.data()?['senderId'] as String?;
+      if (senderId == null || senderId != currentUserId) {
+        return false;
       }
     }
 

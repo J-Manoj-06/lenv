@@ -110,6 +110,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
   Future<bool>? _forwardEligibilityFuture;
+  String? _deleteEligibilitySelectionKey;
+  Future<bool>? _deleteEligibilityFuture;
 
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
@@ -181,6 +183,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     _shareEligibilityFuture = null;
     _forwardEligibilitySelectionKey = null;
     _forwardEligibilityFuture = null;
+    _deleteEligibilitySelectionKey = null;
+    _deleteEligibilityFuture = null;
   }
 
   Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
@@ -207,6 +211,19 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       Set<String>.from(selectedIds),
     );
     return _forwardEligibilityFuture!;
+  }
+
+  Future<bool> _getDeleteEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_deleteEligibilityFuture != null &&
+        _deleteEligibilitySelectionKey == nextKey) {
+      return _deleteEligibilityFuture!;
+    }
+    _deleteEligibilitySelectionKey = nextKey;
+    _deleteEligibilityFuture = _canDeleteSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _deleteEligibilityFuture!;
   }
 
   @override
@@ -2284,9 +2301,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                 final canShare = snapshot.data == true;
                                 if (!canShare) return const SizedBox.shrink();
                                 return IconButton(
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.share_rounded,
-                                    color: Colors.white70,
+                                    color: isDark
+                                        ? Colors.white70
+                                        : const Color(0xFF475569),
                                     size: 24,
                                   ),
                                   tooltip: 'Share',
@@ -2294,16 +2313,27 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                 );
                               },
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.redAccent,
-                                size: 24,
+                            FutureBuilder<bool>(
+                              future: _getDeleteEligibilityFuture(
+                                selectedMessages,
                               ),
-                              tooltip: 'Delete',
-                              onPressed: selectedMessages.isEmpty
-                                  ? null
-                                  : _showDeleteDialog,
+                              builder: (context, snapshot) {
+                                final canDelete = snapshot.data == true;
+                                if (!canDelete) {
+                                  return const SizedBox.shrink();
+                                }
+                                return IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.redAccent,
+                                    size: 24,
+                                  ),
+                                  tooltip: 'Delete',
+                                  onPressed: selectedMessages.isEmpty
+                                      ? null
+                                      : _showDeleteDialog,
+                                );
+                              },
                             ),
                           ],
                         )
@@ -3624,6 +3654,31 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         };
         final localPath = await _resolveDownloadedLocalPath(legacyMedia);
         if (localPath == null) return false;
+      }
+    }
+
+    return true;
+  }
+
+  Future<bool> _canDeleteSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+    final currentUserId = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return false;
+
+    for (final id in selectedIds) {
+      final doc = await FirebaseFirestore.instance
+          .collection('staff_rooms')
+          .doc(widget.instituteId)
+          .collection('messages')
+          .doc(id)
+          .get();
+      if (!doc.exists) return false;
+      final senderId = doc.data()?['senderId'] as String?;
+      if (senderId == null || senderId != currentUserId) {
+        return false;
       }
     }
 

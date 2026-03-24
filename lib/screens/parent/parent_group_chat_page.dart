@@ -161,6 +161,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
   Future<bool>? _forwardEligibilityFuture;
+  String? _deleteEligibilitySelectionKey;
+  Future<bool>? _deleteEligibilityFuture;
   bool _isReactionPickerOpen = false;
   final ValueNotifier<bool> _hasText = ValueNotifier<bool>(false);
 
@@ -209,6 +211,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     _shareEligibilityFuture = null;
     _forwardEligibilitySelectionKey = null;
     _forwardEligibilityFuture = null;
+    _deleteEligibilitySelectionKey = null;
+    _deleteEligibilityFuture = null;
   }
 
   Future<bool> _getShareEligibilityFuture(Set<String> selectedIds) {
@@ -235,6 +239,19 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       Set<String>.from(selectedIds),
     );
     return _forwardEligibilityFuture!;
+  }
+
+  Future<bool> _getDeleteEligibilityFuture(Set<String> selectedIds) {
+    final nextKey = _buildSelectionKey(selectedIds);
+    if (_deleteEligibilityFuture != null &&
+        _deleteEligibilitySelectionKey == nextKey) {
+      return _deleteEligibilityFuture!;
+    }
+    _deleteEligibilitySelectionKey = nextKey;
+    _deleteEligibilityFuture = _canDeleteSelectedMessages(
+      Set<String>.from(selectedIds),
+    );
+    return _deleteEligibilityFuture!;
   }
 
   Future<void> _showReactionPickerForMessage({
@@ -274,6 +291,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         selectedEmoji: selectedEmoji,
       );
       if (emoji == null || emoji.isEmpty) return;
+
+      if (mounted && _selectionMode) {
+        setState(() => _selectionMode = false);
+      }
+      _selectedMessages.value = {};
+      _invalidateSelectionEligibilityCache();
 
       await MessageReactionService.instance.toggleReaction(
         target: ReactionTarget.parentTeacherGroupMessage(
@@ -2397,9 +2420,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             final canShare = snapshot.data == true;
                             if (!canShare) return const SizedBox.shrink();
                             return IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.share_rounded,
-                                color: Colors.white70,
+                                color: isDark ? Colors.white70 : Colors.black87,
                                 size: 24,
                               ),
                               tooltip: 'Share',
@@ -2407,15 +2430,22 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             );
                           },
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          color: Colors.redAccent,
-                          onPressed: selectedSet.isEmpty
-                              ? null
-                              : _deleteSelectedMessages,
-                          tooltip: selectedSet.isEmpty
-                              ? 'Select messages to delete'
-                              : 'Delete for everyone',
+                        FutureBuilder<bool>(
+                          future: _getDeleteEligibilityFuture(selectedSet),
+                          builder: (context, snapshot) {
+                            final canDelete = snapshot.data == true;
+                            if (!canDelete) return const SizedBox.shrink();
+                            return IconButton(
+                              icon: const Icon(Icons.delete_outline),
+                              color: Colors.redAccent,
+                              onPressed: selectedSet.isEmpty
+                                  ? null
+                                  : _deleteSelectedMessages,
+                              tooltip: selectedSet.isEmpty
+                                  ? 'Select messages to delete'
+                                  : 'Delete for everyone',
+                            );
+                          },
                         ),
                       ],
                     );
@@ -5869,6 +5899,26 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     return true;
   }
 
+  Future<bool> _canDeleteSelectedMessages(Set<String> selectedIds) async {
+    if (selectedIds.isEmpty) return false;
+    final currentUserId = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return false;
+
+    for (final id in selectedIds) {
+      final data = await _getMessageDataById(id);
+      if (data == null) return false;
+      final senderId = data['senderId'] as String?;
+      if (senderId == null || senderId != currentUserId) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   Future<void> _forwardSelectedMessages() async {
     final ids = _selectedMessages.value.toList();
     if (ids.isEmpty) return;
@@ -5918,8 +5968,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
         ),
       );
     }
-
-    if (forwardData.isEmpty || !mounted) return;
 
     setState(() => _selectionMode = false);
     _selectedMessages.value = {};
