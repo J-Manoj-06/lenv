@@ -9,6 +9,7 @@ import '../../widgets/unread_badge_widget.dart';
 import '../../models/group_subject.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/offline_data_service.dart';
+import '../../widgets/group_avatar_widget.dart';
 import 'teacher_group_chat_page.dart';
 import '../../providers/auth_provider.dart';
 
@@ -582,6 +583,22 @@ class _SubjectGroupCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     const orange = Color(0xFFF97316);
+
+    final parts = chatId.split('|');
+    final classId = parts.isNotEmpty ? parts.first : '';
+    final primaryGroupId = classId.isEmpty
+        ? subject.id
+        : '${classId}_${subject.id}';
+    final normalizedSubjectName = subject.name.trim().toLowerCase().replaceAll(
+      RegExp(r'\s+'),
+      '_',
+    );
+    final fallbackGroupIds = <String>[
+      if (classId.isNotEmpty && normalizedSubjectName.isNotEmpty)
+        '${classId}_$normalizedSubjectName',
+      if (classId.isNotEmpty) '${classId}_${subject.name}',
+    ];
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -611,19 +628,12 @@ class _SubjectGroupCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            // Subject Icon
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withOpacity(
-                  0.6,
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(subject.icon, style: const TextStyle(fontSize: 28)),
-              ),
+            GroupAvatarWidget(
+              groupId: primaryGroupId,
+              groupName: subject.name,
+              size: 48,
+              icon: subject.icon,
+              fallbackGroupIds: fallbackGroupIds,
             ),
             const SizedBox(width: 16),
 
