@@ -1,4 +1,5 @@
 import 'dart:ui' as ui;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:intl/intl.dart';
@@ -49,6 +50,13 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
   // Track current image index within each announcement (for multi-image support)
   final Map<int, int> _announcementImageIndex = {};
 
+  // ✅ NEW: Media loading state management per announcement
+  final Map<int, bool> _mediaLoading = {}; // Is media currently loading
+  final Map<int, bool> _mediaLoaded = {}; // Has media finished loading
+  final Map<int, bool> _mediaError = {}; // Did media fail to load
+  final Map<int, Timer?> _loadingTimeouts = {}; // Timeout timers
+  final Map<int, bool> _showSlowNetworkMessage = {}; // Slow internet indicator
+
   @override
   void initState() {
     super.initState();
@@ -81,7 +89,8 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
         }
       }
     });
-    _progressController.forward();
+    // ✅ CRITICAL: Do NOT start progress here - wait for media to load
+    // _progressController.forward(); // Removed - will be called after media loads
 
     // Mark as viewed
     widget.onAnnouncementViewed?.call(_currentIndex);
@@ -169,6 +178,11 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     _isClosing = true;
     _pageController.dispose();
     _progressController.dispose();
+    // ✅ Cancel all loading timeout timers
+    for (final timer in _loadingTimeouts.values) {
+      timer?.cancel();
+    }
+    _loadingTimeouts.clear();
     super.dispose();
   }
 
@@ -196,11 +210,208 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     setState(() {
       _currentIndex = index;
     });
-    // Reset progress animation
-    _progressController.reset();
-    _progressController.forward();
+    // ✅ Cancel timeout from previous announcement
+    _loadingTimeouts[_currentIndex]?.cancel();
+    _loadingTimeouts.remove(_currentIndex);
+    // ✅ Reset states for new announcement
+    _resetMediaLoadingState(index);
+    // ✅ Initialize loading for new announcement
+    _startMediaLoadingForAnnouncement(index);
     widget.onIndexChanged?.call(index);
     widget.onAnnouncementViewed?.call(index);
+  }
+
+  /// ✅ NEW: Reset media loading states for an announcement
+  void _resetMediaLoadingState(int announcementIndex) {
+    _mediaLoading[announcementIndex] = true;
+    _mediaLoaded[announcementIndex] = false;
+    _mediaError[announcementIndex] = false;
+    _showSlowNetworkMessage[announcementIndex] = false;
+    _progressController.reset();
+  }
+
+  /// ✅ NEW: Start media loading timeline for an announcement
+  void _startMediaLoadingForAnnouncement(int announcementIndex) {
+    if (!mounted) return;
+    _resetMediaLoadingState(announcementIndex);
+    if (mounted) setState(() {});
+
+    // Set slow network timeout (5 seconds)
+    _loadingTimeouts[announcementIndex] = Timer(const Duration(seconds: 5), () {
+      if (mounted && _mediaLoading[announcementIndex] == true) {
+        setState(() {
+          _showSlowNetworkMessage[announcementIndex] = true;
+        });
+      }
+    });
+
+    // Hard timeout (12 seconds) - show retry UI
+    Timer(const Duration(seconds: 12), () {
+      if (mounted &&
+          _currentIndex == announcementIndex &&
+          _mediaLoading[announcementIndex] == true &&
+          _mediaLoaded[announcementIndex] == false) {
+        setState(() {
+          _mediaLoading[announcementIndex] = false;
+          _mediaError[announcementIndex] = true;
+        });
+      }
+    });
+  }
+
+  /// ✅ NEW: Mark media as loaded and start timeline
+  void _markMediaAsLoaded(int announcementIndex) {
+    if (!mounted || _currentIndex != announcementIndex) return;
+
+    // Cancel slow network timer
+    _loadingTimeouts[announcementIndex]?.cancel();
+    _loadingTimeouts.remove(announcementIndex);
+
+    setState(() {
+      _mediaLoading[announcementIndex] = false;
+      _mediaLoaded[announcementIndex] = true;
+      _mediaError[announcementIndex] = false;
+      _showSlowNetworkMessage[announcementIndex] = false;
+    });
+
+    // ✅ NOW start the timeline
+    if (!_progressController.isAnimating &&
+        _progressController.status != AnimationStatus.completed) {
+      _progressController.forward();
+    }
+  }
+
+  /// ✅ NEW: Mark media as failed
+  void _markMediaAsFailed(int announcementIndex) {
+    if (!mounted) return;
+    _loadingTimeouts[announcementIndex]?.cancel();
+    _loadingTimeouts.remove(announcementIndex);
+    setState(() {
+      _mediaLoading[announcementIndex] = false;
+      _mediaError[announcementIndex] = true;
+    });
+    _progressController.stop();
+  }
+
+  /// ✅ NEW: Retry loading media
+  void _retryMediaLoading(int announcementIndex) {
+    if (!mounted) return;
+    _startMediaLoadingForAnnouncement(announcementIndex);
+  }
+
+  /// Build error overlay with retry button
+  Widget _buildErrorOverlay(int announcementIndex) {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () {}, // Prevent tap-through
+        child: Container(
+          color: Colors.black.withOpacity(0.7),
+          child: Center(
+            child: Card(
+              color: Colors.grey.shade900,
+              elevation: 8,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.broken_image,
+                      size: 64,
+                      color: Colors.red.shade400,
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Failed to Load Announcement',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Please check your connection and try again',
+                      style: TextStyle(
+                        color: Colors.grey.shade300,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _retryMediaLoading(announcementIndex);
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF355872),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Build slow network message overlay
+  Widget _buildSlowNetworkOverlay() {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: () {}, // Prevent tap-through
+        child: Container(
+          color: Colors.black.withOpacity(0.5),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 48,
+                  height: 48,
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.blue.shade400,
+                    ),
+                    strokeWidth: 3,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Slow Connection',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Loading announcement...',
+                  style: TextStyle(color: Colors.grey.shade300, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   String _relativeTime(DateTime? dt) {
@@ -345,9 +556,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                   _announcementImageIndex[announcementIndex] =
                       currentImageIndex - 1;
                 });
-                // Restart progress for new image
+                // Reset progress and media loading for new image
                 _progressController.reset();
-                _progressController.forward();
+                _resetMediaLoadingState(announcementIndex);
+                _startMediaLoadingForAnnouncement(announcementIndex);
               } else if (dx > width * 0.67 &&
                   currentImageIndex < imageCaptions.length - 1) {
                 // Tap right third: Next image
@@ -355,9 +567,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                   _announcementImageIndex[announcementIndex] =
                       currentImageIndex + 1;
                 });
-                // Restart progress for new image
+                // Reset progress and media loading for new image
                 _progressController.reset();
-                _progressController.forward();
+                _resetMediaLoadingState(announcementIndex);
+                _startMediaLoadingForAnnouncement(announcementIndex);
               }
             },
             child: imageUrl.isEmpty
@@ -374,12 +587,22 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                 : Stack(
                     fit: StackFit.expand,
                     children: [
-                      // Image
+                      // Image with loading callbacks
                       CachedNetworkImage(
                         imageUrl: imageUrl,
                         fit: BoxFit.contain,
                         fadeInDuration: const Duration(milliseconds: 200),
                         fadeOutDuration: const Duration(milliseconds: 200),
+                        imageBuilder: (context, imageProvider) {
+                          // ✅ Mark as loaded when image is successfully built
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _markMediaAsLoaded(announcementIndex);
+                          });
+                          return Image(
+                            image: imageProvider,
+                            fit: BoxFit.contain,
+                          );
+                        },
                         placeholder: (context, url) => Container(
                           color: Colors.black,
                           child: const Center(
@@ -395,14 +618,20 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                             ),
                           ),
                         ),
-                        errorWidget: (context, url, error) => Container(
-                          color: Colors.grey.shade900,
-                          child: const Icon(
-                            Icons.image_not_supported,
-                            size: 64,
-                            color: Colors.white54,
-                          ),
-                        ),
+                        errorWidget: (context, url, error) {
+                          // ✅ Mark as failed when image fails to load
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            _markMediaAsFailed(announcementIndex);
+                          });
+                          return Container(
+                            color: Colors.grey.shade900,
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 64,
+                              color: Colors.white54,
+                            ),
+                          );
+                        },
                         // Cache configuration
                         memCacheHeight: 1080,
                         memCacheWidth: 1920,
@@ -441,6 +670,14 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                             ),
                           ),
                         ),
+
+                      // Error overlay
+                      if (_mediaError[announcementIndex] ?? false)
+                        _buildErrorOverlay(announcementIndex),
+
+                      // Slow network message overlay
+                      if (_showSlowNetworkMessage[announcementIndex] ?? false)
+                        _buildSlowNetworkOverlay(),
                     ],
                   ),
           ),
@@ -525,6 +762,16 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
         fit: BoxFit.contain,
         fadeInDuration: const Duration(milliseconds: 200),
         fadeOutDuration: const Duration(milliseconds: 200),
+        imageBuilder: (context, imageProvider) {
+          // ✅ Mark as loaded when image is successfully built
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _markMediaAsLoaded(announcementIndex);
+          });
+          return Image(
+            image: imageProvider,
+            fit: BoxFit.contain,
+          );
+        },
         placeholder: (context, url) => Container(
           color: Colors.black,
           child: const Center(
@@ -538,14 +785,20 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
             ),
           ),
         ),
-        errorWidget: (context, url, error) => Container(
-          color: Colors.grey.shade900,
-          child: const Icon(
-            Icons.image_not_supported,
-            size: 64,
-            color: Colors.white54,
-          ),
-        ),
+        errorWidget: (context, url, error) {
+          // ✅ Mark as failed when image fails to load
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _markMediaAsFailed(announcementIndex);
+          });
+          return Container(
+            color: Colors.grey.shade900,
+            child: const Icon(
+              Icons.image_not_supported,
+              size: 64,
+              color: Colors.white54,
+            ),
+          );
+        },
         // Cache configuration
         memCacheHeight: 1080,
         memCacheWidth: 1920,

@@ -2234,8 +2234,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canForward = snapshot.data == true;
-                                  if (!canForward)
+                                  if (!canForward) {
                                     return const SizedBox.shrink();
+                                  }
                                   return IconButton(
                                     icon: const Icon(
                                       Icons.reply_all_rounded,
@@ -4021,7 +4022,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           );
 
           // Navigate back to communities list
-          Navigator.pop(context);
+          Navigator.pop(context, {'leftCommunityId': widget.communityId});
         }
       } else {
         if (mounted) {

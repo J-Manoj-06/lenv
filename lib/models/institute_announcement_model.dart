@@ -17,8 +17,14 @@ class InstituteAnnouncementModel {
   final bool hasText;
 
   // Audience targeting
-  final String audienceType; // 'school', 'standard'
+  final String audienceType; // 'school', 'standard', 'section'
   final List<String> standards; // e.g., ['6', '7', '8']
+  final List<String> sections; // e.g., ['10A']
+  final String createdByRole; // 'teacher' or 'principal'
+  final String scopeType; // 'whole_school', 'standard', 'section'
+  final String targetStandard;
+  final String targetSection;
+  final String schoolId;
 
   // Viewing tracking is now stored in views subcollection
   // Access via: announcements/{docId}/views/{userId}
@@ -36,6 +42,12 @@ class InstituteAnnouncementModel {
     required this.expiresAt,
     this.audienceType = 'school',
     this.standards = const [],
+    this.sections = const [],
+    this.createdByRole = 'principal',
+    this.scopeType = 'whole_school',
+    this.targetStandard = '',
+    this.targetSection = '',
+    this.schoolId = '',
   }) : hasImage =
            (imageCaptions != null && imageCaptions.isNotEmpty) ||
            (imageUrl != null && imageUrl.isNotEmpty),
@@ -71,6 +83,21 @@ class InstituteAnnouncementModel {
           createdAt.add(const Duration(hours: 24)),
       audienceType: data['audienceType'] ?? 'school',
       standards: List<String>.from(data['standards'] ?? []),
+      sections:
+          (data['sections'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const <String>[],
+      createdByRole: data['createdByRole']?.toString() ?? 'principal',
+      scopeType:
+          data['scopeType']?.toString() ??
+          _scopeFromLegacyAudience(
+            data['audienceType']?.toString() ?? 'school',
+          ),
+      targetStandard: data['targetStandard']?.toString() ?? '',
+      targetSection: data['targetSection']?.toString() ?? '',
+      schoolId:
+          data['schoolId']?.toString() ?? data['instituteId']?.toString() ?? '',
     );
   }
 
@@ -108,6 +135,21 @@ class InstituteAnnouncementModel {
               ?.map((e) => e.toString())
               .toList() ??
           const <String>[],
+      sections:
+          (data['sections'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          const <String>[],
+      createdByRole: data['createdByRole']?.toString() ?? 'principal',
+      scopeType:
+          data['scopeType']?.toString() ??
+          _scopeFromLegacyAudience(
+            data['audienceType']?.toString() ?? 'school',
+          ),
+      targetStandard: data['targetStandard']?.toString() ?? '',
+      targetSection: data['targetSection']?.toString() ?? '',
+      schoolId:
+          data['schoolId']?.toString() ?? data['instituteId']?.toString() ?? '',
     );
   }
 
@@ -121,6 +163,18 @@ class InstituteAnnouncementModel {
       return DateTime.tryParse(value);
     }
     return null;
+  }
+
+  static String _scopeFromLegacyAudience(String audienceType) {
+    switch (audienceType) {
+      case 'standard':
+        return 'standard';
+      case 'section':
+        return 'section';
+      case 'school':
+      default:
+        return 'whole_school';
+    }
   }
 
   /// Convert to Firestore document
@@ -143,7 +197,90 @@ class InstituteAnnouncementModel {
       'expiresAt': Timestamp.fromDate(expiresAt),
       'audienceType': audienceType,
       'standards': standards,
+      'sections': sections,
+      'createdByRole': createdByRole,
+      'scopeType': scopeType,
+      'targetStandard': targetStandard,
+      'targetSection': targetSection,
+      'schoolId': schoolId.isNotEmpty ? schoolId : instituteId,
     };
+  }
+
+  bool isVisibleByNewRules({
+    required String userRole,
+    String userStandard = '',
+    String userSection = '',
+    List<String> handledStandards = const <String>[],
+    List<String> handledSections = const <String>[],
+  }) {
+    final role = userRole.toLowerCase().trim();
+    final creatorRole = createdByRole.toLowerCase().trim();
+    final scope = scopeType.toLowerCase().trim();
+
+    if (scope == 'whole_school') {
+      return true;
+    }
+
+    if (scope == 'standard') {
+      final effectiveStandard = targetStandard.isNotEmpty
+          ? targetStandard
+          : (standards.isNotEmpty ? standards.first : '');
+      final isStandardMatch =
+          userStandard.isNotEmpty && effectiveStandard == userStandard;
+      final isHandledByTeacher = handledStandards.contains(effectiveStandard);
+
+      if (role == 'principal') {
+        if (creatorRole == 'teacher') return false;
+        return creatorRole == 'principal';
+      }
+      if (role == 'teacher') {
+        return isHandledByTeacher;
+      }
+      return isStandardMatch;
+    }
+
+    if (scope == 'section') {
+      final effectiveStandard = targetStandard.isNotEmpty
+          ? targetStandard
+          : (standards.isNotEmpty ? standards.first : userStandard);
+      final effectiveSection = targetSection.isNotEmpty
+          ? targetSection
+          : (sections.isNotEmpty ? sections.first : userSection);
+
+      final userCombined = '$userStandard$userSection';
+      final userHyphen = '$userStandard-$userSection';
+      final targetCombined = '$effectiveStandard$effectiveSection';
+      final targetHyphen = '$effectiveStandard-$effectiveSection';
+
+      final isSectionMatch =
+          (effectiveSection == userSection) ||
+          (targetCombined == userCombined) ||
+          (targetHyphen == userHyphen);
+
+      final isHandledByTeacher =
+          handledSections.contains(effectiveSection) ||
+          handledSections.contains(targetCombined) ||
+          handledSections.contains(targetHyphen);
+
+      if (role == 'principal') {
+        if (creatorRole == 'teacher') return false;
+        return creatorRole == 'principal';
+      }
+      if (role == 'teacher') {
+        return isHandledByTeacher;
+      }
+      return isSectionMatch;
+    }
+
+    // Legacy fallback
+    if (audienceType == 'school') return true;
+    if (audienceType == 'standard') {
+      if (role == 'teacher') {
+        return standards.any(handledStandards.contains);
+      }
+      return standards.contains(userStandard);
+    }
+    return false;
   }
 
   /// Getter for view count - should be calculated from subcollection

@@ -113,6 +113,9 @@ class _TeacherAnnouncementTargetScreenState
     final surfaceColor = isDark ? _surface : const Color(0xFFF5F5F5);
     final textColor = isDark ? Colors.white : Colors.black87;
     final mutedColor = isDark ? _muted : const Color(0xFF757575);
+    final visibilityHint = _target == 'school'
+        ? 'This announcement will be visible to the entire school'
+        : 'This announcement will be visible only to selected students, parents, and teachers';
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -129,6 +132,19 @@ class _TeacherAnnouncementTargetScreenState
                 'Choose who should receive this announcement.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: mutedColor, fontSize: 14),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                visibilityHint,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: mutedColor,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
             const SizedBox(height: 16),

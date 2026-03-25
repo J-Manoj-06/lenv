@@ -172,6 +172,9 @@ class _TeacherAnnouncementComposeScreenState
       final expiresAt = now.add(const Duration(hours: 24));
       final instituteId =
           currentUser.instituteId ?? widget.teacherData?['schoolCode'] ?? '';
+      final scopeType = widget.audienceType == 'school'
+          ? 'whole_school'
+          : widget.audienceType;
 
       final data = <String, dynamic>{
         '_collection': 'class_highlights',
@@ -189,6 +192,15 @@ class _TeacherAnnouncementComposeScreenState
         'audienceType': widget.audienceType,
         'standards': widget.standards,
         'sections': widget.sections,
+        'createdByRole': 'teacher',
+        'scopeType': scopeType,
+        'targetStandard': widget.standards.isNotEmpty
+            ? widget.standards.first
+            : '',
+        'targetSection': widget.sections.isNotEmpty
+            ? widget.sections.first
+            : '',
+        'schoolId': instituteId,
         'viewedBy': [],
       };
 

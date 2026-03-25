@@ -2288,8 +2288,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canForward = snapshot.data == true;
-                                  if (!canForward)
+                                  if (!canForward) {
                                     return const SizedBox.shrink();
+                                  }
                                   return IconButton(
                                     icon: const Icon(
                                       Icons.reply_all_rounded,

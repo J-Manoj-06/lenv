@@ -951,7 +951,11 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
                   .toList()
                 // Filter out expired announcements (handles both missing and past expiresAt)
                 // This catches old documents without expiresAt field too
-                ..removeWhere((status) => !status.isValid)
+                ..removeWhere(
+                  (status) =>
+                      !status.isValid ||
+                      !status.isVisibleByNewRules(userRole: 'principal'),
+                )
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         } else {}
 

@@ -561,7 +561,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                 // Check if announcement is still valid (not expired) and meets visibility criteria
                 if (status.teacherId.isNotEmpty &&
                     status.isValid &&
-                    status.isVisibleTo(
+                    status.isVisibleByNewRules(
+                      userRole: 'student',
                       userStandard: userStandard,
                       userSection: userSection,
                     )) {
@@ -575,11 +576,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   id,
                   rawData,
                 );
-                // Only show school-wide or matching standard announcements that haven't expired
                 if (announcement.isValid &&
-                    (announcement.audienceType == 'school' ||
-                        (announcement.audienceType == 'standard' &&
-                            announcement.standards.contains(userStandard)))) {
+                    announcement.isVisibleByNewRules(
+                      userRole: 'student',
+                      userStandard: userStandard,
+                      userSection: userSection,
+                    )) {
                   announcements.add({
                     'type': 'principal',
                     'data': announcement,

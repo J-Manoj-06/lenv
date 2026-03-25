@@ -1629,6 +1629,26 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     final currentUserId = currentUser?.uid;
     final instituteId =
         currentUser?.instituteId ?? _teacherData?['schoolCode'] ?? '';
+    final handledStandards = <String>{};
+    final handledSections = <String>{};
+    for (final className in _classes) {
+      final parsed = _parseClassSection(className);
+      if (parsed == null) continue;
+      final classValue = (parsed['className'] ?? '')
+          .replaceAll(RegExp(r'[Gg]rade\s*'), '')
+          .trim();
+      final sectionValue = (parsed['section'] ?? '').trim();
+      if (classValue.isNotEmpty) {
+        handledStandards.add(classValue);
+      }
+      if (sectionValue.isNotEmpty) {
+        handledSections.add(sectionValue);
+        if (classValue.isNotEmpty) {
+          handledSections.add('$classValue$sectionValue');
+          handledSections.add('$classValue-$sectionValue');
+        }
+      }
+    }
 
     // Check if instituteId is available
     if (instituteId.isEmpty) {
@@ -1723,7 +1743,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   final id = doc['id']?.toString() ?? '';
                   if (id.isEmpty) continue;
                   final status = StatusModel.fromMap(id, rawData);
-                  if (status.isValid && status.instituteId == instituteId) {
+                  if (status.isValid &&
+                      status.instituteId == instituteId &&
+                      status.isVisibleByNewRules(
+                        userRole: 'teacher',
+                        handledStandards: handledStandards.toList(),
+                        handledSections: handledSections.toList(),
+                      )) {
                     // Check cache first for instant status, fallback to viewedBy
                     final isViewed =
                         _viewedCache[status.id] == true ||
@@ -1767,7 +1793,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       _viewedCache[announcement.id] == true ||
                       viewedBy.contains(currentUserId) ||
                       _viewedPrincipalAnnouncements.contains(announcement.id);
-                  if (announcement.instituteId == instituteId) {
+                  if (announcement.instituteId == instituteId &&
+                      announcement.isVisibleByNewRules(
+                        userRole: 'teacher',
+                        handledStandards: handledStandards.toList(),
+                        handledSections: handledSections.toList(),
+                      )) {
                     allAnnouncements.add(
                       _AnnouncementItem(
                         id: announcement.id,
@@ -2381,39 +2412,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  /// Stream principal announcement view status for the current user
-  Stream<List<bool>> _streamPrincipalAnnouncementsViewStatus(
-    List<_AnnouncementItem> announcements,
-    String userId,
-  ) {
-    if (userId.isEmpty || announcements.isEmpty) {
-      return Stream.value(const <bool>[]);
-    }
-
-    return Stream.periodic(const Duration(seconds: 4))
-        .asyncMap((_) async {
-          final results = <bool>[];
-          for (final item in announcements) {
-            final announcement = item.data as InstituteAnnouncementModel;
-            final doc = await FirebaseFirestore.instance
-                .collection('institute_announcements')
-                .doc(announcement.id)
-                .collection('views')
-                .doc(userId)
-                .get();
-            results.add(doc.exists);
-          }
-          return results;
-        })
-        .distinct((prev, next) {
-          if (prev.length != next.length) return false;
-          for (var i = 0; i < prev.length; i++) {
-            if (prev[i] != next[i]) return false;
-          }
-          return true;
-        });
-  }
-
   void _openStatusViewer(List<StatusModel> statuses, int initialIndex) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUserId = authProvider.currentUser?.uid ?? '';
@@ -2727,14 +2725,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       try {
         String? imageUrl;
         String docId;
-        String role;
 
         // Extract info based on type
         if (item.type == 'teacher') {
           final status = item.data as StatusModel;
           docId = status.id;
           imageUrl = status.imageUrl;
-          role = 'teacher';
 
           // Delete from Firestore
           await FirebaseFirestore.instance
@@ -2745,7 +2741,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           final principal = item.data as InstituteAnnouncementModel;
           docId = principal.id;
           imageUrl = principal.imageUrl;
-          role = 'principal';
 
           // Delete from Firestore
           await FirebaseFirestore.instance
@@ -4525,7 +4520,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         final principalSnapshot = await FirebaseFirestore.instance
             .collection('institute_announcements')
             .where('instituteId', isEqualTo: instituteId)
-            .where('audienceType', isEqualTo: 'school')
             .where('expiresAt', isGreaterThan: now)
             .get();
 

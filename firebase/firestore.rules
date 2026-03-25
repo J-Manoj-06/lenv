@@ -129,6 +129,29 @@ service cloud.firestore {
         'reactionUpdatedAt'
       ]);
     }
+
+    function resolvedAnnouncementScope(data) {
+      return (data.scopeType != null)
+          ? data.scopeType
+          : ((data.audienceType != null && data.audienceType == 'school')
+              ? 'whole_school'
+              : (data.audienceType != null ? data.audienceType : 'whole_school'));
+    }
+
+    function hasValidAnnouncementScopeData(data) {
+      return resolvedAnnouncementScope(data) in ['whole_school', 'standard', 'section']
+        && (
+          resolvedAnnouncementScope(data) == 'whole_school'
+          || (resolvedAnnouncementScope(data) == 'standard' && (
+              (data.targetStandard != null && data.targetStandard is string && data.targetStandard.size() > 0)
+              || (data.standards != null && data.standards is list && data.standards.size() > 0)
+            ))
+          || (resolvedAnnouncementScope(data) == 'section' && (
+              (data.targetSection != null && data.targetSection is string && data.targetSection.size() > 0)
+              || (data.sections != null && data.sections is list && data.sections.size() > 0)
+            ))
+        );
+    }
     
     function hasRole(role) {
       return isSignedIn() && userRole() == role;
@@ -416,7 +439,12 @@ service cloud.firestore {
       // Institute announcements subcollection
       match /institute_announcements/{announcementId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && (isPrincipal() || isInstitute() || isAdmin());
+        allow create: if isSignedIn() && (
+          isAdmin() || (
+            (isPrincipal() || isInstitute())
+            && hasValidAnnouncementScopeData(request.resource.data)
+          )
+        );
         allow update, delete: if isSignedIn() && (
           resource.data.principalId == request.auth.uid || isAdmin()
         );
@@ -498,7 +526,12 @@ service cloud.firestore {
     
     match /institute_announcements/{announcementId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && (isPrincipal() || isInstitute() || isAdmin());
+      allow create: if isSignedIn() && (
+        isAdmin() || (
+          (isPrincipal() || isInstitute())
+          && hasValidAnnouncementScopeData(request.resource.data)
+        )
+      );
       allow update, delete: if isSignedIn() && (
         resource.data.principalId == request.auth.uid || isAdmin()
       );
@@ -511,7 +544,17 @@ service cloud.firestore {
     }
     
     match /class_highlights/{highlightId} {
-      allow read, create, update, delete: if isSignedIn();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isAdmin() || (
+          isTeacher()
+          && request.resource.data.teacherId == request.auth.uid
+          && hasValidAnnouncementScopeData(request.resource.data)
+        )
+      );
+      allow update, delete: if isSignedIn() && (
+        isAdmin() || resource.data.teacherId == request.auth.uid
+      );
     }
     
     match /media_messages/{messageId} {

@@ -21,6 +21,11 @@ class StatusModel {
   final String audienceType; // 'school', 'standard', 'section'
   final List<String> standards; // e.g., ['7', '8']
   final List<String> sections; // e.g., ['A', 'B']
+  final String createdByRole; // 'teacher' or 'principal'
+  final String scopeType; // 'whole_school', 'standard', 'section'
+  final String targetStandard;
+  final String targetSection;
+  final String schoolId;
 
   // Viewing tracking
   final List<String> viewedBy; // List of userIds who have viewed
@@ -40,6 +45,11 @@ class StatusModel {
     this.audienceType = 'school',
     this.standards = const [],
     this.sections = const [],
+    this.createdByRole = 'teacher',
+    this.scopeType = 'whole_school',
+    this.targetStandard = '',
+    this.targetSection = '',
+    this.schoolId = '',
     this.viewedBy = const [],
   }) : hasImage =
            (imageCaptions != null && imageCaptions.isNotEmpty) ||
@@ -86,6 +96,16 @@ class StatusModel {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      createdByRole: data['createdByRole']?.toString() ?? 'teacher',
+      scopeType:
+          data['scopeType']?.toString() ??
+          _scopeFromLegacyAudience(
+            data['audienceType']?.toString() ?? 'school',
+          ),
+      targetStandard: data['targetStandard']?.toString() ?? '',
+      targetSection: data['targetSection']?.toString() ?? '',
+      schoolId:
+          data['schoolId']?.toString() ?? data['instituteId']?.toString() ?? '',
       viewedBy:
           (data['viewedBy'] as List<dynamic>?)
               ?.map((e) => e.toString())
@@ -131,6 +151,16 @@ class StatusModel {
               ?.map((e) => e.toString())
               .toList() ??
           const <String>[],
+      createdByRole: data['createdByRole']?.toString() ?? 'teacher',
+      scopeType:
+          data['scopeType']?.toString() ??
+          _scopeFromLegacyAudience(
+            data['audienceType']?.toString() ?? 'school',
+          ),
+      targetStandard: data['targetStandard']?.toString() ?? '',
+      targetSection: data['targetSection']?.toString() ?? '',
+      schoolId:
+          data['schoolId']?.toString() ?? data['instituteId']?.toString() ?? '',
       viewedBy:
           (data['viewedBy'] as List<dynamic>?)
               ?.map((e) => e.toString())
@@ -149,6 +179,18 @@ class StatusModel {
       return DateTime.tryParse(value);
     }
     return null;
+  }
+
+  static String _scopeFromLegacyAudience(String audienceType) {
+    switch (audienceType) {
+      case 'standard':
+        return 'standard';
+      case 'section':
+        return 'section';
+      case 'school':
+      default:
+        return 'whole_school';
+    }
   }
 
   /// Check if status is still valid (not expired)
@@ -202,6 +244,72 @@ class StatusModel {
         }
       }
     }
+    return false;
+  }
+
+  bool isVisibleByNewRules({
+    required String userRole,
+    String userStandard = '',
+    String userSection = '',
+    List<String> handledStandards = const <String>[],
+    List<String> handledSections = const <String>[],
+  }) {
+    final role = userRole.toLowerCase().trim();
+    final creatorRole = createdByRole.toLowerCase().trim();
+    final scope = scopeType.toLowerCase().trim();
+
+    if (scope == 'whole_school') {
+      return true;
+    }
+
+    if (scope == 'standard') {
+      final effectiveStandard = targetStandard.isNotEmpty
+          ? targetStandard
+          : (standards.isNotEmpty ? standards.first : '');
+      final isStandardMatch =
+          userStandard.isNotEmpty && effectiveStandard == userStandard;
+      final isHandledByTeacher = handledStandards.contains(effectiveStandard);
+
+      if (role == 'principal') {
+        return creatorRole == 'principal';
+      }
+      if (role == 'teacher') {
+        return isHandledByTeacher;
+      }
+      return isStandardMatch;
+    }
+
+    if (scope == 'section') {
+      final effectiveStandard = targetStandard.isNotEmpty
+          ? targetStandard
+          : (standards.isNotEmpty ? standards.first : userStandard);
+      final effectiveSection = targetSection.isNotEmpty
+          ? targetSection
+          : (sections.isNotEmpty ? sections.first : userSection);
+
+      final userCombined = '$userStandard$userSection';
+      final userHyphen = '$userStandard-$userSection';
+      final targetCombined = '$effectiveStandard$effectiveSection';
+      final targetHyphen = '$effectiveStandard-$effectiveSection';
+      final isSectionMatch =
+          (effectiveSection == userSection) ||
+          (targetCombined == userCombined) ||
+          (targetHyphen == userHyphen);
+
+      final isHandledByTeacher =
+          handledSections.contains(effectiveSection) ||
+          handledSections.contains(targetCombined) ||
+          handledSections.contains(targetHyphen);
+
+      if (role == 'principal') {
+        return creatorRole == 'principal';
+      }
+      if (role == 'teacher') {
+        return isHandledByTeacher;
+      }
+      return isSectionMatch;
+    }
+
     return false;
   }
 

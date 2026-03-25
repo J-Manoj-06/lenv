@@ -263,6 +263,101 @@ class _StudentCommunityScreenState extends State<StudentCommunityScreen>
     }
   }
 
+  Future<void> _removeCommunityLocally(String communityId) async {
+    if (!mounted) return;
+
+    setState(() {
+      _myCommunities.removeWhere((c) => c.id == communityId);
+      _lastMessageTs.remove(communityId);
+    });
+
+    final listener = _messageListeners.remove(communityId);
+    listener?.cancel?.call();
+
+    try {
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      );
+      final studentId = studentProvider.currentStudent?.uid;
+      if (studentId != null && studentId.isNotEmpty) {
+        await _offlineService.cacheCommunities(
+          studentId: studentId,
+          communities: _myCommunities.map((c) => c.toJson()).toList(),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _addCommunitiesLocally(
+    List<CommunityModel> joinedCommunities,
+  ) async {
+    if (!mounted || joinedCommunities.isEmpty) return;
+
+    setState(() {
+      final byId = {
+        for (final community in _myCommunities) community.id: community,
+      };
+
+      for (final community in joinedCommunities) {
+        byId[community.id] = community;
+        _lastMessageTs.putIfAbsent(community.id, () => 0);
+      }
+
+      _myCommunities = byId.values.toList();
+      _myCommunities.sort((a, b) {
+        final at = _lastMessageTs[a.id] ?? 0;
+        final bt = _lastMessageTs[b.id] ?? 0;
+        return bt.compareTo(at);
+      });
+      _isLoading = false;
+    });
+
+    for (final community in joinedCommunities) {
+      if (!_messageListeners.containsKey(community.id)) {
+        _listenForCommunityMessageUpdates(community.id);
+      }
+    }
+
+    try {
+      final studentProvider = Provider.of<StudentProvider>(
+        context,
+        listen: false,
+      );
+      final studentId = studentProvider.currentStudent?.uid;
+      if (studentId != null && studentId.isNotEmpty) {
+        await _offlineService.cacheCommunities(
+          studentId: studentId,
+          communities: _myCommunities
+              .map((community) => community.toJson())
+              .toList(),
+        );
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _handleExploreResult(dynamic result) async {
+    if (result is Map<String, dynamic>) {
+      final joinedRaw = result['joinedCommunities'];
+      if (joinedRaw is List && joinedRaw.isNotEmpty) {
+        final joinedCommunities = joinedRaw
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  CommunityModel.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+        await _addCommunitiesLocally(joinedCommunities);
+      }
+      return;
+    }
+
+    // Backward compatibility for older bool-based result.
+    if (result == true) {
+      await _loadMyCommunities();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
@@ -302,10 +397,9 @@ class _StudentCommunityScreenState extends State<StudentCommunityScreen>
               builder: (context) => const CommunityExploreScreen(),
             ),
           );
-          // Reload if any communities were joined
-          if (result == true) {
-            await _loadMyCommunities();
-          }
+
+          await _handleExploreResult(result);
+          await _loadMyCommunities();
         },
         backgroundColor: const Color(0xFFF2800D),
         icon: const Icon(Icons.explore, color: Colors.white),
@@ -367,9 +461,9 @@ class _StudentCommunityScreenState extends State<StudentCommunityScreen>
                   builder: (context) => const CommunityExploreScreen(),
                 ),
               );
-              if (result == true) {
-                await _loadMyCommunities();
-              }
+
+              await _handleExploreResult(result);
+              await _loadMyCommunities();
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFF2800D),
@@ -397,8 +491,8 @@ class _StudentCommunityScreenState extends State<StudentCommunityScreen>
     final color = _getCategoryColor(community.category);
 
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
+      onTap: () async {
+        final result = await Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => CommunityChatPage(
@@ -407,23 +501,31 @@ class _StudentCommunityScreenState extends State<StudentCommunityScreen>
               icon: community.getCategoryIcon(),
             ),
           ),
-        ).then((_) {
-          // Refresh the list when returning (user may have left the community)
-          if (mounted) {
-            _loadMyCommunities();
-          }
-          // Also refresh unread counts
-          final unreadProvider = Provider.of<UnreadCountProvider>(
-            context,
-            listen: false,
-          );
-          unreadProvider.markChatAsRead(community.id);
-          unreadProvider.refreshChat(community.id);
-          unreadProvider.loadUnreadCount(
-            chatId: community.id,
-            chatType: ChatTypeConfig.communityChat,
-          );
-        });
+        );
+
+        final leftCommunityId = result is Map<String, dynamic>
+            ? result['leftCommunityId'] as String?
+            : null;
+        if (leftCommunityId != null && leftCommunityId.isNotEmpty) {
+          await _removeCommunityLocally(leftCommunityId);
+        }
+
+        // Refresh the list when returning (user may have left the community)
+        if (mounted) {
+          await _loadMyCommunities();
+        }
+
+        // Also refresh unread counts
+        final unreadProvider = Provider.of<UnreadCountProvider>(
+          context,
+          listen: false,
+        );
+        unreadProvider.markChatAsRead(community.id);
+        unreadProvider.refreshChat(community.id);
+        unreadProvider.loadUnreadCount(
+          chatId: community.id,
+          chatType: ChatTypeConfig.communityChat,
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 0),

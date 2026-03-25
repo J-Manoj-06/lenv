@@ -22,6 +22,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen>
   bool _isLoading = true;
   final Set<String> _joiningCommunities = {};
   Set<String> _joinedCommunities = {};
+  final Map<String, CommunityModel> _newlyJoinedCommunities = {};
 
   final List<String> _categories = [
     'All',
@@ -157,6 +158,9 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen>
         _joinedCommunities.add(community.id);
       });
 
+      // Track only communities joined in this explore session.
+      _newlyJoinedCommunities[community.id] = community;
+
       // Small delay to ensure Firestore write propagates
       await Future.delayed(const Duration(milliseconds: 500));
     } else if (mounted) {
@@ -170,14 +174,22 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen>
     }
   }
 
+  void _popWithResult() {
+    Navigator.of(context).pop({
+      'hasJoined': _newlyJoinedCommunities.isNotEmpty,
+      'joinedCommunities': _newlyJoinedCommunities.values
+          .map((community) => community.toJson())
+          .toList(),
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return WillPopScope(
       onWillPop: () async {
-        // Return true if any communities were joined to trigger refresh
-        Navigator.of(context).pop(_joinedCommunities.isNotEmpty);
+        _popWithResult();
         return false;
       },
       child: Scaffold(
@@ -187,7 +199,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen>
           elevation: 0,
           leading: IconButton(
             icon: Icon(Icons.arrow_back_ios_new, color: theme.iconTheme.color),
-            onPressed: () => Navigator.pop(context),
+            onPressed: _popWithResult,
           ),
           title: Text(
             'Explore Communities',

@@ -146,6 +146,10 @@ class _InstituteAnnouncementComposeScreenState
       // ── 3. Build payload ──────────────────────────────────────────────────
       final now = DateTime.now();
       final expiresAt = now.add(const Duration(hours: 24));
+      final scopeType = widget.audienceType == 'school'
+          ? 'whole_school'
+          : widget.audienceType;
+      final schoolId = currentUser.instituteId ?? '';
 
       // Build from model to get consistent field names, then patch for queue.
       final model = InstituteAnnouncementModel(
@@ -153,13 +157,20 @@ class _InstituteAnnouncementComposeScreenState
         principalId: currentUser.uid,
         principalName: currentUser.name,
         principalEmail: currentUser.email,
-        instituteId: currentUser.instituteId ?? '',
+        instituteId: schoolId,
         text: messageText,
         imageCaptions: imageCaptions.isNotEmpty ? imageCaptions : null,
         createdAt: now,
         expiresAt: expiresAt,
         audienceType: widget.audienceType,
         standards: widget.standards,
+        createdByRole: 'principal',
+        scopeType: scopeType,
+        targetStandard: widget.standards.isNotEmpty
+            ? widget.standards.first
+            : '',
+        targetSection: '',
+        schoolId: schoolId,
       );
 
       final data = model.toFirestore();
