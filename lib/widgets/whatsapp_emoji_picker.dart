@@ -25,22 +25,29 @@ class _WhatsAppEmojiPickerState extends State<WhatsAppEmojiPicker> {
   static const int _maxRecent = 30;
 
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _scrollController = ScrollController();
 
   String _query = '';
   List<String> _recent = const <String>[];
   EmojiCategoryType _activeCategory = EmojiCategoryType.recent;
+  bool _isSearchFocused = false;
 
   @override
   void initState() {
     super.initState();
     _loadRecent();
     _scrollController.addListener(_onScroll);
+    _searchFocusNode.addListener(() {
+      if (!mounted) return;
+      setState(() => _isSearchFocused = _searchFocusNode.hasFocus);
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -162,27 +169,26 @@ class _WhatsAppEmojiPickerState extends State<WhatsAppEmojiPicker> {
     final isDark = theme.brightness == Brightness.dark;
     final onSurface = theme.colorScheme.onSurface;
     final muted = onSurface.withValues(alpha: isDark ? 0.62 : 0.56);
+    final searchBorderColor = _isSearchFocused
+        ? widget.accentColor.withValues(alpha: 0.95)
+        : onSurface.withValues(alpha: isDark ? 0.18 : 0.14);
 
     final searching = _query.trim().isNotEmpty;
     final results = _searchResults;
 
     return Container(
       height: 320,
-      decoration: BoxDecoration(
-        color: widget.backgroundColor,
-        border: Border(
-          top: BorderSide(color: onSurface.withValues(alpha: 0.08), width: 0.7),
-        ),
-      ),
+      decoration: BoxDecoration(color: widget.backgroundColor),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
             child: Container(
               height: 40,
               decoration: BoxDecoration(
                 color: onSurface.withValues(alpha: isDark ? 0.08 : 0.05),
                 borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: searchBorderColor, width: 1.1),
               ),
               child: Row(
                 children: [
@@ -192,12 +198,18 @@ class _WhatsAppEmojiPickerState extends State<WhatsAppEmojiPicker> {
                   Expanded(
                     child: TextField(
                       controller: _searchController,
+                      focusNode: _searchFocusNode,
                       onChanged: (value) => setState(() => _query = value),
                       style: TextStyle(color: onSurface, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: 'Search emoji',
                         hintStyle: TextStyle(color: muted),
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
                         isDense: true,
                       ),
                     ),
