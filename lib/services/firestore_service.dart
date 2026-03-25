@@ -1882,7 +1882,8 @@ class FirestoreService {
       final authUser = FirebaseAuth.instance.currentUser;
       if (authUser == null) return;
 
-      // This job must run only for staff/admin contexts.
+      // Staff can process across school scope. Students can process only their own
+      // pending results so points are reflected immediately after release.
       final authDoc = await _db.collection('users').doc(authUser.uid).get();
       final role =
           ((authDoc.data()?['role'] ?? authDoc.data()?['userRole'] ?? '')
@@ -1896,19 +1897,24 @@ class FirestoreService {
         'institute',
         'admin',
       };
-      if (!allowedRoles.contains(role)) {
-        return;
-      }
+      final isStaffRole = allowedRoles.contains(role);
+      final isStudentRole = role == 'student';
+      if (!isStaffRole && !isStudentRole) return;
 
       final now = DateTime.now();
 
-      // Find completed results that have not yet awarded points
-      final pendingResultsSnap = await _db
+      // Find completed results that have not yet awarded points.
+      // For students, restrict to their own results to satisfy rules and scope.
+      Query<Map<String, dynamic>> pendingQuery = _db
           .collection('testResults')
           .where('status', isEqualTo: 'completed')
-          .where('pointsAwarded', isEqualTo: false)
-          .limit(200)
-          .get();
+          .where('pointsAwarded', isEqualTo: false);
+
+      if (!isStaffRole) {
+        pendingQuery = pendingQuery.where('studentId', isEqualTo: authUser.uid);
+      }
+
+      final pendingResultsSnap = await pendingQuery.limit(200).get();
 
       if (pendingResultsSnap.docs.isEmpty) {
         return;

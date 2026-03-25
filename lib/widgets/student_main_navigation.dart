@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../screens/student/student_dashboard_screen.dart';
 import '../screens/student/student_tests_screen.dart';
 import '../screens/student/student_leaderboard_screen.dart';
 import '../screens/student/student_messages_screen.dart';
+import '../screens/student/student_profile_screen.dart';
 import '../features/rewards/rewards_screen_wrapper.dart';
 import 'student_bottom_nav.dart';
 import '../utils/share_handler_mixin.dart';
+import '../providers/student_provider.dart';
+import '../providers/profile_dp_provider.dart';
+import '../widgets/profile_avatar_widget.dart';
 
 /// Student Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -66,21 +71,11 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
     }
   }
 
-  void _onTap(int index) {
-    if (index != _currentIndex) {
-      setState(() {
-        _currentIndex = index;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_screens.isEmpty) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
-    final theme = Theme.of(context);
 
     return WillPopScope(
       onWillPop: () async {
@@ -92,9 +87,67 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
         return false;
       },
       child: Scaffold(
-        body: IndexedStack(index: _currentIndex, children: _screens),
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: IndexedStack(index: _currentIndex, children: _screens),
+            ),
+            if (_currentIndex != 0)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 8,
+                right: 16,
+                child: _buildProfileQuickAccess(),
+              ),
+          ],
+        ),
         bottomNavigationBar: StudentBottomNav(currentIndex: _currentIndex),
       ),
+    );
+  }
+
+  Widget _buildProfileQuickAccess() {
+    return Consumer<ProfileDPProvider>(
+      builder: (context, dpProvider, _) {
+        final studentName =
+            Provider.of<StudentProvider>(
+              context,
+              listen: false,
+            ).currentStudent?.name ??
+            'Student';
+        final imageUrl = dpProvider.currentUserDP;
+
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const StudentProfileScreen(),
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            elevation: 6,
+            shape: const CircleBorder(),
+            child: imageUrl != null && imageUrl.isNotEmpty
+                ? ProfileAvatarWidget(
+                    imageUrl: imageUrl,
+                    name: studentName,
+                    size: 44,
+                    showBorder: true,
+                    borderColor: const Color(0xFFF2800D),
+                    borderWidth: 2,
+                  )
+                : ProfileAvatarWidget(
+                    name: studentName,
+                    size: 44,
+                    showBorder: true,
+                    borderColor: const Color(0xFFF2800D),
+                    borderWidth: 2,
+                    circleBackgroundColor: const Color(0xFF3D3D3D),
+                    initialsColor: const Color(0xFFF2800D),
+                  ),
+          ),
+        );
+      },
     );
   }
 }

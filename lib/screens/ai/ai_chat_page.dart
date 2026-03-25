@@ -711,8 +711,36 @@ class _AiChatPageState extends State<AiChatPage> {
       return;
     }
 
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final studentId = authProvider.currentUser?.uid;
+    if (studentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to generate a quiz')),
+      );
+      return;
+    }
+
+    final subjects = await _profileService.getStudentSubjects(studentId);
+    final profile = await _profileService.getStudentProfile(studentId);
+
+    final standardOptions = List<String>.generate(12, (i) => '${i + 1}');
+    final profileStandard = _extractStandardFromProfile(profile);
+    if (profileStandard.isNotEmpty &&
+        !standardOptions.contains(profileStandard)) {
+      standardOptions.insert(0, profileStandard);
+    }
+
+    final subjectOptions = subjects.isNotEmpty
+        ? subjects
+        : ['Maths', 'Science', 'English', 'Social'];
+
     final topicController = TextEditingController();
     int numQuestions = 3; // Default to 3
+    String selectedSubject = subjectOptions.first;
+    String selectedStandard = profileStandard.isNotEmpty
+        ? profileStandard
+        : standardOptions.first;
+    String selectedDifficulty = 'Medium';
 
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -744,6 +772,72 @@ class _AiChatPageState extends State<AiChatPage> {
                 ),
               ),
               const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Subject:', style: TextStyle(color: Colors.white)),
+                  DropdownButton<String>(
+                    value: selectedSubject,
+                    dropdownColor: const Color(0xFF2A2A2A),
+                    style: const TextStyle(color: Colors.white),
+                    items: subjectOptions
+                        .map(
+                          (s) => DropdownMenuItem(value: s, child: Text(s)),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDialogState(() => selectedSubject = v);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Standard:', style: TextStyle(color: Colors.white)),
+                  DropdownButton<String>(
+                    value: selectedStandard,
+                    dropdownColor: const Color(0xFF2A2A2A),
+                    style: const TextStyle(color: Colors.white),
+                    items: standardOptions
+                        .map(
+                          (s) => DropdownMenuItem(value: s, child: Text(s)),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDialogState(() => selectedStandard = v);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Difficulty:',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  DropdownButton<String>(
+                    value: selectedDifficulty,
+                    dropdownColor: const Color(0xFF2A2A2A),
+                    style: const TextStyle(color: Colors.white),
+                    items: const ['Easy', 'Medium', 'Hard']
+                        .map(
+                          (d) => DropdownMenuItem(value: d, child: Text(d)),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDialogState(() => selectedDifficulty = v);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -787,6 +881,9 @@ class _AiChatPageState extends State<AiChatPage> {
                 Navigator.pop(context, {
                   'topic': topicController.text.trim(),
                   'count': numQuestions,
+                  'subject': selectedSubject,
+                  'standard': selectedStandard,
+                  'difficulty': selectedDifficulty,
                 });
               },
               style: ElevatedButton.styleFrom(
@@ -803,16 +900,47 @@ class _AiChatPageState extends State<AiChatPage> {
     );
 
     if (result != null) {
-      _generateQuiz(result['topic'], result['count']);
+      _generateQuiz(
+        topic: result['topic'] as String,
+        count: result['count'] as int,
+        subject: result['subject'] as String,
+        standard: result['standard'] as String,
+        difficulty: result['difficulty'] as String,
+      );
     }
   }
 
-  Future<void> _generateQuiz(String topic, int count) async {
+  String _extractStandardFromProfile(Map<String, dynamic> profile) {
+    final candidates = [
+      profile['standard'],
+      profile['class'],
+      profile['className'],
+      profile['grade'],
+    ];
+
+    for (final value in candidates) {
+      if (value == null) continue;
+      final raw = value.toString().trim();
+      if (raw.isEmpty) continue;
+      final firstPart = raw.split('-').first.trim();
+      if (firstPart.isNotEmpty) return firstPart;
+    }
+    return '';
+  }
+
+  Future<void> _generateQuiz({
+    required String topic,
+    required int count,
+    required String subject,
+    required String standard,
+    required String difficulty,
+  }) async {
     setState(() {
       _messages.add(
         ChatMessage(
           sender: 'student',
-          text: 'Generate $count-question quiz on: $topic',
+          text:
+              'Generate $count-question $difficulty quiz on $subject (Std $standard): $topic',
         ),
       );
       _isProcessing = true;
@@ -820,7 +948,13 @@ class _AiChatPageState extends State<AiChatPage> {
     _scrollToEnd();
 
     try {
-      final quizData = await _aiService.generateQuiz(topic, count);
+      final quizData = await _aiService.generateQuiz(
+        topic,
+        count,
+        subject: subject,
+        standard: standard,
+        difficulty: difficulty,
+      );
       if (!mounted) return;
       await Navigator.of(context).push(
         PageRouteBuilder(

@@ -775,7 +775,11 @@ service cloud.firestore {
 
     match /question_bank/{questionId} {
       // Needed by AI test generation memory query.
-      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      // Fallback: Allow if user has schoolId/instituteId set (staff member)
+      allow read: if isSignedIn() && (
+        isTeacher() || isPrincipal() || isInstitute() || isAdmin()
+        || (instituteIdFromAnyDoc() != '' && instituteIdFromAnyDoc() != null)
+      );
 
       // Allow staff/admin to create question-bank entries for their own school.
       allow create: if isSignedIn() && (
@@ -786,6 +790,7 @@ service cloud.firestore {
           && request.resource.data.schoolId != ''
           && request.resource.data.schoolId == instituteIdFromAnyDoc()
         )
+        || (instituteIdFromAnyDoc() != '' && request.resource.data.schoolId == instituteIdFromAnyDoc())
       );
 
       // Preserve immutable ownership/scope fields on updates.
@@ -794,6 +799,11 @@ service cloud.firestore {
         || (
           (isTeacher() || isPrincipal() || isInstitute())
           && resource.data.schoolId == instituteIdFromAnyDoc()
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.createdByTeacherId == resource.data.createdByTeacherId
+          && request.resource.data.createdAt == resource.data.createdAt
+        )
+        || (instituteIdFromAnyDoc() != '' && resource.data.schoolId == instituteIdFromAnyDoc()
           && request.resource.data.schoolId == resource.data.schoolId
           && request.resource.data.createdByTeacherId == resource.data.createdByTeacherId
           && request.resource.data.createdAt == resource.data.createdAt

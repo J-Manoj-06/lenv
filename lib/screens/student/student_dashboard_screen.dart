@@ -59,6 +59,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     super.initState();
     _loadDashboardData();
     _preloadViewedStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirestoreService().processEndedTests();
+    });
   }
 
   /// Preload all viewed statuses at startup for instant display

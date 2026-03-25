@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_result_model.dart';
+import '../../services/firestore_service.dart';
 import '../../services/student_service.dart';
 
 class StudentTestResultScreen extends StatefulWidget {
@@ -26,6 +27,9 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
     super.initState();
     _future = _service.getTestResultById(widget.resultId);
     _studentFuture = _fetchStudentInfo();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FirestoreService().processEndedTests();
+    });
     _ringController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),

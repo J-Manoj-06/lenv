@@ -14,6 +14,7 @@ import '../../models/student_model.dart';
 import '../../models/performance_model.dart';
 import '../../widgets/dp_options_bottom_sheet.dart';
 import '../../widgets/profile_avatar_widget.dart';
+import '../../utils/cache_manager.dart';
 
 class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
@@ -32,43 +33,79 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
   int? _classRank; // from leaderboard stats (static until refresh)
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _attendanceSub;
   StreamSubscription<List<LeaderboardEntry>>? _rankSub;
+  StreamSubscription<StudentModel?>? _studentDataSub;
+  bool _isRefreshing = false;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final authProvider = Provider.of<AuthProvider>(context);
+  void initState() {
+    super.initState();
+    // Load immediately: cache first, then stream updates
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeProfileData();
+    });
+  }
+
+  Future<void> _initializeProfileData() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final uid = authProvider.currentUser?.uid;
-    if (uid != null) {
-      _loadStudentData(uid);
+    if (uid == null) return;
+
+    // Load from cache first for instant display
+    try {
+      final cachedStudent = await CacheManager.getStudentDataCache(
+        studentId: uid,
+      );
+      if (cachedStudent != null && mounted) {
+        setState(() {
+          _studentData = cachedStudent;
+        });
+        _initializeDPProvider(cachedStudent);
+        _startLiveStreams();
+      }
+    } catch (_) {}
+
+    // Then listen to real-time updates via stream
+    _startStudentDataStream(uid);
+  }
+
+  void _startStudentDataStream(String uid) {
+    _studentDataSub?.cancel();
+    _studentDataSub = _studentService.getStudentStream(uid).listen((student) {
+      if (student != null && mounted) {
+        setState(() {
+          _studentData = student;
+        });
+        // Cache the new data
+        CacheManager.cacheStudentData(student).catchError((_) {});
+        _initializeDPProvider(student);
+        // Restart live streams in case school/class changed
+        _startLiveStreams();
+      }
+    }, onError: (e) {});
+  }
+
+  void _initializeDPProvider(StudentModel student) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final uid = authProvider.currentUser?.uid ?? '';
+    if (uid.isNotEmpty && mounted) {
+      context.read<ProfileDPProvider>().initForUser(
+        uid,
+        userName: student.name,
+      );
     }
   }
 
-  Future<void> _loadStudentData(String uid) async {
-    try {
-      final data = await _studentService.getCurrentStudent();
-      if (mounted) {
-        setState(() {
-          _studentData = data;
-        });
-        // Initialize DP provider for real-time photo updates
-        final uid =
-            Provider.of<AuthProvider>(
-              context,
-              listen: false,
-            ).currentUser?.uid ??
-            data?.uid ??
-            '';
-        if (uid.isNotEmpty) {
-          context.read<ProfileDPProvider>().initForUser(
-            uid,
-            userName: data?.name ?? '',
-          );
-        }
-      }
-      // Start live streams (attendance and class rank) after student data loads
-      _startLiveAttendanceStream();
-      _startLiveClassRankStream();
-    } catch (e) {}
+  void _startLiveStreams() {
+    _startLiveAttendanceStream();
+    _startLiveClassRankStream();
+  }
+
+  @override
+  void dispose() {
+    _attendanceSub?.cancel();
+    _rankSub?.cancel();
+    _studentDataSub?.cancel();
+    super.dispose();
   }
 
   void _startLiveAttendanceStream() {
@@ -163,6 +200,31 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         }, onError: (e) {});
   }
 
+  Future<void> _onRefresh() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final uid = authProvider.currentUser?.uid;
+      if (uid != null) {
+        final fresh = await _studentService.getCurrentStudent();
+        if (fresh != null) {
+          await CacheManager.cacheStudentData(fresh);
+          if (mounted) {
+            setState(() => _studentData = fresh);
+            _initializeDPProvider(fresh);
+            _startLiveStreams();
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error refreshing profile: $e');
+    } finally {
+      setState(() => _isRefreshing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
@@ -175,14 +237,20 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _buildProfileHeader(user),
-                    _buildStatsCards(),
-                    _buildPersonalInfoSection(user),
-                    const SizedBox(height: 80), // Bottom nav spacing
-                  ],
+              child: RefreshIndicator(
+                onRefresh: _onRefresh,
+                color: const Color(0xFFF2800D),
+                backgroundColor: Theme.of(context).cardColor,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Column(
+                    children: [
+                      _buildProfileHeader(user),
+                      _buildStatsCards(),
+                      _buildPersonalInfoSection(user),
+                      const SizedBox(height: 80), // Bottom nav spacing
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -332,13 +400,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  String _initialsFromName(String name) {
-    final parts = name.trim().split(' ');
-    if (parts.isEmpty) return 'ST';
-    if (parts.length == 1) return parts.first.substring(0, 2).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
   Widget _buildStatsCards() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final uid = authProvider.currentUser?.uid;
@@ -474,7 +535,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
               children: [
                 _infoRow('Email', email, top: true),
                 _infoRow('Phone', phone),
-                _infoRow('School Name', schoolName, bottom: true),
+                _infoRow('School Name', schoolName),
+                _infoRow('Parent Phone', parentPhone, bottom: true),
               ],
             ),
           ),
@@ -752,13 +814,6 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
         );
       }
     }
-  }
-
-  @override
-  void dispose() {
-    _attendanceSub?.cancel();
-    _rankSub?.cancel();
-    super.dispose();
   }
 }
 
