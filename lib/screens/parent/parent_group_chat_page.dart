@@ -4168,32 +4168,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Attachment button - outside input
-                Container(
-                  width: 42,
-                  height: 42,
-                  margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    color: isDark ? secondaryBackground : Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: primaryColor.withOpacity(isDark ? 0.45 : 0.25),
-                      width: 1.1,
-                    ),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _isUploading ? null : _showAttachmentSheet,
-                      borderRadius: BorderRadius.circular(21),
-                      child: Icon(
-                        Icons.add_rounded,
-                        color: _isUploading ? mutedText : primaryColor,
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                ),
                 // Main input field - compact pill shape
                 Expanded(
                   child: Container(
@@ -4276,6 +4250,32 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                // Attachment button - outside input (after text box)
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: isDark ? secondaryBackground : Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: primaryColor.withOpacity(isDark ? 0.45 : 0.25),
+                      width: 1.1,
+                    ),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _isUploading ? null : _showAttachmentSheet,
+                      borderRadius: BorderRadius.circular(21),
+                      child: Icon(
+                        Icons.attach_file_rounded,
+                        color: _isUploading ? mutedText : primaryColor,
+                        size: 22,
+                      ),
                     ),
                   ),
                 ),
