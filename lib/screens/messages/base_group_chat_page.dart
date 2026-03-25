@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'dart:async';
 import 'dart:io';
-import 'package:characters/characters.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/cloudflare_r2_service.dart';

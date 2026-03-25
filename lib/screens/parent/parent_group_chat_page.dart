@@ -12,7 +12,6 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
-import 'package:characters/characters.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';

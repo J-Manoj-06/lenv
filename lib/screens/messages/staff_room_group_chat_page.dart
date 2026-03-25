@@ -8,7 +8,6 @@ import 'package:record/record.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'package:http/http.dart' as http;
-import 'package:characters/characters.dart';
 import 'dart:async';
 import 'dart:io';
 import '../../providers/auth_provider.dart';
@@ -4313,6 +4312,7 @@ class _MessageBubbleState extends State<_MessageBubble>
         !hasMultipleMedia;
     final isTextSendFailed =
         isPendingTextOnly && widget.failedMessageIds.contains(messageId);
+    final showOutsideTimeForTextOnly = !hasAttachment && text.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4750,29 +4750,51 @@ class _MessageBubbleState extends State<_MessageBubble>
                                             ),
                                           ),
                                         ],
-                                        const SizedBox(height: 6),
-                                        Align(
-                                          alignment: Alignment.centerRight,
-                                          widthFactor: 1,
-                                          child: Text(
-                                            timeStr,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: widget.isMe
-                                                  ? Colors.white.withOpacity(
-                                                      0.7,
-                                                    )
-                                                  : theme
-                                                        .textTheme
-                                                        .bodyMedium
-                                                        ?.color
-                                                        ?.withOpacity(0.5),
+                                        if (!showOutsideTimeForTextOnly) ...[
+                                          const SizedBox(height: 6),
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            widthFactor: 1,
+                                            child: Text(
+                                              timeStr,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: widget.isMe
+                                                    ? Colors.white.withOpacity(
+                                                        0.7,
+                                                      )
+                                                    : theme
+                                                          .textTheme
+                                                          .bodyMedium
+                                                          ?.color
+                                                          ?.withOpacity(0.5),
+                                              ),
                                             ),
                                           ),
-                                        ),
+                                        ],
                                       ],
                                     ),
                                   ),
+                                  if (showOutsideTimeForTextOnly) ...[
+                                    const SizedBox(height: 4),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 12,
+                                        right: 12,
+                                      ),
+                                      child: Text(
+                                        timeStr,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: theme
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.color
+                                              ?.withOpacity(0.5),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                     ],

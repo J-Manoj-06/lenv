@@ -12,7 +12,6 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
-import 'package:characters/characters.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
