@@ -34,6 +34,22 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
   bool _isForwarding = false;
   String? _error;
 
+  bool get _restrictToClassGroupsForMindmap =>
+      widget.messages.any(_isMindmapForwardMessage);
+
+  bool _isMindmapForwardMessage(ForwardMessageData msg) {
+    if (msg.messageType.toLowerCase() == 'mindmap') return true;
+    final text = (msg.text ?? '').trim().toLowerCase();
+    return text.startsWith('mindmap:') || text.startsWith('mind map:');
+  }
+
+  bool _isDestinationEnabled(ForwardDestination dest) {
+    if (_restrictToClassGroupsForMindmap) {
+      return dest.type == 'group';
+    }
+    return true;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -187,8 +203,22 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
     setState(() => _isForwarding = true);
 
     final selected = _destinations
-        .where((d) => _selectedDestinationIds.contains(d.id))
+        .where(
+          (d) =>
+              _selectedDestinationIds.contains(d.id) &&
+              _isDestinationEnabled(d),
+        )
         .toList();
+
+    if (selected.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Mindmap can only be forwarded to class groups'),
+        ),
+      );
+      return;
+    }
 
     try {
       final results = await _forwardService.forwardMessages(
@@ -520,9 +550,19 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
     bool isDark,
   ) {
     final isSelected = _selectedDestinationIds.contains(dest.id);
+    final isEnabled = _isDestinationEnabled(dest);
 
     return InkWell(
       onTap: () {
+        if (!isEnabled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Mindmap can only be forwarded to class groups'),
+              duration: Duration(milliseconds: 1200),
+            ),
+          );
+          return;
+        }
         setState(() {
           if (isSelected) {
             _selectedDestinationIds.remove(dest.id);
@@ -535,7 +575,7 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
         duration: const Duration(milliseconds: 150),
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         decoration: BoxDecoration(
-          color: isSelected
+          color: isSelected && isEnabled
               ? accentColor.withOpacity(isDark ? 0.15 : 0.08)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
@@ -557,7 +597,10 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
                 child: Center(
                   child: Text(
                     dest.iconEmoji ?? '💬',
-                    style: const TextStyle(fontSize: 22),
+                    style: TextStyle(
+                      fontSize: 22,
+                      color: isEnabled ? null : Colors.grey,
+                    ),
                   ),
                 ),
               ),
@@ -571,7 +614,7 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
                     Text(
                       dest.name,
                       style: TextStyle(
-                        color: textPrimary,
+                        color: isEnabled ? textPrimary : textSecondary,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -591,14 +634,16 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: isSelected ? accentColor : Colors.transparent,
+                  color: isSelected && isEnabled
+                      ? accentColor
+                      : Colors.transparent,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSelected ? accentColor : Colors.grey,
+                    color: isSelected && isEnabled ? accentColor : Colors.grey,
                     width: 2,
                   ),
                 ),
-                child: isSelected
+                child: isSelected && isEnabled
                     ? const Icon(Icons.check, size: 14, color: Colors.white)
                     : null,
               ),
@@ -642,7 +687,9 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
               _isForwarding
                   ? 'Forwarding…'
                   : (count == 0
-                        ? 'Select a chat to forward'
+                        ? (_restrictToClassGroupsForMindmap
+                              ? 'Select a class group to forward'
+                              : 'Select a chat to forward')
                         : 'Forward to $count chat${count == 1 ? '' : 's'}'),
               style: const TextStyle(
                 color: Colors.white,
