@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:characters/characters.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../config/cloudflare_config.dart';
@@ -19,6 +19,7 @@ import '../../services/firebase_message_sync_service.dart';
 import 'offline_message_search_page.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/connectivity_service.dart';
+import '../../widgets/whatsapp_emoji_picker.dart';
 
 /// Configuration for attachment options based on user role
 class AttachmentConfig {
@@ -865,33 +866,81 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
   }
 
   Widget _buildEmojiPicker() {
-    return EmojiPicker(
-      onEmojiSelected: (category, emoji) {
-        _messageController.text += emoji.emoji;
-      },
-      onBackspacePressed: () {
-        final text = _messageController.text;
-        if (text.isNotEmpty) {
-          _messageController.text = text.substring(0, text.length - 1);
-        }
-      },
-      config: Config(
-        height: 250,
-        checkPlatformCompatibility: false,
-        emojiViewConfig: EmojiViewConfig(
-          backgroundColor: const Color(0xFF0B141A),
-          columns: 7,
-          emojiSizeMax: 28,
-        ),
-        categoryViewConfig: CategoryViewConfig(
-          backgroundColor: const Color(0xFF0B141A),
-          iconColorSelected: _accentColor,
-          indicatorColor: _accentColor,
-        ),
-        bottomActionBarConfig: BottomActionBarConfig(
-          backgroundColor: const Color(0xFF0B141A),
-        ),
-      ),
+    return WhatsAppEmojiPicker(
+      accentColor: _accentColor,
+      backgroundColor: const Color(0xFF0B141A),
+      onEmojiSelected: _onEmojiSelected,
+      onBackspacePressed: _onBackspacePressed,
+    );
+  }
+
+  void _onEmojiSelected(String emoji) {
+    final value = _messageController.value;
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      _messageController.text = '${_messageController.text}$emoji';
+      _messageController.selection = TextSelection.collapsed(
+        offset: _messageController.text.length,
+      );
+      return;
+    }
+
+    final text = value.text;
+    final selectedStart = start < end ? start : end;
+    final selectedEnd = start < end ? end : start;
+    final nextText =
+        '${text.substring(0, selectedStart)}$emoji${text.substring(selectedEnd)}';
+    final nextOffset = selectedStart + emoji.length;
+    _messageController.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextOffset),
+      composing: TextRange.empty,
+    );
+  }
+
+  void _onBackspacePressed() {
+    final value = _messageController.value;
+    final text = value.text;
+    if (text.isEmpty) return;
+
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      final chars = text.characters;
+      if (chars.isEmpty) return;
+      final nextText = chars.skipLast(1).toString();
+      _messageController.value = TextEditingValue(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: nextText.length),
+      );
+      return;
+    }
+
+    if (start != end) {
+      final selectedStart = start < end ? start : end;
+      final selectedEnd = start < end ? end : start;
+      final nextText =
+          '${text.substring(0, selectedStart)}${text.substring(selectedEnd)}';
+      _messageController.value = value.copyWith(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: selectedStart),
+        composing: TextRange.empty,
+      );
+      return;
+    }
+
+    if (start == 0) return;
+    final prefix = text.substring(0, start).characters;
+    if (prefix.isEmpty) return;
+    final truncatedPrefix = prefix.skipLast(1).toString();
+    final nextText = '$truncatedPrefix${text.substring(start)}';
+    _messageController.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: truncatedPrefix.length),
+      composing: TextRange.empty,
     );
   }
 

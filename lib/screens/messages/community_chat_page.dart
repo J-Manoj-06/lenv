@@ -12,8 +12,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'dart:io';
 import 'dart:convert';
 import 'dart:async';
+import 'package:characters/characters.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../utils/link_utils.dart';
@@ -49,6 +49,7 @@ import '../../services/active_chat_service.dart';
 import '../../services/message_reaction_service.dart';
 import '../../widgets/message_reaction_picker.dart';
 import '../../widgets/message_reaction_summary.dart';
+import '../../widgets/whatsapp_emoji_picker.dart';
 
 class CommunityChatPage extends StatefulWidget {
   final String communityId;
@@ -1185,15 +1186,74 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     super.dispose();
   }
 
-  void _onEmojiSelected(Emoji emoji) {
-    _messageController.text += emoji.emoji;
+  void _onEmojiSelected(String emoji) {
+    final value = _messageController.value;
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      _messageController.text = '${_messageController.text}$emoji';
+      _messageController.selection = TextSelection.collapsed(
+        offset: _messageController.text.length,
+      );
+      return;
+    }
+
+    final text = value.text;
+    final selectedStart = start < end ? start : end;
+    final selectedEnd = start < end ? end : start;
+    final nextText =
+        '${text.substring(0, selectedStart)}$emoji${text.substring(selectedEnd)}';
+    final nextOffset = selectedStart + emoji.length;
+    _messageController.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextOffset),
+      composing: TextRange.empty,
+    );
   }
 
   void _onBackspacePressed() {
-    final text = _messageController.text;
-    if (text.isNotEmpty) {
-      _messageController.text = text.substring(0, text.length - 1);
+    final value = _messageController.value;
+    final text = value.text;
+    if (text.isEmpty) return;
+
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      final chars = text.characters;
+      if (chars.isEmpty) return;
+      final nextText = chars.skipLast(1).toString();
+      _messageController.value = TextEditingValue(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: nextText.length),
+      );
+      return;
     }
+
+    if (start != end) {
+      final selectedStart = start < end ? start : end;
+      final selectedEnd = start < end ? end : start;
+      final nextText =
+          '${text.substring(0, selectedStart)}${text.substring(selectedEnd)}';
+      _messageController.value = value.copyWith(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: selectedStart),
+        composing: TextRange.empty,
+      );
+      return;
+    }
+
+    if (start == 0) return;
+    final prefix = text.substring(0, start).characters;
+    if (prefix.isEmpty) return;
+    final truncatedPrefix = prefix.skipLast(1).toString();
+    final nextText = '$truncatedPrefix${text.substring(start)}';
+    _messageController.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: truncatedPrefix.length),
+      composing: TextRange.empty,
+    );
   }
 
   void _scrollToBottom({bool force = false}) {
@@ -3239,26 +3299,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 isDark: isDark,
               ),
             if (_showEmojiPicker)
-              EmojiPicker(
-                onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
+              WhatsAppEmojiPicker(
+                accentColor: primaryColor,
+                backgroundColor: cardColor,
+                onEmojiSelected: _onEmojiSelected,
                 onBackspacePressed: _onBackspacePressed,
-                config: Config(
-                  height: 250,
-                  checkPlatformCompatibility: false,
-                  emojiViewConfig: EmojiViewConfig(
-                    backgroundColor: cardColor,
-                    columns: 7,
-                    emojiSizeMax: 28,
-                  ),
-                  categoryViewConfig: CategoryViewConfig(
-                    backgroundColor: cardColor,
-                    iconColorSelected: primaryColor,
-                    indicatorColor: primaryColor,
-                  ),
-                  bottomActionBarConfig: BottomActionBarConfig(
-                    backgroundColor: cardColor,
-                  ),
-                ),
               ),
           ],
         ),

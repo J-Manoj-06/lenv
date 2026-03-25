@@ -12,7 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:dio/dio.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:characters/characters.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -52,6 +52,7 @@ import '../../utils/session_manager.dart';
 import '../../services/message_reaction_service.dart';
 import '../../widgets/message_reaction_picker.dart';
 import '../../widgets/message_reaction_summary.dart';
+import '../../widgets/whatsapp_emoji_picker.dart';
 
 class ParentGroupChatPage extends StatefulWidget {
   final String groupId;
@@ -167,6 +168,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   String? _deleteEligibilitySelectionKey;
   Future<bool>? _deleteEligibilityFuture;
   bool _isReactionPickerOpen = false;
+  bool _showEmojiPicker = false;
   final ValueNotifier<bool> _hasText = ValueNotifier<bool>(false);
 
   // ✅ NEW: Use ValueNotifier for loading state to avoid full rebuilds
@@ -780,6 +782,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     // ✅ OPTIMIZATION: Listen to text changes without rebuilding
     _controller.addListener(() {
       _hasText.value = _controller.text.trim().isNotEmpty;
+    });
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
     });
 
     _initOfflineFirst();
@@ -2208,15 +2215,74 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     return effective;
   }
 
-  void _onEmojiSelected(Emoji emoji) {
-    _controller.text += emoji.emoji;
+  void _onEmojiSelected(String emoji) {
+    final value = _controller.value;
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      _controller.text = '${_controller.text}$emoji';
+      _controller.selection = TextSelection.collapsed(
+        offset: _controller.text.length,
+      );
+      return;
+    }
+
+    final text = value.text;
+    final selectedStart = start < end ? start : end;
+    final selectedEnd = start < end ? end : start;
+    final nextText =
+        '${text.substring(0, selectedStart)}$emoji${text.substring(selectedEnd)}';
+    final nextOffset = selectedStart + emoji.length;
+    _controller.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextOffset),
+      composing: TextRange.empty,
+    );
   }
 
   void _onBackspacePressed() {
-    final text = _controller.text;
-    if (text.isNotEmpty) {
-      _controller.text = text.substring(0, text.length - 1);
+    final value = _controller.value;
+    final text = value.text;
+    if (text.isEmpty) return;
+
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      final chars = text.characters;
+      if (chars.isEmpty) return;
+      final nextText = chars.skipLast(1).toString();
+      _controller.value = TextEditingValue(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: nextText.length),
+      );
+      return;
     }
+
+    if (start != end) {
+      final selectedStart = start < end ? start : end;
+      final selectedEnd = start < end ? end : start;
+      final nextText =
+          '${text.substring(0, selectedStart)}${text.substring(selectedEnd)}';
+      _controller.value = value.copyWith(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: selectedStart),
+        composing: TextRange.empty,
+      );
+      return;
+    }
+
+    if (start == 0) return;
+    final prefix = text.substring(0, start).characters;
+    if (prefix.isEmpty) return;
+    final truncatedPrefix = prefix.skipLast(1).toString();
+    final nextText = '$truncatedPrefix${text.substring(start)}';
+    _controller.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: truncatedPrefix.length),
+      composing: TextRange.empty,
+    );
   }
 
   /// ✅ OPTIMIZATION: Scroll listener for pagination
@@ -4038,7 +4104,15 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
               ),
             ),
             _buildMessageInput(isDark),
-            // ✅ EMOJI PANEL - WhatsApp-style with custom search
+            if (_showEmojiPicker)
+              WhatsAppEmojiPicker(
+                accentColor: primaryColor,
+                backgroundColor: isDark
+                    ? secondaryBackground
+                    : Colors.grey.shade100,
+                onEmojiSelected: _onEmojiSelected,
+                onBackspacePressed: _onBackspacePressed,
+              ),
           ],
         ),
       ),
@@ -4111,6 +4185,26 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
+                        IconButton(
+                          icon: Icon(
+                            _showEmojiPicker
+                                ? Icons.keyboard_outlined
+                                : Icons.emoji_emotions_outlined,
+                            color: mutedText,
+                            size: 22,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: () {
+                            setState(() {
+                              _showEmojiPicker = !_showEmojiPicker;
+                            });
+                            if (_showEmojiPicker) {
+                              _focusNode.unfocus();
+                            } else {
+                              _focusNode.requestFocus();
+                            }
+                          },
+                        ),
                         Expanded(
                           child: TextField(
                             controller: _controller,

@@ -8,6 +8,7 @@ import 'package:record/record.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'package:http/http.dart' as http;
+import 'package:characters/characters.dart';
 import 'dart:async';
 import 'dart:io';
 import '../../providers/auth_provider.dart';
@@ -43,6 +44,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
 import '../../services/active_chat_service.dart';
+import '../../widgets/whatsapp_emoji_picker.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomGroupChatPage extends StatefulWidget {
@@ -64,6 +66,7 @@ class StaffRoomGroupChatPage extends StatefulWidget {
 class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     with MessageScrollAndHighlightMixin, WidgetsBindingObserver {
   final TextEditingController _messageController = TextEditingController();
+  final FocusNode _messageFocusNode = FocusNode();
   late final MediaUploadService _mediaUploadService;
   final ValueNotifier<bool> _isUploading = ValueNotifier<bool>(false);
   bool _isOnline = true;
@@ -92,6 +95,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
   // ValueNotifier to control input area rebuild without rebuilding entire screen
   final ValueNotifier<bool> _hasText = ValueNotifier<bool>(false);
+  bool _showEmojiPicker = false;
 
   // Pending uploads tracking (like community chat)
   final List<Map<String, dynamic>> _pendingMessages = [];
@@ -164,6 +168,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       }
     });
     WidgetsBinding.instance.addObserver(this);
+    _messageFocusNode.addListener(() {
+      if (_messageFocusNode.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
     _initMediaService();
     _initOfflineFirstAsync();
     _initMessagesStream();
@@ -1288,6 +1297,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     _rebuildThrottleTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _messageController.dispose();
+    _messageFocusNode.dispose();
     disposeScrollController(); // Use mixin's disposal method
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
@@ -1310,6 +1320,76 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     // They will be auto-removed when upload completes or matched with server version
 
     super.dispose();
+  }
+
+  void _onEmojiSelected(String emoji) {
+    final value = _messageController.value;
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      _messageController.text = '${_messageController.text}$emoji';
+      _messageController.selection = TextSelection.collapsed(
+        offset: _messageController.text.length,
+      );
+      return;
+    }
+
+    final text = value.text;
+    final selectedStart = start < end ? start : end;
+    final selectedEnd = start < end ? end : start;
+    final nextText =
+        '${text.substring(0, selectedStart)}$emoji${text.substring(selectedEnd)}';
+    final nextOffset = selectedStart + emoji.length;
+    _messageController.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextOffset),
+      composing: TextRange.empty,
+    );
+  }
+
+  void _onBackspacePressed() {
+    final value = _messageController.value;
+    final text = value.text;
+    if (text.isEmpty) return;
+
+    final start = value.selection.start;
+    final end = value.selection.end;
+
+    if (start < 0 || end < 0) {
+      final chars = text.characters;
+      if (chars.isEmpty) return;
+      final nextText = chars.skipLast(1).toString();
+      _messageController.value = TextEditingValue(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: nextText.length),
+      );
+      return;
+    }
+
+    if (start != end) {
+      final selectedStart = start < end ? start : end;
+      final selectedEnd = start < end ? end : start;
+      final nextText =
+          '${text.substring(0, selectedStart)}${text.substring(selectedEnd)}';
+      _messageController.value = value.copyWith(
+        text: nextText,
+        selection: TextSelection.collapsed(offset: selectedStart),
+        composing: TextRange.empty,
+      );
+      return;
+    }
+
+    if (start == 0) return;
+    final prefix = text.substring(0, start).characters;
+    if (prefix.isEmpty) return;
+    final truncatedPrefix = prefix.skipLast(1).toString();
+    final nextText = '$truncatedPrefix${text.substring(start)}';
+    _messageController.value = value.copyWith(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: truncatedPrefix.length),
+      composing: TextRange.empty,
+    );
   }
 
   void _showOfflineSnackBar({bool isMedia = false}) {
@@ -2496,6 +2576,13 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           children: [
             Expanded(child: _buildNormalMessages(theme, primaryColor)),
             _buildMessageInput(theme, primaryColor),
+            if (_showEmojiPicker)
+              WhatsAppEmojiPicker(
+                accentColor: primaryColor,
+                backgroundColor: theme.cardColor,
+                onEmojiSelected: _onEmojiSelected,
+                onBackspacePressed: _onBackspacePressed,
+              ),
           ],
         ),
       ),
@@ -3278,18 +3365,22 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                       children: [
                         IconButton(
                           icon: Icon(
-                            Icons.sentiment_satisfied_outlined,
+                            _showEmojiPicker
+                                ? Icons.keyboard_outlined
+                                : Icons.sentiment_satisfied_outlined,
                             color: hintColor,
                             size: 26,
                           ),
                           padding: const EdgeInsets.all(8),
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Emoji picker coming soon'),
-                                duration: Duration(seconds: 1),
-                              ),
-                            );
+                            setState(() {
+                              _showEmojiPicker = !_showEmojiPicker;
+                            });
+                            if (_showEmojiPicker) {
+                              _messageFocusNode.unfocus();
+                            } else {
+                              _messageFocusNode.requestFocus();
+                            }
                           },
                         ),
                         Expanded(
@@ -3298,6 +3389,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                             builder: (context, isUploading, _) {
                               return TextField(
                                 controller: _messageController,
+                                focusNode: _messageFocusNode,
                                 style: TextStyle(
                                   color: isDark
                                       ? Colors.white
