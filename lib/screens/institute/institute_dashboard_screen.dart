@@ -974,11 +974,6 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
         return GestureDetector(
           onTap: () {
             if (hasTeacherAnnouncements) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Opening ${statuses.length} announcements'),
-                ),
-              );
               _openTeacherAnnouncements(statuses);
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
