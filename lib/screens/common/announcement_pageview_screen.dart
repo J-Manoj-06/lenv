@@ -275,9 +275,56 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     });
 
     // ✅ NOW start the timeline
-    if (!_progressController.isAnimating &&
+    if (!_isLongPressing &&
+        !_progressController.isAnimating &&
         _progressController.status != AnimationStatus.completed) {
       _progressController.forward();
+    }
+  }
+
+  void _handleLongPressStart() {
+    if (!mounted) return;
+    setState(() {
+      _isLongPressing = true;
+    });
+    _progressController.stop();
+  }
+
+  void _handleLongPressEnd() {
+    if (!mounted) return;
+    setState(() {
+      _isLongPressing = false;
+    });
+
+    final mediaReady = (_mediaLoaded[_currentIndex] ?? false);
+    if (mediaReady && _progressController.status != AnimationStatus.completed) {
+      _progressController.forward();
+    }
+  }
+
+  void _handleTapNavigation(TapUpDetails details) {
+    if (!_pageController.hasClients) return;
+
+    final width = MediaQuery.of(context).size.width;
+    final dx = details.globalPosition.dx;
+
+    if (dx < width * 0.5) {
+      if (_currentIndex > 0) {
+        _pageController.previousPage(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+      return;
+    }
+
+    if (_currentIndex < widget.announcements.length - 1) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    } else {
+      _safeCloseViewer();
     }
   }
 
@@ -881,44 +928,6 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
                   backgroundColor: bgColor,
                   body: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onLongPressStart: (_) {
-                      // Pause progress when holding
-                      setState(() {
-                        _isLongPressing = true;
-                      });
-                      _progressController.stop();
-                    },
-                    onLongPressEnd: (_) {
-                      // Resume progress when released
-                      setState(() {
-                        _isLongPressing = false;
-                      });
-                      _progressController.forward();
-                    },
-                    onTapUp: (details) {
-                      final width = MediaQuery.of(context).size.width;
-                      final dx = details.globalPosition.dx;
-                      if (dx < width * 0.33) {
-                        // Tap left: go to previous
-                        if (_currentIndex > 0) {
-                          _pageController.previousPage(
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeOut,
-                          );
-                        }
-                      } else if (dx > width * 0.67) {
-                        // Tap right: go to next
-                        if (_currentIndex < widget.announcements.length - 1) {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeOut,
-                          );
-                        } else {
-                          // Last item: close
-                          _safeCloseViewer();
-                        }
-                      }
-                    },
                     child: Stack(
                       children: [
                         // Black background
@@ -1100,8 +1109,11 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
 
                         // Tap zone (invisible, for navigation only)
                         Positioned.fill(
-                          child: IgnorePointer(
-                            ignoring: true,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTapUp: _handleTapNavigation,
+                            onLongPressStart: (_) => _handleLongPressStart(),
+                            onLongPressEnd: (_) => _handleLongPressEnd(),
                             child: Container(),
                           ),
                         ),
@@ -1544,13 +1556,11 @@ class _ExpandableAnnouncementText extends StatefulWidget {
   final String text;
   final Color textColor;
   final Color accentColor;
-  final int maxCollapsedLines;
 
   const _ExpandableAnnouncementText({
     required this.text,
     required this.textColor,
     required this.accentColor,
-    this.maxCollapsedLines = 3,
   });
 
   @override
@@ -1577,7 +1587,7 @@ class _ExpandableAnnouncementTextState
         text: widget.text,
         style: const TextStyle(fontSize: 20, height: 1.5),
       ),
-      maxLines: widget.maxCollapsedLines,
+      maxLines: 3,
       textDirection: ui.TextDirection.ltr,
     );
 
@@ -1651,7 +1661,7 @@ class _ExpandableAnnouncementTextState
                       height: 1.5,
                     ),
                     textAlign: TextAlign.center,
-                    maxLines: widget.maxCollapsedLines,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
