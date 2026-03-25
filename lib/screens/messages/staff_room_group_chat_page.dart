@@ -2381,6 +2381,13 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           _invalidateShareEligibilityCache();
           return false;
         }
+
+        if (_showEmojiPicker) {
+          setState(() => _showEmojiPicker = false);
+          _messageFocusNode.unfocus();
+          return false;
+        }
+
         return true;
       },
       child: Scaffold(
@@ -2401,6 +2408,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                     _isSelectionMode.value = false;
                     _selectedMessages.value = {};
                     _invalidateShareEligibilityCache();
+                  } else if (_showEmojiPicker) {
+                    setState(() => _showEmojiPicker = false);
+                    _messageFocusNode.unfocus();
                   } else {
                     Navigator.pop(context);
                   }
