@@ -128,14 +128,32 @@ class DeepSeekService {
 
   Future<Map<String, dynamic>> generateQuiz(
     String topic,
-    int numQuestions,
-  ) async {
+    int numQuestions, {
+    String? subject,
+    String? standard,
+    String difficulty = 'Medium',
+  }) async {
     try {
+      final safeSubject = (subject ?? '').trim();
+      final safeStandard = (standard ?? '').trim();
+      final safeDifficulty = difficulty.trim().isEmpty
+          ? 'Medium'
+          : difficulty.trim();
+
       final prompt =
-          '''Generate a quiz on "$topic" with $numQuestions multiple choice questions.
+          '''Generate a quiz with the following constraints:
+- Topic: "$topic"
+- Subject: "${safeSubject.isEmpty ? 'General' : safeSubject}"
+- Standard/Class: "${safeStandard.isEmpty ? 'Not specified' : safeStandard}"
+- Difficulty: "$safeDifficulty"
+- Number of questions: $numQuestions
+
+Make the questions curriculum-appropriate for the specified subject and standard.
+Ensure difficulty strictly matches the selected level.
+
 Format your response as JSON:
 {
-  "title": "$topic Quiz",
+  "title": "${safeSubject.isEmpty ? topic : '$safeSubject - $topic'} Quiz",
   "questions": [
     {
       "question": "Question text?",
@@ -178,21 +196,44 @@ Only return valid JSON, no extra text.''';
 
         return jsonDecode(jsonContent);
       } else {
-        return _getFallbackQuiz(topic, numQuestions);
+        return _getFallbackQuiz(
+          topic,
+          numQuestions,
+          subject: safeSubject,
+          standard: safeStandard,
+          difficulty: safeDifficulty,
+        );
       }
     } catch (e) {
-      return _getFallbackQuiz(topic, numQuestions);
+      return _getFallbackQuiz(
+        topic,
+        numQuestions,
+        subject: subject,
+        standard: standard,
+        difficulty: difficulty,
+      );
     }
   }
 
-  Map<String, dynamic> _getFallbackQuiz(String topic, int count) {
+  Map<String, dynamic> _getFallbackQuiz(
+    String topic,
+    int count, {
+    String? subject,
+    String? standard,
+    String? difficulty,
+  }) {
+    final subjectLabel = (subject ?? '').trim();
+    final standardLabel = (standard ?? '').trim();
+    final difficultyLabel = (difficulty ?? '').trim();
+
     return {
-      'title': '$topic Quiz (Demo)',
+      'title':
+          '${subjectLabel.isEmpty ? topic : '$subjectLabel - $topic'} Quiz (Demo)',
       'questions': List.generate(
         count,
         (i) => {
           'question':
-              '⚠️ API key not configured. This is demo question ${i + 1} about $topic. To get real AI-generated quizzes, add your DeepSeek API key.',
+              '⚠️ API key not configured. This is demo question ${i + 1} about $topic${subjectLabel.isNotEmpty ? ' in $subjectLabel' : ''}${standardLabel.isNotEmpty ? ' for standard $standardLabel' : ''}${difficultyLabel.isNotEmpty ? ' ($difficultyLabel)' : ''}. To get real AI-generated quizzes, add your DeepSeek API key.',
           'options': [
             'Option A (placeholder)',
             'Option B (placeholder)',

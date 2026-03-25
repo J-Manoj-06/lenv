@@ -723,23 +723,26 @@ class _AiChatPageState extends State<AiChatPage> {
     final subjects = await _profileService.getStudentSubjects(studentId);
     final profile = await _profileService.getStudentProfile(studentId);
 
-    final standardOptions = List<String>.generate(12, (i) => '${i + 1}');
     final profileStandard = _extractStandardFromProfile(profile);
-    if (profileStandard.isNotEmpty &&
-        !standardOptions.contains(profileStandard)) {
-      standardOptions.insert(0, profileStandard);
-    }
+    final selectedStandard = profileStandard.isNotEmpty
+        ? profileStandard
+        : 'Not set';
 
-    final subjectOptions = subjects.isNotEmpty
-        ? subjects
-        : ['Maths', 'Science', 'English', 'Social'];
+    final subjectOptions = subjects;
+    if (subjectOptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No enrolled subjects found for your profile. Please contact your school.',
+          ),
+        ),
+      );
+      return;
+    }
 
     final topicController = TextEditingController();
     int numQuestions = 3; // Default to 3
     String selectedSubject = subjectOptions.first;
-    String selectedStandard = profileStandard.isNotEmpty
-        ? profileStandard
-        : standardOptions.first;
     String selectedDifficulty = 'Medium';
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -781,9 +784,7 @@ class _AiChatPageState extends State<AiChatPage> {
                     dropdownColor: const Color(0xFF2A2A2A),
                     style: const TextStyle(color: Colors.white),
                     items: subjectOptions
-                        .map(
-                          (s) => DropdownMenuItem(value: s, child: Text(s)),
-                        )
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                         .toList(),
                     onChanged: (v) {
                       if (v == null) return;
@@ -796,20 +797,13 @@ class _AiChatPageState extends State<AiChatPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Standard:', style: TextStyle(color: Colors.white)),
-                  DropdownButton<String>(
-                    value: selectedStandard,
-                    dropdownColor: const Color(0xFF2A2A2A),
-                    style: const TextStyle(color: Colors.white),
-                    items: standardOptions
-                        .map(
-                          (s) => DropdownMenuItem(value: s, child: Text(s)),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v == null) return;
-                      setDialogState(() => selectedStandard = v);
-                    },
+                  const Text(
+                    'Standard:',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  Text(
+                    selectedStandard,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                   ),
                 ],
               ),
@@ -826,9 +820,7 @@ class _AiChatPageState extends State<AiChatPage> {
                     dropdownColor: const Color(0xFF2A2A2A),
                     style: const TextStyle(color: Colors.white),
                     items: const ['Easy', 'Medium', 'Hard']
-                        .map(
-                          (d) => DropdownMenuItem(value: d, child: Text(d)),
-                        )
+                        .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                         .toList(),
                     onChanged: (v) {
                       if (v == null) return;
