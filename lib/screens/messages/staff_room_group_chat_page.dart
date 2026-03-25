@@ -4043,6 +4043,22 @@ class _MessageBubbleState extends State<_MessageBubble>
     final attachmentName = widget.message['attachmentName'] as String?;
     final attachmentSize = widget.message['attachmentSize'] as int?;
     final thumbnailUrl = widget.message['thumbnailUrl'] as String?;
+    final mediaMetadataRaw = widget.message['mediaMetadata'];
+    final mediaMetadata = mediaMetadataRaw is Map
+        ? Map<String, dynamic>.from(mediaMetadataRaw)
+        : null;
+
+    // Forwarded file/image/audio messages may keep data only in mediaMetadata.
+    final effectiveAttachmentUrl =
+        attachmentUrl ?? mediaMetadata?['publicUrl'] as String?;
+    final effectiveAttachmentType =
+        attachmentType ?? mediaMetadata?['mimeType'] as String?;
+    final effectiveAttachmentName =
+        attachmentName ?? mediaMetadata?['originalFileName'] as String?;
+    final effectiveAttachmentSize =
+        attachmentSize ?? (mediaMetadata?['fileSize'] as num?)?.toInt();
+    final effectiveThumbnailUrl =
+        thumbnailUrl ?? mediaMetadata?['thumbnail'] as String?;
 
     // Handle multipleMedia field - can be List or null
     List<dynamic>? multipleMedia;
@@ -4066,7 +4082,8 @@ class _MessageBubbleState extends State<_MessageBubble>
         ? AppColors.instituteColor
         : AppColors.teacherColor;
 
-    final hasAttachment = attachmentUrl != null && attachmentUrl.isNotEmpty;
+    final hasAttachment =
+        effectiveAttachmentUrl != null && effectiveAttachmentUrl.isNotEmpty;
     final hasMultipleMedia = multipleMedia != null && multipleMedia.isNotEmpty;
     final isPoll = widget.message['type'] == 'poll';
 
@@ -4380,12 +4397,12 @@ class _MessageBubbleState extends State<_MessageBubble>
                                           const SizedBox(height: 6),
                                         ],
                                         _buildAttachmentWidget(
-                                          attachmentUrl,
-                                          attachmentType ??
+                                          effectiveAttachmentUrl,
+                                          effectiveAttachmentType ??
                                               'application/octet-stream',
-                                          attachmentName,
-                                          attachmentSize ?? 0,
-                                          thumbnailUrl,
+                                          effectiveAttachmentName,
+                                          effectiveAttachmentSize ?? 0,
+                                          effectiveThumbnailUrl,
                                           isPending,
                                           messageId,
                                         ),
@@ -4466,12 +4483,12 @@ class _MessageBubbleState extends State<_MessageBubble>
                                     ],
                                     if (hasAttachment) ...[
                                       _buildAttachmentWidget(
-                                        attachmentUrl,
-                                        attachmentType ??
+                                        effectiveAttachmentUrl,
+                                        effectiveAttachmentType ??
                                             'application/octet-stream',
-                                        attachmentName,
-                                        attachmentSize ?? 0,
-                                        thumbnailUrl,
+                                        effectiveAttachmentName,
+                                        effectiveAttachmentSize ?? 0,
+                                        effectiveThumbnailUrl,
                                         isPending,
                                         messageId,
                                       ),
@@ -4719,6 +4736,20 @@ class _MessageBubbleState extends State<_MessageBubble>
     String? attachmentName,
     int? attachmentSize,
   ) {
+    final mediaMetadataRaw = widget.message['mediaMetadata'];
+    final mediaMetadata = mediaMetadataRaw is Map
+        ? Map<String, dynamic>.from(mediaMetadataRaw)
+        : null;
+
+    final effectiveAttachmentUrl =
+        attachmentUrl ?? mediaMetadata?['publicUrl'] as String?;
+    final effectiveAttachmentType =
+        attachmentType ?? mediaMetadata?['mimeType'] as String?;
+    final effectiveAttachmentName =
+        attachmentName ?? mediaMetadata?['originalFileName'] as String?;
+    final effectiveAttachmentSize =
+        attachmentSize ?? (mediaMetadata?['fileSize'] as num?)?.toInt();
+
     String msgType = 'text';
     List<String>? multiImageUrls;
     if (multipleMedia != null && multipleMedia.isNotEmpty) {
@@ -4732,8 +4763,9 @@ class _MessageBubbleState extends State<_MessageBubble>
           })
           .where((url) => url.isNotEmpty)
           .toList();
-    } else if (attachmentUrl != null && attachmentUrl.isNotEmpty) {
-      final mt = attachmentType ?? '';
+    } else if (effectiveAttachmentUrl != null &&
+        effectiveAttachmentUrl.isNotEmpty) {
+      final mt = effectiveAttachmentType ?? '';
       if (mt.startsWith('audio/')) {
         msgType = 'audio';
       } else if (mt.startsWith('image/')) {
@@ -4749,10 +4781,10 @@ class _MessageBubbleState extends State<_MessageBubble>
       originalSenderName: widget.message['senderName'] as String? ?? '',
       messageType: msgType,
       text: text,
-      mediaUrl: attachmentUrl,
-      fileName: attachmentName,
-      mimeType: attachmentType,
-      fileSize: attachmentSize,
+      mediaUrl: effectiveAttachmentUrl,
+      fileName: effectiveAttachmentName,
+      mimeType: effectiveAttachmentType,
+      fileSize: effectiveAttachmentSize,
       multipleImageUrls: multiImageUrls,
       wasAlreadyForwarded:
           widget.message['forwarded'] == true ||
