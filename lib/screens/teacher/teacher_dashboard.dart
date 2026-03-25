@@ -644,23 +644,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         }
       }
 
-      // Fallback: Get most recent cached teacher dashboard (for offline restarts)
-      final latestCache = _cacheManager.getLastCachedTeacherDashboard();
-      if (latestCache != null) {
-        // Safely cast dynamic map to Map<String, dynamic>
-        final safeCache = _castDynamicMapToStringMap(latestCache);
-        final cachedAt = DateTime.tryParse(
-          safeCache?['cachedAt'] as String? ?? '',
-        );
-
-        // Cache valid for 30 days
-        if (cachedAt == null ||
-            DateTime.now().difference(cachedAt).inDays <= 30) {
-          debugPrint('✅ Loaded last cached teacher dashboard from Hive');
-          return safeCache;
-        }
-      }
-
       debugPrint('⚠️ No valid offline cache found for teacher dashboard');
       return null;
     } catch (e) {

@@ -1472,8 +1472,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       // Create progress notifier for each image
       final progressNotifier = ValueNotifier<double>(0.01);
       _progressNotifiers[messageId] = progressNotifier;
-
-      final file = File(localPath);
     }
 
     setState(() {
@@ -2396,10 +2394,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                   return StreamBuilder<Timestamp?>(
                     stream: _lastReadAtStream,
                     builder: (context, readSnapshot) {
-                      for (int i = 0; i < _pendingMessages.length; i++) {
-                        final msg = _pendingMessages[i];
-                      }
-
                       final hasValidData = readSnapshot.data != null;
                       final lastReadMs =
                           readSnapshot.data?.toDate().millisecondsSinceEpoch ??
@@ -4268,12 +4262,6 @@ class _MessageBubble extends StatelessWidget {
                     ),
                     child: Builder(
                       builder: (context) {
-                        final actualBgColor =
-                            (message.mediaMetadata != null ||
-                                    message.imageUrl != null) &&
-                                message.message.isEmpty
-                            ? Colors.transparent
-                            : bubbleColor;
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -4523,7 +4511,6 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
   late Map<int, bool> _zoomStates;
   bool _isInteracting =
       false; // Track if user is currently interacting with zoom
-  int _pointerCount = 0; // Track number of fingers on screen
   bool _showTopBar = true;
   bool _isActionBusy = false;
   final Map<int, bool> _imageReady = {};
@@ -4858,90 +4845,58 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
       imageWidget = _buildFallbackImage(metadata);
     }
 
-    return Listener(
-      onPointerDown: (event) {
-        setState(() {
-          _pointerCount++;
-          // Only enable interaction when 2+ fingers detected
-          if (_pointerCount >= 2) {
-            _isInteracting = true;
-          }
-        });
+    return GestureDetector(
+      onTap: () => setState(() => _showTopBar = !_showTopBar),
+      onDoubleTapDown: (_) {
+        final controller = _transformationControllers[index]!;
+        final scale = controller.value.getMaxScaleOnAxis();
+
+        if (scale > 1.1) {
+          _animateZoom(controller, Matrix4.identity());
+        } else {
+          const targetScale = 2.5;
+          final matrix = Matrix4.identity()..scale(targetScale);
+          _animateZoom(controller, matrix);
+        }
       },
-      onPointerUp: (event) {
-        setState(() {
-          _pointerCount--;
-          // Re-enable PageView when less than 2 fingers
-          if (_pointerCount < 2) {
-            _isInteracting = false;
-            // Snap back to center if at original scale
-            final controller = _transformationControllers[index]!;
-            final scale = controller.value.getMaxScaleOnAxis();
-            if (scale <= 1.01) {
-              // Reset to centered position
-              controller.value = Matrix4.identity();
-            }
-          }
-        });
+      onDoubleTap: () {
+        // Required for onDoubleTapDown to work
       },
-      onPointerCancel: (event) {
-        setState(() {
-          _pointerCount--;
-          if (_pointerCount < 2) {
-            _isInteracting = false;
-            // Snap back to center if at original scale
-            final controller = _transformationControllers[index]!;
-            final scale = controller.value.getMaxScaleOnAxis();
-            if (scale <= 1.01) {
-              controller.value = Matrix4.identity();
-            }
-          }
-        });
+      onVerticalDragEnd: (details) {
+        final isZoomed = (_zoomStates[index] ?? false);
+        if (!isZoomed && (details.primaryVelocity ?? 0) > 700) {
+          Navigator.of(context).pop();
+        }
       },
-      child: GestureDetector(
-        onTap: () => setState(() => _showTopBar = !_showTopBar),
-        onDoubleTapDown: (details) {
-          // Store tap position for zoom target
+      child: InteractiveViewer(
+        transformationController: _transformationControllers[index],
+        minScale: 1.0,
+        maxScale: 5.0,
+        panEnabled: (_zoomStates[index] ?? false),
+        scaleEnabled: true,
+        boundaryMargin: EdgeInsets.zero,
+        constrained: true,
+        clipBehavior: Clip.hardEdge,
+        onInteractionStart: (_) {
+          if (mounted) {
+            setState(() {
+              _isInteracting = true;
+            });
+          }
+        },
+        onInteractionEnd: (_) {
+          if (!mounted) return;
           final controller = _transformationControllers[index]!;
           final scale = controller.value.getMaxScaleOnAxis();
-
-          if (scale > 1.1) {
-            // Zoom out to original with animation
-            _animateZoom(controller, Matrix4.identity());
-          } else {
-            // Zoom in to 2.5x at tap position with animation
-            final targetScale = 2.5;
-            final position = details.localPosition;
-
-            // Calculate offset to center the tap position
-            final x = -position.dx * (targetScale - 1);
-            final y = -position.dy * (targetScale - 1);
-
-            final matrix = Matrix4.identity()
-              ..translate(x, y)
-              ..scale(targetScale);
-
-            _animateZoom(controller, matrix);
-          }
+          setState(() {
+            _isInteracting = false;
+            if (scale <= 1.01) {
+              controller.value = Matrix4.identity();
+              _zoomStates[index] = false;
+            }
+          });
         },
-        onDoubleTap: () {
-          // Required for onDoubleTapDown to work
-        },
-        onVerticalDragEnd: (details) {
-          if ((details.primaryVelocity ?? 0) > 700) {
-            Navigator.of(context).pop();
-          }
-        },
-        child: InteractiveViewer(
-          transformationController: _transformationControllers[index],
-          minScale: 1.0,
-          maxScale: 5.0,
-          panEnabled: true, // Enable single-finger pan when zoomed
-          scaleEnabled: true,
-          boundaryMargin: const EdgeInsets.all(double.infinity),
-          clipBehavior: Clip.none,
-          child: Center(child: imageWidget),
-        ),
+        child: Center(child: imageWidget),
       ),
     );
   }

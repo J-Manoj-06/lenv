@@ -1400,8 +1400,12 @@ class _SingleImageViewerBodyState extends State<_SingleImageViewerBody> {
             child: widget.imagePath.isNotEmpty
                 ? PhotoView(
                     imageProvider: FileImage(File(widget.imagePath)),
+                    initialScale: PhotoViewComputedScale.contained,
                     minScale: PhotoViewComputedScale.contained,
                     maxScale: PhotoViewComputedScale.covered * 3,
+                    basePosition: Alignment.center,
+                    enablePanAlways: false,
+                    tightMode: true,
                     backgroundDecoration: const BoxDecoration(
                       color: Colors.black,
                     ),
@@ -1527,8 +1531,12 @@ class _ThumbnailViewer extends StatelessWidget {
             Expanded(
               child: PhotoView(
                 imageProvider: MemoryImage(base64Decode(thumbnailBase64)),
+                initialScale: PhotoViewComputedScale.contained,
                 minScale: PhotoViewComputedScale.contained,
                 maxScale: PhotoViewComputedScale.covered * 2,
+                basePosition: Alignment.center,
+                enablePanAlways: false,
+                tightMode: true,
                 backgroundDecoration: const BoxDecoration(color: Colors.black),
               ),
             ),

@@ -195,7 +195,7 @@ class _SplashScreenState extends State<SplashScreen>
         SessionManager.getInitialScreen(),
       ]);
 
-      final initialRoute = results[1];
+      final sessionRoute = results[1] as String;
 
       // Minimal splash delay for smooth animation
       await Future.delayed(const Duration(milliseconds: 500));
@@ -237,12 +237,26 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       // Normal navigation
+      final currentUser = authProvider.currentUser;
+      final roleRoute = _routeForRole(currentUser?.role);
+      final initialRoute = roleRoute ?? sessionRoute;
+
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, initialRoute as String);
+      Navigator.pushReplacementNamed(context, initialRoute);
     } catch (e) {
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/role-selection');
     }
+  }
+
+  String? _routeForRole(dynamic role) {
+    if (role == null) return null;
+    final roleText = role.toString().toLowerCase();
+    if (roleText.contains('teacher')) return '/teacher-dashboard';
+    if (roleText.contains('student')) return '/student-dashboard';
+    if (roleText.contains('parent')) return '/parent-dashboard';
+    if (roleText.contains('institute')) return '/institute-dashboard';
+    return null;
   }
 
   /// Get Firebase user with timeout to avoid waiting too long

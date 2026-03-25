@@ -174,8 +174,12 @@ class _FullImageViewerState extends State<FullImageViewer> {
 
     return PhotoView(
       imageProvider: FileImage(_imageFile!),
+      initialScale: PhotoViewComputedScale.contained,
       minScale: PhotoViewComputedScale.contained,
       maxScale: PhotoViewComputedScale.covered * 3,
+      basePosition: Alignment.center,
+      enablePanAlways: false,
+      tightMode: true,
       backgroundDecoration: const BoxDecoration(color: Colors.black),
       loadingBuilder: (context, event) => Center(
         child: CircularProgressIndicator(

@@ -200,29 +200,15 @@ class CommunityService {
               .toList() ??
           [];
 
-      // 🔎 Self-healing: also scan membership to catch any missing IDs.
-      // If this fails on low network, we still proceed with index data.
-      List<String> fromMembership = [];
-      try {
-        final memberQuery = await _firestore
-            .collectionGroup('members')
-            .where('userId', isEqualTo: userId)
-            .where('status', isEqualTo: 'active')
-            .get()
-            .timeout(const Duration(seconds: 6));
-
-        fromMembership = memberQuery.docs
-            .map((doc) => doc.reference.parent.parent!.id)
-            .toSet()
-            .toList();
-      } catch (_) {
-        fromMembership = [];
-      }
+      // Keep community loading index-driven to avoid collectionGroup permission
+      // mismatches on some role/rules combinations.
+      final List<String> fromMembership = const [];
 
       // Union of IDs from index and membership (deduped)
       final communityIds = <String>{...fromIndex, ...fromMembership}.toList();
 
       // If membership discovered extra IDs, update the index asynchronously
+      // (currently disabled because membership scan is intentionally skipped).
       final missingInIndex = fromMembership
           .where((id) => !fromIndex.contains(id))
           .toList();
@@ -290,60 +276,66 @@ class CommunityService {
 
   /// Fallback method using collectionGroup (legacy)
   Future<List<CommunityModel>> _getMyCommFallback(String userId) async {
+    return _getMyCommunitiesByMemberDocs(userId);
+  }
+
+  /// Rules-safe fallback: scan communities and check members/{userId} doc.
+  /// Avoids collectionGroup('members') queries that can fail under stricter rules.
+  Future<List<CommunityModel>> _getMyCommunitiesByMemberDocs(
+    String userId,
+  ) async {
     try {
-      // Query members subcollection across all communities
-      // Try server first, fall back to Firestore local cache for offline support.
-      QuerySnapshot<Map<String, dynamic>> memberQuery;
+      QuerySnapshot<Map<String, dynamic>> communitiesSnap;
       try {
-        memberQuery = await _firestore
-            .collectionGroup('members')
-            .where('userId', isEqualTo: userId)
-            .where('status', isEqualTo: 'active')
-            .get();
+        communitiesSnap = await _firestore
+            .collection('communities')
+            .get(const GetOptions(source: Source.server))
+            .timeout(const Duration(seconds: 8));
       } catch (_) {
         try {
-          memberQuery = await _firestore
-              .collectionGroup('members')
-              .where('userId', isEqualTo: userId)
-              .where('status', isEqualTo: 'active')
+          communitiesSnap = await _firestore
+              .collection('communities')
               .get(const GetOptions(source: Source.cache));
         } catch (_) {
-          return [];
+          communitiesSnap = await _firestore.collection('communities').get();
         }
       }
 
-      if (memberQuery.docs.isEmpty) {
-        return [];
-      }
+      if (communitiesSnap.docs.isEmpty) return <CommunityModel>[];
 
-      // Extract community IDs
-      final communityIds = memberQuery.docs
-          .map((doc) => doc.reference.parent.parent!.id)
-          .toSet()
-          .toList();
-
-      // Fetch community details
       final communities = <CommunityModel>[];
-      for (final id in communityIds) {
-        DocumentSnapshot<Map<String, dynamic>>? doc;
+
+      for (final doc in communitiesSnap.docs) {
+        DocumentSnapshot<Map<String, dynamic>>? memberDoc;
         try {
-          doc = await _firestore.collection('communities').doc(id).get();
+          memberDoc = await _firestore
+              .collection('communities')
+              .doc(doc.id)
+              .collection('members')
+              .doc(userId)
+              .get(const GetOptions(source: Source.server));
         } catch (_) {
           try {
-            doc = await _firestore
+            memberDoc = await _firestore
                 .collection('communities')
-                .doc(id)
+                .doc(doc.id)
+                .collection('members')
+                .doc(userId)
                 .get(const GetOptions(source: Source.cache));
           } catch (_) {
-            doc = null;
+            memberDoc = null;
           }
         }
-        if (doc != null && doc.exists) {
-          communities.add(CommunityModel.fromFirestore(doc));
-        }
+
+        if (memberDoc == null || !memberDoc.exists) continue;
+
+        final memberData = memberDoc.data() ?? <String, dynamic>{};
+        final status = (memberData['status'] ?? '').toString().toLowerCase();
+        if (status != 'active') continue;
+
+        communities.add(CommunityModel.fromFirestore(doc));
       }
 
-      // Sort by last message time (most recent first)
       communities.sort((a, b) {
         final aTime = a.lastMessageAt ?? a.createdAt;
         final bTime = b.lastMessageAt ?? b.createdAt;
@@ -351,8 +343,8 @@ class CommunityService {
       });
 
       return communities;
-    } catch (e) {
-      return [];
+    } catch (_) {
+      return <CommunityModel>[];
     }
   }
 
@@ -365,7 +357,7 @@ class CommunityService {
         .snapshots()
         .asyncMap((indexDoc) async {
           if (!indexDoc.exists || indexDoc.data() == null) {
-            return _getMyCommStreamFallback(userId);
+            return <CommunityModel>[];
           }
 
           final indexData = indexDoc.data()!;
@@ -396,42 +388,6 @@ class CommunityService {
 
           return communities;
         });
-  }
-
-  /// Fallback stream using collectionGroup (legacy)
-  Future<List<CommunityModel>> _getMyCommStreamFallback(String userId) async {
-    try {
-      final memberQuery = await _firestore
-          .collectionGroup('members')
-          .where('userId', isEqualTo: userId)
-          .where('status', isEqualTo: 'active')
-          .get();
-
-      if (memberQuery.docs.isEmpty) return <CommunityModel>[];
-
-      final communityIds = memberQuery.docs
-          .map((doc) => doc.reference.parent.parent!.id)
-          .toSet()
-          .toList();
-
-      final communities = <CommunityModel>[];
-      for (final id in communityIds) {
-        final doc = await _firestore.collection('communities').doc(id).get();
-        if (doc.exists) {
-          communities.add(CommunityModel.fromFirestore(doc));
-        }
-      }
-
-      communities.sort((a, b) {
-        final aTime = a.lastMessageAt ?? a.createdAt;
-        final bTime = b.lastMessageAt ?? b.createdAt;
-        return bTime.compareTo(aTime);
-      });
-
-      return communities;
-    } catch (e) {
-      return [];
-    }
   }
 
   /// Get communities for any role (used in share functionality)
@@ -471,37 +427,10 @@ class CommunityService {
         return communities;
       }
 
-      // Fallback to collectionGroup query
-      final memberQuery = await _firestore
-          .collectionGroup('members')
-          .where('userId', isEqualTo: userId)
-          .where('status', isEqualTo: 'active')
-          .get();
-
-      if (memberQuery.docs.isEmpty) return <CommunityModel>[];
-
-      final communityIds = memberQuery.docs
-          .map((doc) => doc.reference.parent.parent!.id)
-          .toSet()
-          .toList();
-
-      final communities = <CommunityModel>[];
-      for (final id in communityIds) {
-        final doc = await _firestore.collection('communities').doc(id).get();
-        if (doc.exists) {
-          communities.add(CommunityModel.fromFirestore(doc));
-        }
-      }
-
-      communities.sort((a, b) {
-        final aTime = a.lastMessageAt ?? a.createdAt;
-        final bTime = b.lastMessageAt ?? b.createdAt;
-        return bTime.compareTo(aTime);
-      });
-
-      return communities;
+      // Fallback without collectionGroup scans.
+      return _getMyCommunitiesByMemberDocs(userId);
     } catch (e) {
-      return [];
+      return _getMyCommunitiesByMemberDocs(userId);
     }
   }
 
@@ -1105,7 +1034,7 @@ class CommunityService {
       final snapshot = await query.get();
       return snapshot.docs
           .map((doc) => CommunityMessageModel.fromFirestore(doc))
-          .where((m) => !(m.isDeleted ?? false)) // Exclude deleted messages
+          .where((m) => !m.isDeleted) // Exclude deleted messages
           .toList();
     } catch (e) {
       return [];
@@ -1163,7 +1092,7 @@ class CommunityService {
 
       final messages = snap.docs
           .map((doc) => CommunityMessageModel.fromFirestore(doc))
-          .where((m) => !(m.isDeleted ?? false)) // Exclude deleted messages
+          .where((m) => !m.isDeleted) // Exclude deleted messages
           .where(matches)
           .toList();
 

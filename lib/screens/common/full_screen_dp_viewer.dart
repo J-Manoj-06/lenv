@@ -55,6 +55,7 @@ class _FullScreenDPViewerState extends State<FullScreenDPViewer>
   late AnimationController _dragController;
   double _dragOffset = 0.0;
   double _opacity = 1.0;
+  bool _isZoomed = false;
 
   @override
   void initState() {
@@ -77,6 +78,7 @@ class _FullScreenDPViewerState extends State<FullScreenDPViewer>
   }
 
   void _onVerticalDragUpdate(DragUpdateDetails details) {
+    if (_isZoomed) return;
     setState(() {
       _dragOffset += details.delta.dy;
       // Fade out while dragging down
@@ -85,6 +87,7 @@ class _FullScreenDPViewerState extends State<FullScreenDPViewer>
   }
 
   void _onVerticalDragEnd(DragEndDetails details) {
+    if (_isZoomed) return;
     if (_dragOffset > 80 ||
         details.primaryVelocity != null && details.primaryVelocity! > 500) {
       Navigator.of(context).pop();
@@ -173,8 +176,27 @@ class _FullScreenDPViewerState extends State<FullScreenDPViewer>
   Widget _buildImageViewer() {
     return PhotoView(
       imageProvider: CachedNetworkImageProvider(widget.imageUrl),
+      initialScale: PhotoViewComputedScale.contained,
       minScale: PhotoViewComputedScale.contained,
       maxScale: PhotoViewComputedScale.covered * 3,
+      basePosition: Alignment.center,
+      enablePanAlways: false,
+      tightMode: true,
+      scaleStateChangedCallback: (state) {
+        final zoomed =
+            state == PhotoViewScaleState.zoomedIn ||
+            state == PhotoViewScaleState.covering ||
+            state == PhotoViewScaleState.originalSize;
+        if (mounted && _isZoomed != zoomed) {
+          setState(() {
+            _isZoomed = zoomed;
+            if (!zoomed) {
+              _dragOffset = 0.0;
+              _opacity = 1.0;
+            }
+          });
+        }
+      },
       backgroundDecoration: const BoxDecoration(color: Colors.black),
       loadingBuilder: (context, event) => Center(
         child: CircularProgressIndicator(
