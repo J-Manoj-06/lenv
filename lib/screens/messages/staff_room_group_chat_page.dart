@@ -3332,44 +3332,30 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
         // Normal input UI
         final hintColor = isDark ? Colors.white60 : const Color(0xFF94A3B8);
 
+        final inputBgColor = isDark
+            ? const Color(0xFF1E293B)
+            : const Color(0xFFF8FAFC);
+
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            border: isDark
-                ? null
-                : const Border(
-                    top: BorderSide(color: Color(0xFFE2E8F0), width: 0.5),
-                  ),
-            boxShadow: isDark
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, -4),
-                    ),
-                  ]
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-          ),
           child: SafeArea(
             top: false,
             child: Row(
               children: [
-                // Text Input with emoji button inside
+                // Text input row: emoji -> message -> attachment
                 Expanded(
                   child: Container(
+                    constraints: const BoxConstraints(minHeight: 50),
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1F2C34)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(24),
+                      color: inputBgColor,
+                      borderRadius: BorderRadius.circular(28),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF334155)
+                            : const Color(0xFFE2E8F0),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -3428,20 +3414,25 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                             },
                           ),
                         ),
+                        ValueListenableBuilder<bool>(
+                          valueListenable: _isUploading,
+                          builder: (context, isUploading, _) {
+                            return IconButton(
+                              icon: Icon(
+                                Icons.attach_file_rounded,
+                                color: hintColor,
+                                size: 24,
+                              ),
+                              padding: const EdgeInsets.all(8),
+                              onPressed: isUploading
+                                  ? null
+                                  : _showAttachmentPicker,
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                ValueListenableBuilder<bool>(
-                  valueListenable: _isUploading,
-                  builder: (context, isUploading, _) {
-                    return IconButton(
-                      icon: Icon(Icons.attach_file, color: hintColor, size: 26),
-                      padding: const EdgeInsets.all(8),
-                      onPressed: isUploading ? null : _showAttachmentPicker,
-                    );
-                  },
                 ),
                 const SizedBox(width: 8),
                 // Mic/Send button
@@ -4762,6 +4753,7 @@ class _MessageBubbleState extends State<_MessageBubble>
                                         const SizedBox(height: 6),
                                         Align(
                                           alignment: Alignment.centerRight,
+                                          widthFactor: 1,
                                           child: Text(
                                             timeStr,
                                             style: TextStyle(
