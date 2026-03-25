@@ -62,6 +62,7 @@ class ForwardMessageService {
           senderName: senderName,
           senderRole: senderRole,
         );
+        return;
 
       case 'group':
         final classId = destination.metadata?['classId'] as String?;
@@ -79,6 +80,7 @@ class ForwardMessageService {
           senderName: senderName,
           senderRole: senderRole,
         );
+        return;
 
       case 'staff_room':
         await _forwardToStaffRoom(
@@ -88,6 +90,17 @@ class ForwardMessageService {
           senderName: senderName,
           senderRole: senderRole,
         );
+        return;
+
+      case 'parent_teacher_group':
+        await _forwardToParentTeacherGroup(
+          message: message,
+          groupId: destination.id,
+          senderId: senderId,
+          senderName: senderName,
+          senderRole: senderRole,
+        );
+        return;
 
       default:
         throw Exception('Unsupported destination type: ${destination.type}');
@@ -189,6 +202,56 @@ class ForwardMessageService {
     await _firestore
         .collection('staff_rooms')
         .doc(instituteId)
+        .collection('messages')
+        .add(map);
+  }
+
+  Future<void> _forwardToParentTeacherGroup({
+    required ForwardMessageData message,
+    required String groupId,
+    required String senderId,
+    required String senderName,
+    required String senderRole,
+  }) async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final base = message.toForwardedFirestoreMap(
+      newSenderId: senderId,
+      newSenderName: senderName,
+      newSenderRole: senderRole,
+    );
+
+    final map = <String, dynamic>{
+      'senderId': senderId,
+      'senderName': senderName,
+      'senderRole': senderRole,
+      'senderAvatar': '',
+      'type': base['type'] ?? message.messageType,
+      'content': base['message'] ?? message.text ?? '',
+      'imageUrl': base['imageUrl'] ?? '',
+      'fileUrl': '',
+      'fileName': message.fileName ?? '',
+      'mediaMetadata': base['mediaMetadata'],
+      'multipleMedia': base['multipleMedia'],
+      'timestamp': FieldValue.serverTimestamp(),
+      'createdAt': now,
+      'isEdited': false,
+      'isDeleted': false,
+      'isPinned': false,
+      'reactions': {},
+      'replyTo': '',
+      'replyCount': 0,
+      'isReported': false,
+      'reportCount': 0,
+      'forwarded': true,
+      'originalSenderId': message.originalSenderId,
+      'originalSenderName': message.originalSenderName,
+    };
+
+    map.removeWhere((key, value) => value == null);
+
+    await _firestore
+        .collection('parent_teacher_groups')
+        .doc(groupId)
         .collection('messages')
         .add(map);
   }

@@ -21,6 +21,7 @@ import '../../config/cloudflare_config.dart';
 import '../../models/community_message_model.dart';
 import '../../models/media_metadata.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/parent_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
 import '../../services/local_cache_service.dart';
 import '../../services/media_upload_service.dart';
@@ -1734,7 +1735,58 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     return 'file';
   }
 
-  ForwardMessageData _buildForwardDataForMessage(CommunityMessageModel msg) {
+  bool _hasMultipleLinkedChildren() {
+    try {
+      final parentProvider = Provider.of<ParentProvider>(
+        context,
+        listen: false,
+      );
+      return parentProvider.children.length > 1;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<ForwardDestination>>
+  _buildOtherChildrenForwardDestinations() async {
+    if (!_hasMultipleLinkedChildren()) return const <ForwardDestination>[];
+
+    final parentProvider = Provider.of<ParentProvider>(context, listen: false);
+    final seenGroupIds = <String>{};
+    final destinations = <ForwardDestination>[];
+
+    for (final child in parentProvider.children) {
+      if (child.uid == widget.childId) continue;
+
+      try {
+        final group = await _service.ensureGroupForChild(child: child);
+        if (group.id.isEmpty || group.id == widget.groupId) continue;
+        if (!seenGroupIds.add(group.id)) continue;
+
+        final sectionLabel = group.section.isNotEmpty
+            ? ' - ${group.section}'
+            : '';
+        destinations.add(
+          ForwardDestination(
+            id: group.id,
+            name: group.name,
+            type: 'parent_teacher_group',
+            subtitle: '${child.name} - ${group.className}$sectionLabel',
+            iconEmoji: '👨‍👩‍👧',
+            metadata: {'childId': child.uid, 'childName': child.name},
+          ),
+        );
+      } catch (_) {
+        // Skip failures for a specific child and continue.
+      }
+    }
+
+    return destinations;
+  }
+
+  ForwardMessageData? _buildForwardDataForMessage(CommunityMessageModel msg) {
+    if (!_hasMultipleLinkedChildren()) return null;
+
     return ForwardMessageData.fromRaw(
       messageId: msg.messageId,
       senderId: msg.senderId,
@@ -3614,6 +3666,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                               );
                                                                             }
                                                                             // ✅ Open full-screen viewer with zoom, pinch, and swipe
+                                                                            final availableDestinations =
+                                                                                await _buildOtherChildrenForwardDestinations();
                                                                             await _runWithoutInputFocus(
                                                                               () =>
                                                                                   Navigator.of(
@@ -3627,18 +3681,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                                             mediaList: updatedMediaList,
                                                                                             initialIndex: index,
                                                                                             localFilePaths: _localSenderMediaPaths,
-                                                                                            forwardMessage: ForwardMessageData.fromRaw(
-                                                                                              messageId: msg.messageId,
-                                                                                              senderId: msg.senderId,
-                                                                                              senderName: msg.senderName,
-                                                                                              rawData: _asStringDynamicMap(
-                                                                                                msg.documentSnapshot?.data(),
-                                                                                              ),
-                                                                                              imageUrl: msg.imageUrl,
-                                                                                              message: msg.content,
-                                                                                              mediaMetadata: msg.mediaMetadata,
-                                                                                              multipleMedia: displayMultipleMedia,
+                                                                                            forwardMessage: _buildForwardDataForMessage(
+                                                                                              msg,
                                                                                             ),
+                                                                                            availableForwardDestinations: availableDestinations,
                                                                                           ),
                                                                                     ),
                                                                                   ),
@@ -6195,6 +6241,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
   Future<bool> _canForwardSelectedMessages(Set<String> selectedIds) async {
     if (selectedIds.isEmpty) return false;
+    if (!_hasMultipleLinkedChildren()) return false;
+
+    final destinations = await _buildOtherChildrenForwardDestinations();
+    if (destinations.isEmpty) return false;
 
     for (final id in selectedIds) {
       final data = await _getMessageDataById(id);
@@ -6286,6 +6336,31 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     final ids = _selectedMessages.value.toList();
     if (ids.isEmpty) return;
 
+    if (!_hasMultipleLinkedChildren()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Forward is available only when more than one child is linked',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final destinations = await _buildOtherChildrenForwardDestinations();
+    if (destinations.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No other child parent-teacher group available to forward',
+          ),
+        ),
+      );
+      return;
+    }
+
     final canForward = await _canForwardSelectedMessages(Set<String>.from(ids));
     if (!canForward) {
       if (!mounted) return;
@@ -6312,7 +6387,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           senderName: data['senderName'] as String? ?? '',
           rawData: data,
           imageUrl: data['imageUrl'] as String?,
-          message: data['text'] as String? ?? '',
+          message: data['content'] as String? ?? data['text'] as String? ?? '',
           mediaMetadata: mediaMetaRaw is Map
               ? MediaMetadata.fromFirestore(
                   Map<String, dynamic>.from(mediaMetaRaw),
@@ -6339,7 +6414,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ForwardSelectionScreen(messages: forwardData),
+        builder: (_) => ForwardSelectionScreen(
+          messages: forwardData,
+          availableDestinations: destinations,
+          customSectionTitle: 'Other Children Groups',
+        ),
       ),
     );
   }
@@ -7128,12 +7207,14 @@ class _ImageGalleryViewer extends StatefulWidget {
   final int initialIndex;
   final Map<String, String> localFilePaths;
   final ForwardMessageData? forwardMessage;
+  final List<ForwardDestination>? availableForwardDestinations;
 
   const _ImageGalleryViewer({
     required this.mediaList,
     required this.initialIndex,
     required this.localFilePaths,
     this.forwardMessage,
+    this.availableForwardDestinations,
   });
 
   @override
@@ -7251,13 +7332,22 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
   Future<void> _forwardCurrentImage() async {
     if (_isActionBusy) return;
     final forwardMessage = widget.forwardMessage;
+    final destinations = widget.availableForwardDestinations;
     if (forwardMessage == null) {
       _showMessage('Forward unavailable for this image');
       return;
     }
+    if (destinations == null || destinations.isEmpty) {
+      _showMessage('No eligible parent-teacher group to forward');
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ForwardSelectionScreen(messages: [forwardMessage]),
+        builder: (_) => ForwardSelectionScreen(
+          messages: [forwardMessage],
+          availableDestinations: destinations,
+          customSectionTitle: 'Other Children Groups',
+        ),
       ),
     );
   }
@@ -7283,11 +7373,13 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
             tooltip: 'Download',
             onPressed: _isActionBusy ? null : _downloadCurrentImage,
           ),
-          IconButton(
-            icon: const Icon(Icons.forward_rounded, color: Colors.white),
-            tooltip: 'Forward',
-            onPressed: _isActionBusy ? null : _forwardCurrentImage,
-          ),
+          if (widget.forwardMessage != null &&
+              (widget.availableForwardDestinations?.isNotEmpty ?? false))
+            IconButton(
+              icon: const Icon(Icons.forward_rounded, color: Colors.white),
+              tooltip: 'Forward',
+              onPressed: _isActionBusy ? null : _forwardCurrentImage,
+            ),
           IconButton(
             icon: const Icon(Icons.share_rounded, color: Colors.white),
             tooltip: 'Share',

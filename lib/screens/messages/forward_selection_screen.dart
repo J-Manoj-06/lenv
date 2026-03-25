@@ -15,8 +15,15 @@ import 'teacher_group_chat_page.dart';
 /// and calls [ForwardMessageService] on confirmation.
 class ForwardSelectionScreen extends StatefulWidget {
   final List<ForwardMessageData> messages;
+  final List<ForwardDestination>? availableDestinations;
+  final String? customSectionTitle;
 
-  const ForwardSelectionScreen({super.key, required this.messages});
+  const ForwardSelectionScreen({
+    super.key,
+    required this.messages,
+    this.availableDestinations,
+    this.customSectionTitle,
+  });
 
   @override
   State<ForwardSelectionScreen> createState() => _ForwardSelectionScreenState();
@@ -53,7 +60,16 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    // Use post-frame so Provider is accessible
+    // Use caller-provided destinations when present (parent forward flow).
+    if (widget.availableDestinations != null) {
+      _destinations
+        ..clear()
+        ..addAll(widget.availableDestinations!);
+      _isLoading = false;
+      return;
+    }
+
+    // Use post-frame so Provider is accessible.
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadDestinations());
   }
 
@@ -484,6 +500,9 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
     final staffRooms = _destinations
         .where((d) => d.type == 'staff_room')
         .toList();
+    final parentTeacherGroups = _destinations
+        .where((d) => d.type == 'parent_teacher_group')
+        .toList();
 
     final sections = <_Section>[
       if (communities.isNotEmpty)
@@ -491,6 +510,11 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
       if (staffRooms.isNotEmpty)
         _Section(title: 'Staff Room', items: staffRooms),
       if (groups.isNotEmpty) _Section(title: 'Class Groups', items: groups),
+      if (parentTeacherGroups.isNotEmpty)
+        _Section(
+          title: widget.customSectionTitle ?? 'Parent-Teacher Groups',
+          items: parentTeacherGroups,
+        ),
     ];
 
     return ListView.builder(
