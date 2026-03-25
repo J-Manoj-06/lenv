@@ -384,6 +384,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     bool isDark,
     ParentProvider parentProvider,
   ) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -480,7 +482,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 14),
                 itemBuilder: (context, index) {
                   final item = items[index];
                   final group = item.group;
@@ -496,16 +498,31 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
                   return Container(
                     decoration: BoxDecoration(
-                      color: _cardColor(context),
-                      borderRadius: BorderRadius.circular(14),
+                      color: isDark
+                          ? Color.alphaBlend(
+                              parentGreen.withOpacity(0.06),
+                              _cardColor(context),
+                            )
+                          : _cardColor(context),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withOpacity(0.08)
-                            : Colors.black.withOpacity(0.05),
+                            ? Colors.white.withOpacity(0.10)
+                            : parentGreen.withOpacity(0.18),
+                        width: 1,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isDark
+                              ? parentGreen.withOpacity(0.08)
+                              : Colors.black.withOpacity(0.05),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(18),
                       onTap: () {
                         Navigator.pushNamed(
                           context,
@@ -522,76 +539,77 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                         );
                       },
                       child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: parentGreen.withOpacity(0.12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 90),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: parentGreen.withOpacity(0.18),
+                                ),
+                                child: const Icon(
+                                  Icons.chat_bubble_outline,
+                                  color: parentGreen,
+                                  size: 25,
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.chat_bubble_outline,
-                                color: parentGreen,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    title,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w700,
-                                      color: isDark
-                                          ? Colors.white
-                                          : _onBackground(context),
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    childLabel,
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      color: isDark
-                                          ? Colors.grey[400]
-                                          : Colors.grey[700],
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  if (group.lastMessage.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     Text(
-                                      group.lastMessage,
+                                      title,
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 16.5,
+                                        fontWeight: FontWeight.w600,
                                         color: isDark
-                                            ? Colors.grey[500]
-                                            : Colors.grey[600],
+                                            ? Colors.white
+                                            : _onBackground(context),
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      childLabel,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[700],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 5),
+                                    _buildLastMessagePreview(
+                                      isDark: isDark,
+                                      groupId: group.id,
+                                      currentUserId: currentUserId,
+                                      fallback: group.lastMessage,
+                                    ),
                                   ],
-                                ],
+                                ),
                               ),
-                            ),
-                            Icon(
-                              Icons.arrow_forward_ios,
-                              size: 15,
-                              color: isDark
-                                  ? Colors.grey[500]
-                                  : Colors.grey[600],
-                            ),
-                          ],
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                size: 18,
+                                color: isDark
+                                    ? Colors.grey[400]!.withOpacity(0.85)
+                                    : Colors.grey[600]!.withOpacity(0.85),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -603,6 +621,84 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildLastMessagePreview({
+    required bool isDark,
+    required String groupId,
+    required String? currentUserId,
+    required String fallback,
+  }) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('parent_teacher_groups')
+          .doc(groupId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        String preview = fallback.trim();
+
+        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+          final data = snapshot.data!.docs.first.data();
+          final senderId = (data['senderId'] ?? '').toString();
+          final body = _extractMessagePreview(data);
+          if (body.isNotEmpty) {
+            final sentByMe =
+                currentUserId != null &&
+                currentUserId.isNotEmpty &&
+                senderId == currentUserId;
+            preview = sentByMe ? 'You: $body' : body;
+          }
+        }
+
+        if (preview.isEmpty) {
+          preview = 'No messages yet';
+        }
+
+        return Text(
+          preview,
+          style: TextStyle(
+            fontSize: 11.5,
+            color: isDark ? Colors.grey[500] : Colors.grey[600],
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        );
+      },
+    );
+  }
+
+  String _extractMessagePreview(Map<String, dynamic> data) {
+    final candidates = <Object?>[
+      data['message'],
+      data['messageText'],
+      data['text'],
+      data['content'],
+      data['caption'],
+    ];
+
+    for (final candidate in candidates) {
+      final text = (candidate ?? '').toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+
+    final hasMultipleMedia =
+        data['multipleMedia'] is List &&
+        (data['multipleMedia'] as List).isNotEmpty;
+    if (hasMultipleMedia) return 'Photo';
+
+    final hasMediaUrl = (data['mediaUrl'] ?? '').toString().trim().isNotEmpty;
+    if (hasMediaUrl) {
+      final mediaType = (data['mediaType'] ?? '').toString().toLowerCase();
+      if (mediaType.contains('audio')) return 'Audio';
+      if (mediaType.contains('pdf')) return 'Document';
+      if (mediaType.contains('image')) return 'Photo';
+      return 'Attachment';
+    }
+
+    return '';
   }
 
   Widget _buildHeader(bool isDark, AuthProvider authProvider) {
