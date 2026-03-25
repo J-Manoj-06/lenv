@@ -4,8 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
+import '../../models/parent_teacher_group.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
+import '../../services/parent_teacher_group_service.dart';
 import '../../widgets/notification_bell_button.dart';
 import '../../widgets/pending_reward_popup.dart';
 import '../common/announcement_pageview_screen.dart';
@@ -24,6 +26,7 @@ class ParentDashboardScreen extends StatefulWidget {
 class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   // Parent green theme colors
   static const Color parentGreen = Color(0xFF14A670);
+  final ParentTeacherGroupService _ptGroupService = ParentTeacherGroupService();
 
   Color _scaffoldBg(BuildContext context) =>
       Theme.of(context).scaffoldBackgroundColor;
@@ -34,6 +37,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       Theme.of(context).colorScheme.onSurface;
 
   final PageController _childrenPageController = PageController();
+  Future<List<_SectionGroupDisplayItem>>? _allSectionGroupsFuture;
+  String _groupsSignature = '';
 
   // Flag to prevent popup from showing multiple times in same session
   bool _hasShownRewardPopup = false;
@@ -258,6 +263,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
         final currentChild = parentProvider.selectedChild!;
         final performanceStats = parentProvider.performanceStats;
+        _ensureAllSectionGroupsFuture(parentProvider.children);
 
         return Scaffold(
           backgroundColor: _scaffoldBg(context),
@@ -270,7 +276,15 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                 // Scrollable Content
                 Expanded(
                   child: RefreshIndicator(
-                    onRefresh: () => parentProvider.refresh(),
+                    onRefresh: () async {
+                      await parentProvider.refresh();
+                      if (!mounted) return;
+                      setState(() {
+                        _allSectionGroupsFuture = _loadAllSectionGroups(
+                          parentProvider.children,
+                        );
+                      });
+                    },
                     color: parentGreen,
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -287,8 +301,8 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
 
                           const SizedBox(height: 16),
 
-                          // Parent-Teacher Section Group Card
-                          _buildSectionGroupCard(isDark, parentProvider),
+                          // Parent-Teacher Section Groups
+                          _buildSectionGroupsSection(isDark, parentProvider),
 
                           const SizedBox(height: 16),
 
@@ -319,199 +333,274 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     );
   }
 
-  Widget _buildSectionGroupCard(bool isDark, ParentProvider parentProvider) {
-    final group = parentProvider.sectionGroup;
-    final isLoading = parentProvider.isLoadingSectionGroup;
-    final error = parentProvider.sectionGroupError;
-    final child = parentProvider.selectedChild;
+  void _ensureAllSectionGroupsFuture(List<StudentModel> children) {
+    final nextSignature = children
+        .map((c) => '${c.uid}|${c.className ?? ''}|${c.section ?? ''}')
+        .join('||');
+    if (_allSectionGroupsFuture != null && _groupsSignature == nextSignature) {
+      return;
+    }
+    _groupsSignature = nextSignature;
+    _allSectionGroupsFuture = _loadAllSectionGroups(children);
+  }
 
-    if (child == null) return const SizedBox.shrink();
+  Future<List<_SectionGroupDisplayItem>> _loadAllSectionGroups(
+    List<StudentModel> children,
+  ) async {
+    if (children.isEmpty) return const <_SectionGroupDisplayItem>[];
 
-    final fallbackTitle =
-        '${child.className ?? 'Class'} ${child.section ?? ''} Parents & Teachers'
-            .trim();
+    final Map<String, _SectionGroupDisplayItem> byGroupId =
+        <String, _SectionGroupDisplayItem>{};
 
+    for (final child in children) {
+      try {
+        final group = await _ptGroupService.ensureGroupForChild(child: child);
+        if (group.id.isEmpty) continue;
+
+        final existing = byGroupId[group.id];
+        if (existing == null) {
+          byGroupId[group.id] = _SectionGroupDisplayItem(
+            group: group,
+            representativeChildName: child.name,
+            representativeChildId: child.uid,
+            childNames: <String>{if (child.name.isNotEmpty) child.name},
+          );
+        } else {
+          if (child.name.isNotEmpty) {
+            existing.childNames.add(child.name);
+          }
+        }
+      } catch (_) {
+        // Skip failed child-group resolution and continue with remaining children.
+      }
+    }
+
+    final items = byGroupId.values.toList(growable: false)
+      ..sort((a, b) => a.group.name.compareTo(b.group.name));
+    return items;
+  }
+
+  Widget _buildSectionGroupsSection(
+    bool isDark,
+    ParentProvider parentProvider,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF14A670), Color(0xFF0F8A5A)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: parentGreen.withOpacity(0.35),
-              blurRadius: 18,
-              spreadRadius: 1,
-              offset: const Offset(0, 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Parent & Teacher Groups',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : _onBackground(context),
+              ),
             ),
-          ],
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: (group == null || isLoading || error != null)
-              ? null
-              : () {
-                  Navigator.pushNamed(
-                    context,
-                    '/parent/section-group-chat',
-                    arguments: {
-                      'groupId': group.id,
-                      'groupName': group.name.isNotEmpty
-                          ? group.name
-                          : fallbackTitle,
-                      'className': group.className,
-                      'section': group.section,
-                      'schoolCode': group.schoolCode,
-                      'childName': child.name,
-                      'childId': child.uid,
-                    },
-                  );
-                },
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.18),
-                      ),
-                      child: const Icon(
-                        Icons.chat_bubble_outline,
-                        color: Colors.white,
-                        size: 24,
-                      ),
+          ),
+          FutureBuilder<List<_SectionGroupDisplayItem>>(
+            future: _allSectionGroupsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _cardColor(context),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            group?.name.isNotEmpty == true
-                                ? group!.name
-                                : fallbackTitle,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Chat with teachers and parents of this section',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white.withOpacity(0.9),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.arrow_forward_ios,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (isLoading)
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Preparing your section group…',
-                        style: TextStyle(
-                          color: isDark ? Colors.white : _onBackground(context),
-                        ),
-                      ),
-                    ],
-                  )
-                else if (error != null)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _cardColor(context),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
                     children: [
                       Icon(Icons.error_outline, color: Colors.red[400]),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Text(
+                          'Could not load groups',
+                          style: TextStyle(
+                            color: isDark
+                                ? Colors.white
+                                : _onBackground(context),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _allSectionGroupsFuture = _loadAllSectionGroups(
+                              parentProvider.children,
+                            );
+                          });
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              final items = snapshot.data ?? const <_SectionGroupDisplayItem>[];
+              if (items.isEmpty) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _cardColor(context),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'No groups available',
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[300] : Colors.grey[700],
+                      fontSize: 14,
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final item = items[index];
+                  final group = item.group;
+                  final fallbackTitle =
+                      '${group.className.isNotEmpty ? group.className : 'Class'} ${group.section}'
+                          .trim();
+                  final title = group.name.isNotEmpty
+                      ? group.name
+                      : '$fallbackTitle Parents & Teachers';
+                  final childLabel = item.childNames.length > 1
+                      ? 'For ${item.childNames.join(', ')}'
+                      : 'Class: ${group.className}${group.section.isNotEmpty ? '-${group.section}' : ''} • ${item.representativeChildName}';
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: _cardColor(context),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.white.withOpacity(0.08)
+                            : Colors.black.withOpacity(0.05),
+                      ),
+                    ),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/parent/section-group-chat',
+                          arguments: {
+                            'groupId': group.id,
+                            'groupName': title,
+                            'className': group.className,
+                            'section': group.section,
+                            'schoolCode': group.schoolCode,
+                            'childName': item.representativeChildName,
+                            'childId': item.representativeChildId,
+                          },
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
                           children: [
-                            Text(
-                              'Could not load section group',
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.white
-                                    : _onBackground(context),
-                                fontWeight: FontWeight.w600,
+                            Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: parentGreen.withOpacity(0.12),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              error,
-                              style: TextStyle(
-                                color: isDark
-                                    ? Colors.grey[400]
-                                    : Colors.grey[700],
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextButton.icon(
-                              onPressed: () =>
-                                  parentProvider.loadSectionGroup(child),
-                              icon: const Icon(
-                                Icons.refresh,
+                              child: const Icon(
+                                Icons.chat_bubble_outline,
                                 color: parentGreen,
+                                size: 22,
                               ),
-                              label: const Text(
-                                'Retry',
-                                style: TextStyle(color: parentGreen),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark
+                                          ? Colors.white
+                                          : _onBackground(context),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    childLabel,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: isDark
+                                          ? Colors.grey[400]
+                                          : Colors.grey[700],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (group.lastMessage.isNotEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      group.lastMessage,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isDark
+                                            ? Colors.grey[500]
+                                            : Colors.grey[600],
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
                               ),
+                            ),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 15,
+                              color: isDark
+                                  ? Colors.grey[500]
+                                  : Colors.grey[600],
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  )
-                else
-                  Text(
-                    (group != null && group.lastMessage.isNotEmpty)
-                        ? group.lastMessage
-                        : 'Say hello to teachers and fellow parents of ${child.className ?? ''}${child.section != null ? ' - ${child.section}' : ''}',
-                    style: TextStyle(
-                      color: isDark ? Colors.grey[300] : Colors.grey[800],
-                      fontSize: 14,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
+                  );
+                },
+              );
+            },
           ),
-        ),
+        ],
       ),
     );
   }
@@ -1622,4 +1711,18 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
       ],
     );
   }
+}
+
+class _SectionGroupDisplayItem {
+  final ParentTeacherGroup group;
+  final String representativeChildName;
+  final String representativeChildId;
+  final Set<String> childNames;
+
+  _SectionGroupDisplayItem({
+    required this.group,
+    required this.representativeChildName,
+    required this.representativeChildId,
+    required this.childNames,
+  });
 }
