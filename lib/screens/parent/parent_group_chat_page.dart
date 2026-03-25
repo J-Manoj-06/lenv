@@ -3125,27 +3125,12 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             m.senderId != currentUserId,
                       )
                       .length;
-                  // Scroll to first unread on initial open
+                  // Do not auto-jump on open; keep user at latest message position.
                   if (_showUnreadDivider &&
                       _lastReadAt != null &&
                       unreadDividerIndex != null &&
                       !_hasScrolledToUnread) {
                     _hasScrolledToUnread = true;
-                    final targetIdx = unreadDividerIndex;
-                    final totalItems = displayMessages.length;
-                    WidgetsBinding.instance.addPostFrameCallback((_) async {
-                      await Future.delayed(const Duration(milliseconds: 300));
-                      if (!mounted || !scrollController.hasClients) return;
-                      final maxExtent =
-                          scrollController.position.maxScrollExtent;
-                      if (maxExtent <= 0) return;
-                      final target = (targetIdx / totalItems) * maxExtent;
-                      scrollController.animateTo(
-                        target.clamp(0.0, maxExtent),
-                        duration: const Duration(milliseconds: 400),
-                        curve: Curves.easeOut,
-                      );
-                    });
                   }
                   // ──────────────────────────────────────────────────────────
 
