@@ -767,10 +767,7 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _markMediaAsLoaded(announcementIndex);
           });
-          return Image(
-            image: imageProvider,
-            fit: BoxFit.contain,
-          );
+          return Image(image: imageProvider, fit: BoxFit.contain);
         },
         placeholder: (context, url) => Container(
           color: Colors.black,
