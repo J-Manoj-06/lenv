@@ -50,6 +50,10 @@ class ChildProfileScreen extends StatelessWidget {
 
     final performanceStats = parentProvider.performanceStats;
     final attendance = parentProvider.attendance;
+    final testsAttended =
+        (performanceStats['completedTests'] as int?) ??
+        (performanceStats['totalTests'] as int?) ??
+        parentProvider.testResults.length;
 
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
@@ -81,6 +85,14 @@ class ChildProfileScreen extends StatelessWidget {
           children: [
             // Profile Header Card
             _buildProfileHeader(isDark, child),
+            const SizedBox(height: 16),
+
+            // Quick Stats
+            _buildQuickStats(
+              isDark: isDark,
+              rewardPoints: child.rewardPoints,
+              testsAttended: testsAttended,
+            ),
             const SizedBox(height: 16),
 
             // Academic Overview Card
@@ -257,6 +269,106 @@ class ChildProfileScreen extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStats({
+    required bool isDark,
+    required int rewardPoints,
+    required int testsAttended,
+  }) {
+    final cardBackground = isDark ? const Color(0xFF1F1F1F) : cardBg;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildQuickStatCard(
+            isDark: isDark,
+            title: 'Reward Points',
+            value: rewardPoints.toString(),
+            icon: Icons.stars_rounded,
+            glowColor: const Color(0xFFFFB703),
+            iconBackground: const Color(0xFFFFB703),
+            backgroundColor: cardBackground,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildQuickStatCard(
+            isDark: isDark,
+            title: 'Tests Attended',
+            value: testsAttended.toString(),
+            icon: Icons.fact_check_rounded,
+            glowColor: parentGreen,
+            iconBackground: parentGreen,
+            backgroundColor: cardBackground,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickStatCard({
+    required bool isDark,
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color glowColor,
+    required Color iconBackground,
+    required Color backgroundColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.10)
+              : glowColor.withOpacity(0.16),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: glowColor.withOpacity(isDark ? 0.10 : 0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: iconBackground.withOpacity(0.18),
+            ),
+            child: Icon(icon, size: 20, color: iconBackground),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.grey[300] : Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : textPrimary,
+              height: 1,
+            ),
+          ),
         ],
       ),
     );

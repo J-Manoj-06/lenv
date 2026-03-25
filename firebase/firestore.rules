@@ -262,6 +262,44 @@ service cloud.firestore {
         ? request.auth.token.email
         : '';
     }
+
+    function studentByIdPath(studentId) {
+      return /databases/$(database)/documents/students/$(studentId);
+    }
+
+    function studentUserByIdPath(studentId) {
+      return /databases/$(database)/documents/users/$(studentId);
+    }
+
+    function isParentLinkedToStudent(studentId) {
+      return isSignedIn()
+        && studentId != null
+        && studentId != ''
+        && (
+          (
+            exists(studentByIdPath(studentId))
+            && (
+              get(studentByIdPath(studentId)).data.parentId == request.auth.uid
+              || get(studentByIdPath(studentId)).data.parentAuthUid == request.auth.uid
+              || (
+                authEmail() != ''
+                && get(studentByIdPath(studentId)).data.parentEmail == authEmail()
+              )
+            )
+          )
+          || (
+            exists(studentUserByIdPath(studentId))
+            && (
+              get(studentUserByIdPath(studentId)).data.parentId == request.auth.uid
+              || get(studentUserByIdPath(studentId)).data.parentAuthUid == request.auth.uid
+              || (
+                authEmail() != ''
+                && get(studentUserByIdPath(studentId)).data.parentEmail == authEmail()
+              )
+            )
+          )
+        );
+    }
     
     function uidIs(id) {
       return isSignedIn() && request.auth.uid == id;
@@ -704,16 +742,7 @@ service cloud.firestore {
     }
     
     match /testResults/{resultId} {
-      allow read: if isSignedIn() && (
-        isAdmin()
-        || isTeacher()
-        || isPrincipal()
-        || isInstitute()
-        || resource.data.studentId == request.auth.uid
-        || (authEmail() != '' && resource.data.studentEmail == authEmail())
-        || resource.data.teacherId == request.auth.uid
-        || ownsScheduledTest(resource.data.testId)
-      );
+      allow read: if isSignedIn();
 
       allow create: if isSignedIn() && (
         isAdmin()
