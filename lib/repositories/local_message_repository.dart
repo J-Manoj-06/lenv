@@ -276,7 +276,8 @@ class LocalMessageRepository {
       // ✅ FIXED: Include messages with EITHER multipleMedia OR single attachment
       final hasContent =
           (msg.multipleMedia != null && msg.multipleMedia!.isNotEmpty) ||
-          (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty);
+          (msg.attachmentUrl != null && msg.attachmentUrl!.isNotEmpty) ||
+          (msg.messageText != null && msg.messageText!.trim().isNotEmpty);
 
       if (matches && !hasContent) {}
 

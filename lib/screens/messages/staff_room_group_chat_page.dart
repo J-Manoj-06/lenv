@@ -97,6 +97,8 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   final List<Map<String, dynamic>> _pendingMessages = [];
   final Set<String> _uploadingMessageIds = {};
   final Set<String> _failedMessageIds = {};
+  int _pendingTextSequence = 0;
+  final Set<String> _sendingTextMessageIds = {};
   final Map<String, double> _pendingUploadProgress = {};
   // Hide deleted messages immediately while backend operations complete.
   final Set<String> _optimisticallyDeletedMessageIds = {};
@@ -155,7 +157,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
       online,
     ) {
-      if (mounted) setState(() => _isOnline = online);
+      if (!mounted) return;
+      setState(() => _isOnline = online);
+      if (online) {
+        unawaited(_resumePendingTextMessages());
+      }
     });
     WidgetsBinding.instance.addObserver(this);
     _initMediaService();
@@ -229,7 +235,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _isInitialized) {
-      _loadPendingMessages().then((_) {});
+      _loadPendingMessages().then((_) {
+        if (_isOnline) {
+          unawaited(_resumePendingTextMessages());
+        }
+      });
     }
   }
 
@@ -373,6 +383,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     if (currentUser != null) {
       // Load pending messages from cache (survive navigation during upload)
       await _loadPendingMessages();
+      if (_isOnline) {
+        unawaited(_resumePendingTextMessages());
+      }
     }
 
     // Load from cache first (works offline even without auth)
@@ -483,6 +496,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   }
 
   void _retryUpload(String mediaId) {
+    if (_isPendingTextMessageId(mediaId)) {
+      unawaited(_retryPendingTextMessage(mediaId));
+      return;
+    }
+
     if (!mounted) return;
     setState(() {
       _failedMessageIds.remove(mediaId);
@@ -491,6 +509,133 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       _progressNotifiers[mediaId] = ValueNotifier<double>(0.0);
     });
     BackgroundUploadService().retryUpload(mediaId);
+  }
+
+  bool _isPendingTextMessageId(String messageId) {
+    final pending = _pendingMessages.where((m) => m['id'] == messageId);
+    if (pending.isEmpty) return false;
+
+    final msg = pending.first;
+    final text = (msg['text'] as String? ?? '').trim();
+    final hasMultipleMedia =
+        msg['multipleMedia'] is List &&
+        (msg['multipleMedia'] as List).isNotEmpty;
+    final hasSingleAttachment =
+        (msg['attachmentUrl'] as String?)?.isNotEmpty == true;
+
+    return text.isNotEmpty && !hasMultipleMedia && !hasSingleAttachment;
+  }
+
+  Future<void> _retryPendingTextMessage(String pendingId) async {
+    final pending = _pendingMessages.where((m) => m['id'] == pendingId);
+    if (pending.isEmpty) return;
+    await _sendPendingTextMessage(pending.first);
+  }
+
+  Future<void> _sendPendingTextMessage(
+    Map<String, dynamic> pendingMessage,
+  ) async {
+    final pendingId = pendingMessage['id'] as String?;
+    if (pendingId == null || pendingId.isEmpty) return;
+    if (_sendingTextMessageIds.contains(pendingId)) return;
+    _sendingTextMessageIds.add(pendingId);
+
+    if (mounted) {
+      setState(() {
+        _failedMessageIds.remove(pendingId);
+        _uploadingMessageIds.add(pendingId);
+      });
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null) {
+      _sendingTextMessageIds.remove(pendingId);
+      return;
+    }
+
+    final text = (pendingMessage['text'] as String? ?? '').trim();
+    final createdAt =
+        pendingMessage['createdAt'] as int? ??
+        DateTime.now().millisecondsSinceEpoch;
+
+    try {
+      final messageRef = await FirebaseFirestore.instance
+          .collection('staff_rooms')
+          .doc(widget.instituteId)
+          .collection('messages')
+          .add({
+            'text': text,
+            'senderId': currentUser.uid,
+            'senderName': currentUser.name,
+            'senderRole': currentUser.role.toString().split('.').last,
+            'timestamp': FieldValue.serverTimestamp(),
+            'createdAt': createdAt,
+          });
+
+      unawaited(
+        CloudflareNotificationService.sendGroupMessageNotification(
+          messageId: messageRef.id,
+          senderId: currentUser.uid,
+          senderName: currentUser.name,
+          senderRole: currentUser.role.toString().split('.').last,
+          groupType: 'staff_room',
+          groupId: widget.instituteId,
+          recipientIds: const <String>[],
+          content: text,
+          messageType: 'text',
+          groupName: '${widget.instituteName} Staff Room',
+          deepLinkRoute: '/staff-room-chat',
+          metadata: {
+            'instituteId': widget.instituteId,
+            'instituteName': widget.instituteName,
+            'schoolCode': currentUser.instituteId ?? widget.instituteId,
+          },
+        ).catchError((Object error) {
+          debugPrint('Cloudflare staff room notification failed: $error');
+          return false;
+        }),
+      );
+
+      if (mounted) {
+        setState(() {
+          _uploadingMessageIds.remove(pendingId);
+          _failedMessageIds.remove(pendingId);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _uploadingMessageIds.remove(pendingId);
+          _failedMessageIds.add(pendingId);
+        });
+      }
+    } finally {
+      _sendingTextMessageIds.remove(pendingId);
+    }
+  }
+
+  Future<void> _resumePendingTextMessages() async {
+    if (!_isOnline || !mounted) return;
+
+    final pendingTextMessages = _pendingMessages.where((msg) {
+      final messageId = msg['id'] as String? ?? '';
+      final text = (msg['text'] as String? ?? '').trim();
+      final hasMultipleMedia =
+          msg['multipleMedia'] is List &&
+          (msg['multipleMedia'] as List).isNotEmpty;
+      final hasSingleAttachment =
+          (msg['attachmentUrl'] as String?)?.isNotEmpty == true;
+
+      return text.isNotEmpty &&
+          !hasMultipleMedia &&
+          !hasSingleAttachment &&
+          !_failedMessageIds.contains(messageId);
+    }).toList();
+
+    for (final pending in pendingTextMessages) {
+      unawaited(_sendPendingTextMessage(pending));
+    }
   }
 
   Future<void> _loadPendingMessages() async {
@@ -1253,75 +1398,55 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
-    if (!_isOnline) {
-      _showOfflineSnackBar();
-      return;
-    }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
     if (currentUser == null) return;
 
-    try {
-      final messageRef = await FirebaseFirestore.instance
-          .collection('staff_rooms')
-          .doc(widget.instituteId)
-          .collection('messages')
-          .add({
-            'text': text,
-            'senderId': currentUser.uid,
-            'senderName': currentUser.name,
-            'senderRole': currentUser.role.toString().split('.').last,
-            'timestamp': FieldValue.serverTimestamp(),
-            'createdAt': DateTime.now().millisecondsSinceEpoch,
-          });
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final pendingId =
+        'text_${now}_${currentUser.uid.hashCode}_${_pendingTextSequence++}';
 
-      unawaited(
-        CloudflareNotificationService.sendGroupMessageNotification(
-          messageId: messageRef.id,
-          senderId: currentUser.uid,
-          senderName: currentUser.name,
-          senderRole: currentUser.role.toString().split('.').last,
-          groupType: 'staff_room',
-          groupId: widget.instituteId,
-          // Worker resolves staff room recipients server-side.
-          recipientIds: const <String>[],
-          content: text,
-          messageType: 'text',
-          groupName: '${widget.instituteName} Staff Room',
-          deepLinkRoute: '/staff-room-chat',
-          metadata: {
-            'instituteId': widget.instituteId,
-            'instituteName': widget.instituteName,
-            'schoolCode': currentUser.instituteId ?? widget.instituteId,
-          },
-        ).catchError((Object error) {
-          debugPrint('Cloudflare staff room notification failed: $error');
-          return false;
-        }),
-      );
+    final pendingMessage = {
+      'id': pendingId,
+      'text': text,
+      'senderId': currentUser.uid,
+      'senderName': currentUser.name,
+      'senderRole': currentUser.role.toString().split('.').last,
+      'createdAt': now,
+      'isPending': true,
+    };
 
-      _messageController.clear();
-      _hasText.value = false; // Update ValueNotifier instead of setState
+    if (mounted) {
+      setState(() {
+        _pendingMessages.insert(0, pendingMessage);
+        _uploadingMessageIds.add(pendingId);
+        _failedMessageIds.remove(pendingId);
+      });
+    }
 
-      // Scroll to bottom after sending only if user hasn't scrolled away
-      if (!_userHasScrolled) {
-        Future.delayed(const Duration(milliseconds: 100), () {
-          if (scrollController.hasClients) {
-            scrollController.animateTo(
-              0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
-          }
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
-      }
+    await _savePendingMessageToLocal(pendingId, pendingMessage, null, null);
+
+    _messageController.clear();
+    _hasText.value = false;
+
+    // Scroll to bottom after sending only if user hasn't scrolled away
+    if (!_userHasScrolled) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (scrollController.hasClients) {
+          scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
+
+    unawaited(_sendPendingTextMessage(pendingMessage));
+
+    if (!_isOnline) {
+      _showOfflineSnackBar();
     }
   }
 
@@ -2667,11 +2792,13 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
               );
               for (final id in pendingIdsToRemove) {
                 _uploadingMessageIds.remove(id);
+                _failedMessageIds.remove(id);
                 _pendingUploadProgress.remove(id);
                 _localFilePaths.remove(id);
                 _progressNotifiers[id]?.dispose();
                 _progressNotifiers.remove(id);
                 _messageCache.remove(id); // Remove from cache too
+                unawaited(_localRepo.deletePendingMessage(id));
               }
             });
           });
@@ -4086,6 +4213,13 @@ class _MessageBubbleState extends State<_MessageBubble>
         effectiveAttachmentUrl != null && effectiveAttachmentUrl.isNotEmpty;
     final hasMultipleMedia = multipleMedia != null && multipleMedia.isNotEmpty;
     final isPoll = widget.message['type'] == 'poll';
+    final isPendingTextOnly =
+        isPending &&
+        text.toString().trim().isNotEmpty &&
+        !hasAttachment &&
+        !hasMultipleMedia;
+    final isTextSendFailed =
+        isPendingTextOnly && widget.failedMessageIds.contains(messageId);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4508,6 +4642,63 @@ class _MessageBubbleState extends State<_MessageBubble>
                                                     ?.color,
                                         ),
                                       ),
+                                    if (isPendingTextOnly) ...[
+                                      const SizedBox(height: 4),
+                                      GestureDetector(
+                                        onTap: isTextSendFailed
+                                            ? () => widget.onRetry?.call(
+                                                messageId,
+                                              )
+                                            : null,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              isTextSendFailed
+                                                  ? Icons.error_outline_rounded
+                                                  : Icons.schedule_rounded,
+                                              size: 12,
+                                              color: isTextSendFailed
+                                                  ? Colors.redAccent
+                                                  : (widget.isMe
+                                                        ? Colors.white
+                                                              .withOpacity(0.72)
+                                                        : theme
+                                                              .textTheme
+                                                              .bodyMedium
+                                                              ?.color
+                                                              ?.withOpacity(
+                                                                0.65,
+                                                              )),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              isTextSendFailed
+                                                  ? 'Tap to retry'
+                                                  : 'Sending...',
+                                              style: TextStyle(
+                                                color: isTextSendFailed
+                                                    ? Colors.redAccent
+                                                    : (widget.isMe
+                                                          ? Colors.white
+                                                                .withOpacity(
+                                                                  0.72,
+                                                                )
+                                                          : theme
+                                                                .textTheme
+                                                                .bodyMedium
+                                                                ?.color
+                                                                ?.withOpacity(
+                                                                  0.65,
+                                                                )),
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(height: 4),
                                     Text(
                                       timeStr,

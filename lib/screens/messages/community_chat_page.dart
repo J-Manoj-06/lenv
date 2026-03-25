@@ -225,6 +225,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
   // Track last upload timestamp to maintain message order
   int _lastUploadTimestamp = 0;
+  int _pendingTextSequence = 0;
+  final Set<String> _sendingTextMessageIds = {};
 
   @override
   void initState() {
@@ -237,7 +239,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
       online,
     ) {
-      if (mounted) setState(() => _isOnline = online);
+      if (mounted) {
+        setState(() => _isOnline = online);
+        if (online) {
+          unawaited(_resumePendingTextMessages());
+        }
+      }
     });
     WidgetsBinding.instance.addObserver(this);
 
@@ -838,6 +845,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   }
 
   void _retryUpload(String mediaId) {
+    if (_isPendingTextMessageId(mediaId)) {
+      _retryPendingTextMessage(mediaId);
+      return;
+    }
+
     if (!mounted) return;
     setState(() {
       _failedMessageIds.remove(mediaId);
@@ -846,6 +858,82 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       _progressNotifiers[mediaId] = ValueNotifier<double>(0.0);
     });
     BackgroundUploadService().retryUpload(mediaId);
+  }
+
+  bool _isPendingTextMessageId(String messageId) {
+    final pending = _pendingMessages.where((m) => m.id == messageId);
+    if (pending.isEmpty) return false;
+    final msg = pending.first;
+    return msg.message.trim().isNotEmpty &&
+        msg.mediaMetadata == null &&
+        (msg.multipleMedia == null || msg.multipleMedia!.isEmpty) &&
+        (msg.imageUrl == null || msg.imageUrl!.isEmpty);
+  }
+
+  Future<void> _retryPendingTextMessage(String pendingId) async {
+    final pendingMsg = _pendingMessages.where((m) => m.id == pendingId);
+    if (pendingMsg.isEmpty) return;
+    await _sendPendingTextMessage(pendingMsg.first);
+  }
+
+  Future<void> _sendPendingTextMessage(GroupChatMessage pendingMessage) async {
+    final pendingId = pendingMessage.id;
+    if (_sendingTextMessageIds.contains(pendingId)) return;
+    _sendingTextMessageIds.add(pendingId);
+
+    if (mounted) {
+      setState(() {
+        _failedMessageIds.remove(pendingId);
+        _uploadingMessageIds.add(pendingId);
+      });
+    }
+
+    try {
+      final sendingMessage = GroupChatMessage(
+        id: '',
+        senderId: pendingMessage.senderId,
+        senderName: pendingMessage.senderName,
+        message: pendingMessage.message,
+        timestamp: pendingMessage.timestamp,
+      );
+
+      await _messagingService.sendCommunityMessage(
+        widget.communityId,
+        sendingMessage,
+      );
+
+      if (mounted) {
+        setState(() {
+          _uploadingMessageIds.remove(pendingId);
+          _failedMessageIds.remove(pendingId);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _uploadingMessageIds.remove(pendingId);
+          _failedMessageIds.add(pendingId);
+        });
+      }
+    } finally {
+      _sendingTextMessageIds.remove(pendingId);
+    }
+  }
+
+  Future<void> _resumePendingTextMessages() async {
+    if (!_isOnline || !mounted) return;
+
+    final textPending = _pendingMessages.where((m) {
+      return m.message.trim().isNotEmpty &&
+          m.mediaMetadata == null &&
+          (m.multipleMedia == null || m.multipleMedia!.isEmpty) &&
+          (m.imageUrl == null || m.imageUrl!.isEmpty) &&
+          !_failedMessageIds.contains(m.id);
+    }).toList();
+
+    for (final msg in textPending) {
+      unawaited(_sendPendingTextMessage(msg));
+    }
   }
 
   Future<void> _loadPendingMessages() async {
@@ -994,9 +1082,24 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 }
               }
             }
+          } else if ((msg.messageText ?? '').trim().isNotEmpty) {
+            _pendingMessages.insert(
+              0,
+              GroupChatMessage(
+                id: msg.messageId.startsWith('pending:')
+                    ? msg.messageId
+                    : 'pending:${msg.messageId}',
+                senderId: msg.senderId,
+                senderName: msg.senderName,
+                message: msg.messageText ?? '',
+                timestamp: msg.timestamp,
+              ),
+            );
           }
         }
       });
+
+      unawaited(_resumePendingTextMessages());
     }
   }
 
@@ -1278,15 +1381,37 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   Future<void> _sendMessage({String? imageUrl}) async {
     final text = _messageController.text.trim();
     if (text.isEmpty && imageUrl == null) return;
-    if (!_isOnline && imageUrl == null) {
-      _showOfflineSnackBar();
-      return;
-    }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
 
     if (currentUser == null) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final pendingBaseId =
+        'text_${now}_${currentUser.uid.hashCode}_${_pendingTextSequence++}';
+    final pendingId = 'pending:$pendingBaseId';
+
+    final pendingMessage = GroupChatMessage(
+      id: pendingId,
+      senderId: currentUser.uid,
+      senderName: currentUser.name,
+      message: text,
+      imageUrl: imageUrl,
+      timestamp: now,
+    );
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      _uploadingMessageIds.add(pendingId);
+      _failedMessageIds.remove(pendingId);
+    });
+
+    await _savePendingMessageToLocal({
+      'messageId': pendingId,
+      'text': text,
+      'timestamp': now,
+    });
 
     // Clear input immediately for instant feedback
     _messageController.clear();
@@ -1294,25 +1419,37 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Keep keyboard open after clearing text
     _messageFocusNode.requestFocus();
 
-    try {
-      final message = GroupChatMessage(
-        id: '',
-        senderId: currentUser.uid,
-        senderName: currentUser.name,
-        message: text,
-        imageUrl: imageUrl,
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-      );
-
-      // Send without blocking UI
-      _messagingService.sendCommunityMessage(widget.communityId, message);
-      // Don't auto-scroll - let user stay where they are
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+    // Legacy single-image path: keep existing direct send behavior.
+    if (imageUrl != null) {
+      try {
+        final directMessage = GroupChatMessage(
+          id: '',
+          senderId: currentUser.uid,
+          senderName: currentUser.name,
+          message: text,
+          imageUrl: imageUrl,
+          timestamp: now,
+        );
+        await _messagingService.sendCommunityMessage(
+          widget.communityId,
+          directMessage,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+        }
       }
+      return;
+    }
+
+    _scrollToBottom(force: true);
+
+    unawaited(_sendPendingTextMessage(pendingMessage));
+
+    if (!_isOnline) {
+      _showOfflineSnackBar();
     }
   }
 
@@ -2458,6 +2595,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             _progressNotifiers[mediaId]?.dispose();
                             _progressNotifiers.remove(mediaId);
                           }
+                          _uploadingMessageIds.remove(pendingMsg.id);
+                          _failedMessageIds.remove(pendingMsg.id);
+                          _pendingUploadProgress.remove(pendingMsg.id);
                           return true; // Remove pending message
                         }
 
@@ -2551,6 +2691,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             hasMatchingAttachment ||
                             (!isMediaMessage &&
                                 firestoreMessages.any((fsMsg) {
+                                  final sameText =
+                                      fsMsg.message.trim() ==
+                                      pendingMsg.message.trim();
                                   final senderMatch =
                                       fsMsg.senderId == pendingMsg.senderId;
                                   final diff =
@@ -2562,6 +2705,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                     'pending:',
                                   );
                                   return senderMatch &&
+                                      sameText &&
                                       timeMatch &&
                                       isNotPending;
                                 }));
@@ -2594,6 +2738,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             _progressNotifiers[mediaId]?.dispose();
                             _progressNotifiers.remove(mediaId);
                           }
+                          _uploadingMessageIds.remove(pendingMsg.id);
+                          _failedMessageIds.remove(pendingMsg.id);
+                          _pendingUploadProgress.remove(pendingMsg.id);
 
                           pendingIdsToRemove.add(pendingMsg.id);
                           return true;
@@ -2626,6 +2773,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                               (m) => pendingIdsToRemove.contains(m.id),
                             );
                           });
+
+                          for (final pendingId in pendingIdsToRemove) {
+                            final cacheId = pendingId.replaceFirst(
+                              'pending:',
+                              '',
+                            );
+                            unawaited(_localRepo.deletePendingMessage(cacheId));
+                          }
                         });
                       }
 
@@ -4079,6 +4234,18 @@ class _MessageBubble extends StatelessWidget {
     final themeColor = _getRoleThemeColor(userRole);
     final bubbleColor = isMe ? themeColor : const Color(0xFF2A2A2A);
     final textColor = Colors.white;
+    final isPendingTextOnly =
+        message.id.startsWith('pending:') &&
+        message.message.trim().isNotEmpty &&
+        message.mediaMetadata == null &&
+        (message.multipleMedia == null || message.multipleMedia!.isEmpty) &&
+        (message.imageUrl == null || message.imageUrl!.isEmpty);
+    final isTextSendFailed =
+        isPendingTextOnly && failedMessageIds.contains(message.id);
+    final isTextSending =
+        isPendingTextOnly &&
+        uploadingMessageIds.contains(message.id) &&
+        !isTextSendFailed;
 
     // DEBUG: Log message rendering details
     if (message.id.startsWith('pending:')) {}
@@ -4230,60 +4397,96 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ],
                 ] else ...[
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal:
-                          (message.mediaMetadata != null ||
-                                  message.imageUrl != null) &&
-                              message.message.isEmpty
-                          ? 6
-                          : 16,
-                      vertical:
-                          (message.mediaMetadata != null ||
-                                  message.imageUrl != null) &&
-                              message.message.isEmpty
-                          ? 0
-                          : 10,
-                    ),
-                    decoration: BoxDecoration(
-                      // FIXED: Use transparent background when media-only to avoid teal showing around MediaPreviewCard
-                      color:
-                          (message.mediaMetadata != null ||
-                                  message.imageUrl != null) &&
-                              message.message.isEmpty
-                          ? Colors.transparent
-                          : bubbleColor,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(16),
-                        topRight: const Radius.circular(16),
-                        bottomLeft: Radius.circular(isMe ? 16 : 4),
-                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                  Opacity(
+                    opacity: isTextSending ? 0.88 : 1,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal:
+                            (message.mediaMetadata != null ||
+                                    message.imageUrl != null) &&
+                                message.message.isEmpty
+                            ? 6
+                            : 16,
+                        vertical:
+                            (message.mediaMetadata != null ||
+                                    message.imageUrl != null) &&
+                                message.message.isEmpty
+                            ? 0
+                            : 10,
+                      ),
+                      decoration: BoxDecoration(
+                        // FIXED: Use transparent background when media-only to avoid teal showing around MediaPreviewCard
+                        color:
+                            (message.mediaMetadata != null ||
+                                    message.imageUrl != null) &&
+                                message.message.isEmpty
+                            ? Colors.transparent
+                            : bubbleColor,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(16),
+                          topRight: const Radius.circular(16),
+                          bottomLeft: Radius.circular(isMe ? 16 : 4),
+                          bottomRight: Radius.circular(isMe ? 4 : 16),
+                        ),
+                      ),
+                      child: Builder(
+                        builder: (context) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (message.mediaMetadata != null) ...[
+                                _buildMetadataAttachment(
+                                  context,
+                                  message.mediaMetadata!,
+                                ),
+                                if (message.message.isNotEmpty)
+                                  const SizedBox(height: 8),
+                              ] else if (message.imageUrl != null) ...[
+                                _buildLegacyAttachment(context, message),
+                                if (message.message.isNotEmpty)
+                                  const SizedBox(height: 8),
+                              ],
+                              if (message.message.isNotEmpty)
+                                _buildLinkifiedText(textColor),
+                            ],
+                          );
+                        },
                       ),
                     ),
-                    child: Builder(
-                      builder: (context) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (message.mediaMetadata != null) ...[
-                              _buildMetadataAttachment(
-                                context,
-                                message.mediaMetadata!,
-                              ),
-                              if (message.message.isNotEmpty)
-                                const SizedBox(height: 8),
-                            ] else if (message.imageUrl != null) ...[
-                              _buildLegacyAttachment(context, message),
-                              if (message.message.isNotEmpty)
-                                const SizedBox(height: 8),
-                            ],
-                            if (message.message.isNotEmpty)
-                              _buildLinkifiedText(textColor),
-                          ],
-                        );
-                      },
-                    ),
                   ),
+                  if (isPendingTextOnly) ...[
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: isTextSendFailed
+                          ? () => onRetry?.call(message.id)
+                          : null,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isTextSendFailed
+                                ? Icons.error_outline_rounded
+                                : Icons.schedule_rounded,
+                            size: 12,
+                            color: isTextSendFailed
+                                ? Colors.redAccent
+                                : Colors.white54,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isTextSendFailed ? 'Tap to retry' : 'Sending...',
+                            style: TextStyle(
+                              color: isTextSendFailed
+                                  ? Colors.redAccent
+                                  : Colors.white54,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 4),
                 Text(

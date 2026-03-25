@@ -146,6 +146,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   // ── Failed-upload state (for retry button) ────────────────────────────
   final Map<String, String> _failedUploadLocalPaths = {};
   final Map<String, String> _failedUploadMimeTypes = {};
+  int _pendingTextSequence = 0;
+  final Set<String> _sendingTextMessageIds = <String>{};
+  final Set<String> _failedPendingTextMessageIds = <String>{};
 
   // Poll cached progress while uploads continue in background
   Timer? _progressPollTimer;
@@ -555,6 +558,108 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           keys.contains(key) ||
           (baseId.isNotEmpty && key.startsWith(legacyPrefix)),
     );
+    _sendingTextMessageIds.remove(pendingMsg.messageId);
+    _failedPendingTextMessageIds.remove(pendingMsg.messageId);
+  }
+
+  bool _isPendingTextMessage(CommunityMessageModel msg) {
+    return msg.messageId.startsWith('pending:') &&
+        msg.content.trim().isNotEmpty &&
+        msg.mediaMetadata == null &&
+        (msg.multipleMedia == null || msg.multipleMedia!.isEmpty) &&
+        msg.imageUrl.isEmpty &&
+        msg.fileUrl.isEmpty;
+  }
+
+  Future<void> _retryPendingTextMessage(String pendingMessageId) async {
+    final pendingMessage = _pendingMessages.firstWhere(
+      (m) => m.messageId == pendingMessageId,
+      orElse: () => CommunityMessageModel(
+        messageId: '',
+        communityId: '',
+        senderId: '',
+        senderName: '',
+        senderRole: '',
+        senderAvatar: '',
+        type: 'text',
+        content: '',
+        imageUrl: '',
+        fileUrl: '',
+        fileName: '',
+        createdAt: DateTime.now(),
+        isEdited: false,
+        isDeleted: false,
+        isPinned: false,
+        reactions: const {},
+        replyTo: '',
+        replyCount: 0,
+        isReported: false,
+        reportCount: 0,
+      ),
+    );
+
+    if (pendingMessage.messageId.isEmpty) return;
+    await _sendPendingTextMessage(pendingMessage);
+  }
+
+  Future<void> _sendPendingTextMessage(CommunityMessageModel pendingMsg) async {
+    final pendingId = pendingMsg.messageId;
+    if (_sendingTextMessageIds.contains(pendingId)) return;
+    _sendingTextMessageIds.add(pendingId);
+
+    if (mounted) {
+      setState(() {
+        _failedPendingTextMessageIds.remove(pendingId);
+      });
+    }
+
+    try {
+      await _service.sendMessage(
+        groupId: widget.groupId,
+        senderId: pendingMsg.senderId,
+        senderName: pendingMsg.senderName,
+        senderRole: pendingMsg.senderRole,
+        content: pendingMsg.content,
+      );
+
+      if (_offlineInitCompleter.isCompleted) {
+        try {
+          await _localRepo.deletePendingMessage(
+            _cacheMessageIdFromPendingId(pendingId),
+          );
+          await _localRepo.deletePendingMessage(pendingId);
+        } catch (_) {
+          // Local cleanup is best-effort after successful send.
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _failedPendingTextMessageIds.remove(pendingId);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _failedPendingTextMessageIds.add(pendingId);
+        });
+      }
+    } finally {
+      _sendingTextMessageIds.remove(pendingId);
+    }
+  }
+
+  Future<void> _resumePendingTextMessages() async {
+    if (!_isOnline || !mounted) return;
+
+    final pendingTextMessages = _pendingMessages.where((msg) {
+      return _isPendingTextMessage(msg) &&
+          !_failedPendingTextMessageIds.contains(msg.messageId);
+    }).toList();
+
+    for (final msg in pendingTextMessages) {
+      unawaited(_sendPendingTextMessage(msg));
+    }
   }
 
   void _logPendingUploadTrace(
@@ -662,6 +767,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       if (online) {
         _startFirestoreMirror();
         _syncOnReconnect();
+        unawaited(_resumePendingTextMessages());
       } else {
         _firestoreMirrorSub?.cancel();
         _firestoreMirrorSub = null;
@@ -756,6 +862,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
         // ✅ CRITICAL: Load pending messages after sync starts
         await _loadPendingMessages();
+        unawaited(_resumePendingTextMessages());
 
         // Mark offline services ready for progress polling
         _offlineReady = true;
@@ -833,6 +940,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
           lastTimestamp: cachedMessages.first.timestamp,
         );
       }
+
+      unawaited(_resumePendingTextMessages());
     } catch (_) {
       // Ignore transient reconnect sync errors.
     }
@@ -1323,9 +1432,45 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                     .toInt();
               } else {}
             }
+          } else if ((msg.messageText ?? '').trim().isNotEmpty) {
+            final pendingMessageId = msg.messageId.startsWith('pending:')
+                ? msg.messageId
+                : 'pending:${msg.messageId}';
+
+            if (_pendingMessages.any((m) => m.messageId == pendingMessageId)) {
+              continue;
+            }
+
+            final pendingMessage = CommunityMessageModel(
+              messageId: pendingMessageId,
+              communityId: widget.groupId,
+              senderId: msg.senderId,
+              senderName: msg.senderName,
+              senderRole: widget.senderRole,
+              senderAvatar: '',
+              type: 'text',
+              content: msg.messageText ?? '',
+              imageUrl: '',
+              fileUrl: '',
+              fileName: '',
+              createdAt: DateTime.fromMillisecondsSinceEpoch(msg.timestamp),
+              isEdited: false,
+              isDeleted: false,
+              isPinned: false,
+              reactions: const {},
+              replyTo: '',
+              replyCount: 0,
+              isReported: false,
+              reportCount: 0,
+            );
+
+            _pendingMessages.insert(0, pendingMessage);
+            _messageCache[pendingMessage.messageId] = pendingMessage;
           }
         }
       });
+
+      unawaited(_resumePendingTextMessages());
     } catch (e) {}
   }
 
@@ -2258,38 +2403,70 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    if (!_isOnline) {
-      _showOfflineSnackBar();
-      return;
-    }
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
     final senderId = user?.uid ?? '';
     final senderName = user?.name ?? 'Parent';
 
-    // Clear immediately like WhatsApp (no loading state)
-    _controller.clear();
+    final now = DateTime.now();
+    final pendingBaseId =
+        'text_${now.millisecondsSinceEpoch}_${senderId.hashCode}_${_pendingTextSequence++}';
+    final pendingMessageId = 'pending:$pendingBaseId';
+
+    final pendingMessage = CommunityMessageModel(
+      messageId: pendingMessageId,
+      communityId: widget.groupId,
+      senderId: senderId,
+      senderName: senderName,
+      senderRole: widget.senderRole,
+      senderAvatar: user?.profileImage ?? '',
+      type: 'text',
+      content: text,
+      imageUrl: '',
+      fileUrl: '',
+      fileName: '',
+      createdAt: now,
+      isEdited: false,
+      isDeleted: false,
+      isPinned: false,
+      reactions: const {},
+      replyTo: '',
+      replyCount: 0,
+      isReported: false,
+      reportCount: 0,
+    );
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      _messageCache[pendingMessage.messageId] = pendingMessage;
+      _failedPendingTextMessageIds.remove(pendingMessage.messageId);
+    });
 
     try {
-      await _service.sendMessage(
-        groupId: widget.groupId,
+      final localMessage = LocalMessage(
+        messageId: pendingBaseId,
+        chatId: widget.groupId,
+        chatType: 'parent_group',
         senderId: senderId,
         senderName: senderName,
-        senderRole: widget.senderRole,
-        content: text,
+        messageText: text,
+        timestamp: now.millisecondsSinceEpoch,
+        isPending: true,
       );
+      await _localRepo.saveMessage(localMessage);
+    } catch (_) {
+      // Local persistence is best-effort; optimistic UI still proceeds.
+    }
 
-      // ✅ Auto-scroll to bottom to show latest message
-      _scrollToBottom();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send message: $e'),
-          backgroundColor: Colors.red[400],
-        ),
-      );
+    // Clear immediately like WhatsApp (no loading state)
+    _controller.clear();
+    _scrollToBottom();
+
+    unawaited(_sendPendingTextMessage(pendingMessage));
+
+    if (!_isOnline) {
+      _showOfflineSnackBar();
     }
   }
 
@@ -2683,7 +2860,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                         return senderMatch && timeMatch && serverHasAttachment;
                       }
 
-                      return senderMatch && timeMatch;
+                      final pendingText = pendingMsg.content.trim();
+                      final sameText = msg.content.trim() == pendingText;
+                      return senderMatch && timeMatch && sameText;
                     }).firstOrNull;
 
                     if (matchingServerMsg != null) {
@@ -2756,6 +2935,16 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                           }
                           // Remove pending message from cache (but keep Firestore messages)
                           _messageCache.remove(pendingId);
+                          if (_offlineInitCompleter.isCompleted) {
+                            unawaited(
+                              _localRepo.deletePendingMessage(
+                                _cacheMessageIdFromPendingId(pendingId),
+                              ),
+                            );
+                            unawaited(
+                              _localRepo.deletePendingMessage(pendingId),
+                            );
+                          }
                         }
                       });
                     });
@@ -2930,6 +3119,13 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                           final isPending = msg.messageId.startsWith(
                             'pending:',
                           );
+                          final isPendingTextOnly =
+                              isPending && _isPendingTextMessage(msg);
+                          final isTextSendFailed =
+                              isPendingTextOnly &&
+                              _failedPendingTextMessageIds.contains(
+                                msg.messageId,
+                              );
                           final progressNotifier = isPending
                               ? _pendingUploadNotifiers[msg.messageId]
                               : null;
@@ -3643,6 +3839,66 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                                                           .underline,
                                                                 ),
                                                               ),
+                                                            if (isPendingTextOnly) ...[
+                                                              const SizedBox(
+                                                                height: 4,
+                                                              ),
+                                                              GestureDetector(
+                                                                onTap:
+                                                                    isTextSendFailed
+                                                                    ? () => _retryPendingTextMessage(
+                                                                        msg.messageId,
+                                                                      )
+                                                                    : null,
+                                                                child: Row(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  children: [
+                                                                    Icon(
+                                                                      isTextSendFailed
+                                                                          ? Icons.error_outline_rounded
+                                                                          : Icons.schedule_rounded,
+                                                                      size: 12,
+                                                                      color:
+                                                                          isTextSendFailed
+                                                                          ? Colors.redAccent
+                                                                          : (isCurrentUser
+                                                                                ? Colors.white.withOpacity(
+                                                                                    0.72,
+                                                                                  )
+                                                                                : (isDark
+                                                                                      ? Colors.white70
+                                                                                      : Colors.black54)),
+                                                                    ),
+                                                                    const SizedBox(
+                                                                      width: 4,
+                                                                    ),
+                                                                    Text(
+                                                                      isTextSendFailed
+                                                                          ? 'Tap to retry'
+                                                                          : 'Sending...',
+                                                                      style: TextStyle(
+                                                                        color:
+                                                                            isTextSendFailed
+                                                                            ? Colors.redAccent
+                                                                            : (isCurrentUser
+                                                                                  ? Colors.white.withOpacity(
+                                                                                      0.72,
+                                                                                    )
+                                                                                  : (isDark
+                                                                                        ? Colors.white70
+                                                                                        : Colors.black54)),
+                                                                        fontSize:
+                                                                            11,
+                                                                        fontWeight:
+                                                                            FontWeight.w500,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ],
                                                         ),
                                                       ),

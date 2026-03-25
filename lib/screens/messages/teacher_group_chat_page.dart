@@ -154,6 +154,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   final Map<String, String> _localSenderMediaPaths = {};
   // Track upload failures for retry UI
   final Set<String> _failedMessageIds = {};
+  int _pendingTextSequence = 0;
+  final Set<String> _sendingTextMessageIds = {};
 
   // Stream lastReadAt dynamically for real-time splitter updates
   late Stream<Timestamp?> _lastReadAtStream;
@@ -774,6 +776,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
   /// Retry a failed upload: clears the failed flag and re-queues via BackgroundUploadService.
   void _retryUpload(String mediaId) {
+    if (_isPendingTextMessageId(mediaId)) {
+      _retryPendingTextMessage(mediaId);
+      return;
+    }
+
     if (!mounted) return;
     setState(() {
       _failedMessageIds.remove(mediaId);
@@ -790,6 +797,86 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         });
       }
     });
+  }
+
+  bool _isPendingTextMessageId(String messageId) {
+    final pending = _pendingMessages.where((m) => m.id == messageId);
+    if (pending.isEmpty) return false;
+    final msg = pending.first;
+    return msg.message.trim().isNotEmpty &&
+        msg.mediaMetadata == null &&
+        (msg.multipleMedia == null || msg.multipleMedia!.isEmpty) &&
+        (msg.imageUrl == null || msg.imageUrl!.isEmpty);
+  }
+
+  Future<void> _retryPendingTextMessage(String pendingId) async {
+    final pendingMsg = _pendingMessages.where((m) => m.id == pendingId);
+    if (pendingMsg.isEmpty) return;
+    await _sendPendingTextMessage(pendingMsg.first);
+  }
+
+  Future<void> _sendPendingTextMessage(GroupChatMessage pendingMessage) async {
+    final pendingId = pendingMessage.id;
+    if (_sendingTextMessageIds.contains(pendingId)) return;
+    _sendingTextMessageIds.add(pendingId);
+
+    if (mounted) {
+      setState(() {
+        _failedMessageIds.remove(pendingId);
+        _uploadingMessageIds.add(pendingId);
+      });
+      _cachePendingMessages();
+    }
+
+    try {
+      final message = GroupChatMessage(
+        id: '',
+        senderId: pendingMessage.senderId,
+        senderName: pendingMessage.senderName,
+        message: pendingMessage.message,
+        timestamp: pendingMessage.timestamp,
+      );
+
+      await _messagingService.sendGroupMessage(
+        widget.classId,
+        widget.subjectId,
+        message,
+      );
+
+      if (mounted) {
+        setState(() {
+          _uploadingMessageIds.remove(pendingId);
+          _failedMessageIds.remove(pendingId);
+        });
+        _cachePendingMessages();
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _uploadingMessageIds.remove(pendingId);
+          _failedMessageIds.add(pendingId);
+        });
+        _cachePendingMessages();
+      }
+    } finally {
+      _sendingTextMessageIds.remove(pendingId);
+    }
+  }
+
+  Future<void> _resumePendingTextMessages() async {
+    if (!_isOnline || !mounted) return;
+
+    final textPending = _pendingMessages.where((m) {
+      return m.message.trim().isNotEmpty &&
+          m.mediaMetadata == null &&
+          (m.multipleMedia == null || m.multipleMedia!.isEmpty) &&
+          (m.imageUrl == null || m.imageUrl!.isEmpty) &&
+          !_failedMessageIds.contains(m.id);
+    }).toList();
+
+    for (final msg in textPending) {
+      unawaited(_sendPendingTextMessage(msg));
+    }
   }
 
   /// Rehydrate any in-flight background uploads into visible pending bubbles.
@@ -1271,7 +1358,12 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     _connectivitySub = ConnectivityService().onConnectivityChanged.listen((
       online,
     ) {
-      if (mounted) setState(() => _isOnline = online);
+      if (mounted) {
+        setState(() => _isOnline = online);
+        if (online) {
+          unawaited(_resumePendingTextMessages());
+        }
+      }
     });
 
     // ✅ Initialize cached messages stream (prevents reloading on rebuild)
@@ -1299,6 +1391,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     // Restore pending messages and progress from cache SYNCHRONOUSLY
     // This must complete before StreamBuilder starts to prevent messages from disappearing
     _restorePendingMessagesFromCacheSync();
+    unawaited(_resumePendingTextMessages());
 
     // Also recreate optimistic placeholders for any uploads already running
     // (e.g., after app resume or navigation) so they remain visible immediately.
@@ -1682,10 +1775,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   }) async {
     final text = _messageController.text.trim();
     if (text.isEmpty && imageUrl == null && mediaMetadata == null) return;
-    if (!_isOnline && imageUrl == null && mediaMetadata == null) {
-      _showOfflineSnackBar();
-      return;
-    }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
@@ -1696,33 +1785,65 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
     _messageFocusNode.requestFocus();
 
-    try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await _bumpLastActivity(now);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await _bumpLastActivity(now);
 
-      final message = GroupChatMessage(
-        id: '',
-        senderId: currentUser.uid,
-        senderName: currentUser.name,
-        message: text,
-        imageUrl: imageUrl,
-        mediaMetadata: mediaMetadata,
-        timestamp: now,
-      );
+    if (imageUrl != null || mediaMetadata != null) {
+      try {
+        final directMessage = GroupChatMessage(
+          id: '',
+          senderId: currentUser.uid,
+          senderName: currentUser.name,
+          message: text,
+          imageUrl: imageUrl,
+          mediaMetadata: mediaMetadata,
+          timestamp: now,
+        );
 
-      await _messagingService.sendGroupMessage(
-        widget.classId,
-        widget.subjectId,
-        message,
-      );
-      // Scroll to latest so sender immediately sees their message
-      _scrollToLatest();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+        await _messagingService.sendGroupMessage(
+          widget.classId,
+          widget.subjectId,
+          directMessage,
+        );
+        _scrollToLatest();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to send message: $e')));
+        }
       }
+      return;
+    }
+
+    final pendingBaseId =
+        'text_${now}_${currentUser.uid.hashCode}_${_pendingTextSequence++}';
+    final pendingId = 'pending:$pendingBaseId';
+
+    final pendingMessage = GroupChatMessage(
+      id: pendingId,
+      senderId: currentUser.uid,
+      senderName: currentUser.name,
+      message: text,
+      imageUrl: imageUrl,
+      mediaMetadata: mediaMetadata,
+      timestamp: now,
+    );
+
+    setState(() {
+      _pendingMessages.insert(0, pendingMessage);
+      _uploadingMessageIds.add(pendingId);
+      _failedMessageIds.remove(pendingId);
+    });
+    _cachePendingMessages();
+
+    // Scroll to latest so sender immediately sees their pending message
+    _scrollToLatest();
+
+    unawaited(_sendPendingTextMessage(pendingMessage));
+
+    if (!_isOnline && imageUrl == null && mediaMetadata == null) {
+      _showOfflineSnackBar();
     }
   }
 
@@ -2824,6 +2945,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                                 _progressNotifiers[mediaId]?.dispose();
                                 _progressNotifiers.remove(mediaId);
                               }
+                              _uploadingMessageIds.remove(pendingMsg.id);
+                              _failedMessageIds.remove(pendingMsg.id);
+                              _pendingUploadProgress.remove(pendingMsg.id);
                               pendingIdsToRemove.add(pendingMsg.id);
                               return true; // Remove pending message
                             }
@@ -2925,6 +3049,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                                 hasMatchingMedia ||
                                 hasMatchingAttachment ||
                                 messages.any((fsMsg) {
+                                  final sameText =
+                                      fsMsg.message.trim() ==
+                                      pendingMsg.message.trim();
                                   final senderMatch =
                                       fsMsg.senderId == pendingMsg.senderId;
                                   final diff =
@@ -2940,6 +3067,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                                     'pending:',
                                   );
                                   return senderMatch &&
+                                      sameText &&
                                       timeMatch &&
                                       isNotPending;
                                 });
@@ -2975,6 +3103,9 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                                 _progressNotifiers[mediaId]?.dispose();
                                 _progressNotifiers.remove(mediaId);
                               }
+                              _uploadingMessageIds.remove(pendingMsg.id);
+                              _failedMessageIds.remove(pendingMsg.id);
+                              _pendingUploadProgress.remove(pendingMsg.id);
 
                               // Track for state removal
                               pendingIdsToRemove.add(pendingMsg.id);
@@ -4188,6 +4319,18 @@ class _MessageBubble extends StatelessWidget {
     final otherBubbleColor = isDark
         ? theme.colorScheme.surface
         : theme.cardColor;
+    final isPendingTextOnly =
+        message.id.startsWith('pending:') &&
+        message.message.trim().isNotEmpty &&
+        message.mediaMetadata == null &&
+        (message.multipleMedia == null || message.multipleMedia!.isEmpty) &&
+        (message.imageUrl == null || message.imageUrl!.isEmpty);
+    final isTextSendFailed =
+        isPendingTextOnly && failedMessageIds.contains(message.id);
+    final isTextSending =
+        isPendingTextOnly &&
+        uploadingMessageIds.contains(message.id) &&
+        !isTextSendFailed;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -4407,89 +4550,128 @@ class _MessageBubble extends StatelessWidget {
                     )
                   // Single media or text-only messages
                   else
-                    Material(
-                      elevation: 0,
-                      color: isMe ? myBubbleColor : otherBubbleColor,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(12),
-                        topRight: const Radius.circular(12),
-                        bottomLeft: Radius.circular(isMe ? 12 : 6),
-                        bottomRight: Radius.circular(isMe ? 6 : 12),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          // Zero padding for media-only bubbles — let the card fill naturally
-                          horizontal:
-                              (message.mediaMetadata != null ||
-                                      message.imageUrl != null) &&
-                                  message.message.isEmpty
-                              ? 0
-                              : 14,
-                          vertical:
-                              (message.mediaMetadata != null ||
-                                      message.imageUrl != null) &&
-                                  message.message.isEmpty
-                              ? 0
-                              : 12,
+                    Opacity(
+                      opacity: isTextSending ? 0.88 : 1,
+                      child: Material(
+                        elevation: 0,
+                        color: isMe ? myBubbleColor : otherBubbleColor,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(12),
+                          topRight: const Radius.circular(12),
+                          bottomLeft: Radius.circular(isMe ? 12 : 6),
+                          bottomRight: Radius.circular(isMe ? 6 : 12),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Single media handling
-                            if (message.mediaMetadata != null) ...[
-                              _buildMetadataAttachment(
-                                context,
-                                message.mediaMetadata!,
-                              ),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            // Zero padding for media-only bubbles — let the card fill naturally
+                            horizontal:
+                                (message.mediaMetadata != null ||
+                                        message.imageUrl != null) &&
+                                    message.message.isEmpty
+                                ? 0
+                                : 14,
+                            vertical:
+                                (message.mediaMetadata != null ||
+                                        message.imageUrl != null) &&
+                                    message.message.isEmpty
+                                ? 0
+                                : 12,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Single media handling
+                              if (message.mediaMetadata != null) ...[
+                                _buildMetadataAttachment(
+                                  context,
+                                  message.mediaMetadata!,
+                                ),
+                                if (message.message.isNotEmpty)
+                                  const SizedBox(height: 8),
+                              ]
+                              // Legacy URL support (images/PDFs)
+                              else if (message.imageUrl != null) ...[
+                                _buildLegacyAttachment(
+                                  context,
+                                  message.imageUrl!,
+                                ),
+                                if (message.message.isNotEmpty)
+                                  const SizedBox(height: 8),
+                              ],
                               if (message.message.isNotEmpty)
-                                const SizedBox(height: 8),
-                            ]
-                            // Legacy URL support (images/PDFs)
-                            else if (message.imageUrl != null) ...[
-                              _buildLegacyAttachment(
-                                context,
-                                message.imageUrl!,
-                              ),
-                              if (message.message.isNotEmpty)
-                                const SizedBox(height: 8),
+                                Linkify(
+                                  onOpen: (link) async {
+                                    final uri = Uri.parse(link.url);
+                                    if (await canLaunchUrl(uri)) {
+                                      await launchUrl(
+                                        uri,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    }
+                                  },
+                                  text: LinkUtils.addProtocolToBareUrls(
+                                    message.message,
+                                  ),
+                                  options: const LinkifyOptions(
+                                    defaultToHttps: true,
+                                  ),
+                                  style: TextStyle(
+                                    color: isMe
+                                        ? const Color(0xFF1A1D21)
+                                        : theme.colorScheme.onSurface,
+                                    fontSize: 14,
+                                    height: 1.5,
+                                  ),
+                                  linkStyle: TextStyle(
+                                    color: isMe
+                                        ? const Color(0xFF0066CC)
+                                        : theme.colorScheme.primary,
+                                    fontSize: 14,
+                                    height: 1.5,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
                             ],
-                            if (message.message.isNotEmpty)
-                              Linkify(
-                                onOpen: (link) async {
-                                  final uri = Uri.parse(link.url);
-                                  if (await canLaunchUrl(uri)) {
-                                    await launchUrl(
-                                      uri,
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  }
-                                },
-                                text: LinkUtils.addProtocolToBareUrls(
-                                  message.message,
-                                ),
-                                options: const LinkifyOptions(
-                                  defaultToHttps: true,
-                                ),
-                                style: TextStyle(
-                                  color: isMe
-                                      ? const Color(0xFF1A1D21)
-                                      : theme.colorScheme.onSurface,
-                                  fontSize: 14,
-                                  height: 1.5,
-                                ),
-                                linkStyle: TextStyle(
-                                  color: isMe
-                                      ? const Color(0xFF0066CC)
-                                      : theme.colorScheme.primary,
-                                  fontSize: 14,
-                                  height: 1.5,
-                                  decoration: TextDecoration.underline,
-                                ),
-                              ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
+                  if (isPendingTextOnly) ...[
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: isTextSendFailed
+                          ? () => onRetry?.call(message.id)
+                          : null,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isTextSendFailed
+                                ? Icons.error_outline_rounded
+                                : Icons.schedule_rounded,
+                            size: 12,
+                            color: isTextSendFailed
+                                ? Colors.redAccent
+                                : theme.textTheme.bodySmall?.color?.withOpacity(
+                                    0.65,
+                                  ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isTextSendFailed ? 'Tap to retry' : 'Sending...',
+                            style: TextStyle(
+                              color: isTextSendFailed
+                                  ? Colors.redAccent
+                                  : theme.textTheme.bodySmall?.color
+                                        ?.withOpacity(0.65),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     _formatTime(message.timestamp),
