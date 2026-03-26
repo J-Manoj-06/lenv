@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:ui';
 import 'staff_details_page.dart';
 
 class InstituteStaffScreen extends StatefulWidget {
@@ -389,7 +390,9 @@ class _SearchFilters extends StatefulWidget {
 
 class _SearchFiltersState extends State<_SearchFilters> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
   bool _hasText = false;
+  bool _isFocused = false;
 
   @override
   void initState() {
@@ -399,10 +402,17 @@ class _SearchFiltersState extends State<_SearchFilters> {
         _hasText = _controller.text.isNotEmpty;
       });
     });
+    _focusNode.addListener(() {
+      if (!mounted) return;
+      setState(() {
+        _isFocused = _focusNode.hasFocus;
+      });
+    });
   }
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -517,89 +527,139 @@ class _SearchFiltersState extends State<_SearchFilters> {
 
   @override
   Widget build(BuildContext context) {
+    final searchBorderRadius = BorderRadius.circular(18);
+    final searchBaseColor = widget.isDark
+        ? const Color.fromRGBO(30, 41, 59, 0.60)
+        : const Color.fromRGBO(248, 250, 252, 0.95);
+    final searchFocusedColor = widget.isDark
+        ? const Color.fromRGBO(43, 58, 82, 0.72)
+        : Colors.white;
+    final searchBorderColor = _isFocused
+        ? const Color(0xFF3B82F6)
+        : const Color.fromRGBO(255, 255, 255, 0.08);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Modern Premium Search Bar
-          Container(
-            height: 48,
-            decoration: BoxDecoration(
-              color: widget.isDark
-                  ? const Color(0xFF1F2A3A)
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: widget.isDark
-                    ? const Color(0xFF2E3C52)
-                    : const Color(0xFFE2E8F0),
-                width: 1,
-              ),
-              boxShadow: widget.isDark
-                  ? [
+          AnimatedScale(
+            scale: _isFocused ? 1.01 : 1.0,
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeOutCubic,
+            child: ClipRRect(
+              borderRadius: searchBorderRadius,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    color: _isFocused ? searchFocusedColor : searchBaseColor,
+                    borderRadius: searchBorderRadius,
+                    border: Border.all(
+                      color: searchBorderColor,
+                      width: _isFocused ? 1.25 : 1,
+                    ),
+                    boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                        color: widget.isDark
+                            ? Colors.black.withOpacity(0.26)
+                            : Colors.black.withOpacity(0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
                       ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
+                      if (_isFocused)
+                        const BoxShadow(
+                          color: Color.fromRGBO(59, 130, 246, 0.28),
+                          blurRadius: 24,
+                          spreadRadius: 1,
+                          offset: Offset(0, 0),
+                        ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 16),
+                      Icon(
+                        Icons.search_rounded,
+                        color: const Color(0xFF94A3B8),
+                        size: 21,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          onChanged: widget.onQueryChanged,
+                          cursorColor: const Color(0xFF93C5FD),
+                          style: const TextStyle(
+                            color: Color(0xFFE5E7EB),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.2,
+                            height: 1.35,
+                          ),
+                          decoration: const InputDecoration(
+                            hintText:
+                                'Search staff by name, subject, or class...',
+                            hintStyle: TextStyle(
+                              color: Color(0xFF9CA3AF),
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.3,
+                            ),
+                            filled: false,
+                            fillColor: Colors.transparent,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            errorBorder: InputBorder.none,
+                            focusedErrorBorder: InputBorder.none,
+                            disabledBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                            isCollapsed: true,
+                          ),
+                        ),
+                      ),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        child: _hasText
+                            ? GestureDetector(
+                                key: const ValueKey('clear-search'),
+                                onTap: () {
+                                  _controller.clear();
+                                  widget.onQueryChanged('');
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(right: 10),
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: const Color.fromRGBO(
+                                      148,
+                                      163,
+                                      184,
+                                      0.16,
+                                    ),
+                                    borderRadius: BorderRadius.circular(13),
+                                  ),
+                                  child: const Icon(
+                                    Icons.close_rounded,
+                                    color: Color(0xFF9CA3AF),
+                                    size: 16,
+                                  ),
+                                ),
+                              )
+                            : const SizedBox(width: 10),
                       ),
                     ],
-            ),
-            child: Row(
-              children: [
-                const SizedBox(width: 16),
-                Icon(
-                  Icons.search_rounded,
-                  color: widget.slate.withOpacity(0.6),
-                  size: 22,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    onChanged: widget.onQueryChanged,
-                    style: TextStyle(
-                      color: widget.textColor,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w400,
-                      height: 1.4,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Search staff by name, subject, or class…',
-                      hintStyle: TextStyle(
-                        color: widget.slate.withOpacity(0.5),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
                   ),
                 ),
-                if (_hasText)
-                  GestureDetector(
-                    onTap: () {
-                      _controller.clear();
-                      widget.onQueryChanged('');
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      child: Icon(
-                        Icons.close,
-                        color: widget.slate.withOpacity(0.6),
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 12),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 12),

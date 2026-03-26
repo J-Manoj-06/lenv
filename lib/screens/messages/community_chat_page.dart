@@ -145,7 +145,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final userRole = authProvider.currentUser?.role;
     final isPrincipal = userRole == UserRole.institute;
     final themeColor = isPrincipal
-        ? const Color(0xFF00A884)
+        ? const Color(0xFF146D7B)
         : const Color(0xFFFF8800);
     final label = count <= 1 ? '1 unread message' : '$count unread messages';
 
@@ -1999,7 +1999,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       _showOfflineSnackBar(isMedia: true);
       return;
     }
-    final primaryColor = const Color(0xFFFF8800); // Community chat orange
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userRole = authProvider.currentUser?.role;
+    final primaryColor = userRole == UserRole.institute
+        ? const Color(0xFF146D7B)
+        : const Color(0xFFFF8800);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark
         ? const Color(0xFF222222)
@@ -2426,7 +2430,9 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final hintColor = isDark
         ? const Color(0xFF8696A0)
         : const Color(0xFF94A3B8);
-    final primaryColor = const Color(0xFFFF8800);
+    final primaryColor = userRole == UserRole.institute
+        ? const Color(0xFF146D7B)
+        : const Color(0xFFFF8800);
 
     return WillPopScope(
       onWillPop: () async {
@@ -3345,7 +3351,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                               width: 52,
                               height: 52,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFF8800),
+                                color: primaryColor,
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -3392,7 +3398,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     required bool isDark,
   }) {
     final theme = Theme.of(context);
-    const micActionColor = Color(0xFFFF8800);
+    final micActionColor = primaryColor;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
