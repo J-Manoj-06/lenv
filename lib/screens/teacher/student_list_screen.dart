@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +18,7 @@ class StudentListScreen extends StatefulWidget {
 
 class _StudentListScreenState extends State<StudentListScreen> {
   final _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   final TeacherService _teacherService = TeacherService();
   bool _isLoading = true;
@@ -24,6 +26,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
   List<Map<String, dynamic>> _students = [];
   final Map<String, int> _attendanceCache =
       {}; // Cache for calculated attendance
+  bool _isSearchFocused = false;
 
   // Teacher brand + dark palette (UI only; no logic changes)
   static const Color _teacherPrimary = Color(0xFF355872);
@@ -38,6 +41,12 @@ class _StudentListScreenState extends State<StudentListScreen> {
   @override
   void initState() {
     super.initState();
+    _searchFocusNode.addListener(() {
+      if (!mounted) return;
+      setState(() {
+        _isSearchFocused = _searchFocusNode.hasFocus;
+      });
+    });
     _parseArgs();
     _loadStudents();
   }
@@ -241,6 +250,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
 
   @override
   void dispose() {
+    _searchFocusNode.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -365,48 +375,130 @@ class _StudentListScreenState extends State<StudentListScreen> {
     final isDark = theme.brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      child: Container(
-        height: 56,
-        decoration: BoxDecoration(
-          color: isDark ? _tileDark : theme.cardColor,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            if (isDark)
-              BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-          ],
-        ),
-        child: Row(
-          children: [
-            const SizedBox(width: 12),
-            Icon(Icons.search, color: isDark ? Colors.white : theme.hintColor),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                onChanged: (_) => setState(() {}),
-                style: TextStyle(
-                  color: isDark ? Colors.white : theme.colorScheme.onSurface,
+      child: AnimatedScale(
+        scale: _isSearchFocused ? 1.01 : 1.0,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
+              height: 54,
+              decoration: BoxDecoration(
+                color: _isSearchFocused
+                    ? (isDark
+                          ? const Color.fromRGBO(43, 58, 82, 0.72)
+                          : Colors.white)
+                    : (isDark
+                          ? const Color.fromRGBO(30, 41, 59, 0.60)
+                          : const Color.fromRGBO(248, 250, 252, 0.95)),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: _isSearchFocused
+                      ? const Color(0xFF3B82F6)
+                      : const Color.fromRGBO(255, 255, 255, 0.08),
+                  width: _isSearchFocused ? 1.25 : 1,
                 ),
-                decoration: InputDecoration(
-                  hintText: 'Search for a student',
-                  hintStyle: TextStyle(
+                boxShadow: [
+                  BoxShadow(
                     color: isDark
-                        ? Colors.white
-                        : theme.colorScheme.onSurface.withOpacity(0.6),
+                        ? Colors.black.withOpacity(0.26)
+                        : Colors.black.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
                   ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 18,
+                  if (_isSearchFocused)
+                    const BoxShadow(
+                      color: Color.fromRGBO(59, 130, 246, 0.28),
+                      blurRadius: 24,
+                      spreadRadius: 1,
+                      offset: Offset(0, 0),
+                    ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  const Icon(
+                    Icons.search_rounded,
+                    color: Color(0xFF94A3B8),
+                    size: 21,
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      onChanged: (_) => setState(() {}),
+                      cursorColor: const Color(0xFF93C5FD),
+                      style: const TextStyle(
+                        color: Color(0xFFE5E7EB),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.2,
+                        height: 1.35,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Search for a student',
+                        hintStyle: TextStyle(
+                          color: Color(0xFF9CA3AF),
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.3,
+                        ),
+                        filled: false,
+                        fillColor: Colors.transparent,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        isCollapsed: true,
+                      ),
+                    ),
+                  ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    child: _searchController.text.isNotEmpty
+                        ? GestureDetector(
+                            key: const ValueKey('clear-search'),
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                            child: Container(
+                              margin: const EdgeInsets.only(right: 10),
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: const Color.fromRGBO(
+                                  148,
+                                  163,
+                                  184,
+                                  0.16,
+                                ),
+                                borderRadius: BorderRadius.circular(13),
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Color(0xFF9CA3AF),
+                                size: 16,
+                              ),
+                            ),
+                          )
+                        : const SizedBox(width: 10),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

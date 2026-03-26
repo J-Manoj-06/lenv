@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/performance_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
@@ -46,6 +47,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Map<String, dynamic>? _studentDetails;
   bool _loadingExtras = true;
   bool _parentChatLoading = false;
+  bool _parentCallLoading = false;
   String? _resolvedAuthUid; // Store resolved auth UID for reuse
 
   @override
@@ -1125,66 +1127,178 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             ),
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _parentChatLoading ? null : _startParentChat,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 12,
-                ),
-                backgroundColor: brandPrimary,
-                foregroundColor: theme.textTheme.bodyLarge?.color,
-                elevation: 4,
-                shadowColor: brandPrimary.withOpacity(0.4),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(999),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _parentChatLoading ? null : _startParentChat,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 12,
+                    ),
+                    backgroundColor: brandPrimary,
+                    foregroundColor: theme.textTheme.bodyLarge?.color,
+                    elevation: 4,
+                    shadowColor: brandPrimary.withOpacity(0.4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: _parentChatLoading
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Text(
+                              'Opening Chat...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.chat_bubble, size: 20),
+                            SizedBox(width: 10),
+                            Text(
+                              'Start',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
-              child: _parentChatLoading
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Opening Chat...',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.chat_bubble, size: 20),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Start',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _parentCallLoading ? null : _callParent,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 12,
                     ),
-            ),
+                    side: BorderSide(color: brandPrimary.withOpacity(0.8)),
+                    foregroundColor: theme.textTheme.bodyLarge?.color,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: _parentCallLoading
+                      ? const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 10),
+                            Text(
+                              'Opening...',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        )
+                      : const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.call, size: 20),
+                            SizedBox(width: 10),
+                            Text(
+                              'Call Parent',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  String? _sanitizePhoneNumber(String? raw) {
+    if (raw == null) return null;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    final normalized = trimmed.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (normalized.isEmpty || normalized == '+') return null;
+    return normalized;
+  }
+
+  Future<String?> _resolveParentPhoneNumber() async {
+    final direct = _sanitizePhoneNumber(
+      _studentDetails?['parentPhone']?.toString() ??
+          _studentDetails?['parentPhoneNumber']?.toString() ??
+          _studentDetails?['phoneParent']?.toString(),
+    );
+    if (direct != null) return direct;
+
+    final studentId = _resolvedAuthUid ?? widget.studentId;
+    final studentEmail = _studentDetails?['email']?.toString().trim();
+    final messaging = MessagingService();
+    final parentData = await messaging.fetchParentForStudent(
+      studentId,
+      studentEmail: studentEmail?.isEmpty == true ? null : studentEmail,
+    );
+    if (parentData == null) return null;
+
+    return _sanitizePhoneNumber(
+      parentData['phoneNumber']?.toString() ??
+          parentData['phone']?.toString() ??
+          parentData['parentPhone']?.toString(),
+    );
+  }
+
+  Future<void> _callParent() async {
+    setState(() => _parentCallLoading = true);
+    try {
+      final phone = await _resolveParentPhoneNumber();
+      if (phone == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Parent phone number not available')),
+          );
+        }
+        return;
+      }
+
+      final uri = Uri(scheme: 'tel', path: phone);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to open phone dialer')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Call failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _parentCallLoading = false);
+    }
   }
 
   Future<void> _startParentChat() async {
