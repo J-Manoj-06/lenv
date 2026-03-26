@@ -66,6 +66,7 @@ class ChatService {
     required String text,
     required String senderRole, // 'parent' or 'teacher'
     Map<String, dynamic>? mediaMetadata,
+    Map<String, dynamic>? replyTo,
   }) async {
     final msgRef = _db
         .collection('conversations')
@@ -110,6 +111,9 @@ class ChatService {
       // Add media metadata if present
       if (mediaMetadata != null) {
         messageData['mediaMetadata'] = mediaMetadata;
+      }
+      if (replyTo != null) {
+        messageData['replyTo'] = replyTo;
       }
 
       tx.set(msgRef, messageData);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'dart:io';
@@ -48,6 +49,8 @@ class _ChatScreenState extends State<ChatScreen> {
   late final MediaUploadService _mediaUploadService;
   // Track locally pending messages for transient single-tick state
   final Set<String> _pendingMessageIds = <String>{};
+  Map<String, dynamic>? _replyTo;
+  List<ChatMessage> _latestMessages = const <ChatMessage>[];
 
   String? _currentUserId;
   bool _isRecording = false;
@@ -114,6 +117,191 @@ class _ChatScreenState extends State<ChatScreen> {
   void _loadCurrentUser() {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     _currentUserId = authProvider.currentUser?.uid;
+  }
+
+  String _replyTypeForMessage(ChatMessage message) {
+    final text = message.text.trim();
+    final lower = text.toLowerCase();
+    if (lower.contains('media attachment:') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png')) {
+      return 'image';
+    }
+    if (lower.endsWith('.m4a') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.mp3') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.ogg')) {
+      return 'audio';
+    }
+    if (lower.contains('media attachment:')) {
+      return 'document';
+    }
+    return 'text';
+  }
+
+  String _replyPreviewForMessage(ChatMessage message) {
+    final type = _replyTypeForMessage(message);
+    if (type == 'image') return '📷 Photo';
+    if (type == 'audio') return '🎵 Audio';
+    if (type == 'document') return '📄 Document';
+    final text = message.text.trim();
+    if (text.isEmpty) return 'Message';
+    return text.length > 64 ? '${text.substring(0, 64)}…' : text;
+  }
+
+  void _setReplyTarget(ChatMessage message) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _replyTo = {
+        'messageId': message.id,
+        'senderName': message.senderRole == 'teacher'
+            ? 'You'
+            : widget.parentName,
+        'type': _replyTypeForMessage(message),
+        'contentPreview': _replyPreviewForMessage(message),
+      };
+    });
+    _focusNode.requestFocus();
+  }
+
+  void _clearReplyTarget() {
+    if (_replyTo == null) return;
+    setState(() => _replyTo = null);
+  }
+
+  Future<void> _jumpToOriginalMessage(String messageId) async {
+    final index = _latestMessages.indexWhere((m) => m.id == messageId);
+    if (index < 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message not available')));
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+    final offset = (index * 96).toDouble();
+    await _scrollController.animateTo(
+      offset.clamp(0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Widget _buildReplyComposerPreview(ThemeData theme) {
+    final reply = _replyTo;
+    if (reply == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF1F2937)
+            : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF146D7A), width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Replying to ${reply['senderName'] ?? 'User'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  (reply['contentPreview'] as String?) ?? 'Message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _clearReplyTarget,
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Cancel reply',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineReplyHeader(
+    BuildContext context,
+    Map<String, dynamic> reply,
+  ) {
+    final theme = Theme.of(context);
+    final previewType = (reply['type'] as String? ?? '').toLowerCase();
+    final rawPreview = (reply['contentPreview'] as String?)?.trim() ?? '';
+    final previewText = switch (previewType) {
+      'image' => '📷 Photo',
+      'document' => '📄 Document',
+      'audio' => '🎵 Audio',
+      _ =>
+        rawPreview.isEmpty
+            ? 'Message not available'
+            : (rawPreview.length > 40
+                  ? '${rawPreview.substring(0, 40)}...'
+                  : rawPreview),
+    };
+
+    return InkWell(
+      onTap: () =>
+          _jumpToOriginalMessage((reply['messageId'] as String?) ?? ''),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: theme.brightness == Brightness.dark
+              ? const Color(0x33222F3E)
+              : const Color(0x14000000),
+          borderRadius: BorderRadius.circular(8),
+          border: const Border(
+            left: BorderSide(color: Color(0xFF146D7A), width: 3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              (reply['senderName'] as String?) ?? 'User',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              previewText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _markAsRead() async {
@@ -279,12 +467,15 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     _messageController.clear();
+    final replyTo = _replyTo;
     final newId = await _messagingService.sendMessage(
       conversationId: widget.conversationId,
       senderId: _currentUserId!,
       senderRole: 'teacher',
       text: text,
+      replyTo: replyTo,
     );
+    _clearReplyTarget();
     if (newId != null) {
       setState(() {
         _pendingMessageIds.add(newId);
@@ -769,6 +960,7 @@ class _ChatScreenState extends State<ChatScreen> {
         }
 
         final messages = snapshot.data ?? [];
+        _latestMessages = messages;
 
         // Any message IDs that appear in the stream are no longer pending
         // Clean up pending IDs without setState to avoid error overlay
@@ -857,6 +1049,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   globalPosition: details.globalPosition,
                 );
               },
+              onHorizontalDragEnd: (details) {
+                final velocity = details.primaryVelocity ?? 0;
+                if (velocity > 240) {
+                  _setReplyTarget(message);
+                }
+              },
               child: Material(
                 elevation: isDark ? 0 : 1,
                 color: isTeacher
@@ -875,13 +1073,23 @@ class _ChatScreenState extends State<ChatScreen> {
                     horizontal: 14,
                     vertical: 12,
                   ),
-                  child: Text(
-                    message.text,
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.replyTo != null) ...[
+                        _buildInlineReplyHeader(context, message.replyTo!),
+                        const SizedBox(height: 6),
+                      ],
+                      Text(
+                        message.text,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 14,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -966,6 +1174,7 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_replyTo != null) _buildReplyComposerPreview(theme),
             if (_isUploading)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),

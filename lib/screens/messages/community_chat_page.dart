@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -205,6 +206,125 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   // Selection mode for delete (ValueNotifiers for flicker-free updates)
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
+  Map<String, dynamic>? _replyTo;
+
+  String _replyTypeForMessage(GroupChatMessage message) {
+    final mime = message.mediaMetadata?.mimeType ?? '';
+    final hasMedia =
+        message.mediaMetadata != null ||
+        (message.multipleMedia != null && message.multipleMedia!.isNotEmpty) ||
+        (message.imageUrl?.isNotEmpty ?? false);
+    if (!hasMedia) return 'text';
+    if (mime.startsWith('image/') || (message.imageUrl?.isNotEmpty ?? false)) {
+      return 'image';
+    }
+    if (mime.startsWith('audio/')) return 'audio';
+    return 'document';
+  }
+
+  String _replyPreviewForMessage(GroupChatMessage message) {
+    final type = _replyTypeForMessage(message);
+    if (type == 'image') return '📷 Photo';
+    if (type == 'audio') return '🎵 Audio';
+    if (type == 'document') return '📄 Document';
+    final txt = message.message.trim();
+    if (txt.isEmpty) return 'Message';
+    return txt.length > 64 ? '${txt.substring(0, 64)}…' : txt;
+  }
+
+  void _setReplyTarget(GroupChatMessage message) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _replyTo = {
+        'messageId': message.id,
+        'senderName': message.senderName,
+        'type': _replyTypeForMessage(message),
+        'contentPreview': _replyPreviewForMessage(message),
+      };
+    });
+    _messageFocusNode.requestFocus();
+  }
+
+  void _clearReplyTarget() {
+    if (_replyTo == null) return;
+    setState(() {
+      _replyTo = null;
+    });
+  }
+
+  Future<void> _jumpToOriginalMessage(
+    String messageId,
+    List<GroupChatMessage> messages,
+  ) async {
+    final exists = messages.any((m) => m.id == messageId);
+    if (!exists) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message not available')));
+      return;
+    }
+    await scrollToMessage(
+      messageId,
+      messages.map((m) => {'id': m.id}).toList(),
+    );
+  }
+
+  Widget _buildReplyComposerPreview(ThemeData theme) {
+    final reply = _replyTo;
+    if (reply == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF1F2937)
+            : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF146D7A), width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Replying to ${reply['senderName'] ?? 'User'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  (reply['contentPreview'] as String?) ?? 'Message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _clearReplyTarget,
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Cancel reply',
+          ),
+        ],
+      ),
+    );
+  }
+
   String? _shareEligibilitySelectionKey;
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
@@ -278,6 +398,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Scroll to bottom on initial load only and mark as read after frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom(force: true);
+      _clearReplyTarget();
       // Mark as read and refresh unread counts after frame
       _markAsRead();
       try {
@@ -895,6 +1016,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         senderName: pendingMessage.senderName,
         message: pendingMessage.message,
         timestamp: pendingMessage.timestamp,
+        replyTo: pendingMessage.replyTo,
       );
 
       await _messagingService.sendCommunityMessage(
@@ -1451,6 +1573,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         'text_${now}_${currentUser.uid.hashCode}_${_pendingTextSequence++}';
     final pendingId = 'pending:$pendingBaseId';
 
+    final replyTo = _replyTo;
+
     final pendingMessage = GroupChatMessage(
       id: pendingId,
       senderId: currentUser.uid,
@@ -1458,6 +1582,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       message: text,
       imageUrl: imageUrl,
       timestamp: now,
+      replyTo: replyTo,
     );
 
     setState(() {
@@ -1488,11 +1613,13 @@ class _CommunityChatPageState extends State<CommunityChatPage>
           message: text,
           imageUrl: imageUrl,
           timestamp: now,
+          replyTo: replyTo,
         );
         await _messagingService.sendCommunityMessage(
           widget.communityId,
           directMessage,
         );
+        _clearReplyTarget();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(
@@ -1506,6 +1633,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     _scrollToBottom(force: true);
 
     unawaited(_sendPendingTextMessage(pendingMessage));
+
+    _clearReplyTarget();
 
     if (!_isOnline) {
       _showOfflineSnackBar();
@@ -1630,6 +1759,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       timestamp: baseTimestamp,
       mediaMetadata: mediaList.first,
       multipleMedia: mediaList.length > 1 ? mediaList : null,
+      replyTo: _replyTo,
     );
 
     // Save pending message to cache IMMEDIATELY (survives navigation)
@@ -1698,6 +1828,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
       // Scroll to bottom to show new message
       _scrollToBottom(force: true);
+      _clearReplyTarget();
     } catch (e) {
       // Remove failed pending message
       if (mounted) {
@@ -1784,6 +1915,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         message: '',
         timestamp: baseTimestamp,
         mediaMetadata: mediaList.first,
+        replyTo: _replyTo,
       );
 
       // ✅ Save pending message to local DB (survives navigation)
@@ -1821,6 +1953,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       );
 
       _scrollToBottom(force: true);
+      _clearReplyTarget();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1862,6 +1995,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         timestamp: now,
         isDeleted: false,
         type: 'poll',
+        replyTo: _replyTo,
         rawData: {
           'type': 'poll',
           'question': poll.question,
@@ -1891,6 +2025,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         setState(() {
           _pendingMessages.add(pendingPoll);
         });
+        _clearReplyTarget();
       }
     } catch (e) {}
   }
@@ -2102,6 +2237,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         message: '',
         timestamp: baseTimestamp,
         mediaMetadata: mediaList.first,
+        replyTo: _replyTo,
       );
 
       // ✅ Save pending message to local DB (survives navigation)
@@ -2139,6 +2275,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       );
 
       _scrollToBottom(force: true);
+      _clearReplyTarget();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -2254,6 +2391,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         message: '',
         timestamp: baseTimestamp,
         mediaMetadata: mediaList.first,
+        replyTo: _replyTo,
       );
 
       // ✅ Save pending message to local DB (survives navigation)
@@ -3100,6 +3238,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                                   _invalidateShareEligibilityCache();
                                                 }
                                               : null,
+                                          onHorizontalDragEnd: (details) {
+                                            if (isSelectionMode) return;
+                                            final velocity =
+                                                details.primaryVelocity ?? 0;
+                                            if (velocity > 240) {
+                                              _setReplyTarget(message);
+                                            }
+                                          },
                                           onDoubleTap: isSelectionMode
                                               ? null
                                               : () {
@@ -3128,6 +3274,16 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                                 isSelected: isSelected,
                                                 communityId: widget.communityId,
                                                 userRole: userRole,
+                                                replyTo: message.replyTo,
+                                                onReplyTap:
+                                                    message.replyTo == null
+                                                    ? null
+                                                    : () => _jumpToOriginalMessage(
+                                                        message.replyTo!['messageId']
+                                                                as String? ??
+                                                            '',
+                                                        allMessages,
+                                                      ),
                                                 failedMessageIds:
                                                     _failedMessageIds,
                                                 onRetry: _retryUpload,
@@ -3318,6 +3474,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     required Color primaryColor,
     required bool isDark,
   }) {
+    final theme = Theme.of(context);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
@@ -3340,178 +3498,193 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       child: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Text Input
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                decoration: BoxDecoration(
-                  color: inputBgColor,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        _showEmojiPicker
-                            ? Icons.keyboard
-                            : Icons.sentiment_satisfied_outlined,
-                        color: hintColor,
-                        size: 26,
-                      ),
-                      padding: const EdgeInsets.all(8),
-                      onPressed: () {
-                        setState(() {
-                          _showEmojiPicker = !_showEmojiPicker;
-                        });
-                        if (!_showEmojiPicker) {
-                          _messageFocusNode.requestFocus();
-                        } else {
-                          _messageFocusNode.unfocus();
-                        }
-                      },
+            if (_replyTo != null) _buildReplyComposerPreview(theme),
+            Row(
+              children: [
+                // Text Input
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: inputBgColor,
+                      borderRadius: BorderRadius.circular(24),
                     ),
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _messageFocusNode,
-                        style: TextStyle(color: textColor, fontSize: 16),
-                        decoration: InputDecoration(
-                          hintText: 'Message',
-                          hintStyle: TextStyle(color: hintColor),
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            _showEmojiPicker
+                                ? Icons.keyboard
+                                : Icons.sentiment_satisfied_outlined,
+                            color: hintColor,
+                            size: 26,
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          onPressed: () {
+                            setState(() {
+                              _showEmojiPicker = !_showEmojiPicker;
+                            });
+                            if (!_showEmojiPicker) {
+                              _messageFocusNode.requestFocus();
+                            } else {
+                              _messageFocusNode.unfocus();
+                            }
+                          },
                         ),
-                        maxLines: null,
-                        textCapitalization: TextCapitalization.sentences,
-                        textInputAction: TextInputAction.send,
-                        onChanged: (_) => setState(() {}),
-                        onSubmitted: (_) {
-                          _sendMessage();
-                          Future.delayed(const Duration(milliseconds: 50), () {
-                            _messageFocusNode.requestFocus();
-                          });
-                        },
-                      ),
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            focusNode: _messageFocusNode,
+                            style: TextStyle(color: textColor, fontSize: 16),
+                            decoration: InputDecoration(
+                              hintText: 'Message',
+                              hintStyle: TextStyle(color: hintColor),
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 10,
+                              ),
+                            ),
+                            maxLines: null,
+                            textCapitalization: TextCapitalization.sentences,
+                            textInputAction: TextInputAction.send,
+                            onChanged: (_) => setState(() {}),
+                            onSubmitted: (_) {
+                              _sendMessage();
+                              Future.delayed(
+                                const Duration(milliseconds: 50),
+                                () {
+                                  _messageFocusNode.requestFocus();
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              icon: Icon(Icons.attach_file, color: hintColor, size: 26),
-              padding: const EdgeInsets.all(8),
-              onPressed: _showAttachmentPicker,
-            ),
-            const SizedBox(width: 8),
-            // Mic/Send Button - Tap to record, tap to send
-            ValueListenableBuilder<int>(
-              valueListenable: _recordingDuration,
-              builder: (context, duration, _) {
-                final micPrimaryColor = const Color(0xFF146D7A);
-                return GestureDetector(
-                  onTap: _isSendingRecording
-                      ? null // Disable tap while sending
-                      : () async {
-                          if (_messageController.text.trim().isNotEmpty) {
-                            _sendMessage();
-                            return;
-                          }
-
-                          if (_isRecording) {
-                            // Send the recording
-                            await _sendRecording();
-                          } else {
-                            // Start recording
-                            try {
-                              final hasPermission = await _audioRecorder
-                                  .hasPermission();
-                              if (!hasPermission) {
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Microphone permission denied',
-                                      ),
-                                    ),
-                                  );
-                                }
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: Icon(Icons.attach_file, color: hintColor, size: 26),
+                  padding: const EdgeInsets.all(8),
+                  onPressed: _showAttachmentPicker,
+                ),
+                const SizedBox(width: 8),
+                // Mic/Send Button - Tap to record, tap to send
+                ValueListenableBuilder<int>(
+                  valueListenable: _recordingDuration,
+                  builder: (context, duration, _) {
+                    final micPrimaryColor = const Color(0xFF146D7A);
+                    return GestureDetector(
+                      onTap: _isSendingRecording
+                          ? null // Disable tap while sending
+                          : () async {
+                              if (_messageController.text.trim().isNotEmpty) {
+                                _sendMessage();
                                 return;
                               }
 
-                              final tempDir = await getTemporaryDirectory();
-                              final path =
-                                  '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-
-                              await _audioRecorder.start(
-                                const RecordConfig(encoder: AudioEncoder.aacLc),
-                                path: path,
-                              );
-
-                              setState(() {
-                                _isRecording = true;
-                                _recordingPath = path;
-                                _recordingDuration.value = 0;
-                              });
-
-                              _recordingTimer = Timer.periodic(
-                                const Duration(seconds: 1),
-                                (_) {
-                                  if (mounted) {
-                                    _recordingDuration.value++;
+                              if (_isRecording) {
+                                // Send the recording
+                                await _sendRecording();
+                              } else {
+                                // Start recording
+                                try {
+                                  final hasPermission = await _audioRecorder
+                                      .hasPermission();
+                                  if (!hasPermission) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Microphone permission denied',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return;
                                   }
-                                },
-                              );
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: $e')),
-                                );
+
+                                  final tempDir = await getTemporaryDirectory();
+                                  final path =
+                                      '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+                                  await _audioRecorder.start(
+                                    const RecordConfig(
+                                      encoder: AudioEncoder.aacLc,
+                                    ),
+                                    path: path,
+                                  );
+
+                                  setState(() {
+                                    _isRecording = true;
+                                    _recordingPath = path;
+                                    _recordingDuration.value = 0;
+                                  });
+
+                                  _recordingTimer = Timer.periodic(
+                                    const Duration(seconds: 1),
+                                    (_) {
+                                      if (mounted) {
+                                        _recordingDuration.value++;
+                                      }
+                                    },
+                                  );
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Error: $e')),
+                                    );
+                                  }
+                                }
                               }
-                            }
-                          }
-                        },
-                  child: Opacity(
-                    opacity: _isSendingRecording ? 0.5 : 1.0,
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: _isRecording ? Colors.red : micPrimaryColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: _isSendingRecording
-                          ? const Center(
-                              child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
+                            },
+                      child: Opacity(
+                        opacity: _isSendingRecording ? 0.5 : 1.0,
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: _isRecording ? Colors.red : micPrimaryColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: _isSendingRecording
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
                                   ),
+                                )
+                              : IconButton(
+                                  icon: Icon(
+                                    _messageController.text.trim().isNotEmpty
+                                        ? Icons.send_rounded
+                                        : (_isRecording
+                                              ? Icons.send_rounded
+                                              : Icons.mic),
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  onPressed: null,
                                 ),
-                              ),
-                            )
-                          : IconButton(
-                              icon: Icon(
-                                _messageController.text.trim().isNotEmpty
-                                    ? Icons.send_rounded
-                                    : (_isRecording
-                                          ? Icons.send_rounded
-                                          : Icons.mic),
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                              padding: EdgeInsets.zero,
-                              onPressed: null,
-                            ),
-                    ),
-                  ),
-                );
-              },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -4249,6 +4422,8 @@ class _MessageBubble extends StatelessWidget {
   final bool isSelected;
   final String communityId;
   final UserRole? userRole;
+  final Map<String, dynamic>? replyTo;
+  final VoidCallback? onReplyTap;
   final Set<String> failedMessageIds;
   final void Function(String)? onRetry;
 
@@ -4264,9 +4439,75 @@ class _MessageBubble extends StatelessWidget {
     this.isSelected = false,
     required this.communityId,
     required this.userRole,
+    this.replyTo,
+    this.onReplyTap,
     required this.failedMessageIds,
     this.onRetry,
   });
+
+  Widget _buildIntegratedReplyHeader(BuildContext context, Color textColor) {
+    final reply = replyTo;
+    if (reply == null) return const SizedBox.shrink();
+
+    final replyType = (reply['type'] as String? ?? '').toLowerCase();
+    final rawPreview = (reply['contentPreview'] as String?)?.trim() ?? '';
+    final previewText = switch (replyType) {
+      'image' => '📷 Photo',
+      'document' => '📄 Document',
+      'audio' => '🎵 Audio',
+      _ =>
+        rawPreview.isEmpty
+            ? 'Message not available'
+            : (rawPreview.length > 40
+                  ? '${rawPreview.substring(0, 40)}...'
+                  : rawPreview),
+    };
+
+    final child = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(isMe ? 0.14 : 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF22C55E), width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            (reply['senderName'] as String?) ?? 'User',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            previewText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.88)),
+          ),
+        ],
+      ),
+    );
+
+    if (onReplyTap == null) return child;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onReplyTap,
+        borderRadius: BorderRadius.circular(8),
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4478,6 +4719,10 @@ class _MessageBubble extends StatelessWidget {
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if (replyTo != null) ...[
+                                _buildIntegratedReplyHeader(context, textColor),
+                                const SizedBox(height: 6),
+                              ],
                               if (message.mediaMetadata != null) ...[
                                 _buildMetadataAttachment(
                                   context,

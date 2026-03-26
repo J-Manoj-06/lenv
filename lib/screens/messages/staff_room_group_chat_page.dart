@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:provider/provider.dart';
@@ -114,6 +115,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   // Selection mode for delete (ValueNotifiers for flicker-free updates)
   final ValueNotifier<Set<String>> _selectedMessages = ValueNotifier({});
   final ValueNotifier<bool> _isSelectionMode = ValueNotifier(false);
+  Map<String, dynamic>? _replyTo;
   String? _shareEligibilitySelectionKey;
   Future<bool>? _shareEligibilityFuture;
   String? _forwardEligibilitySelectionKey;
@@ -152,6 +154,139 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
   // Track if we're initialized
   bool _isInitialized = false;
+
+  String _replyTypeForMessage(Map<String, dynamic> message) {
+    final hasMultipleMedia =
+        message['multipleMedia'] is List &&
+        (message['multipleMedia'] as List).isNotEmpty;
+    if (hasMultipleMedia) return 'image';
+
+    final mediaMetaRaw = message['mediaMetadata'];
+    final mediaMeta = mediaMetaRaw is Map
+        ? Map<String, dynamic>.from(mediaMetaRaw)
+        : null;
+
+    final attachmentType =
+        (message['attachmentType'] as String?) ??
+        (mediaMeta?['mimeType'] as String?);
+
+    if (attachmentType != null && attachmentType.startsWith('image/')) {
+      return 'image';
+    }
+    if (attachmentType != null && attachmentType.startsWith('audio/')) {
+      return 'audio';
+    }
+
+    final hasAttachment =
+        (message['attachmentUrl'] as String?)?.isNotEmpty == true ||
+        (mediaMeta?['publicUrl'] as String?)?.isNotEmpty == true;
+
+    if (hasAttachment) return 'document';
+    return 'text';
+  }
+
+  String _replyPreviewForMessage(Map<String, dynamic> message) {
+    final type = _replyTypeForMessage(message);
+    if (type == 'image') return '📷 Photo';
+    if (type == 'audio') return '🎵 Audio';
+    if (type == 'document') return '📄 Document';
+    final txt = (message['text'] as String? ?? '').trim();
+    if (txt.isEmpty) return 'Message';
+    return txt.length > 64 ? '${txt.substring(0, 64)}…' : txt;
+  }
+
+  void _setReplyTarget(Map<String, dynamic> message) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _replyTo = {
+        'messageId': message['id'] as String? ?? '',
+        'senderName': message['senderName'] as String? ?? 'User',
+        'type': _replyTypeForMessage(message),
+        'contentPreview': _replyPreviewForMessage(message),
+      };
+    });
+    _messageFocusNode.requestFocus();
+  }
+
+  void _clearReplyTarget() {
+    if (_replyTo == null) return;
+    setState(() {
+      _replyTo = null;
+    });
+  }
+
+  Future<void> _jumpToOriginalMessage(
+    String messageId,
+    List<Map<String, dynamic>> allMessages,
+  ) async {
+    final exists = allMessages.any((m) => (m['id'] as String?) == messageId);
+    if (!exists) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message not available')));
+      return;
+    }
+    await scrollToMessage(
+      messageId,
+      allMessages.map((m) => {'id': m['id']}).toList(),
+    );
+  }
+
+  Widget _buildReplyComposerPreview(ThemeData theme) {
+    final reply = _replyTo;
+    if (reply == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF1F2937)
+            : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(
+          left: const BorderSide(color: Color(0xFF355872), width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Replying to ${reply['senderName'] ?? 'User'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  (reply['contentPreview'] as String?) ?? 'Message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _clearReplyTarget,
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Cancel reply',
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -650,6 +785,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final createdAt =
         pendingMessage['createdAt'] as int? ??
         DateTime.now().millisecondsSinceEpoch;
+    final replyTo = pendingMessage['replyTo'] is Map
+        ? Map<String, dynamic>.from(pendingMessage['replyTo'] as Map)
+        : null;
 
     try {
       final messageRef = await FirebaseFirestore.instance
@@ -663,6 +801,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             'senderRole': currentUser.role.toString().split('.').last,
             'timestamp': FieldValue.serverTimestamp(),
             'createdAt': createdAt,
+            if (replyTo != null) 'replyTo': replyTo,
           });
 
       unawaited(
@@ -1578,6 +1717,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       'senderRole': currentUser.role.toString().split('.').last,
       'createdAt': now,
       'isPending': true,
+      if (_replyTo != null) 'replyTo': _replyTo,
     };
 
     if (mounted) {
@@ -1592,6 +1732,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
     _messageController.clear();
     _hasText.value = false;
+    _clearReplyTarget();
 
     // Scroll to bottom after sending only if user hasn't scrolled away
     if (!_userHasScrolled) {
@@ -3184,20 +3325,41 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                           return HighlightedMessageWrapper(
                             key: getMessageKey(messageId),
                             isHighlighted: isHighlighted,
-                            child: _MessageBubble(
-                              key: ValueKey('bubble_$messageId'),
-                              message: message,
-                              isMe: isMe,
-                              primaryColor: primaryColor,
-                              uploadingMessageIds: _uploadingMessageIds,
-                              pendingUploadProgress: _pendingUploadProgress,
-                              localFilePaths: _localFilePaths,
-                              progressNotifiers: _progressNotifiers,
-                              selectionMode: isSelectionMode,
-                              isSelected: selectedMessages.contains(messageId),
-                              staffRoomId: widget.instituteId,
-                              failedMessageIds: _failedMessageIds,
-                              onRetry: _retryUpload,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _MessageBubble(
+                                  key: ValueKey('bubble_$messageId'),
+                                  message: message,
+                                  isMe: isMe,
+                                  primaryColor: primaryColor,
+                                  replyTo: message['replyTo'] is Map
+                                      ? Map<String, dynamic>.from(
+                                          message['replyTo'] as Map,
+                                        )
+                                      : null,
+                                  onReplyTap: message['replyTo'] is Map
+                                      ? () => _jumpToOriginalMessage(
+                                          (message['replyTo']
+                                                      as Map)['messageId']
+                                                  as String? ??
+                                              '',
+                                          allMessages,
+                                        )
+                                      : null,
+                                  uploadingMessageIds: _uploadingMessageIds,
+                                  pendingUploadProgress: _pendingUploadProgress,
+                                  localFilePaths: _localFilePaths,
+                                  progressNotifiers: _progressNotifiers,
+                                  selectionMode: isSelectionMode,
+                                  isSelected: selectedMessages.contains(
+                                    messageId,
+                                  ),
+                                  staffRoomId: widget.instituteId,
+                                  failedMessageIds: _failedMessageIds,
+                                  onRetry: _retryUpload,
+                                ),
+                              ],
                             ),
                           );
                         },
@@ -3263,6 +3425,13 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                   _invalidateShareEligibilityCache();
                                 }
                               : null,
+                          onHorizontalDragEnd: (details) {
+                            if (isSelectionMode) return;
+                            final velocity = details.primaryVelocity ?? 0;
+                            if (velocity > 240) {
+                              _setReplyTarget(message);
+                            }
+                          },
                           child: HighlightedMessageWrapper(
                             key: getMessageKey(messageId),
                             isHighlighted: isHighlighted,
@@ -3274,6 +3443,20 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                   message: message,
                                   isMe: isMe,
                                   primaryColor: primaryColor,
+                                  replyTo: message['replyTo'] is Map
+                                      ? Map<String, dynamic>.from(
+                                          message['replyTo'] as Map,
+                                        )
+                                      : null,
+                                  onReplyTap: message['replyTo'] is Map
+                                      ? () => _jumpToOriginalMessage(
+                                          (message['replyTo']
+                                                      as Map)['messageId']
+                                                  as String? ??
+                                              '',
+                                          allMessages,
+                                        )
+                                      : null,
                                   uploadingMessageIds: _uploadingMessageIds,
                                   pendingUploadProgress: _pendingUploadProgress,
                                   localFilePaths: _localFilePaths,
@@ -3444,193 +3627,202 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: SafeArea(
             top: false,
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Text input row: emoji -> message -> attachment
-                Expanded(
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 50),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    decoration: BoxDecoration(
-                      color: inputBgColor,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF334155)
-                            : const Color(0xFFE2E8F0),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            _showEmojiPicker
-                                ? Icons.keyboard_outlined
-                                : Icons.sentiment_satisfied_outlined,
-                            color: hintColor,
-                            size: 26,
-                          ),
-                          padding: const EdgeInsets.all(8),
-                          onPressed: () {
-                            setState(() {
-                              _showEmojiPicker = !_showEmojiPicker;
-                            });
-                            if (_showEmojiPicker) {
-                              _messageFocusNode.unfocus();
-                            } else {
-                              _messageFocusNode.requestFocus();
-                            }
-                          },
-                        ),
-                        Expanded(
-                          child: ValueListenableBuilder<bool>(
-                            valueListenable: _isUploading,
-                            builder: (context, isUploading, _) {
-                              return TextField(
-                                controller: _messageController,
-                                focusNode: _messageFocusNode,
-                                style: TextStyle(
-                                  color: isDark
-                                      ? Colors.white
-                                      : const Color(0xFF0F172A),
-                                  fontSize: 16,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: 'Message',
-                                  hintStyle: TextStyle(color: hintColor),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 10,
-                                  ),
-                                ),
-                                maxLines: null,
-                                enabled: !isUploading,
-                                textCapitalization:
-                                    TextCapitalization.sentences,
-                                textInputAction: TextInputAction.send,
-                                onChanged: (text) =>
-                                    _hasText.value = text.trim().isNotEmpty,
-                                onSubmitted: (_) => _sendMessage(),
-                              );
-                            },
+                if (_replyTo != null) _buildReplyComposerPreview(theme),
+                Row(
+                  children: [
+                    // Text input row: emoji -> message -> attachment
+                    Expanded(
+                      child: Container(
+                        constraints: const BoxConstraints(minHeight: 50),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          color: inputBgColor,
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF334155)
+                                : const Color(0xFFE2E8F0),
+                            width: 1,
                           ),
                         ),
-                        ValueListenableBuilder<bool>(
-                          valueListenable: _isUploading,
-                          builder: (context, isUploading, _) {
-                            return IconButton(
+                        child: Row(
+                          children: [
+                            IconButton(
                               icon: Icon(
-                                Icons.attach_file_rounded,
+                                _showEmojiPicker
+                                    ? Icons.keyboard_outlined
+                                    : Icons.sentiment_satisfied_outlined,
                                 color: hintColor,
-                                size: 24,
+                                size: 26,
                               ),
                               padding: const EdgeInsets.all(8),
-                              onPressed: isUploading
-                                  ? null
-                                  : _showAttachmentPicker,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Mic/Send button
-                ValueListenableBuilder<bool>(
-                  valueListenable: _isRecording,
-                  builder: (context, isRecording, _) {
-                    return ValueListenableBuilder<bool>(
-                      valueListenable: _hasText,
-                      builder: (context, hasText, _) {
-                        return ValueListenableBuilder<int>(
-                          valueListenable: _recordingDuration,
-                          builder: (context, duration, _) {
-                            return GestureDetector(
-                              onTap: hasText
-                                  ? _sendMessage
-                                  : isRecording
-                                  ? _sendRecording // Stop and send recording
-                                  : () async {
-                                      try {
-                                        // Start recording
-                                        final permission = await _audioRecorder
-                                            .hasPermission();
-                                        if (!permission) {
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Microphone permission required',
-                                                ),
-                                              ),
-                                            );
-                                          }
-                                          return;
-                                        }
-
-                                        final directory = Directory.systemTemp;
-                                        final timestamp = DateTime.now()
-                                            .millisecondsSinceEpoch;
-                                        final recordingPath =
-                                            '${directory.path}/audio_$timestamp.m4a';
-
-                                        await _audioRecorder.start(
-                                          const RecordConfig(
-                                            encoder: AudioEncoder.aacLc,
-                                            sampleRate: 44100,
-                                            numChannels: 2,
-                                            bitRate: 128000,
+                              onPressed: () {
+                                setState(() {
+                                  _showEmojiPicker = !_showEmojiPicker;
+                                });
+                                if (_showEmojiPicker) {
+                                  _messageFocusNode.unfocus();
+                                } else {
+                                  _messageFocusNode.requestFocus();
+                                }
+                              },
+                            ),
+                            Expanded(
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: _isUploading,
+                                builder: (context, isUploading, _) {
+                                  return TextField(
+                                    controller: _messageController,
+                                    focusNode: _messageFocusNode,
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white
+                                          : const Color(0xFF0F172A),
+                                      fontSize: 16,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Message',
+                                      hintStyle: TextStyle(color: hintColor),
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 10,
                                           ),
-                                          path: recordingPath,
-                                        );
-
-                                        _isRecording.value = true;
-                                        _recordingPath = recordingPath;
-                                        _recordingDuration.value = 0;
-
-                                        _recordingTimer = Timer.periodic(
-                                          const Duration(seconds: 1),
-                                          (_) {
-                                            _recordingDuration.value++;
-                                          },
-                                        );
-                                      } catch (e) {}
-                                    },
-                              child: Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: isRecording
-                                      ? Colors.red
-                                      : primaryColor,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: IconButton(
+                                    ),
+                                    maxLines: null,
+                                    enabled: !isUploading,
+                                    textCapitalization:
+                                        TextCapitalization.sentences,
+                                    textInputAction: TextInputAction.send,
+                                    onChanged: (text) =>
+                                        _hasText.value = text.trim().isNotEmpty,
+                                    onSubmitted: (_) => _sendMessage(),
+                                  );
+                                },
+                              ),
+                            ),
+                            ValueListenableBuilder<bool>(
+                              valueListenable: _isUploading,
+                              builder: (context, isUploading, _) {
+                                return IconButton(
                                   icon: Icon(
-                                    hasText
-                                        ? Icons.send_rounded
-                                        : (isRecording
-                                              ? Icons.send_rounded
-                                              : Icons.mic),
-                                    color: Colors.white,
+                                    Icons.attach_file_rounded,
+                                    color: hintColor,
                                     size: 24,
                                   ),
-                                  padding: EdgeInsets.zero,
-                                  onPressed: null,
-                                ),
-                              ),
+                                  padding: const EdgeInsets.all(8),
+                                  onPressed: isUploading
+                                      ? null
+                                      : _showAttachmentPicker,
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Mic/Send button
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _isRecording,
+                      builder: (context, isRecording, _) {
+                        return ValueListenableBuilder<bool>(
+                          valueListenable: _hasText,
+                          builder: (context, hasText, _) {
+                            return ValueListenableBuilder<int>(
+                              valueListenable: _recordingDuration,
+                              builder: (context, duration, _) {
+                                return GestureDetector(
+                                  onTap: hasText
+                                      ? _sendMessage
+                                      : isRecording
+                                      ? _sendRecording // Stop and send recording
+                                      : () async {
+                                          try {
+                                            // Start recording
+                                            final permission =
+                                                await _audioRecorder
+                                                    .hasPermission();
+                                            if (!permission) {
+                                              if (mounted) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Microphone permission required',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                              return;
+                                            }
+
+                                            final directory =
+                                                Directory.systemTemp;
+                                            final timestamp = DateTime.now()
+                                                .millisecondsSinceEpoch;
+                                            final recordingPath =
+                                                '${directory.path}/audio_$timestamp.m4a';
+
+                                            await _audioRecorder.start(
+                                              const RecordConfig(
+                                                encoder: AudioEncoder.aacLc,
+                                                sampleRate: 44100,
+                                                numChannels: 2,
+                                                bitRate: 128000,
+                                              ),
+                                              path: recordingPath,
+                                            );
+
+                                            _isRecording.value = true;
+                                            _recordingPath = recordingPath;
+                                            _recordingDuration.value = 0;
+
+                                            _recordingTimer = Timer.periodic(
+                                              const Duration(seconds: 1),
+                                              (_) {
+                                                _recordingDuration.value++;
+                                              },
+                                            );
+                                          } catch (e) {}
+                                        },
+                                  child: Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: isRecording
+                                          ? Colors.red
+                                          : primaryColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(
+                                        hasText
+                                            ? Icons.send_rounded
+                                            : (isRecording
+                                                  ? Icons.send_rounded
+                                                  : Icons.mic),
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      onPressed: null,
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         );
                       },
-                    );
-                  },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -4305,6 +4497,8 @@ class _MessageBubble extends StatefulWidget {
   final Map<String, dynamic> message;
   final bool isMe;
   final Color primaryColor;
+  final Map<String, dynamic>? replyTo;
+  final VoidCallback? onReplyTap;
   final Set<String> uploadingMessageIds;
   final Map<String, double> pendingUploadProgress;
   final Map<String, String> localFilePaths;
@@ -4320,6 +4514,8 @@ class _MessageBubble extends StatefulWidget {
     required this.message,
     required this.isMe,
     required this.primaryColor,
+    this.replyTo,
+    this.onReplyTap,
     required this.uploadingMessageIds,
     required this.pendingUploadProgress,
     required this.localFilePaths,
@@ -4409,6 +4605,9 @@ class _MessageBubbleState extends State<_MessageBubble>
     final isTextSendFailed =
         isPendingTextOnly && widget.failedMessageIds.contains(messageId);
     final showOutsideTimeForTextOnly = !hasAttachment && text.isNotEmpty;
+    final replyTextColor = widget.isMe
+        ? Colors.white
+        : (theme.textTheme.bodyLarge?.color ?? Colors.white);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -4691,15 +4890,29 @@ class _MessageBubbleState extends State<_MessageBubble>
                                         ),
                                       ),
                                     ),
-                                    child: _buildAttachmentWidget(
-                                      effectiveAttachmentUrl,
-                                      effectiveAttachmentType ??
-                                          'application/octet-stream',
-                                      effectiveAttachmentName,
-                                      effectiveAttachmentSize ?? 0,
-                                      effectiveThumbnailUrl,
-                                      isPending,
-                                      messageId,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (widget.replyTo != null) ...[
+                                          _buildIntegratedReplyHeader(
+                                            widget.replyTo!,
+                                            replyTextColor,
+                                          ),
+                                          const SizedBox(height: 6),
+                                        ],
+                                        _buildAttachmentWidget(
+                                          effectiveAttachmentUrl,
+                                          effectiveAttachmentType ??
+                                              'application/octet-stream',
+                                          effectiveAttachmentName,
+                                          effectiveAttachmentSize ?? 0,
+                                          effectiveThumbnailUrl,
+                                          isPending,
+                                          messageId,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   const SizedBox(height: 4),
@@ -4759,6 +4972,13 @@ class _MessageBubbleState extends State<_MessageBubble>
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
+                                        if (widget.replyTo != null) ...[
+                                          _buildIntegratedReplyHeader(
+                                            widget.replyTo!,
+                                            replyTextColor,
+                                          ),
+                                          const SizedBox(height: 6),
+                                        ],
                                         if (hasAttachment) ...[
                                           _buildAttachmentWidget(
                                             effectiveAttachmentUrl,
@@ -4908,6 +5128,70 @@ class _MessageBubbleState extends State<_MessageBubble>
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildIntegratedReplyHeader(
+    Map<String, dynamic> reply,
+    Color textColor,
+  ) {
+    final replyType = (reply['type'] as String? ?? '').toLowerCase();
+    final rawPreview = (reply['contentPreview'] as String?)?.trim() ?? '';
+    final previewText = switch (replyType) {
+      'image' => '📷 Photo',
+      'document' => '📄 Document',
+      'audio' => '🎵 Audio',
+      _ =>
+        rawPreview.isEmpty
+            ? 'Message not available'
+            : (rawPreview.length > 40
+                  ? '${rawPreview.substring(0, 40)}...'
+                  : rawPreview),
+    };
+
+    final child = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(widget.isMe ? 0.14 : 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF22C55E), width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            (reply['senderName'] as String?) ?? 'User',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            previewText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.9)),
+          ),
+        ],
+      ),
+    );
+
+    if (widget.onReplyTap == null) return child;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: widget.onReplyTap,
+        borderRadius: BorderRadius.circular(8),
+        child: child,
       ),
     );
   }

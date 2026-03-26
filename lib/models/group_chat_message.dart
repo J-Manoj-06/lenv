@@ -17,6 +17,7 @@ class GroupChatMessage {
   final Map<String, dynamic>? rawData; // Store raw Firestore data for polls
   final String? classId; // Class ID for group chat
   final String? subjectId; // Subject ID for group chat
+  final Map<String, dynamic>? replyTo; // Optional replied message metadata
   final Map<String, int> reactionSummary; // emoji -> count
   final int reactionCount;
 
@@ -35,6 +36,7 @@ class GroupChatMessage {
     this.rawData,
     this.classId,
     this.subjectId,
+    this.replyTo,
     this.reactionSummary = const <String, int>{},
     this.reactionCount = 0,
   });
@@ -81,6 +83,9 @@ class GroupChatMessage {
       rawData: data,
       classId: data['classId'],
       subjectId: data['subjectId'],
+      replyTo: data['replyTo'] is Map
+          ? Map<String, dynamic>.from(data['replyTo'])
+          : null,
       reactionSummary: _parseReactionSummary(data),
       reactionCount: _parseReactionCount(data),
     );
@@ -140,6 +145,7 @@ class GroupChatMessage {
       'deletedFor': deletedFor,
       'isDeleted': isDeleted,
       'type': type,
+      'replyTo': replyTo,
       'reactionSummary': reactionSummary,
       'reactionCount': reactionCount,
     };

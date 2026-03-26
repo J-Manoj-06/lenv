@@ -289,6 +289,7 @@ class MessagingService {
     required String senderId,
     required String senderRole, // 'teacher' or 'parent'
     required String text,
+    Map<String, dynamic>? replyTo,
   }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return null;
@@ -306,6 +307,7 @@ class MessagingService {
       'createdAt': FieldValue.serverTimestamp(),
       'readByTeacher': senderRole == 'teacher',
       'readByParent': senderRole == 'parent',
+      if (replyTo != null) 'replyTo': replyTo,
     });
 
     // Update conversation metadata

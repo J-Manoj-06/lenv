@@ -131,6 +131,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   bool _isCancelled = false;
   final Set<String> _selectedMessages = {};
   bool _isSelectionMode = false;
+  Map<String, dynamic>? _replyTo;
   bool _isReactionPickerOpen = false;
   final Map<String, Map<String, int>> _optimisticReactionSummaries = {};
   final Map<String, String?> _optimisticUserReactions = {};
@@ -182,6 +183,133 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
   // ✅ Cached stream to prevent reloading on every rebuild
   late final Stream<List<GroupChatMessage>> _messagesStream;
+
+  String _replyTypeForMessage(GroupChatMessage message) {
+    final mime = message.mediaMetadata?.mimeType ?? '';
+    final hasMedia =
+        message.mediaMetadata != null ||
+        (message.multipleMedia != null && message.multipleMedia!.isNotEmpty) ||
+        (message.imageUrl?.isNotEmpty ?? false);
+
+    if (!hasMedia) return 'text';
+    if (mime.startsWith('image/') || (message.imageUrl?.isNotEmpty ?? false)) {
+      return 'image';
+    }
+    if (mime.startsWith('audio/')) return 'audio';
+    return 'document';
+  }
+
+  String _replyPreviewForMessage(GroupChatMessage message) {
+    final type = _replyTypeForMessage(message);
+    if (type == 'image') return '📷 Photo';
+    if (type == 'audio') return '🎵 Audio';
+    if (type == 'document') return '📄 Document';
+    final txt = message.message.trim();
+    if (txt.isEmpty) return 'Message';
+    return txt.length > 64 ? '${txt.substring(0, 64)}…' : txt;
+  }
+
+  Map<String, dynamic> _buildReplyToMap(GroupChatMessage message) {
+    return {
+      'messageId': message.id,
+      'senderName': message.senderName,
+      'type': _replyTypeForMessage(message),
+      'contentPreview': _replyPreviewForMessage(message),
+    };
+  }
+
+  void _setReplyTarget(GroupChatMessage message) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _replyTo = _buildReplyToMap(message);
+    });
+    _messageFocusNode.requestFocus();
+  }
+
+  void _clearReplyTarget() {
+    if (_replyTo == null) return;
+    setState(() {
+      _replyTo = null;
+    });
+  }
+
+  Future<void> _jumpToOriginalMessage(
+    String messageId,
+    List<GroupChatMessage> messages,
+  ) async {
+    final exists = messages.any((m) => m.id == messageId);
+    if (!exists) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message not available')));
+      return;
+    }
+    await scrollToMessage(
+      messageId,
+      messages.map((m) => {'id': m.id}).toList(),
+    );
+  }
+
+  Widget _buildReplyComposerPreview(ThemeData theme) {
+    final reply = _replyTo;
+    if (reply == null) return const SizedBox.shrink();
+
+    final role = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.role;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? const Color(0xFF1F2937)
+            : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(
+          left: BorderSide(color: _getAccentColor(role), width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Replying to ${reply['senderName'] ?? 'User'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  (reply['contentPreview'] as String?) ?? 'Message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _clearReplyTarget,
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Cancel reply',
+          ),
+        ],
+      ),
+    );
+  }
 
   // ✅ Message cache for stable instances (reserved for future use)
   // ignore: unused_field
@@ -835,6 +963,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         senderName: pendingMessage.senderName,
         message: pendingMessage.message,
         timestamp: pendingMessage.timestamp,
+        replyTo: pendingMessage.replyTo,
       );
 
       await _messagingService.sendGroupMessage(
@@ -1238,6 +1367,13 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         });
                       }
                     : null,
+                onHorizontalDragEnd: (details) {
+                  if (_isSelectionMode) return;
+                  final velocity = details.primaryVelocity ?? 0;
+                  if (velocity > 240) {
+                    _setReplyTarget(message);
+                  }
+                },
                 onDoubleTap: _isSelectionMode
                     ? null
                     : () {
@@ -1263,6 +1399,14 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                             pendingUploadProgress: _pendingUploadProgress,
                             classId: widget.classId,
                             subjectId: widget.subjectId,
+                            replyTo: message.replyTo,
+                            onReplyTap: message.replyTo == null
+                                ? null
+                                : () => _jumpToOriginalMessage(
+                                    message.replyTo!['messageId'] as String? ??
+                                        '',
+                                    messages,
+                                  ),
                             failedMessageIds: _failedMessageIds,
                             onRetry: _retryUpload,
                             key: ValueKey('bubble-${message.id}'),
@@ -1847,6 +1991,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     final now = DateTime.now().millisecondsSinceEpoch;
     await _bumpLastActivity(now);
 
+    final replyTo = _replyTo;
+
     if (imageUrl != null || mediaMetadata != null) {
       try {
         final directMessage = GroupChatMessage(
@@ -1857,6 +2003,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
           imageUrl: imageUrl,
           mediaMetadata: mediaMetadata,
           timestamp: now,
+          replyTo: replyTo,
         );
 
         await _messagingService.sendGroupMessage(
@@ -1864,6 +2011,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
           widget.subjectId,
           directMessage,
         );
+        _clearReplyTarget();
         _scrollToLatest();
       } catch (e) {
         if (mounted) {
@@ -1887,6 +2035,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       imageUrl: imageUrl,
       mediaMetadata: mediaMetadata,
       timestamp: now,
+      replyTo: replyTo,
     );
 
     setState(() {
@@ -1900,6 +2049,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     _scrollToLatest();
 
     unawaited(_sendPendingTextMessage(pendingMessage));
+
+    _clearReplyTarget();
 
     if (!_isOnline && imageUrl == null && mediaMetadata == null) {
       _showOfflineSnackBar();
@@ -1998,6 +2149,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         message: '',
         timestamp: baseTimestamp,
         mediaMetadata: pendingMetadata,
+        replyTo: _replyTo,
       );
 
       await _bumpLastActivity(baseTimestamp);
@@ -2109,6 +2261,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
         timestamp: baseTimestamp,
         mediaMetadata: mediaList.first, // Primary image
         multipleMedia: mediaList.length > 1 ? mediaList : null,
+        replyTo: _replyTo,
       );
 
       await _bumpLastActivity(baseTimestamp);
@@ -2228,6 +2381,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
           fileSize: await file.length(),
           mimeType: 'application/pdf',
         ),
+        replyTo: _replyTo,
       );
 
       await _bumpLastActivity(pendingMessage.timestamp);
@@ -2327,6 +2481,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
           fileSize: await file.length(),
           mimeType: 'audio/mpeg',
         ),
+        replyTo: _replyTo,
       );
 
       await _bumpLastActivity(pendingMessage.timestamp);
@@ -2438,6 +2593,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
           fileSize: await file.length(),
           mimeType: 'audio/aac',
         ),
+        replyTo: _replyTo,
       );
 
       await _bumpLastActivity(pendingMessage.timestamp);
@@ -3307,217 +3463,231 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       ),
       child: SafeArea(
         top: false,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Input container - pill-shaped with subtle depth
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 44),
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                decoration: BoxDecoration(
-                  color: inputFieldColor,
-                  borderRadius: BorderRadius.circular(22),
-                  boxShadow: isDark
-                      ? [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Emoji toggle - inside input, left side
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _showEmojiPicker = !_showEmojiPicker;
-                          });
-                          if (!_showEmojiPicker) {
-                            _messageFocusNode.requestFocus();
-                          } else {
-                            _messageFocusNode.unfocus();
-                          }
-                        },
-                        child: Icon(
-                          _showEmojiPicker
-                              ? Icons.keyboard_outlined
-                              : Icons.emoji_emotions_outlined,
-                          color: iconColor,
-                          size: 23,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Text input - primary focus
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        focusNode: _messageFocusNode,
-                        cursorColor: accentColor,
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 15,
-                          height: 1.4,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Message',
-                          hintStyle: TextStyle(
-                            color: hintColor,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          disabledBorder: InputBorder.none,
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 10,
-                          ),
-                        ),
-                        maxLines: null,
-                        keyboardType: TextInputType.multiline,
-                        textCapitalization: TextCapitalization.sentences,
-                        textInputAction: TextInputAction.newline,
-                        enabled: !_isRecording && !_isUploading,
-                        onSubmitted: (_) {
-                          _sendMessage();
-                          Future.delayed(const Duration(milliseconds: 50), () {
-                            _messageFocusNode.requestFocus();
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Attachment - inside input, right side
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: _isUploading ? null : _showMediaOptions,
-                        child: Icon(
-                          Icons.attach_file_rounded,
-                          color: _isUploading ? iconDisabledColor : iconColor,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Mic/Send button - balanced size, outside input
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _messageController,
-              builder: (context, value, child) {
-                final hasText = value.text.trim().isNotEmpty;
-                return GestureDetector(
-                  onTap: () async {
-                    if (hasText && !_isUploading) {
-                      _sendMessage();
-                    } else if (!_isRecording && !hasText && !_isUploading) {
-                      // Single tap to start recording
-                      final hasPermission = await _audioRecorder
-                          .hasPermission();
-                      if (!hasPermission) {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Microphone permission denied. Please enable it in Settings.',
-                              ),
-                            ),
-                          );
-                        }
-                        return;
-                      }
-                      final tempDir = await getTemporaryDirectory();
-                      final path =
-                          '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-                      await _audioRecorder.start(
-                        const RecordConfig(encoder: AudioEncoder.aacLc),
-                        path: path,
-                      );
-                      setState(() {
-                        _isRecording = true;
-                        _recordingPath = path;
-                        _recordingDuration.value = 0;
-                        _slideOffsetX = 0;
-                        _isCancelled = false;
-                      });
-                      _recordingTimer = Timer.periodic(
-                        const Duration(seconds: 1),
-                        (_) {
-                          _recordingDuration.value++;
-                        },
-                      );
-                    }
-                  },
-                  onHorizontalDragUpdate: (details) {
-                    if (!_isRecording) return;
-                    setState(() {
-                      _slideOffsetX += details.delta.dx;
-                      _isCancelled = _slideOffsetX < -80;
-                    });
-                  },
-                  onHorizontalDragEnd: (details) {
-                    if (!_isRecording) return;
-                    if (_isCancelled) {
-                      _deleteRecording();
-                    }
-                    setState(() {
-                      _slideOffsetX = 0;
-                      _isCancelled = false;
-                    });
-                  },
+            if (_replyTo != null) _buildReplyComposerPreview(theme),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                // Input container - pill-shaped with subtle depth
+                Expanded(
                   child: Container(
-                    width: 44,
-                    height: 44,
+                    constraints: const BoxConstraints(minHeight: 44),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: _isRecording
-                          ? theme.colorScheme.error
-                          : accentColor,
-                      shape: BoxShape.circle,
+                      color: inputFieldColor,
+                      borderRadius: BorderRadius.circular(22),
                       boxShadow: isDark
                           ? [
                               BoxShadow(
-                                color: accentColor.withOpacity(0.3),
-                                blurRadius: 8,
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 4,
                                 offset: const Offset(0, 2),
                               ),
                             ]
                           : [
                               BoxShadow(
-                                color: accentColor.withOpacity(0.25),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                     ),
-                    child: Icon(
-                      _isRecording
-                          ? Icons.mic
-                          : (hasText ? Icons.send_rounded : Icons.mic),
-                      color: Colors.white,
-                      size: 20,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Emoji toggle - inside input, left side
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _showEmojiPicker = !_showEmojiPicker;
+                              });
+                              if (!_showEmojiPicker) {
+                                _messageFocusNode.requestFocus();
+                              } else {
+                                _messageFocusNode.unfocus();
+                              }
+                            },
+                            child: Icon(
+                              _showEmojiPicker
+                                  ? Icons.keyboard_outlined
+                                  : Icons.emoji_emotions_outlined,
+                              color: iconColor,
+                              size: 23,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Text input - primary focus
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            focusNode: _messageFocusNode,
+                            cursorColor: accentColor,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 15,
+                              height: 1.4,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Message',
+                              hintStyle: TextStyle(
+                                color: hintColor,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                              ),
+                            ),
+                            maxLines: null,
+                            keyboardType: TextInputType.multiline,
+                            textCapitalization: TextCapitalization.sentences,
+                            textInputAction: TextInputAction.newline,
+                            enabled: !_isRecording && !_isUploading,
+                            onSubmitted: (_) {
+                              _sendMessage();
+                              Future.delayed(
+                                const Duration(milliseconds: 50),
+                                () {
+                                  _messageFocusNode.requestFocus();
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        // Attachment - inside input, right side
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: GestureDetector(
+                            onTap: _isUploading ? null : _showMediaOptions,
+                            child: Icon(
+                              Icons.attach_file_rounded,
+                              color: _isUploading
+                                  ? iconDisabledColor
+                                  : iconColor,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
+                ),
+                const SizedBox(width: 8),
+                // Mic/Send button - balanced size, outside input
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _messageController,
+                  builder: (context, value, child) {
+                    final hasText = value.text.trim().isNotEmpty;
+                    return GestureDetector(
+                      onTap: () async {
+                        if (hasText && !_isUploading) {
+                          _sendMessage();
+                        } else if (!_isRecording && !hasText && !_isUploading) {
+                          // Single tap to start recording
+                          final hasPermission = await _audioRecorder
+                              .hasPermission();
+                          if (!hasPermission) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Microphone permission denied. Please enable it in Settings.',
+                                  ),
+                                ),
+                              );
+                            }
+                            return;
+                          }
+                          final tempDir = await getTemporaryDirectory();
+                          final path =
+                              '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+                          await _audioRecorder.start(
+                            const RecordConfig(encoder: AudioEncoder.aacLc),
+                            path: path,
+                          );
+                          setState(() {
+                            _isRecording = true;
+                            _recordingPath = path;
+                            _recordingDuration.value = 0;
+                            _slideOffsetX = 0;
+                            _isCancelled = false;
+                          });
+                          _recordingTimer = Timer.periodic(
+                            const Duration(seconds: 1),
+                            (_) {
+                              _recordingDuration.value++;
+                            },
+                          );
+                        }
+                      },
+                      onHorizontalDragUpdate: (details) {
+                        if (!_isRecording) return;
+                        setState(() {
+                          _slideOffsetX += details.delta.dx;
+                          _isCancelled = _slideOffsetX < -80;
+                        });
+                      },
+                      onHorizontalDragEnd: (details) {
+                        if (!_isRecording) return;
+                        if (_isCancelled) {
+                          _deleteRecording();
+                        }
+                        setState(() {
+                          _slideOffsetX = 0;
+                          _isCancelled = false;
+                        });
+                      },
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _isRecording
+                              ? theme.colorScheme.error
+                              : accentColor,
+                          shape: BoxShape.circle,
+                          boxShadow: isDark
+                              ? [
+                                  BoxShadow(
+                                    color: accentColor.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : [
+                                  BoxShadow(
+                                    color: accentColor.withOpacity(0.25),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                        ),
+                        child: Icon(
+                          _isRecording
+                              ? Icons.mic
+                              : (hasText ? Icons.send_rounded : Icons.mic),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -4334,6 +4504,8 @@ class _MessageBubble extends StatelessWidget {
   final Map<String, double> pendingUploadProgress;
   final String classId;
   final String subjectId;
+  final Map<String, dynamic>? replyTo;
+  final VoidCallback? onReplyTap;
   final Set<String> failedMessageIds;
   final void Function(String)? onRetry;
 
@@ -4349,6 +4521,8 @@ class _MessageBubble extends StatelessWidget {
     required this.pendingUploadProgress,
     required this.classId,
     required this.subjectId,
+    this.replyTo,
+    this.onReplyTap,
     required this.failedMessageIds,
     this.onRetry,
   });
@@ -4362,6 +4536,9 @@ class _MessageBubble extends StatelessWidget {
     final otherBubbleColor = isDark
         ? theme.colorScheme.surface
         : theme.cardColor;
+    final bubbleTextColor = isMe
+        ? const Color(0xFF1A1D21)
+        : theme.colorScheme.onSurface;
     final isPendingTextOnly =
         message.id.startsWith('pending:') &&
         message.message.trim().isNotEmpty &&
@@ -4475,72 +4652,8 @@ class _MessageBubble extends StatelessWidget {
                   // Multiple media handling (WhatsApp-style grid) - NO outer bubble
                   else if (message.multipleMedia != null &&
                       message.multipleMedia!.isNotEmpty)
-                    Column(
-                      crossAxisAlignment: isMe
-                          ? CrossAxisAlignment.end
-                          : CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_hasOnlyImageMedia(message.multipleMedia!))
-                          MultiImageMessageBubble(
-                            imageUrls: message.multipleMedia!
-                                .map((m) => m.localPath ?? m.publicUrl)
-                                .toList(),
-                            isMe: isMe,
-                            uploadProgress: message.multipleMedia!
-                                .map((m) => pendingUploadProgress[m.messageId])
-                                .toList(),
-                            userRole: Provider.of<AuthProvider>(
-                              context,
-                              listen: false,
-                            ).currentUser?.role.toString().split('.').last,
-                            onImageTap: (index, cachedPaths) async {
-                              final updatedMediaList = <MediaMetadata>[];
-                              for (
-                                int i = 0;
-                                i < message.multipleMedia!.length;
-                                i++
-                              ) {
-                                final media = message.multipleMedia![i];
-                                updatedMediaList.add(
-                                  MediaMetadata(
-                                    localPath:
-                                        cachedPaths[i] ?? media.localPath,
-                                    publicUrl: media.publicUrl,
-                                    messageId: media.messageId,
-                                    mimeType: media.mimeType,
-                                    fileSize: media.fileSize,
-                                    r2Key: media.r2Key,
-                                    thumbnail: media.thumbnail,
-                                    expiresAt: media.expiresAt,
-                                    uploadedAt: media.uploadedAt,
-                                  ),
-                                );
-                              }
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => _ImageGalleryViewer(
-                                    mediaList: updatedMediaList,
-                                    initialIndex: index,
-                                    localSenderMediaPaths:
-                                        localSenderMediaPaths,
-                                    isMe: isMe,
-                                    forwardMessage: _buildForwardData(),
-                                  ),
-                                ),
-                              );
-                            },
-                          )
-                        else
-                          _buildMixedMediaAttachments(
-                            context,
-                            message.multipleMedia!,
-                          ),
-                        if (message.message.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Material(
+                    (replyTo != null
+                        ? Material(
                             elevation: 0,
                             color: isMe ? myBubbleColor : otherBubbleColor,
                             borderRadius: BorderRadius.only(
@@ -4551,46 +4664,254 @@ class _MessageBubble extends StatelessWidget {
                             ),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 12,
+                                horizontal: 10,
+                                vertical: 8,
                               ),
-                              child: Linkify(
-                                onOpen: (link) async {
-                                  final uri = Uri.parse(link.url);
-                                  if (await canLaunchUrl(uri)) {
-                                    await launchUrl(
-                                      uri,
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  }
-                                },
-                                text: LinkUtils.addProtocolToBareUrls(
-                                  message.message,
-                                ),
-                                options: const LinkifyOptions(
-                                  defaultToHttps: true,
-                                ),
-                                style: TextStyle(
-                                  color: isMe
-                                      ? const Color(0xFF1A1D21)
-                                      : theme.colorScheme.onSurface,
-                                  fontSize: 14,
-                                  height: 1.5,
-                                ),
-                                linkStyle: TextStyle(
-                                  color: isMe
-                                      ? const Color(0xFF0066CC)
-                                      : theme.colorScheme.primary,
-                                  fontSize: 14,
-                                  height: 1.5,
-                                  decoration: TextDecoration.underline,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _buildIntegratedReplyHeader(
+                                    context,
+                                    replyTo!,
+                                    bubbleTextColor,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  if (_hasOnlyImageMedia(
+                                    message.multipleMedia!,
+                                  ))
+                                    MultiImageMessageBubble(
+                                      imageUrls: message.multipleMedia!
+                                          .map(
+                                            (m) => m.localPath ?? m.publicUrl,
+                                          )
+                                          .toList(),
+                                      isMe: isMe,
+                                      uploadProgress: message.multipleMedia!
+                                          .map(
+                                            (m) =>
+                                                pendingUploadProgress[m
+                                                    .messageId],
+                                          )
+                                          .toList(),
+                                      userRole:
+                                          Provider.of<AuthProvider>(
+                                                context,
+                                                listen: false,
+                                              ).currentUser?.role
+                                              .toString()
+                                              .split('.')
+                                              .last,
+                                      onImageTap: (index, cachedPaths) async {
+                                        final updatedMediaList =
+                                            <MediaMetadata>[];
+                                        for (
+                                          int i = 0;
+                                          i < message.multipleMedia!.length;
+                                          i++
+                                        ) {
+                                          final media =
+                                              message.multipleMedia![i];
+                                          updatedMediaList.add(
+                                            MediaMetadata(
+                                              localPath:
+                                                  cachedPaths[i] ??
+                                                  media.localPath,
+                                              publicUrl: media.publicUrl,
+                                              messageId: media.messageId,
+                                              mimeType: media.mimeType,
+                                              fileSize: media.fileSize,
+                                              r2Key: media.r2Key,
+                                              thumbnail: media.thumbnail,
+                                              expiresAt: media.expiresAt,
+                                              uploadedAt: media.uploadedAt,
+                                            ),
+                                          );
+                                        }
+
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => _ImageGalleryViewer(
+                                              mediaList: updatedMediaList,
+                                              initialIndex: index,
+                                              localSenderMediaPaths:
+                                                  localSenderMediaPaths,
+                                              isMe: isMe,
+                                              forwardMessage:
+                                                  _buildForwardData(),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    )
+                                  else
+                                    _buildMixedMediaAttachments(
+                                      context,
+                                      message.multipleMedia!,
+                                    ),
+                                  if (message.message.isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Linkify(
+                                      onOpen: (link) async {
+                                        final uri = Uri.parse(link.url);
+                                        if (await canLaunchUrl(uri)) {
+                                          await launchUrl(
+                                            uri,
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        }
+                                      },
+                                      text: LinkUtils.addProtocolToBareUrls(
+                                        message.message,
+                                      ),
+                                      options: const LinkifyOptions(
+                                        defaultToHttps: true,
+                                      ),
+                                      style: TextStyle(
+                                        color: bubbleTextColor,
+                                        fontSize: 14,
+                                        height: 1.5,
+                                      ),
+                                      linkStyle: TextStyle(
+                                        color: isMe
+                                            ? const Color(0xFF0066CC)
+                                            : theme.colorScheme.primary,
+                                        fontSize: 14,
+                                        height: 1.5,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                          ),
-                        ],
-                      ],
-                    )
+                          )
+                        : Column(
+                            crossAxisAlignment: isMe
+                                ? CrossAxisAlignment.end
+                                : CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (_hasOnlyImageMedia(message.multipleMedia!))
+                                MultiImageMessageBubble(
+                                  imageUrls: message.multipleMedia!
+                                      .map((m) => m.localPath ?? m.publicUrl)
+                                      .toList(),
+                                  isMe: isMe,
+                                  uploadProgress: message.multipleMedia!
+                                      .map(
+                                        (m) =>
+                                            pendingUploadProgress[m.messageId],
+                                      )
+                                      .toList(),
+                                  userRole:
+                                      Provider.of<AuthProvider>(
+                                            context,
+                                            listen: false,
+                                          ).currentUser?.role
+                                          .toString()
+                                          .split('.')
+                                          .last,
+                                  onImageTap: (index, cachedPaths) async {
+                                    final updatedMediaList = <MediaMetadata>[];
+                                    for (
+                                      int i = 0;
+                                      i < message.multipleMedia!.length;
+                                      i++
+                                    ) {
+                                      final media = message.multipleMedia![i];
+                                      updatedMediaList.add(
+                                        MediaMetadata(
+                                          localPath:
+                                              cachedPaths[i] ?? media.localPath,
+                                          publicUrl: media.publicUrl,
+                                          messageId: media.messageId,
+                                          mimeType: media.mimeType,
+                                          fileSize: media.fileSize,
+                                          r2Key: media.r2Key,
+                                          thumbnail: media.thumbnail,
+                                          expiresAt: media.expiresAt,
+                                          uploadedAt: media.uploadedAt,
+                                        ),
+                                      );
+                                    }
+
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => _ImageGalleryViewer(
+                                          mediaList: updatedMediaList,
+                                          initialIndex: index,
+                                          localSenderMediaPaths:
+                                              localSenderMediaPaths,
+                                          isMe: isMe,
+                                          forwardMessage: _buildForwardData(),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              else
+                                _buildMixedMediaAttachments(
+                                  context,
+                                  message.multipleMedia!,
+                                ),
+                              if (message.message.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Material(
+                                  elevation: 0,
+                                  color: isMe
+                                      ? myBubbleColor
+                                      : otherBubbleColor,
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: const Radius.circular(12),
+                                    topRight: const Radius.circular(12),
+                                    bottomLeft: Radius.circular(isMe ? 12 : 6),
+                                    bottomRight: Radius.circular(isMe ? 6 : 12),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 12,
+                                    ),
+                                    child: Linkify(
+                                      onOpen: (link) async {
+                                        final uri = Uri.parse(link.url);
+                                        if (await canLaunchUrl(uri)) {
+                                          await launchUrl(
+                                            uri,
+                                            mode:
+                                                LaunchMode.externalApplication,
+                                          );
+                                        }
+                                      },
+                                      text: LinkUtils.addProtocolToBareUrls(
+                                        message.message,
+                                      ),
+                                      options: const LinkifyOptions(
+                                        defaultToHttps: true,
+                                      ),
+                                      style: TextStyle(
+                                        color: bubbleTextColor,
+                                        fontSize: 14,
+                                        height: 1.5,
+                                      ),
+                                      linkStyle: TextStyle(
+                                        color: isMe
+                                            ? const Color(0xFF0066CC)
+                                            : theme.colorScheme.primary,
+                                        fontSize: 14,
+                                        height: 1.5,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ))
                   // Single media or text-only messages
                   else
                     Opacity(
@@ -4611,18 +4932,26 @@ class _MessageBubble extends StatelessWidget {
                                 (message.mediaMetadata != null ||
                                         message.imageUrl != null) &&
                                     message.message.isEmpty
-                                ? 0
+                                ? (replyTo != null ? 10 : 0)
                                 : 14,
                             vertical:
                                 (message.mediaMetadata != null ||
                                         message.imageUrl != null) &&
                                     message.message.isEmpty
-                                ? 0
+                                ? (replyTo != null ? 8 : 0)
                                 : 12,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if (replyTo != null) ...[
+                                _buildIntegratedReplyHeader(
+                                  context,
+                                  replyTo!,
+                                  bubbleTextColor,
+                                ),
+                                const SizedBox(height: 6),
+                              ],
                               // Single media handling
                               if (message.mediaMetadata != null) ...[
                                 _buildMetadataAttachment(
@@ -4659,9 +4988,7 @@ class _MessageBubble extends StatelessWidget {
                                     defaultToHttps: true,
                                   ),
                                   style: TextStyle(
-                                    color: isMe
-                                        ? const Color(0xFF1A1D21)
-                                        : theme.colorScheme.onSurface,
+                                    color: bubbleTextColor,
                                     fontSize: 14,
                                     height: 1.5,
                                   ),
@@ -4728,6 +5055,71 @@ class _MessageBubble extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildIntegratedReplyHeader(
+    BuildContext context,
+    Map<String, dynamic> reply,
+    Color textColor,
+  ) {
+    final previewType = (reply['type'] as String? ?? '').toLowerCase();
+    final rawPreview = (reply['contentPreview'] as String?)?.trim() ?? '';
+    final previewText = switch (previewType) {
+      'image' => '📷 Photo',
+      'document' => '📄 Document',
+      'audio' => '🎵 Audio',
+      _ =>
+        rawPreview.isEmpty
+            ? 'Message not available'
+            : (rawPreview.length > 40
+                  ? '${rawPreview.substring(0, 40)}...'
+                  : rawPreview),
+    };
+
+    final child = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(isMe ? 0.12 : 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF22C55E), width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            (reply['senderName'] as String?) ?? 'User',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            previewText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: textColor.withOpacity(0.9)),
+          ),
+        ],
+      ),
+    );
+
+    if (onReplyTap == null) return child;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onReplyTap,
+        borderRadius: BorderRadius.circular(8),
+        child: child,
       ),
     );
   }

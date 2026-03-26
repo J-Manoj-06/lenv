@@ -10,6 +10,7 @@ class ChatMessage {
   final bool readByParent;
   // True while the write hasn't been committed on the server yet
   final bool isPending;
+  final Map<String, dynamic>? replyTo;
   final Map<String, int> reactionSummary;
   final int reactionCount;
 
@@ -22,6 +23,7 @@ class ChatMessage {
     this.readByTeacher = false,
     this.readByParent = false,
     this.isPending = false,
+    this.replyTo,
     this.reactionSummary = const <String, int>{},
     this.reactionCount = 0,
   });
@@ -37,6 +39,9 @@ class ChatMessage {
       readByTeacher: data['readByTeacher'] ?? false,
       readByParent: data['readByParent'] ?? false,
       isPending: doc.metadata.hasPendingWrites,
+      replyTo: data['replyTo'] is Map
+          ? Map<String, dynamic>.from(data['replyTo'])
+          : null,
       reactionSummary: _parseReactionSummary(data),
       reactionCount: _parseReactionCount(data),
     );
@@ -77,6 +82,7 @@ class ChatMessage {
       'createdAt': Timestamp.fromDate(createdAt),
       'readByTeacher': readByTeacher,
       'readByParent': readByParent,
+      'replyTo': replyTo,
       'reactionSummary': reactionSummary,
       'reactionCount': reactionCount,
     };

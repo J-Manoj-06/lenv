@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:path_provider/path_provider.dart';
@@ -47,6 +48,7 @@ class ParentChatScreen extends StatefulWidget {
 class _ParentChatScreenState extends State<ParentChatScreen> {
   final ChatService _chat = ChatService();
   final TextEditingController _controller = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String? _conversationId;
   // Track messages already scheduled for read marking to avoid re-scheduling.
   final Set<String> _scheduledReadIds = <String>{};
@@ -65,6 +67,8 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   final Map<String, String> _localMediaPaths = {};
   final Map<String, int> _lastUploadPercent = {};
   bool _isReactionPickerOpen = false;
+  Map<String, dynamic>? _replyTo;
+  List<Map<String, dynamic>> _latestAllMessages = const [];
 
   // Audio recording
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -77,6 +81,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   void dispose() {
     _connectivitySub?.cancel();
     _controller.dispose();
+    _scrollController.dispose();
     _audioRecorder.dispose();
     _recordingTimer?.cancel();
     _isRecording.dispose();
@@ -202,6 +207,176 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
       }
     }
     return summary;
+  }
+
+  String _replyTypeForMap(Map<String, dynamic> msg) {
+    final media = msg['mediaMetadata'];
+    if (media is MediaMetadata) {
+      final mime = (media.mimeType ?? '').toLowerCase();
+      if (mime.startsWith('image/')) return 'image';
+      if (mime.startsWith('audio/')) return 'audio';
+      return 'document';
+    }
+    if (media is Map<String, dynamic>) {
+      final mime = (media['mimeType'] as String? ?? '').toLowerCase();
+      if (mime.startsWith('image/')) return 'image';
+      if (mime.startsWith('audio/')) return 'audio';
+      return 'document';
+    }
+    return 'text';
+  }
+
+  String _replyPreviewForMap(Map<String, dynamic> msg) {
+    final type = _replyTypeForMap(msg);
+    if (type == 'image') return '📷 Photo';
+    if (type == 'audio') return '🎵 Audio';
+    if (type == 'document') return '📄 Document';
+    final text = (msg['text'] as String? ?? '').trim();
+    if (text.isEmpty) return 'Message';
+    return text.length > 64 ? '${text.substring(0, 64)}…' : text;
+  }
+
+  void _setReplyTarget(Map<String, dynamic> msg) {
+    HapticFeedback.lightImpact();
+    final isParent = msg['senderRole'] == 'parent';
+    setState(() {
+      _replyTo = {
+        'messageId': (msg['_docId'] ?? msg['messageId'] ?? '').toString(),
+        'senderName': isParent ? 'You' : widget.teacherName,
+        'type': _replyTypeForMap(msg),
+        'contentPreview': _replyPreviewForMap(msg),
+      };
+    });
+  }
+
+  void _clearReplyTarget() {
+    if (_replyTo == null) return;
+    setState(() => _replyTo = null);
+  }
+
+  Future<void> _jumpToOriginalMessage(String messageId) async {
+    final idx = _latestAllMessages.indexWhere(
+      (m) => ((m['_docId'] ?? m['messageId'] ?? '').toString()) == messageId,
+    );
+    if (idx < 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Message not available')));
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+    final offset = (idx * 104).toDouble();
+    await _scrollController.animateTo(
+      offset.clamp(0, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Widget _buildReplyComposerPreview(bool isDark) {
+    final reply = _replyTo;
+    if (reply == null) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F2937) : const Color(0xFFEFF6FF),
+        borderRadius: BorderRadius.circular(10),
+        border: const Border(
+          left: BorderSide(color: Color(0xFF1362EB), width: 3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Replying to ${reply['senderName'] ?? 'User'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  (reply['contentPreview'] as String?) ?? 'Message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _clearReplyTarget,
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Cancel reply',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInlineReplyHeader(Map<String, dynamic> reply, bool isDark) {
+    final previewType = (reply['type'] as String? ?? '').toLowerCase();
+    final rawPreview = (reply['contentPreview'] as String?)?.trim() ?? '';
+    final previewText = switch (previewType) {
+      'image' => '📷 Photo',
+      'document' => '📄 Document',
+      'audio' => '🎵 Audio',
+      _ =>
+        rawPreview.isEmpty
+            ? 'Message not available'
+            : (rawPreview.length > 40
+                  ? '${rawPreview.substring(0, 40)}...'
+                  : rawPreview),
+    };
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () =>
+            _jumpToOriginalMessage((reply['messageId'] as String?) ?? ''),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0x33222F3E) : const Color(0x14000000),
+            borderRadius: BorderRadius.circular(8),
+            border: const Border(
+              left: BorderSide(color: Color(0xFF22C55E), width: 3),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                (reply['senderName'] as String?) ?? 'User',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                previewText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _reactToConversationMessage({
@@ -375,6 +550,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
         conversationId: _conversationId!,
         text: '',
         senderRole: 'parent',
+        replyTo: _replyTo,
         mediaMetadata: {
           'messageId': metadata.messageId,
           'r2Key': metadata.r2Key,
@@ -404,6 +580,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
           _localMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
+        _clearReplyTarget();
       }
     } catch (e) {
       if (mounted) {
@@ -496,6 +673,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                         ..._pendingMessages,
                         ...docs.map((d) => d.data()..['_docId'] = d.id),
                       ];
+                      _latestAllMessages = allMessages;
 
                       // Remove pending messages that now exist in Firestore
                       final pendingIdsToRemove = <String>[];
@@ -530,6 +708,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                       }
 
                       return ListView.separated(
+                        controller: _scrollController,
                         padding: const EdgeInsets.all(16),
                         itemBuilder: (context, index) {
                           final msg = allMessages[index];
@@ -561,6 +740,13 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                                         globalPosition: details.globalPosition,
                                       );
                                     },
+                              onHorizontalDragEnd: (details) {
+                                if (isPendingMessage) return;
+                                final velocity = details.primaryVelocity ?? 0;
+                                if (velocity > 240) {
+                                  _setReplyTarget(msg);
+                                }
+                              },
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
                                   maxWidth: 360,
@@ -573,7 +759,19 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                                     DecoratedBox(
                                       decoration: BoxDecoration(
                                         color: hasMedia
-                                            ? Colors.transparent
+                                            ? (msg['replyTo'] is Map
+                                                  ? (isParent
+                                                        ? const Color(
+                                                            0xFF1362EB,
+                                                          )
+                                                        : (isDark
+                                                              ? const Color(
+                                                                  0xFF2A2A2A,
+                                                                )
+                                                              : Colors
+                                                                    .grey
+                                                                    .shade200))
+                                                  : Colors.transparent)
                                             : (isParent
                                                   ? const Color(0xFF1362EB)
                                                   : (isDark
@@ -603,6 +801,15 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                                               CrossAxisAlignment.end,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
+                                            if (msg['replyTo'] is Map) ...[
+                                              _buildInlineReplyHeader(
+                                                Map<String, dynamic>.from(
+                                                  msg['replyTo'] as Map,
+                                                ),
+                                                isDark,
+                                              ),
+                                              const SizedBox(height: 6),
+                                            ],
                                             // Media preview
                                             if (hasMedia) ...[
                                               Text(
@@ -777,69 +984,80 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
                   }
 
                   // Normal input UI
-                  return Row(
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        onPressed: _isUploading ? null : _showAttachmentSheet,
-                        icon: Icon(
-                          Icons.add_circle_outline,
-                          color: _isUploading
-                              ? Colors.grey.shade500
-                              : (isDark
-                                    ? Colors.grey.shade400
-                                    : Colors.grey.shade700),
-                        ),
-                      ),
-                      Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          onChanged: (_) => setState(() {}),
-                          decoration: InputDecoration(
-                            hintText: 'Type your message...',
-                            filled: true,
-                            fillColor: isDark
-                                ? const Color(0xFF2A2A2A)
-                                : Colors.grey.shade200,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(9999),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
+                      if (_replyTo != null) _buildReplyComposerPreview(isDark),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: _isUploading
+                                ? null
+                                : _showAttachmentSheet,
+                            icon: Icon(
+                              Icons.add_circle_outline,
+                              color: _isUploading
+                                  ? Colors.grey.shade500
+                                  : (isDark
+                                        ? Colors.grey.shade400
+                                        : Colors.grey.shade700),
                             ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      CircleAvatar(
-                        backgroundColor: const Color(0xFF1362EB),
-                        child: IconButton(
-                          onPressed: _controller.text.trim().isNotEmpty
-                              ? () async {
-                                  if (!_isOnline) {
-                                    _showOfflineSnackBar();
-                                    return;
-                                  }
-                                  final text = _controller.text.trim();
-                                  if (text.isEmpty || _conversationId == null) {
-                                    return;
-                                  }
-                                  await _chat.sendMessage(
-                                    conversationId: _conversationId!,
-                                    text: text,
-                                    senderRole: 'parent',
-                                  );
-                                  _controller.clear();
-                                }
-                              : _startRecording,
-                          icon: Icon(
-                            _controller.text.trim().isNotEmpty
-                                ? Icons.send
-                                : Icons.mic,
-                            color: Colors.white,
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              onChanged: (_) => setState(() {}),
+                              decoration: InputDecoration(
+                                hintText: 'Type your message...',
+                                filled: true,
+                                fillColor: isDark
+                                    ? const Color(0xFF2A2A2A)
+                                    : Colors.grey.shade200,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(9999),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          CircleAvatar(
+                            backgroundColor: const Color(0xFF1362EB),
+                            child: IconButton(
+                              onPressed: _controller.text.trim().isNotEmpty
+                                  ? () async {
+                                      if (!_isOnline) {
+                                        _showOfflineSnackBar();
+                                        return;
+                                      }
+                                      final text = _controller.text.trim();
+                                      if (text.isEmpty ||
+                                          _conversationId == null) {
+                                        return;
+                                      }
+                                      await _chat.sendMessage(
+                                        conversationId: _conversationId!,
+                                        text: text,
+                                        senderRole: 'parent',
+                                        replyTo: _replyTo,
+                                      );
+                                      _controller.clear();
+                                      _clearReplyTarget();
+                                    }
+                                  : _startRecording,
+                              icon: Icon(
+                                _controller.text.trim().isNotEmpty
+                                    ? Icons.send
+                                    : Icons.mic,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   );
@@ -1134,6 +1352,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
         conversationId: _conversationId!,
         text: '',
         senderRole: 'parent',
+        replyTo: _replyTo,
         mediaMetadata: {
           'messageId': metadata.messageId,
           'r2Key': metadata.r2Key,
@@ -1163,6 +1382,7 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
           _localMediaPaths.remove(pendingId);
           _lastUploadPercent.remove(pendingId);
         });
+        _clearReplyTarget();
       }
     } catch (e) {
       if (mounted) {
