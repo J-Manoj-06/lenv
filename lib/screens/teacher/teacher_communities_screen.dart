@@ -330,12 +330,7 @@ class _TeacherCommunitiesScreenState extends State<TeacherCommunitiesScreen>
               icon: community.getCategoryIcon(),
             ),
           ),
-        ).then((_) {
-          // Refresh the list when returning (user may have left the community)
-          if (mounted) {
-            _loadMyCommunities();
-          }
-        });
+        );
       },
       child: Container(
         padding: const EdgeInsets.all(16),

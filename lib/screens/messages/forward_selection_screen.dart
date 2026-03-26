@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import '../../models/forward_message_data.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
@@ -8,6 +9,7 @@ import '../../services/community_service.dart';
 import '../../services/group_messaging_service.dart';
 import '../../services/teacher_groups_service.dart';
 import 'teacher_group_chat_page.dart';
+import 'community_chat_page.dart';
 
 /// Screen for selecting forward destinations.
 /// Accepts a list of [ForwardMessageData] (the messages to forward),
@@ -52,9 +54,47 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
 
   bool _isDestinationEnabled(ForwardDestination dest) {
     if (_restrictToClassGroupsForMindmap) {
-      return dest.type == 'group';
+      return dest.type != 'community';
     }
     return true;
+  }
+
+  Future<List<ForwardDestination>> _loadJoinedCommunityDestinations(
+    UserModel user,
+  ) async {
+    final merged = <String, ForwardDestination>{};
+
+    Future<void> loadForUserId(String? uid) async {
+      if (uid == null || uid.isEmpty) return;
+
+      try {
+        // Use getMyComm as the primary method (similar to teacher_communities_screen)
+        final comms = await _communityService.getMyComm(uid);
+
+        for (final c in comms) {
+          merged[c.id] = ForwardDestination(
+            id: c.id,
+            name: c.name,
+            type: 'community',
+            subtitle: c.category.isNotEmpty ? c.category : 'Community',
+            iconEmoji: _communityEmoji(c.category),
+            metadata: null,
+          );
+        }
+      } catch (e) {
+        // Silently fail - communities optional for forward
+      }
+    }
+
+    await loadForUserId(user.uid);
+    final firebaseUid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (firebaseUid != user.uid) {
+      await loadForUserId(firebaseUid);
+    }
+
+    final list = merged.values.toList();
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
   }
 
   @override
@@ -95,22 +135,9 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
 
       final destinations = <ForwardDestination>[];
 
-      // ── 1. Communities (all roles) ───────────────────────────────────────
-      try {
-        final comms = await _communityService.getMyComm(user.uid);
-        for (final c in comms) {
-          destinations.add(
-            ForwardDestination(
-              id: c.id,
-              name: c.name,
-              type: 'community',
-              subtitle: c.category.isNotEmpty ? c.category : 'Community',
-              iconEmoji: _communityEmoji(c.category),
-              metadata: null,
-            ),
-          );
-        }
-      } catch (_) {}
+      // ── 1. Communities (joined by current user) ──────────────────────────
+      final joinedCommunities = await _loadJoinedCommunityDestinations(user);
+      destinations.addAll(joinedCommunities);
 
       // ── 2. Staff room (teacher / institute) ──────────────────────────────
       if (user.role == UserRole.teacher || user.role == UserRole.institute) {
@@ -134,6 +161,7 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
         try {
           final data = await _teacherGroupsService.getTeacherGroups(user.uid);
           if (data != null) {
+            final seenGroupIds = <String>{};
             final groups = _teacherGroupsService.parseGroups(data);
             for (final g in groups) {
               final classId = g['classId'] as String? ?? '';
@@ -142,6 +170,7 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
               final subject = g['subject'] as String? ?? 'Subject';
               if (classId.isEmpty || subjectId.isEmpty) continue;
               final destId = '$classId|$subjectId';
+              if (!seenGroupIds.add(destId)) continue;
               destinations.add(
                 ForwardDestination(
                   id: destId,
@@ -230,9 +259,10 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Mindmap can only be forwarded to class groups'),
+          content: Text('Mindmap cannot be forwarded to communities'),
         ),
       );
+      setState(() => _isForwarding = false);
       return;
     }
 
@@ -263,30 +293,43 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
             duration: const Duration(seconds: 2),
           ),
         );
-        // Navigate to the destination if a single group was selected
+        // Navigate to the destination if a single destination was selected
         final dest = selected.first;
-        if (selected.length == 1 &&
-            dest.type == 'group' &&
-            dest.metadata != null) {
-          final classId = dest.metadata!['classId'] as String? ?? '';
-          final subjectId = dest.metadata!['subjectId'] as String? ?? '';
-          final subjectName =
-              dest.metadata!['subjectName'] as String? ?? dest.name;
-          final className = dest.metadata!['className'] as String? ?? '';
-          final icon = dest.metadata!['icon'] as String? ?? '📚';
-          if (!mounted) return;
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => TeacherGroupChatPage(
-                classId: classId,
-                subjectId: subjectId,
-                subjectName: subjectName,
-                teacherName: 'Teacher',
-                icon: icon,
-                className: className.isNotEmpty ? className : null,
+        if (selected.length == 1) {
+          if (dest.type == 'group' && dest.metadata != null) {
+            final classId = dest.metadata!['classId'] as String? ?? '';
+            final subjectId = dest.metadata!['subjectId'] as String? ?? '';
+            final subjectName =
+                dest.metadata!['subjectName'] as String? ?? dest.name;
+            final className = dest.metadata!['className'] as String? ?? '';
+            final icon = dest.metadata!['icon'] as String? ?? '📚';
+            if (!mounted) return;
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => TeacherGroupChatPage(
+                  classId: classId,
+                  subjectId: subjectId,
+                  subjectName: subjectName,
+                  teacherName: 'Teacher',
+                  icon: icon,
+                  className: className.isNotEmpty ? className : null,
+                ),
               ),
-            ),
-          );
+            );
+          } else if (dest.type == 'community') {
+            if (!mounted) return;
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => CommunityChatPage(
+                  communityId: dest.id,
+                  communityName: dest.name,
+                  icon: dest.iconEmoji ?? '💬',
+                ),
+              ),
+            );
+          } else {
+            Navigator.of(context).pop(true); // pop with success flag
+          }
         } else {
           Navigator.of(context).pop(true); // pop with success flag
         }
@@ -581,7 +624,7 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
         if (!isEnabled) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Mindmap can only be forwarded to class groups'),
+              content: Text('Mindmap cannot be forwarded to communities'),
               duration: Duration(milliseconds: 1200),
             ),
           );
@@ -712,7 +755,7 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
                   ? 'Forwarding…'
                   : (count == 0
                         ? (_restrictToClassGroupsForMindmap
-                              ? 'Select a class group to forward'
+                              ? 'Select chats (except communities)'
                               : 'Select a chat to forward')
                         : 'Forward to $count chat${count == 1 ? '' : 's'}'),
               style: const TextStyle(
