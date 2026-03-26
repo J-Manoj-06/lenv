@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui';
+import '../../widgets/principal_dashboard_header.dart';
 import 'staff_details_page.dart';
 
 class InstituteStaffScreen extends StatefulWidget {
@@ -139,7 +140,6 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
         ? const Color(0xFF334155)
         : const Color(0xFFE2E8F0);
     final primaryColor = const Color(0xFF146D7B);
-    final accentColor = const Color(0xFF6A5AE0);
     final slateColor = isDark
         ? const Color(0xFF94A3B8)
         : const Color(0xFF64748B);
@@ -179,15 +179,10 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _Header(
-              primary: primaryColor,
-              accent: accentColor,
-              bg: bgColor,
-              slate: slateColor,
-              totalStaff: _staff.length,
-              isDark: isDark,
-              textColor: textColor,
-              subtitleColor: subtitleColor,
+            PrincipalDashboardHeader(
+              title: 'Staff Directory',
+              subtitle: '${_staff.length} staff members',
+              icon: Icons.people_alt_rounded,
             ),
             _SearchFilters(
               primary: primaryColor,
@@ -271,89 +266,6 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.primary,
-    required this.accent,
-    required this.bg,
-    required this.slate,
-    required this.totalStaff,
-    required this.isDark,
-    required this.textColor,
-    required this.subtitleColor,
-  });
-
-  final Color primary;
-  final Color accent;
-  final Color bg;
-  final Color slate;
-  final int totalStaff;
-  final bool isDark;
-  final Color textColor;
-  final Color subtitleColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      decoration: BoxDecoration(
-        color: bg.withOpacity(0.92),
-        border: const Border(
-          bottom: BorderSide(color: Colors.white24, width: 0.3),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: LinearGradient(
-                colors: [accent, primary],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withOpacity(0.35),
-                  blurRadius: 12,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Icon(Icons.people, color: Colors.white, size: 24),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Staff Directory',
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$totalStaff staff members',
-                  style: TextStyle(color: subtitleColor, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../messages/community_chat_page.dart';
 import './institute_community_explore_screen.dart';
 import '../../services/offline_data_service.dart';
 import '../../services/offline_cache_manager.dart';
+import '../../widgets/principal_dashboard_header.dart';
 
 class InstituteCommunityScreen extends StatefulWidget {
   const InstituteCommunityScreen({super.key});
@@ -267,10 +268,12 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
           onRefresh: _loadData,
           child: Column(
             children: [
-              _TopBar(
-                bgColor: bgColor,
-                textColor: textColor,
-                subtitleColor: subtitleColor,
+              PrincipalDashboardHeader(
+                title: 'Communities',
+                subtitle: 'Manage school communities',
+                icon: Icons.groups_rounded,
+                actionIcon: Icons.explore_rounded,
+                onActionTap: _openExplore,
               ),
               Expanded(
                 child: _isLoading && _joined.isEmpty
@@ -317,49 +320,6 @@ class _InstituteCommunityScreenState extends State<InstituteCommunityScreen>
           'Explore Communities',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
-      ),
-    );
-  }
-}
-
-class _TopBar extends StatelessWidget {
-  const _TopBar({
-    required this.bgColor,
-    required this.textColor,
-    required this.subtitleColor,
-  });
-
-  final Color bgColor;
-  final Color textColor;
-  final Color subtitleColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Communities',
-              style: TextStyle(
-                color: textColor,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

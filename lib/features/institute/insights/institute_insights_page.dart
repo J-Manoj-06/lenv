@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../services/insights/insights_repository.dart';
+import '../../../widgets/principal_dashboard_header.dart';
 import './widgets/insights_top_performers_card.dart';
 import './widgets/insights_teacher_performance_card.dart';
 import './widgets/insights_ai_analysis_card.dart';
@@ -33,7 +34,11 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _TopBar(),
+            const PrincipalDashboardHeader(
+              title: 'School Insights',
+              subtitle: 'Analytics & performance overview',
+              icon: Icons.auto_graph_rounded,
+            ),
             Expanded(
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
@@ -62,41 +67,6 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _TopBar extends StatelessWidget {
-  const _TopBar();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: cardColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const Flexible(
-            child: Text(
-              'School Insights',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
       ),
     );
   }
