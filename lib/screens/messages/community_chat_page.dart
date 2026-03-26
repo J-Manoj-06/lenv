@@ -2566,17 +2566,17 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canForward = snapshot.data == true;
-                                  if (!canForward) {
-                                    return const SizedBox.shrink();
-                                  }
                                   return IconButton(
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.reply_all_rounded,
-                                      color: Colors.blueAccent,
+                                      color: canForward
+                                          ? Colors.blueAccent
+                                          : Colors.grey,
                                       size: 24,
                                     ),
                                     tooltip: 'Forward',
-                                    onPressed: selectedMessages.isEmpty
+                                    onPressed:
+                                        selectedMessages.isEmpty || !canForward
                                         ? null
                                         : _forwardSelectedMessages,
                                   );
@@ -2588,17 +2588,20 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canShare = snapshot.data == true;
-                                  if (!canShare) return const SizedBox.shrink();
                                   return IconButton(
                                     icon: Icon(
                                       Icons.share_rounded,
-                                      color: isDark
-                                          ? Colors.white70
-                                          : const Color(0xFF475569),
+                                      color: canShare
+                                          ? (isDark
+                                                ? Colors.white70
+                                                : const Color(0xFF475569))
+                                          : Colors.grey,
                                       size: 24,
                                     ),
                                     tooltip: 'Share',
-                                    onPressed: _shareSelectedMessages,
+                                    onPressed: canShare
+                                        ? _shareSelectedMessages
+                                        : null,
                                   );
                                 },
                               ),
@@ -3427,8 +3430,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                             child: Container(
                               width: 52,
                               height: 52,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF00A884),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFF8800),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -3475,6 +3478,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     required bool isDark,
   }) {
     final theme = Theme.of(context);
+    const micActionColor = Color(0xFFFF8800);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -3577,7 +3581,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 ValueListenableBuilder<int>(
                   valueListenable: _recordingDuration,
                   builder: (context, duration, _) {
-                    final micPrimaryColor = const Color(0xFF146D7A);
+                    final micPrimaryColor = micActionColor;
                     return GestureDetector(
                       onTap: _isSendingRecording
                           ? null // Disable tap while sending
@@ -3846,6 +3850,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       if (!doc.exists) return false;
 
       final data = doc.data()!;
+      final type = (data['type'] as String?)?.toLowerCase();
+      if (type == 'poll') return false;
       final mediaMetaRaw = data['mediaMetadata'];
       final imageUrl = data['imageUrl'] as String?;
       final attachmentUrl = data['attachmentUrl'] as String?;
@@ -3941,6 +3947,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       if (!doc.exists) return false;
 
       final data = doc.data()!;
+      final type = (data['type'] as String?)?.toLowerCase();
+      if (type == 'poll') return false;
       final mediaMetaRaw = data['mediaMetadata'];
       final multipleMediaRaw = data['multipleMedia'];
       final imageUrl = data['imageUrl'] as String?;
@@ -4511,14 +4519,28 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     // Get user role to determine theme color
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userRole = authProvider.currentUser?.role;
 
     // Use role-specific color from AppColors
     final themeColor = _getRoleThemeColor(userRole);
-    final bubbleColor = isMe ? themeColor : const Color(0xFF2A2A2A);
-    final textColor = Colors.white;
+    final isStudentTheme = userRole == UserRole.student;
+    final otherBubbleColor = isDark
+        ? theme.colorScheme.surface
+        : theme.cardColor;
+    final bubbleColor = isMe
+        ? (isStudentTheme ? const Color(0xFFFFE8D1) : themeColor)
+        : otherBubbleColor;
+    final textColor = isMe
+        ? (isStudentTheme ? const Color(0xFF1A1D21) : Colors.white)
+        : (isDark ? Colors.white : theme.colorScheme.onSurface);
+    final senderNameColor = isStudentTheme
+        ? (isDark ? Colors.white70 : Colors.black87)
+        : themeColor;
     final isPendingTextOnly =
         message.id.startsWith('pending:') &&
         message.message.trim().isNotEmpty &&
@@ -4555,7 +4577,7 @@ class _MessageBubble extends StatelessWidget {
                     child: Text(
                       message.senderName,
                       style: TextStyle(
-                        color: themeColor,
+                        color: senderNameColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -4575,14 +4597,14 @@ class _MessageBubble extends StatelessWidget {
                         Icon(
                           Icons.reply_all_rounded,
                           size: 12,
-                          color: themeColor.withOpacity(0.75),
+                          color: senderNameColor.withOpacity(0.75),
                         ),
                         const SizedBox(width: 4),
                         Text(
                           'Forwarded',
                           style: TextStyle(
                             fontSize: 11,
-                            color: themeColor.withOpacity(0.75),
+                            color: senderNameColor.withOpacity(0.75),
                             fontStyle: FontStyle.italic,
                           ),
                         ),
@@ -4780,7 +4802,10 @@ class _MessageBubble extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   _formatTime(message.timestamp),
-                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  style: TextStyle(
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                    fontSize: 11,
+                  ),
                 ),
               ],
             ),
@@ -4964,15 +4989,7 @@ class _MessageBubble extends StatelessWidget {
 
   String _formatTime(int timestamp) {
     final date = DateTime.fromMillisecondsSinceEpoch(timestamp);
-    final now = DateTime.now();
-    final diff = now.difference(date);
-
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-
-    return '${date.day}/${date.month}/${date.year}';
+    return DateFormat('h:mm a').format(date);
   }
 }
 

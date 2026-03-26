@@ -8,6 +8,26 @@ import '../models/poll_model.dart';
 class PollService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  /// Supports explicit `classId|subjectId` and legacy `classId_subjectId`.
+  Map<String, String>? _parseGroupChatId(String chatId) {
+    if (chatId.contains('|')) {
+      final parts = chatId.split('|');
+      if (parts.length == 2 && parts[0].isNotEmpty && parts[1].isNotEmpty) {
+        return {'classId': parts[0], 'subjectId': parts[1]};
+      }
+    }
+
+    final separatorIndex = chatId.indexOf('_');
+    if (separatorIndex > 0 && separatorIndex < chatId.length - 1) {
+      return {
+        'classId': chatId.substring(0, separatorIndex),
+        'subjectId': chatId.substring(separatorIndex + 1),
+      };
+    }
+
+    return null;
+  }
+
   /// Send a poll message to a chat
   /// chatType: 'community', 'group', 'individual', 'staff_room'
   Future<String> sendPoll({
@@ -26,20 +46,18 @@ class PollService {
             .collection('messages')
             .doc();
       } else if (chatType == 'group') {
-        // Group chat uses classes/{classId}/subjects/{subjectId}/messages
-        // chatId format: classId_subjectId
-        final parts = chatId.split('_');
-        if (parts.length == 2) {
+        final groupIds = _parseGroupChatId(chatId);
+        if (groupIds != null) {
           messageRef = _firestore
               .collection('classes')
-              .doc(parts[0])
+              .doc(groupIds['classId'])
               .collection('subjects')
-              .doc(parts[1])
+              .doc(groupIds['subjectId'])
               .collection('messages')
               .doc();
         } else {
           throw Exception(
-            'Invalid group chat ID format. Expected: classId_subjectId',
+            'Invalid group chat ID format. Expected: classId|subjectId or classId_subjectId',
           );
         }
       } else if (chatType == 'ptGroup') {
@@ -91,14 +109,13 @@ class PollService {
       if (chatType == 'community') {
         parentRef = _firestore.collection('communities').doc(chatId);
       } else if (chatType == 'group') {
-        // Group chat uses classes/{classId}/subjects/{subjectId}
-        final parts = chatId.split('_');
-        if (parts.length == 2) {
+        final groupIds = _parseGroupChatId(chatId);
+        if (groupIds != null) {
           parentRef = _firestore
               .collection('classes')
-              .doc(parts[0])
+              .doc(groupIds['classId'])
               .collection('subjects')
-              .doc(parts[1]);
+              .doc(groupIds['subjectId']);
         } else {
           return; // Skip update if format is invalid
         }
@@ -141,13 +158,13 @@ class PollService {
           .collection('messages')
           .doc(messageId);
     } else if (chatType == 'group') {
-      final parts = chatId.split('_');
-      if (parts.length == 2) {
+      final groupIds = _parseGroupChatId(chatId);
+      if (groupIds != null) {
         messageRef = _firestore
             .collection('classes')
-            .doc(parts[0])
+            .doc(groupIds['classId'])
             .collection('subjects')
-            .doc(parts[1])
+            .doc(groupIds['subjectId'])
             .collection('messages')
             .doc(messageId);
       } else {
@@ -220,13 +237,13 @@ class PollService {
           .collection('messages')
           .doc(messageId);
     } else if (chatType == 'group') {
-      final parts = chatId.split('_');
-      if (parts.length == 2) {
+      final groupIds = _parseGroupChatId(chatId);
+      if (groupIds != null) {
         messageRef = _firestore
             .collection('classes')
-            .doc(parts[0])
+            .doc(groupIds['classId'])
             .collection('subjects')
-            .doc(parts[1])
+            .doc(groupIds['subjectId'])
             .collection('messages')
             .doc(messageId);
       } else {
@@ -364,13 +381,13 @@ class PollService {
             .doc(messageId)
             .get();
       } else if (chatType == 'group') {
-        final parts = chatId.split('_');
-        if (parts.length == 2) {
+        final groupIds = _parseGroupChatId(chatId);
+        if (groupIds != null) {
           snapshot = await _firestore
               .collection('classes')
-              .doc(parts[0])
+              .doc(groupIds['classId'])
               .collection('subjects')
-              .doc(parts[1])
+              .doc(groupIds['subjectId'])
               .collection('messages')
               .doc(messageId)
               .get();

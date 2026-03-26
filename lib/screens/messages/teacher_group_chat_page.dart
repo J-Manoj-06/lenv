@@ -1443,7 +1443,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
   }
 
   // Extract R2 key from full URL
-  // https://files.lenv1.tech/media/1234567/file.pdf → media/1234567/file.pdf
+  // https://files.lenv1.tech/media/1234567/file.pdf -> media/1234567/file.pdf
   String _extractR2Key(String url) {
     final uri = Uri.parse(url);
     // Remove leading slash if present
@@ -1453,7 +1453,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
   void _initOfflineFirst(String? currentUserId) async {
     _localRepo = LocalMessageRepository();
-    _syncService = FirebaseMessageSyncService(_localRepo);
 
     await _localRepo.initialize();
     if (!mounted) return;
@@ -2889,15 +2888,16 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         future: _getForwardEligibilityFuture(_selectedMessages),
                         builder: (context, snapshot) {
                           final canForward = snapshot.data == true;
-                          if (!canForward) return const SizedBox.shrink();
                           return IconButton(
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.reply_all_rounded,
-                              color: Colors.blueAccent,
+                              color: canForward
+                                  ? Colors.blueAccent
+                                  : Colors.grey,
                               size: 24,
                             ),
                             tooltip: 'Forward',
-                            onPressed: _selectedMessages.isEmpty
+                            onPressed: _selectedMessages.isEmpty || !canForward
                                 ? null
                                 : _forwardSelectedMessages,
                           );
@@ -2907,17 +2907,18 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         future: _getShareEligibilityFuture(_selectedMessages),
                         builder: (context, snapshot) {
                           final canShare = snapshot.data == true;
-                          if (!canShare) return const SizedBox.shrink();
                           return IconButton(
                             icon: Icon(
                               Icons.share_rounded,
-                              color: theme.brightness == Brightness.dark
-                                  ? Colors.white70
-                                  : const Color(0xFF475569),
+                              color: canShare
+                                  ? (theme.brightness == Brightness.dark
+                                        ? Colors.white70
+                                        : const Color(0xFF475569))
+                                  : Colors.grey,
                               size: 24,
                             ),
                             tooltip: 'Share',
-                            onPressed: _shareSelectedMessages,
+                            onPressed: canShare ? _shareSelectedMessages : null,
                           );
                         },
                       ),
@@ -3754,7 +3755,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       MaterialPageRoute(
         settings: const RouteSettings(name: '/create_poll'),
         builder: (context) => CreatePollScreen(
-          chatId: '${widget.classId}_${widget.subjectId}',
+          chatId: '${widget.classId}|${widget.subjectId}',
           chatType: 'group',
         ),
       ),
@@ -4116,6 +4117,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       if (!doc.exists) return false;
 
       final data = doc.data()!;
+      final type = (data['type'] as String?)?.toLowerCase();
+      if (type == 'poll') return false;
       final mediaMetaRaw = data['mediaMetadata'];
       final imageUrl = data['imageUrl'] as String?;
       final attachmentUrl = data['attachmentUrl'] as String?;
@@ -4213,6 +4216,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       if (!doc.exists) return false;
 
       final data = doc.data()!;
+      final type = (data['type'] as String?)?.toLowerCase();
+      if (type == 'poll') return false;
       final mediaMetaRaw = data['mediaMetadata'];
       final multipleMediaRaw = data['multipleMedia'];
       final imageUrl = data['imageUrl'] as String?;
@@ -4628,7 +4633,7 @@ class _MessageBubble extends StatelessWidget {
                             : Alignment.centerLeft,
                         child: PollMessageWidget(
                           poll: PollModel.fromMap(message.toMap(), message.id),
-                          chatId: '${classId}_$subjectId',
+                          chatId: '$classId|$subjectId',
                           chatType: 'group',
                           isOwnMessage: isMe,
                         ),

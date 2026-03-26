@@ -130,6 +130,14 @@ service cloud.firestore {
       ]);
     }
 
+    function pollVoteUpdateOnly() {
+      return resource.data.type == 'poll'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'options',
+          'voters'
+        ]);
+    }
+
     function resolvedAnnouncementScope(data) {
       return (data.scopeType != null)
           ? data.scopeType
@@ -534,6 +542,7 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() && (
           resource.data.senderId == request.auth.uid
           || isAdmin()
+          || pollVoteUpdateOnly()
           || reactionAggregateUpdateOnly()
         );
 
@@ -633,6 +642,7 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() && (
           resource.data.senderId == request.auth.uid
           || isAdmin()
+          || pollVoteUpdateOnly()
           || reactionAggregateUpdateOnly()
         );
 
@@ -659,6 +669,7 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() && (
           resource.data.senderId == request.auth.uid
           || isAdmin()
+          || pollVoteUpdateOnly()
           || reactionAggregateUpdateOnly()
         );
 
@@ -700,6 +711,7 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() && (
           resource.data.senderId == request.auth.uid
           || isAdmin()
+          || pollVoteUpdateOnly()
           || reactionAggregateUpdateOnly()
         );
 

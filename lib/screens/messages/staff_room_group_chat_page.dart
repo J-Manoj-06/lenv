@@ -2727,17 +2727,17 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canForward = snapshot.data == true;
-                                  if (!canForward) {
-                                    return const SizedBox.shrink();
-                                  }
                                   return IconButton(
-                                    icon: const Icon(
+                                    icon: Icon(
                                       Icons.reply_all_rounded,
-                                      color: Colors.blueAccent,
+                                      color: canForward
+                                          ? Colors.blueAccent
+                                          : Colors.grey,
                                       size: 24,
                                     ),
                                     tooltip: 'Forward',
-                                    onPressed: selectedMessages.isEmpty
+                                    onPressed:
+                                        selectedMessages.isEmpty || !canForward
                                         ? null
                                         : _forwardSelectedMessages,
                                   );
@@ -2749,17 +2749,20 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canShare = snapshot.data == true;
-                                  if (!canShare) return const SizedBox.shrink();
                                   return IconButton(
                                     icon: Icon(
                                       Icons.share_rounded,
-                                      color: isDark
-                                          ? Colors.white70
-                                          : const Color(0xFF475569),
+                                      color: canShare
+                                          ? (isDark
+                                                ? Colors.white70
+                                                : const Color(0xFF475569))
+                                          : Colors.grey,
                                       size: 24,
                                     ),
                                     tooltip: 'Share',
-                                    onPressed: _shareSelectedMessages,
+                                    onPressed: canShare
+                                        ? _shareSelectedMessages
+                                        : null,
                                   );
                                 },
                               ),
@@ -4020,6 +4023,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       final data = await _getMessageDataById(id);
       if (data == null) return [];
 
+      final type = (data['type'] as String?)?.toLowerCase();
+      if (type == 'poll') return [];
+
       final mediaMetaRaw = data['mediaMetadata'];
       final imageUrl = data['imageUrl'] as String?;
       final attachmentUrl = data['attachmentUrl'] as String?;
@@ -4116,6 +4122,9 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     for (final id in selectedIds) {
       final data = await _getMessageDataById(id);
       if (data == null) return false;
+
+      final type = (data['type'] as String?)?.toLowerCase();
+      if (type == 'poll') return false;
 
       final mediaMetaRaw = data['mediaMetadata'];
       final multipleMediaRaw = data['multipleMedia'];

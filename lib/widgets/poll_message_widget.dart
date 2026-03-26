@@ -81,8 +81,8 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
     _animController.forward().then((_) => _animController.reverse());
 
     try {
-      // Fire and forget - UI updates via stream
-      _pollService.vote(
+      // Await so async failures (e.g., permission denied) are handled here.
+      await _pollService.vote(
         chatId: widget.chatId,
         messageId: widget.poll.id!,
         optionId: optionId,
