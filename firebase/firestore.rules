@@ -657,8 +657,17 @@ service cloud.firestore {
         allow read: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
         allow create: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
         allow update, delete: if isSignedIn() && (
-          resource.data.senderId == request.auth.uid || isAdmin()
+          resource.data.senderId == request.auth.uid
+          || isAdmin()
+          || reactionAggregateUpdateOnly()
         );
+
+        match /reactions/{reactionUserId} {
+          allow read: if isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId);
+          allow create, update, delete: if isSignedIn() && uidIs(reactionUserId) && (
+            isStaffRoomMember(roomId) || isLegacyStaffRoomMember(roomId)
+          );
+        }
       }
     }
     

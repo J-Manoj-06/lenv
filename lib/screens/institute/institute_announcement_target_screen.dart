@@ -68,6 +68,7 @@ class _InstituteAnnouncementTargetScreenState
 
   void _toggleStandard(String s) {
     setState(() {
+      _target = 'specific';
       if (_selectedStandards.contains(s)) {
         _selectedStandards.remove(s);
       } else {
@@ -128,7 +129,10 @@ class _InstituteAnnouncementTargetScreenState
                               'Send announcement to all standards and staff.',
                           icon: Icons.school,
                           selected: _target == 'whole',
-                          onTap: () => setState(() => _target = 'whole'),
+                          onTap: () => setState(() {
+                            _target = 'whole';
+                            _selectedStandards.clear();
+                          }),
                         ),
                         const SizedBox(height: 12),
                         _TargetCard(

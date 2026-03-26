@@ -50,6 +50,19 @@ class ReactionTarget {
     );
   }
 
+  static ReactionTarget staffRoomMessage({
+    required String staffRoomId,
+    required String messageId,
+  }) {
+    return ReactionTarget._(
+      FirebaseFirestore.instance
+          .collection('staff_rooms')
+          .doc(staffRoomId)
+          .collection('messages')
+          .doc(messageId),
+    );
+  }
+
   static ReactionTarget conversationMessage({
     required String conversationId,
     required String messageId,

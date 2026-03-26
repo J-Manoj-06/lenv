@@ -59,6 +59,7 @@ class _TeacherAnnouncementTargetScreenState
 
   void _toggleStandard(String s) {
     setState(() {
+      _target = 'standard';
       if (_selectedStandards.contains(s)) {
         _selectedStandards.remove(s);
       } else {
@@ -69,6 +70,7 @@ class _TeacherAnnouncementTargetScreenState
 
   void _toggleSection(String s) {
     setState(() {
+      _target = 'section';
       if (_selectedSections.contains(s)) {
         _selectedSections.remove(s);
       } else {

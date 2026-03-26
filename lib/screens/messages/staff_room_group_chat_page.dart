@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart' as fcm;
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
@@ -43,6 +43,9 @@ import 'package:uuid/uuid.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
 import '../../services/active_chat_service.dart';
+import '../../services/message_reaction_service.dart';
+import '../../widgets/message_reaction_picker.dart';
+import '../../widgets/message_reaction_summary.dart';
 import '../../widgets/whatsapp_emoji_picker.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
@@ -117,6 +120,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
   Future<bool>? _forwardEligibilityFuture;
   String? _deleteEligibilitySelectionKey;
   Future<bool>? _deleteEligibilityFuture;
+  bool _isReactionPickerOpen = false;
 
   // Timer to poll cache for progress updates
   Timer? _progressPollTimer;
@@ -238,6 +242,86 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       Set<String>.from(selectedIds),
     );
     return _deleteEligibilityFuture!;
+  }
+
+  Future<void> _showReactionPickerForMessage({
+    required Map<String, dynamic> message,
+    required Offset globalPosition,
+  }) async {
+    if (_isReactionPickerOpen) return;
+
+    final messageId = message['id'] as String?;
+    if (messageId == null || messageId.isEmpty) return;
+
+    final currentUserId = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null || currentUserId.isEmpty) return;
+
+    _isReactionPickerOpen = true;
+    try {
+      final providerUserId = Provider.of<AuthProvider>(
+        context,
+        listen: false,
+      ).currentUser?.uid;
+      final userAliases = <String>[
+        if (providerUserId != null && providerUserId.isNotEmpty) providerUserId,
+      ];
+
+      final selectedEmoji = await MessageReactionService.instance
+          .getUserReaction(
+            target: ReactionTarget.staffRoomMessage(
+              staffRoomId: widget.instituteId,
+              messageId: messageId,
+            ),
+            userId: currentUserId,
+            userAliases: userAliases,
+          );
+
+      final emoji = await showMessageReactionPicker(
+        context: context,
+        globalPosition: globalPosition,
+        selectedEmoji: selectedEmoji,
+      );
+      if (emoji == null || emoji.isEmpty) return;
+
+      _isSelectionMode.value = false;
+      _selectedMessages.value = {};
+      _invalidateShareEligibilityCache();
+
+      await MessageReactionService.instance.toggleReaction(
+        target: ReactionTarget.staffRoomMessage(
+          staffRoomId: widget.instituteId,
+          messageId: messageId,
+        ),
+        userId: currentUserId,
+        emoji: emoji,
+        userAliases: userAliases,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not update reaction right now')),
+      );
+    } finally {
+      _isReactionPickerOpen = false;
+    }
+  }
+
+  Map<String, int> _reactionSummaryFromMessage(Map<String, dynamic> message) {
+    final summary = <String, int>{};
+    final rawSummary = message['reactionSummary'];
+    if (rawSummary is! Map) return summary;
+
+    rawSummary.forEach((key, value) {
+      final emoji = key.toString();
+      if (emoji.isEmpty) return;
+      if (value is int && value > 0) {
+        summary[emoji] = value;
+      } else if (value is num && value > 0) {
+        summary[emoji] = value.toInt();
+      }
+    });
+
+    return summary;
   }
 
   @override
@@ -2911,15 +2995,13 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
           final messageId = doc.id;
 
-          // Create a stable cached instance - NEVER MUTATE IT
-          // This ensures Flutter recognizes the same object and doesn't rebuild widgets
-          if (!_messageCache.containsKey(messageId)) {
-            _messageCache[messageId] = {
-              ...data,
-              'id': messageId,
-              'isPending': false,
-            };
-          }
+          // Keep cache in sync with live Firestore payloads so fields like
+          // reactionSummary/reactionCount update immediately in the UI.
+          _messageCache[messageId] = {
+            ...data,
+            'id': messageId,
+            'isPending': false,
+          };
 
           allMessages.add(_messageCache[messageId]!);
         }
@@ -3140,13 +3222,27 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                         final isSelected = selectedMessages.contains(messageId);
 
                         return GestureDetector(
-                          onLongPress: () {
+                          onLongPressStart: (details) {
+                            if (isSelectionMode) {
+                              _selectedMessages.value = {
+                                ...selectedMessages,
+                                messageId,
+                              };
+                              _invalidateShareEligibilityCache();
+                              return;
+                            }
+
                             _isSelectionMode.value = true;
                             _selectedMessages.value = {
                               ...selectedMessages,
                               messageId,
                             };
                             _invalidateShareEligibilityCache();
+
+                            _showReactionPickerForMessage(
+                              message: message,
+                              globalPosition: details.globalPosition,
+                            );
                           },
                           onTap: isSelectionMode
                               ? () {
@@ -3170,20 +3266,29 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                           child: HighlightedMessageWrapper(
                             key: getMessageKey(messageId),
                             isHighlighted: isHighlighted,
-                            child: _MessageBubble(
-                              key: ValueKey('bubble_$messageId'),
-                              message: message,
-                              isMe: isMe,
-                              primaryColor: primaryColor,
-                              uploadingMessageIds: _uploadingMessageIds,
-                              pendingUploadProgress: _pendingUploadProgress,
-                              localFilePaths: _localFilePaths,
-                              progressNotifiers: _progressNotifiers,
-                              selectionMode: isSelectionMode,
-                              isSelected: isSelected,
-                              staffRoomId: widget.instituteId,
-                              failedMessageIds: _failedMessageIds,
-                              onRetry: _retryUpload,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _MessageBubble(
+                                  key: ValueKey('bubble_$messageId'),
+                                  message: message,
+                                  isMe: isMe,
+                                  primaryColor: primaryColor,
+                                  uploadingMessageIds: _uploadingMessageIds,
+                                  pendingUploadProgress: _pendingUploadProgress,
+                                  localFilePaths: _localFilePaths,
+                                  progressNotifiers: _progressNotifiers,
+                                  selectionMode: isSelectionMode,
+                                  isSelected: isSelected,
+                                  staffRoomId: widget.instituteId,
+                                  failedMessageIds: _failedMessageIds,
+                                  onRetry: _retryUpload,
+                                ),
+                                MessageReactionSummary(
+                                  summary: _reactionSummaryFromMessage(message),
+                                  isMe: isMe,
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -3708,15 +3813,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
           final file = File(entry.localPath);
           if (await file.exists()) return entry.localPath;
         }
-      }
-    }
-
-    for (final url in urlCandidates) {
-      if (url == null || url.isEmpty) continue;
-      final cached = await fcm.DefaultCacheManager().getFileFromCache(url);
-      final file = cached?.file;
-      if (file != null && await file.exists()) {
-        return file.path;
       }
     }
 
