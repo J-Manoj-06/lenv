@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/teacher_service.dart';
 import '../../services/ai_test_service.dart';
+import '../../services/network_service.dart';
 import '../../widgets/teacher_bottom_nav.dart';
 // import 'package:cloud_firestore/cloud_firestore.dart'; // not needed; assignment handled server-side
 
@@ -200,7 +201,7 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
     return _allSubjectsFallback;
   }
 
-  void _generateQuestions() {
+  Future<void> _generateQuestions() async {
     // Validate inputs
     if (_testNameController.text.trim().isEmpty) {
       _showErrorDialog('\u26a0\ufe0f Please enter a test name');
@@ -259,6 +260,11 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
         '\u26a0\ufe0f Total marks must be at least equal to number of questions',
       );
       setState(() => isGenerating = false);
+      return;
+    }
+
+    final hasInternet = await _ensureInternetOrShowPopup();
+    if (!hasInternet) {
       return;
     }
 
@@ -395,6 +401,30 @@ class _AITestGeneratorScreenState extends State<AITestGeneratorScreen> {
         ],
       ),
     );
+  }
+
+  Future<bool> _ensureInternetOrShowPopup() async {
+    final isConnected = await NetworkService().isConnected();
+    if (isConnected) return true;
+    if (!mounted) return false;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('No Internet Connection'),
+        content: const Text(
+          'Your network appears unavailable or unstable. Please check your '
+          'connection and try again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return false;
   }
 
   @override
@@ -1686,6 +1716,11 @@ extension on _AITestGeneratorScreenState {
     required bool publish,
     bool schedule = false,
   }) async {
+    final hasInternet = await _ensureInternetOrShowPopup();
+    if (!hasInternet) {
+      return;
+    }
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final testProv = Provider.of<TestProvider>(context, listen: false);
     final user = auth.currentUser;

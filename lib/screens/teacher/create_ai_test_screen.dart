@@ -15,6 +15,7 @@ import '../../providers/test_assignment_lock_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../widgets/test_assignment_lock_banner.dart';
 import '../../widgets/test_schedule_picker.dart';
+import '../../services/network_service.dart';
 import '../../core/constants/app_colors.dart';
 
 /// Screen for generating tests using AI
@@ -1217,6 +1218,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
       return;
     }
 
+    final hasInternet = await _ensureInternetOrShowPopup();
+    if (!hasInternet) {
+      return;
+    }
+
     setState(() => _isGenerating = true);
 
     try {
@@ -1619,6 +1625,11 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
       return;
     }
 
+    final hasInternet = await _ensureInternetOrShowPopup();
+    if (!hasInternet) {
+      return;
+    }
+
     try {
       // Show loading
       showDialog(
@@ -1907,6 +1918,54 @@ class _CreateAITestScreenState extends State<CreateAITestScreen> {
         ],
       ),
     );
+  }
+
+  Future<bool> _ensureInternetOrShowPopup() async {
+    final isConnected = await NetworkService().isConnected();
+    if (isConnected) return true;
+    if (!mounted) return false;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1F2026)
+            : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: AppColors.teacherColor.withOpacity(0.45),
+            width: 1.4,
+          ),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.wifi_off_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'No Internet Connection',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Your network appears unavailable or unstable. Please check your '
+          'connection and try again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.teacherColor,
+            ),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return false;
   }
 
   /// Show error dialog

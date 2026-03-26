@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import 'package:intl/intl.dart';
 import '../../providers/test_assignment_lock_provider.dart';
+import '../../services/network_service.dart';
 import '../../services/teacher_service.dart';
 import '../../widgets/test_assignment_lock_banner.dart';
 import '../../widgets/test_schedule_picker.dart';
@@ -214,6 +215,51 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
     return [];
   }
 
+  InputDecoration _teacherInputDecoration({
+    required String labelText,
+    required IconData prefixIcon,
+    String? hintText,
+  }) {
+    return InputDecoration(
+      labelText: labelText,
+      hintText: hintText,
+      prefixIcon: Icon(prefixIcon),
+      prefixIconColor: _teacherColor,
+      border: const OutlineInputBorder(),
+      enabledBorder: OutlineInputBorder(
+        borderSide: BorderSide(color: _teacherColor.withOpacity(0.5)),
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderSide: BorderSide(color: _teacherColor, width: 2),
+      ),
+      floatingLabelStyle: const TextStyle(color: _teacherColor),
+    );
+  }
+
+  Future<bool> _ensureInternetOrShowPopup() async {
+    final isConnected = await NetworkService().isConnected();
+    if (isConnected) return true;
+    if (!mounted) return false;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('No Internet Connection'),
+        content: const Text(
+          'Your network appears unavailable or unstable. Please check your '
+          'connection and try again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return false;
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // Lock helpers
   // ──────────────────────────────────────────────────────────────────────────
@@ -323,10 +369,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         // Class dropdown
                         DropdownButtonFormField<String>(
                           initialValue: selectedClass,
-                          decoration: const InputDecoration(
+                          decoration: _teacherInputDecoration(
                             labelText: 'Class',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.school),
+                            prefixIcon: Icons.school,
                           ),
                           items: classes.map((cls) {
                             return DropdownMenuItem(
@@ -367,10 +412,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         // Section dropdown
                         DropdownButtonFormField<String>(
                           initialValue: selectedSection,
-                          decoration: const InputDecoration(
+                          decoration: _teacherInputDecoration(
                             labelText: 'Section',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.group),
+                            prefixIcon: Icons.group,
                           ),
                           items: sections.map((section) {
                             return DropdownMenuItem(
@@ -402,10 +446,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         // Title field
                         TextFormField(
                           controller: _titleController,
-                          decoration: const InputDecoration(
+                          decoration: _teacherInputDecoration(
                             labelText: 'Test Title',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.title),
+                            prefixIcon: Icons.title,
                             hintText: 'e.g., Mathematics Mid-Term Test',
                           ),
                         ),
@@ -414,10 +457,9 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                         // Subject dropdown
                         DropdownButtonFormField<String>(
                           initialValue: selectedSubject,
-                          decoration: const InputDecoration(
+                          decoration: _teacherInputDecoration(
                             labelText: 'Subject',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.book),
+                            prefixIcon: Icons.book,
                           ),
                           items: subjects.map((subject) {
                             return DropdownMenuItem(
@@ -440,11 +482,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                             Expanded(
                               child: TextFormField(
                                 controller: _totalMarksController,
-                                decoration: const InputDecoration(
+                                decoration: _teacherInputDecoration(
                                   labelText: 'Total Marks',
                                   hintText: 'e.g. 100',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.format_list_numbered),
+                                  prefixIcon: Icons.format_list_numbered,
                                 ),
                                 keyboardType: TextInputType.number,
                               ),
@@ -453,11 +494,10 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
                             Expanded(
                               child: TextFormField(
                                 controller: _timeLimitController,
-                                decoration: const InputDecoration(
+                                decoration: _teacherInputDecoration(
                                   labelText: 'Time Limit',
                                   hintText: 'e.g. 90 mins',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.timer),
+                                  prefixIcon: Icons.timer,
                                 ),
                                 keyboardType: TextInputType.number,
                               ),
@@ -1183,6 +1223,11 @@ class _CreateTestScreenState extends State<CreateTestScreen> {
 
           navigator.pop(); // Close schedule dialog
 
+          final hasInternet = await _ensureInternetOrShowPopup();
+          if (!hasInternet) {
+            return;
+          }
+
           // Show loading dialog
           showDialog(
             context: context,
@@ -1279,6 +1324,12 @@ extension on _CreateTestScreenState {
     required bool publish,
     required bool schedule,
   }) async {
+    final hasInternet = await _ensureInternetOrShowPopup();
+    if (!hasInternet) {
+      _lastSaveError = 'No internet connection';
+      return false;
+    }
+
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final testProv = Provider.of<TestProvider>(context, listen: false);
     final user = auth.currentUser;
