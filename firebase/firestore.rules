@@ -1113,8 +1113,8 @@ service cloud.firestore {
     }
 
     match /ai_reports/{reportId} {
-      allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
-      allow write: if isSignedIn() && (isTeacher() || isPrincipal() || isInstitute() || isAdmin());
+      allow read: if isSignedIn() && isStaffRole();
+      allow write: if isSignedIn() && isStaffRole();
     }
 
     // ============================================
