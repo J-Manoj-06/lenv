@@ -143,10 +143,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Get user role to determine theme color
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userRole = authProvider.currentUser?.role;
-    final isPrincipal = userRole == UserRole.institute;
-    final themeColor = isPrincipal
-        ? const Color(0xFF146D7B)
-        : const Color(0xFFFF8800);
+    final themeColor = _getRoleThemeColor(userRole);
     final label = count <= 1 ? '1 unread message' : '$count unread messages';
 
     return Padding(
@@ -172,6 +169,21 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         ],
       ),
     );
+  }
+
+  Color _getRoleThemeColor(UserRole? role) {
+    switch (role) {
+      case UserRole.teacher:
+        return AppColors.teacherColor;
+      case UserRole.student:
+        return AppColors.studentColor;
+      case UserRole.parent:
+        return AppColors.parentColor;
+      case UserRole.institute:
+        return AppColors.instituteColor;
+      default:
+        return AppColors.teacherColor;
+    }
   }
 
   final FocusNode _messageFocusNode = FocusNode();
@@ -2001,9 +2013,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     }
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userRole = authProvider.currentUser?.role;
-    final primaryColor = userRole == UserRole.institute
-        ? const Color(0xFF146D7B)
-        : const Color(0xFFFF8800);
+    final primaryColor = _getRoleThemeColor(userRole);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark
         ? const Color(0xFF222222)
@@ -2430,9 +2440,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final hintColor = isDark
         ? const Color(0xFF8696A0)
         : const Color(0xFF94A3B8);
-    final primaryColor = userRole == UserRole.institute
-        ? const Color(0xFF146D7B)
-        : const Color(0xFFFF8800);
+    final primaryColor = _getRoleThemeColor(userRole);
 
     return WillPopScope(
       onWillPop: () async {
