@@ -2788,11 +2788,12 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
             appBar: AppBar(
               backgroundColor: theme.scaffoldBackgroundColor,
               elevation: 0,
+              toolbarHeight: 66,
               leading: IconButton(
                 icon: Icon(
                   _isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
                   color: theme.iconTheme.color,
-                  size: 20,
+                  size: 24,
                 ),
                 onPressed: () {
                   if (_isSelectionMode) {
@@ -2811,7 +2812,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                       '${_selectedMessages.length} selected',
                       style: TextStyle(
                         color: theme.textTheme.bodyLarge?.color,
-                        fontSize: 16,
+                        fontSize: 17,
                         fontWeight: FontWeight.w600,
                       ),
                     )
@@ -2846,11 +2847,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                           GroupAvatarWidget(
                             groupId: '${widget.classId}_${widget.subjectId}',
                             groupName: widget.subjectName,
-                            size: 38,
+                            size: 42,
                             icon: widget.icon,
                             fallbackGroupIds: _buildGroupDpFallbackIds(),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2859,7 +2860,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                                   widget.subjectName,
                                   style: TextStyle(
                                     color: theme.textTheme.bodyLarge?.color,
-                                    fontSize: 15,
+                                    fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: -0.3,
                                   ),
@@ -2872,7 +2873,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                                       : widget.teacherName,
                                   style: TextStyle(
                                     color: theme.textTheme.bodySmall?.color,
-                                    fontSize: 12,
+                                    fontSize: 13,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),

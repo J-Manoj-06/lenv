@@ -2457,6 +2457,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
         appBar: AppBar(
           backgroundColor: appBarColor,
           elevation: 0,
+          toolbarHeight: 66,
           leading: ValueListenableBuilder<bool>(
             valueListenable: _isSelectionMode,
             builder: (context, isSelectionMode, _) {
@@ -2464,6 +2465,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                 icon: Icon(
                   isSelectionMode ? Icons.close : Icons.arrow_back_ios_new,
                   color: isDark ? Colors.white70 : const Color(0xFF475569),
+                  size: 24,
                 ),
                 onPressed: () {
                   if (isSelectionMode) {
@@ -2488,7 +2490,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                           '${selectedMessages.length} selected',
                           style: TextStyle(
                             color: textColor,
-                            fontSize: 16,
+                            fontSize: 17,
                             fontWeight: FontWeight.w600,
                           ),
                         )
@@ -2496,7 +2498,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                           children: [
                             Text(
                               widget.icon,
-                              style: const TextStyle(fontSize: 24),
+                              style: const TextStyle(fontSize: 26),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
@@ -2507,7 +2509,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                     widget.communityName,
                                     style: TextStyle(
                                       color: textColor,
-                                      fontSize: 16,
+                                      fontSize: 17,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -2515,7 +2517,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                                     'Open Community',
                                     style: TextStyle(
                                       color: subtitleColor,
-                                      fontSize: 12,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ],
