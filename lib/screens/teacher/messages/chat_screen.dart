@@ -819,42 +819,59 @@ class _ChatScreenState extends State<ChatScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: isDark ? Colors.black : const Color(0xFFF6F5F8),
-          appBar: _buildAppBar(theme, isDark),
-          body: Column(
-            children: [
-              Expanded(child: _buildMessageList()),
-              _buildComposer(theme, isDark),
-              if (_showEmojiPicker)
-                EmojiPicker(
-                  onEmojiSelected: (category, emoji) => _onEmojiSelected(emoji),
-                  onBackspacePressed: _onBackspacePressed,
-                  config: Config(
-                    height: 250,
-                    checkPlatformCompatibility: false,
-                    emojiViewConfig: EmojiViewConfig(
-                      backgroundColor: const Color(0xFF0B141A),
-                      columns: 7,
-                      emojiSizeMax: 28,
-                    ),
-                    categoryViewConfig: CategoryViewConfig(
-                      backgroundColor: const Color(0xFF0B141A),
-                      iconColorSelected: const Color(0xFF00A884),
-                      indicatorColor: const Color(0xFF00A884),
-                    ),
-                    bottomActionBarConfig: BottomActionBarConfig(
-                      backgroundColor: const Color(0xFF0B141A),
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isReactionPickerOpen) {
+          _isReactionPickerOpen = false;
+          dismissMessageReactionPicker();
+          return false;
+        }
+        if (_showEmojiPicker) {
+          setState(() {
+            _showEmojiPicker = false;
+          });
+          return false;
+        }
+        return true;
+      },
+      child: Stack(
+        children: [
+          Scaffold(
+            backgroundColor: isDark ? Colors.black : const Color(0xFFF6F5F8),
+            appBar: _buildAppBar(theme, isDark),
+            body: Column(
+              children: [
+                Expanded(child: _buildMessageList()),
+                _buildComposer(theme, isDark),
+                if (_showEmojiPicker)
+                  EmojiPicker(
+                    onEmojiSelected: (category, emoji) =>
+                        _onEmojiSelected(emoji),
+                    onBackspacePressed: _onBackspacePressed,
+                    config: Config(
+                      height: 250,
+                      checkPlatformCompatibility: false,
+                      emojiViewConfig: EmojiViewConfig(
+                        backgroundColor: const Color(0xFF0B141A),
+                        columns: 7,
+                        emojiSizeMax: 28,
+                      ),
+                      categoryViewConfig: CategoryViewConfig(
+                        backgroundColor: const Color(0xFF0B141A),
+                        iconColorSelected: const Color(0xFF00A884),
+                        indicatorColor: const Color(0xFF00A884),
+                      ),
+                      bottomActionBarConfig: BottomActionBarConfig(
+                        backgroundColor: const Color(0xFF0B141A),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
-        _buildRecordingOverlay(),
-      ],
+          _buildRecordingOverlay(),
+        ],
+      ),
     );
   }
 
@@ -866,7 +883,20 @@ class _ChatScreenState extends State<ChatScreen> {
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () {
+          if (_isReactionPickerOpen) {
+            _isReactionPickerOpen = false;
+            dismissMessageReactionPicker();
+            return;
+          }
+          if (_showEmojiPicker) {
+            setState(() {
+              _showEmojiPicker = false;
+            });
+            return;
+          }
+          Navigator.pop(context);
+        },
       ),
       title: Row(
         children: [

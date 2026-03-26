@@ -418,10 +418,6 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
       );
       if (emoji == null || emoji.isEmpty) return;
 
-      _isSelectionMode.value = false;
-      _selectedMessages.value = {};
-      _invalidateShareEligibilityCache();
-
       await MessageReactionService.instance.toggleReaction(
         target: ReactionTarget.staffRoomMessage(
           staffRoomId: widget.instituteId,
@@ -2599,6 +2595,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
 
     return WillPopScope(
       onWillPop: () async {
+        if (_isReactionPickerOpen) {
+          _isReactionPickerOpen = false;
+          dismissMessageReactionPicker();
+          return false;
+        }
         if (_isSelectionMode.value) {
           _isSelectionMode.value = false;
           _selectedMessages.value = {};
@@ -2628,6 +2629,11 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                   size: isSelectionMode ? 24 : 32,
                 ),
                 onPressed: () {
+                  if (_isReactionPickerOpen) {
+                    _isReactionPickerOpen = false;
+                    dismissMessageReactionPicker();
+                    return;
+                  }
                   if (isSelectionMode) {
                     _isSelectionMode.value = false;
                     _selectedMessages.value = {};

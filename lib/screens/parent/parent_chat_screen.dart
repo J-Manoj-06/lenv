@@ -601,471 +601,498 @@ class _ParentChatScreenState extends State<ParentChatScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF121212)
-          : const Color(0xFFF6F7F8),
-      appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
-        elevation: 0.5,
-        titleSpacing: 0,
-        title: Row(
+    return WillPopScope(
+      onWillPop: () async {
+        if (_isReactionPickerOpen) {
+          _isReactionPickerOpen = false;
+          dismissMessageReactionPicker();
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF121212)
+            : const Color(0xFFF6F7F8),
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+          elevation: 0.5,
+          titleSpacing: 0,
+          title: Row(
+            children: [
+              const SizedBox(width: 8),
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.grey.shade800,
+                backgroundImage: widget.teacherAvatarUrl != null
+                    ? (widget.teacherAvatarUrl!.isNotEmpty
+                          ? NetworkImage(widget.teacherAvatarUrl!)
+                          : null)
+                    : null,
+                child: widget.teacherAvatarUrl == null
+                    ? const Icon(Icons.person, color: Colors.white)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.teacherName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${widget.className}${widget.section != null ? ' - ${widget.section}' : ''}${widget.teacherSubject != null ? ' • ${widget.teacherSubject}' : ''}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        body: Column(
           children: [
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: Colors.grey.shade800,
-              backgroundImage: widget.teacherAvatarUrl != null
-                  ? (widget.teacherAvatarUrl!.isNotEmpty
-                        ? NetworkImage(widget.teacherAvatarUrl!)
-                        : null)
-                  : null,
-              child: widget.teacherAvatarUrl == null
-                  ? const Icon(Icons.person, color: Colors.white)
-                  : null,
-            ),
-            const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.teacherName,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    '${widget.className}${widget.section != null ? ' - ${widget.section}' : ''}${widget.teacherSubject != null ? ' • ${widget.teacherSubject}' : ''}',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                  ),
-                ],
+              child: _conversationId == null
+                  ? const SizedBox()
+                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                      stream: _chat.messagesStream(_conversationId!),
+                      builder: (context, snapshot) {
+                        // Show pending messages immediately while loading
+                        if (snapshot.connectionState ==
+                                ConnectionState.waiting &&
+                            _pendingMessages.isEmpty) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        final docs = snapshot.data?.docs ?? [];
+                        // After receiving messages, mark delivered for incoming ones
+                        if (_conversationId != null && docs.isNotEmpty) {
+                          WidgetsBinding.instance.addPostFrameCallback(
+                            (_) => _batchUpdateIncoming(docs),
+                          );
+                        }
+
+                        // Combine pending and Firestore messages
+                        final allMessages = [
+                          ..._pendingMessages,
+                          ...docs.map((d) => d.data()..['_docId'] = d.id),
+                        ];
+                        _latestAllMessages = allMessages;
+
+                        // Remove pending messages that now exist in Firestore
+                        final pendingIdsToRemove = <String>[];
+                        for (final pending in _pendingMessages) {
+                          final pendingId = (pending['messageId'] as String)
+                              .replaceFirst('pending:', '');
+                          final existsInFirestore = docs.any(
+                            (d) => d.id == pendingId,
+                          );
+                          if (existsInFirestore) {
+                            pendingIdsToRemove.add(
+                              pending['messageId'] as String,
+                            );
+                          }
+                        }
+
+                        if (pendingIdsToRemove.isNotEmpty) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            setState(() {
+                              _pendingMessages.removeWhere(
+                                (m) =>
+                                    pendingIdsToRemove.contains(m['messageId']),
+                              );
+                              for (final id in pendingIdsToRemove) {
+                                _progressNotifiers.remove(id)?.dispose();
+                                _localMediaPaths.remove(id);
+                                _lastUploadPercent.remove(id);
+                              }
+                            });
+                          });
+                        }
+
+                        return ListView.separated(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.all(16),
+                          itemBuilder: (context, index) {
+                            final msg = allMessages[index];
+                            final messageId =
+                                (msg['_docId'] ?? msg['messageId'] ?? '')
+                                    .toString();
+                            final isPendingMessage = messageId.startsWith(
+                              'pending:',
+                            );
+                            final isParent = msg['senderRole'] == 'parent';
+                            final deliveredToTeacher =
+                                (msg['deliveredToTeacher'] ?? false) as bool;
+                            final readByTeacher =
+                                (msg['readByTeacher'] ?? false) as bool;
+                            final mediaMetadata =
+                                msg['mediaMetadata'] as MediaMetadata?;
+                            final hasMedia = mediaMetadata != null;
+
+                            return Align(
+                              alignment: isParent
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: GestureDetector(
+                                onLongPressStart: isPendingMessage
+                                    ? null
+                                    : (details) {
+                                        _reactToConversationMessage(
+                                          messageId: messageId,
+                                          globalPosition:
+                                              details.globalPosition,
+                                        );
+                                      },
+                                onHorizontalDragEnd: (details) {
+                                  if (isPendingMessage) return;
+                                  final velocity = details.primaryVelocity ?? 0;
+                                  if (velocity > 240) {
+                                    _setReplyTarget(msg);
+                                  }
+                                },
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 360,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: isParent
+                                        ? CrossAxisAlignment.end
+                                        : CrossAxisAlignment.start,
+                                    children: [
+                                      DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          color: hasMedia
+                                              ? (msg['replyTo'] is Map
+                                                    ? (isParent
+                                                          ? const Color(
+                                                              0xFF1362EB,
+                                                            )
+                                                          : (isDark
+                                                                ? const Color(
+                                                                    0xFF2A2A2A,
+                                                                  )
+                                                                : Colors
+                                                                      .grey
+                                                                      .shade200))
+                                                    : Colors.transparent)
+                                              : (isParent
+                                                    ? const Color(0xFF1362EB)
+                                                    : (isDark
+                                                          ? const Color(
+                                                              0xFF2A2A2A,
+                                                            )
+                                                          : Colors
+                                                                .grey
+                                                                .shade200)),
+                                          borderRadius:
+                                              BorderRadius.circular(
+                                                12,
+                                              ).copyWith(
+                                                bottomRight: isParent
+                                                    ? const Radius.circular(4)
+                                                    : null,
+                                                bottomLeft: !isParent
+                                                    ? const Radius.circular(4)
+                                                    : null,
+                                              ),
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            horizontal: hasMedia ? 4 : 16,
+                                            vertical: hasMedia ? 4 : 12,
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (msg['replyTo'] is Map) ...[
+                                                _buildInlineReplyHeader(
+                                                  Map<String, dynamic>.from(
+                                                    msg['replyTo'] as Map,
+                                                  ),
+                                                  isDark,
+                                                ),
+                                                const SizedBox(height: 6),
+                                              ],
+                                              // Media preview
+                                              if (hasMedia) ...[
+                                                Text(
+                                                  'Media attachment: ${mediaMetadata.originalFileName ?? "file"}',
+                                                  style: TextStyle(
+                                                    color: isParent
+                                                        ? Colors.white
+                                                        : (isDark
+                                                              ? Colors.white
+                                                              : Colors.black87),
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                                if ((msg['text'] ?? '')
+                                                    .isNotEmpty)
+                                                  const SizedBox(height: 8),
+                                              ],
+                                              // Text content
+                                              if ((msg['text'] ?? '')
+                                                  .isNotEmpty)
+                                                Text(
+                                                  msg['text'] ?? '',
+                                                  style: TextStyle(
+                                                    color: isParent
+                                                        ? Colors.white
+                                                        : (isDark
+                                                              ? Colors.white
+                                                              : Colors.black87),
+                                                  ),
+                                                ),
+                                              if (isParent) ...[
+                                                const SizedBox(height: 4),
+                                                Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      readByTeacher
+                                                          ? Icons.done_all
+                                                          : deliveredToTeacher
+                                                          ? Icons.done_all
+                                                          : Icons.done,
+                                                      size: 16,
+                                                      // Use lighter accent so blue ticks are visible on blue bubble
+                                                      color: readByTeacher
+                                                          ? Colors
+                                                                .lightBlueAccent
+                                                          : Colors.white70,
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      MessageReactionSummary(
+                                        summary: _reactionSummaryForMap(msg),
+                                        isMe: isParent,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemCount: allMessages.length,
+                        );
+                      },
+                    ),
+            ),
+            SafeArea(
+              top: false,
+              minimum: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: _isRecording,
+                  builder: (context, isRecording, _) {
+                    if (isRecording) {
+                      // Show recording UI
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF2A2A2A)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Row(
+                          children: [
+                            // Delete button
+                            Material(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(26),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(26),
+                                onTap: _stopAndDeleteRecording,
+                                child: const SizedBox(
+                                  width: 52,
+                                  height: 52,
+                                  child: Icon(
+                                    Icons.delete,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Timer
+                            Expanded(
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _recordingDuration,
+                                builder: (context, duration, _) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 14,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(25),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: const BoxDecoration(
+                                            color: Colors.white,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _formatDuration(duration),
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Send button
+                            Material(
+                              color: const Color(0xFF1362EB),
+                              borderRadius: BorderRadius.circular(26),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(26),
+                                onTap: _stopAndSendRecording,
+                                child: const SizedBox(
+                                  width: 52,
+                                  height: 52,
+                                  child: Icon(
+                                    Icons.send,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // Normal input UI
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_replyTo != null)
+                          _buildReplyComposerPreview(isDark),
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: _isUploading
+                                  ? null
+                                  : _showAttachmentSheet,
+                              icon: Icon(
+                                Icons.add_circle_outline,
+                                color: _isUploading
+                                    ? Colors.grey.shade500
+                                    : (isDark
+                                          ? Colors.grey.shade400
+                                          : Colors.grey.shade700),
+                              ),
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: _controller,
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
+                                  hintText: 'Type your message...',
+                                  filled: true,
+                                  fillColor: isDark
+                                      ? const Color(0xFF2A2A2A)
+                                      : Colors.grey.shade200,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(9999),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            CircleAvatar(
+                              backgroundColor: const Color(0xFF1362EB),
+                              child: IconButton(
+                                onPressed: _controller.text.trim().isNotEmpty
+                                    ? () async {
+                                        if (!_isOnline) {
+                                          _showOfflineSnackBar();
+                                          return;
+                                        }
+                                        final text = _controller.text.trim();
+                                        if (text.isEmpty ||
+                                            _conversationId == null) {
+                                          return;
+                                        }
+                                        await _chat.sendMessage(
+                                          conversationId: _conversationId!,
+                                          text: text,
+                                          senderRole: 'parent',
+                                          replyTo: _replyTo,
+                                        );
+                                        _controller.clear();
+                                        _clearReplyTarget();
+                                      }
+                                    : _startRecording,
+                                icon: Icon(
+                                  _controller.text.trim().isNotEmpty
+                                      ? Icons.send
+                                      : Icons.mic,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
           ],
         ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _conversationId == null
-                ? const SizedBox()
-                : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: _chat.messagesStream(_conversationId!),
-                    builder: (context, snapshot) {
-                      // Show pending messages immediately while loading
-                      if (snapshot.connectionState == ConnectionState.waiting &&
-                          _pendingMessages.isEmpty) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      final docs = snapshot.data?.docs ?? [];
-                      // After receiving messages, mark delivered for incoming ones
-                      if (_conversationId != null && docs.isNotEmpty) {
-                        WidgetsBinding.instance.addPostFrameCallback(
-                          (_) => _batchUpdateIncoming(docs),
-                        );
-                      }
-
-                      // Combine pending and Firestore messages
-                      final allMessages = [
-                        ..._pendingMessages,
-                        ...docs.map((d) => d.data()..['_docId'] = d.id),
-                      ];
-                      _latestAllMessages = allMessages;
-
-                      // Remove pending messages that now exist in Firestore
-                      final pendingIdsToRemove = <String>[];
-                      for (final pending in _pendingMessages) {
-                        final pendingId = (pending['messageId'] as String)
-                            .replaceFirst('pending:', '');
-                        final existsInFirestore = docs.any(
-                          (d) => d.id == pendingId,
-                        );
-                        if (existsInFirestore) {
-                          pendingIdsToRemove.add(
-                            pending['messageId'] as String,
-                          );
-                        }
-                      }
-
-                      if (pendingIdsToRemove.isNotEmpty) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (!mounted) return;
-                          setState(() {
-                            _pendingMessages.removeWhere(
-                              (m) =>
-                                  pendingIdsToRemove.contains(m['messageId']),
-                            );
-                            for (final id in pendingIdsToRemove) {
-                              _progressNotifiers.remove(id)?.dispose();
-                              _localMediaPaths.remove(id);
-                              _lastUploadPercent.remove(id);
-                            }
-                          });
-                        });
-                      }
-
-                      return ListView.separated(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.all(16),
-                        itemBuilder: (context, index) {
-                          final msg = allMessages[index];
-                          final messageId =
-                              (msg['_docId'] ?? msg['messageId'] ?? '')
-                                  .toString();
-                          final isPendingMessage = messageId.startsWith(
-                            'pending:',
-                          );
-                          final isParent = msg['senderRole'] == 'parent';
-                          final deliveredToTeacher =
-                              (msg['deliveredToTeacher'] ?? false) as bool;
-                          final readByTeacher =
-                              (msg['readByTeacher'] ?? false) as bool;
-                          final mediaMetadata =
-                              msg['mediaMetadata'] as MediaMetadata?;
-                          final hasMedia = mediaMetadata != null;
-
-                          return Align(
-                            alignment: isParent
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: GestureDetector(
-                              onLongPressStart: isPendingMessage
-                                  ? null
-                                  : (details) {
-                                      _reactToConversationMessage(
-                                        messageId: messageId,
-                                        globalPosition: details.globalPosition,
-                                      );
-                                    },
-                              onHorizontalDragEnd: (details) {
-                                if (isPendingMessage) return;
-                                final velocity = details.primaryVelocity ?? 0;
-                                if (velocity > 240) {
-                                  _setReplyTarget(msg);
-                                }
-                              },
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 360,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: isParent
-                                      ? CrossAxisAlignment.end
-                                      : CrossAxisAlignment.start,
-                                  children: [
-                                    DecoratedBox(
-                                      decoration: BoxDecoration(
-                                        color: hasMedia
-                                            ? (msg['replyTo'] is Map
-                                                  ? (isParent
-                                                        ? const Color(
-                                                            0xFF1362EB,
-                                                          )
-                                                        : (isDark
-                                                              ? const Color(
-                                                                  0xFF2A2A2A,
-                                                                )
-                                                              : Colors
-                                                                    .grey
-                                                                    .shade200))
-                                                  : Colors.transparent)
-                                            : (isParent
-                                                  ? const Color(0xFF1362EB)
-                                                  : (isDark
-                                                        ? const Color(
-                                                            0xFF2A2A2A,
-                                                          )
-                                                        : Colors
-                                                              .grey
-                                                              .shade200)),
-                                        borderRadius: BorderRadius.circular(12)
-                                            .copyWith(
-                                              bottomRight: isParent
-                                                  ? const Radius.circular(4)
-                                                  : null,
-                                              bottomLeft: !isParent
-                                                  ? const Radius.circular(4)
-                                                  : null,
-                                            ),
-                                      ),
-                                      child: Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: hasMedia ? 4 : 16,
-                                          vertical: hasMedia ? 4 : 12,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (msg['replyTo'] is Map) ...[
-                                              _buildInlineReplyHeader(
-                                                Map<String, dynamic>.from(
-                                                  msg['replyTo'] as Map,
-                                                ),
-                                                isDark,
-                                              ),
-                                              const SizedBox(height: 6),
-                                            ],
-                                            // Media preview
-                                            if (hasMedia) ...[
-                                              Text(
-                                                'Media attachment: ${mediaMetadata.originalFileName ?? "file"}',
-                                                style: TextStyle(
-                                                  color: isParent
-                                                      ? Colors.white
-                                                      : (isDark
-                                                            ? Colors.white
-                                                            : Colors.black87),
-                                                  fontStyle: FontStyle.italic,
-                                                ),
-                                              ),
-                                              if ((msg['text'] ?? '')
-                                                  .isNotEmpty)
-                                                const SizedBox(height: 8),
-                                            ],
-                                            // Text content
-                                            if ((msg['text'] ?? '').isNotEmpty)
-                                              Text(
-                                                msg['text'] ?? '',
-                                                style: TextStyle(
-                                                  color: isParent
-                                                      ? Colors.white
-                                                      : (isDark
-                                                            ? Colors.white
-                                                            : Colors.black87),
-                                                ),
-                                              ),
-                                            if (isParent) ...[
-                                              const SizedBox(height: 4),
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    readByTeacher
-                                                        ? Icons.done_all
-                                                        : deliveredToTeacher
-                                                        ? Icons.done_all
-                                                        : Icons.done,
-                                                    size: 16,
-                                                    // Use lighter accent so blue ticks are visible on blue bubble
-                                                    color: readByTeacher
-                                                        ? Colors.lightBlueAccent
-                                                        : Colors.white70,
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    MessageReactionSummary(
-                                      summary: _reactionSummaryForMap(msg),
-                                      isMe: isParent,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemCount: allMessages.length,
-                      );
-                    },
-                  ),
-          ),
-          SafeArea(
-            top: false,
-            minimum: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _isRecording,
-                builder: (context, isRecording, _) {
-                  if (isRecording) {
-                    // Show recording UI
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      child: Row(
-                        children: [
-                          // Delete button
-                          Material(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(26),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(26),
-                              onTap: _stopAndDeleteRecording,
-                              child: const SizedBox(
-                                width: 52,
-                                height: 52,
-                                child: Icon(
-                                  Icons.delete,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Timer
-                          Expanded(
-                            child: ValueListenableBuilder<int>(
-                              valueListenable: _recordingDuration,
-                              builder: (context, duration, _) {
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        width: 12,
-                                        height: 12,
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        _formatDuration(duration),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          // Send button
-                          Material(
-                            color: const Color(0xFF1362EB),
-                            borderRadius: BorderRadius.circular(26),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(26),
-                              onTap: _stopAndSendRecording,
-                              child: const SizedBox(
-                                width: 52,
-                                height: 52,
-                                child: Icon(
-                                  Icons.send,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  // Normal input UI
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_replyTo != null) _buildReplyComposerPreview(isDark),
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: _isUploading
-                                ? null
-                                : _showAttachmentSheet,
-                            icon: Icon(
-                              Icons.add_circle_outline,
-                              color: _isUploading
-                                  ? Colors.grey.shade500
-                                  : (isDark
-                                        ? Colors.grey.shade400
-                                        : Colors.grey.shade700),
-                            ),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              controller: _controller,
-                              onChanged: (_) => setState(() {}),
-                              decoration: InputDecoration(
-                                hintText: 'Type your message...',
-                                filled: true,
-                                fillColor: isDark
-                                    ? const Color(0xFF2A2A2A)
-                                    : Colors.grey.shade200,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(9999),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          CircleAvatar(
-                            backgroundColor: const Color(0xFF1362EB),
-                            child: IconButton(
-                              onPressed: _controller.text.trim().isNotEmpty
-                                  ? () async {
-                                      if (!_isOnline) {
-                                        _showOfflineSnackBar();
-                                        return;
-                                      }
-                                      final text = _controller.text.trim();
-                                      if (text.isEmpty ||
-                                          _conversationId == null) {
-                                        return;
-                                      }
-                                      await _chat.sendMessage(
-                                        conversationId: _conversationId!,
-                                        text: text,
-                                        senderRole: 'parent',
-                                        replyTo: _replyTo,
-                                      );
-                                      _controller.clear();
-                                      _clearReplyTarget();
-                                    }
-                                  : _startRecording,
-                              icon: Icon(
-                                _controller.text.trim().isNotEmpty
-                                    ? Icons.send
-                                    : Icons.mic,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -297,12 +297,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
       );
       if (emoji == null || emoji.isEmpty) return;
 
-      if (mounted && _selectionMode) {
-        setState(() => _selectionMode = false);
-      }
-      _selectedMessages.value = {};
-      _invalidateSelectionEligibilityCache();
-
       await MessageReactionService.instance.toggleReaction(
         target: ReactionTarget.parentTeacherGroupMessage(
           groupId: widget.groupId,
@@ -2621,6 +2615,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
 
     return WillPopScope(
       onWillPop: () async {
+        if (_isReactionPickerOpen) {
+          _isReactionPickerOpen = false;
+          dismissMessageReactionPicker();
+          return false;
+        }
         if (_selectionMode) {
           setState(() => _selectionMode = false);
           _selectedMessages.value = {};
@@ -2641,6 +2640,11 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
             ),
             color: isDark ? primaryText : Colors.black87,
             onPressed: () {
+              if (_isReactionPickerOpen) {
+                _isReactionPickerOpen = false;
+                dismissMessageReactionPicker();
+                return;
+              }
               if (_selectionMode) {
                 setState(() => _selectionMode = false);
                 _selectedMessages.value = {};

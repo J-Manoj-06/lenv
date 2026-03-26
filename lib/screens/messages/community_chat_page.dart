@@ -504,10 +504,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       );
       if (emoji == null || emoji.isEmpty) return;
 
-      _isSelectionMode.value = false;
-      _selectedMessages.value = {};
-      _invalidateShareEligibilityCache();
-
       await MessageReactionService.instance.toggleReaction(
         target: ReactionTarget.communityMessage(
           communityId: widget.communityId,
@@ -2444,6 +2440,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
 
     return WillPopScope(
       onWillPop: () async {
+        if (_isReactionPickerOpen) {
+          _isReactionPickerOpen = false;
+          dismissMessageReactionPicker();
+          return false;
+        }
         if (_isSelectionMode.value) {
           _isSelectionMode.value = false;
           _selectedMessages.value = {};
@@ -2468,6 +2469,11 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                   size: 24,
                 ),
                 onPressed: () {
+                  if (_isReactionPickerOpen) {
+                    _isReactionPickerOpen = false;
+                    dismissMessageReactionPicker();
+                    return;
+                  }
                   if (isSelectionMode) {
                     _isSelectionMode.value = false;
                     _selectedMessages.value = {};

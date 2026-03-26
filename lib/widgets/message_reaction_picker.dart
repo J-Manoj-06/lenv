@@ -13,22 +13,45 @@ const List<String> kQuickReactionEmojis = <String>[
   '✋',
 ];
 
+OverlayEntry? _activeReactionOverlayEntry;
+void Function([String? emoji])? _dismissActiveReactionPicker;
+
+bool get isMessageReactionPickerOpen =>
+    _activeReactionOverlayEntry != null && _dismissActiveReactionPicker != null;
+
+void dismissMessageReactionPicker([String? emoji]) {
+  _dismissActiveReactionPicker?.call(emoji);
+}
+
 Future<String?> showMessageReactionPicker({
   required BuildContext context,
   required Offset globalPosition,
   List<String> quickEmojis = kQuickReactionEmojis,
   String? selectedEmoji,
 }) async {
+  // Ensure only one picker is visible at a time.
+  dismissMessageReactionPicker();
+
   final overlay = Overlay.of(context);
 
   final completer = Completer<String?>();
   late OverlayEntry entry;
+  var removed = false;
 
   void close([String? emoji]) {
+    if (!removed) {
+      entry.remove();
+      removed = true;
+    }
+
+    if (identical(_activeReactionOverlayEntry, entry)) {
+      _activeReactionOverlayEntry = null;
+      _dismissActiveReactionPicker = null;
+    }
+
     if (!completer.isCompleted) {
       completer.complete(emoji);
     }
-    entry.remove();
   }
 
   final mediaSize = MediaQuery.of(context).size;
@@ -80,7 +103,14 @@ Future<String?> showMessageReactionPicker({
                     selectedEmoji: selectedEmoji,
                     onEmojiTap: (emoji) => close(emoji),
                     onMoreTap: () async {
-                      entry.remove();
+                      if (!removed) {
+                        entry.remove();
+                        removed = true;
+                      }
+                      if (identical(_activeReactionOverlayEntry, entry)) {
+                        _activeReactionOverlayEntry = null;
+                        _dismissActiveReactionPicker = null;
+                      }
                       final picked = await showModalBottomSheet<String>(
                         context: context,
                         isScrollControlled: true,
@@ -103,6 +133,8 @@ Future<String?> showMessageReactionPicker({
     },
   );
 
+  _activeReactionOverlayEntry = entry;
+  _dismissActiveReactionPicker = close;
   overlay.insert(entry);
   return completer.future;
 }

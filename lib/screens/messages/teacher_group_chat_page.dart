@@ -496,14 +496,6 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       );
       if (emoji == null || emoji.isEmpty) return;
 
-      if (mounted && _isSelectionMode) {
-        setState(() {
-          _isSelectionMode = false;
-          _selectedMessages.clear();
-          _invalidateShareEligibilityCache();
-        });
-      }
-
       final baseSummary = _effectiveReactionSummaryForMessage(message);
       final optimisticSummary = _applyReactionLocally(
         baseSummary: baseSummary,
@@ -1455,6 +1447,7 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
     _localRepo = LocalMessageRepository();
 
     await _localRepo.initialize();
+    _syncService = FirebaseMessageSyncService(_localRepo);
     if (!mounted) return;
 
     final chatId = '${widget.classId}_${widget.subjectId}';
@@ -2771,6 +2764,17 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
 
     return WillPopScope(
       onWillPop: () async {
+        if (_showEmojiPicker) {
+          setState(() {
+            _showEmojiPicker = false;
+          });
+          return false;
+        }
+        if (_isReactionPickerOpen) {
+          _isReactionPickerOpen = false;
+          dismissMessageReactionPicker();
+          return false;
+        }
         if (_isSelectionMode) {
           setState(() {
             _isSelectionMode = false;
@@ -2796,6 +2800,11 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                   size: 24,
                 ),
                 onPressed: () {
+                  if (_isReactionPickerOpen) {
+                    _isReactionPickerOpen = false;
+                    dismissMessageReactionPicker();
+                    return;
+                  }
                   if (_isSelectionMode) {
                     setState(() {
                       _isSelectionMode = false;
