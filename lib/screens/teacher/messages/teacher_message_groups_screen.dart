@@ -849,6 +849,7 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   }
 
   Widget _buildSearchBar(bool isDark) {
+    const searchThemeColor = Color(0xFF355872);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: TextField(
@@ -865,7 +866,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: isDark ? Colors.white54 : Colors.black54,
+            color: isDark
+                ? searchThemeColor.withOpacity(0.8)
+                : searchThemeColor.withOpacity(0.75),
           ),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -882,7 +885,15 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
           fillColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+            borderSide: BorderSide(color: searchThemeColor.withOpacity(0.35)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: searchThemeColor.withOpacity(0.35)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: searchThemeColor, width: 1.8),
           ),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,

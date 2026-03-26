@@ -289,6 +289,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
   Widget _buildSearchBar() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    const searchThemeColor = Color(0xFF355872);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(
@@ -296,12 +297,6 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1C1C1E) : const Color(0xFFF5F5F7),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.grey.withOpacity(0.15),
-            width: 1,
-          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.04),
@@ -312,6 +307,7 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
         ),
         child: TextField(
           controller: _searchController,
+          cursorColor: searchThemeColor,
           onChanged: (value) => setState(() {}),
           decoration: InputDecoration(
             hintText: 'Search tests by title or subject...',
@@ -325,11 +321,30 @@ class _TestsScreenState extends State<TestsScreen> with WidgetsBindingObserver {
             prefixIcon: Icon(
               Icons.search_rounded,
               color: isDark
-                  ? Colors.white.withOpacity(0.4)
-                  : Colors.grey.withOpacity(0.5),
+                  ? searchThemeColor.withOpacity(0.8)
+                  : searchThemeColor.withOpacity(0.7),
               size: 20,
             ),
-            border: InputBorder.none,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isDark
+                    ? searchThemeColor.withOpacity(0.45)
+                    : searchThemeColor.withOpacity(0.3),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isDark
+                    ? searchThemeColor.withOpacity(0.45)
+                    : searchThemeColor.withOpacity(0.3),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: searchThemeColor, width: 1.8),
+            ),
             contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 14,
