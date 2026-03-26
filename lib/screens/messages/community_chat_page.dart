@@ -80,7 +80,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     Timestamp.fromDate(DateTime.now().subtract(const Duration(days: 30))),
   );
   final bool _showUnreadDivider = true;
-  bool _hasScrolledToUnread = false;
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
   bool _isOnline = true;
@@ -97,8 +96,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   // Track pending scroll request from search
   String? _scrollToMessageId;
   bool _isScrollingToMessage = false;
-  bool _userHasScrolled = false;
-  double _lastScrollPosition = 0.0;
   int _lastItemCount = 0;
   bool _isProcessingScroll = false;
 
@@ -383,9 +380,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Initialize offline-first services
     _initOfflineFirst();
 
-    // Listen to scroll events to detect user scrolling
-    scrollController.addListener(_onScroll);
-
     // Start polling for progress updates every 2 seconds
     _startProgressPolling();
 
@@ -395,9 +389,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     // Setup last read stream for unread divider
     _setupLastReadStream();
 
-    // Scroll to bottom on initial load only and mark as read after frame
+    // Mark as read and clear reply target after initial frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottom(force: true);
       _clearReplyTarget();
       // Mark as read and refresh unread counts after frame
       _markAsRead();
@@ -1225,26 +1218,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     }
   }
 
-  void _onScroll() {
-    if (!scrollController.hasClients) return;
-
-    final currentPosition = scrollController.offset;
-
-    // Detect if user manually scrolled
-    if ((currentPosition - _lastScrollPosition).abs() > 10.0) {
-      if (!_isScrollingToMessage) {
-        _userHasScrolled = true;
-      }
-    }
-
-    // If scrolled to near bottom (within 100px), reset flag
-    if (currentPosition < 100) {
-      _userHasScrolled = false;
-    }
-
-    _lastScrollPosition = currentPosition;
-  }
-
   Future<void> _markAsRead() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -1378,17 +1351,8 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   }
 
   void _scrollToBottom({bool force = false}) {
-    // Don't auto-scroll if user has manually scrolled away (unless forced)
-    if (!force && _userHasScrolled) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController.hasClients) {
-        // Only auto-scroll if user is at bottom (within 100 pixels) or force is true
-        if (force || scrollController.offset < 100) {
-          scrollController.jumpTo(0);
-        }
-      }
-    });
+    // Auto-scroll disabled for community chat by request.
+    return;
   }
 
   void _openSearchPage() async {
@@ -2035,7 +1999,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       _showOfflineSnackBar(isMedia: true);
       return;
     }
-    final primaryColor = const Color(0xFF00A884); // Community chat green
+    final primaryColor = const Color(0xFFFF8800); // Community chat orange
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark
         ? const Color(0xFF222222)
@@ -2462,7 +2426,7 @@ class _CommunityChatPageState extends State<CommunityChatPage>
     final hintColor = isDark
         ? const Color(0xFF8696A0)
         : const Color(0xFF94A3B8);
-    final primaryColor = const Color(0xFF00A884);
+    final primaryColor = const Color(0xFFFF8800);
 
     return WillPopScope(
       onWillPop: () async {
@@ -3039,33 +3003,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                           )
                           .length;
 
-                      // Scroll to first unread on initial open (WhatsApp-style)
-                      if (_showUnreadDivider &&
-                          hasValidData &&
-                          unreadDividerIndex != null &&
-                          !_hasScrolledToUnread &&
-                          !_userHasScrolled) {
-                        _hasScrolledToUnread = true;
-                        final targetIdx = unreadDividerIndex;
-                        final totalItems = allMessages.length;
-                        WidgetsBinding.instance.addPostFrameCallback((_) async {
-                          await Future.delayed(
-                            const Duration(milliseconds: 300),
-                          );
-                          if (!mounted || !scrollController.hasClients) return;
-                          final maxExtent =
-                              scrollController.position.maxScrollExtent;
-                          if (maxExtent <= 0) return;
-                          final target = (targetIdx / totalItems) * maxExtent;
-                          scrollController.animateTo(
-                            target.clamp(0.0, maxExtent),
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeOut,
-                          );
-                          _userHasScrolled = true;
-                        });
-                      }
-
                       // Handle pending scroll request from search
                       if (_scrollToMessageId != null &&
                           !_isScrollingToMessage &&
@@ -3073,7 +3010,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                         final messageId = _scrollToMessageId!;
                         _scrollToMessageId = null; // Clear pending request
                         _isScrollingToMessage = true;
-                        _userHasScrolled = true;
 
                         // Convert GroupChatMessage list to Map format for mixin
                         final messagesList = allMessages
@@ -3091,7 +3027,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                           if (mounted) {
                             setState(() {
                               _isScrollingToMessage = false;
-                              // Keep _userHasScrolled true
                             });
                           }
                         });
@@ -3101,33 +3036,12 @@ class _CommunityChatPageState extends State<CommunityChatPage>
                       final itemCountChanged =
                           allMessages.length != _lastItemCount;
 
-                      // Check if should auto-scroll
-                      final shouldAutoScroll =
-                          itemCountChanged &&
-                          allMessages.length > _lastItemCount &&
-                          !_userHasScrolled &&
-                          !_isScrollingToMessage &&
-                          !_isProcessingScroll &&
-                          scrollController.hasClients &&
-                          scrollController.offset < 100;
-
                       // Only schedule callback when item count actually changed
                       if (itemCountChanged && !_isProcessingScroll) {
                         _isProcessingScroll = true;
                         WidgetsBinding.instance.addPostFrameCallback((_) {
                           _lastItemCount = allMessages.length;
                           _isProcessingScroll = false;
-
-                          // Only auto-scroll if all conditions are met
-                          if (shouldAutoScroll &&
-                              scrollController.hasClients &&
-                              !_isScrollingToMessage) {
-                            scrollController.animateTo(
-                              0,
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeOut,
-                            );
-                          }
                         });
                       }
 
