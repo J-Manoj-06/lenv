@@ -2727,19 +2727,17 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canForward = snapshot.data == true;
+                                  if (!canForward || selectedMessages.isEmpty) {
+                                    return const SizedBox.shrink();
+                                  }
                                   return IconButton(
                                     icon: Icon(
                                       Icons.reply_all_rounded,
-                                      color: canForward
-                                          ? Colors.blueAccent
-                                          : Colors.grey,
+                                      color: Colors.blueAccent,
                                       size: 24,
                                     ),
                                     tooltip: 'Forward',
-                                    onPressed:
-                                        selectedMessages.isEmpty || !canForward
-                                        ? null
-                                        : _forwardSelectedMessages,
+                                    onPressed: _forwardSelectedMessages,
                                   );
                                 },
                               ),
@@ -2749,20 +2747,19 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                                 ),
                                 builder: (context, snapshot) {
                                   final canShare = snapshot.data == true;
+                                  if (!canShare || selectedMessages.isEmpty) {
+                                    return const SizedBox.shrink();
+                                  }
                                   return IconButton(
                                     icon: Icon(
                                       Icons.share_rounded,
-                                      color: canShare
-                                          ? (isDark
-                                                ? Colors.white70
-                                                : const Color(0xFF475569))
-                                          : Colors.grey,
+                                      color: isDark
+                                          ? Colors.white70
+                                          : const Color(0xFF475569),
                                       size: 24,
                                     ),
                                     tooltip: 'Share',
-                                    onPressed: canShare
-                                        ? _shareSelectedMessages
-                                        : null,
+                                    onPressed: _shareSelectedMessages,
                                   );
                                 },
                               ),

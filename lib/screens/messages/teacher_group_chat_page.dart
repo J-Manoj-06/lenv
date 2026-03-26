@@ -2889,18 +2889,17 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         future: _getForwardEligibilityFuture(_selectedMessages),
                         builder: (context, snapshot) {
                           final canForward = snapshot.data == true;
+                          if (!canForward || _selectedMessages.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
                           return IconButton(
                             icon: Icon(
                               Icons.reply_all_rounded,
-                              color: canForward
-                                  ? Colors.blueAccent
-                                  : Colors.grey,
+                              color: Colors.blueAccent,
                               size: 24,
                             ),
                             tooltip: 'Forward',
-                            onPressed: _selectedMessages.isEmpty || !canForward
-                                ? null
-                                : _forwardSelectedMessages,
+                            onPressed: _forwardSelectedMessages,
                           );
                         },
                       ),
@@ -2908,18 +2907,19 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
                         future: _getShareEligibilityFuture(_selectedMessages),
                         builder: (context, snapshot) {
                           final canShare = snapshot.data == true;
+                          if (!canShare || _selectedMessages.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
                           return IconButton(
                             icon: Icon(
                               Icons.share_rounded,
-                              color: canShare
-                                  ? (theme.brightness == Brightness.dark
-                                        ? Colors.white70
-                                        : const Color(0xFF475569))
-                                  : Colors.grey,
+                              color: theme.brightness == Brightness.dark
+                                  ? Colors.white70
+                                  : const Color(0xFF475569),
                               size: 24,
                             ),
                             tooltip: 'Share',
-                            onPressed: canShare ? _shareSelectedMessages : null,
+                            onPressed: _shareSelectedMessages,
                           );
                         },
                       ),

@@ -2704,7 +2704,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             future: _getForwardEligibilityFuture(selectedSet),
                             builder: (context, snapshot) {
                               final canForward = snapshot.data == true;
-                              if (!canForward) return const SizedBox.shrink();
+                              if (!canForward || selectedSet.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
                               return IconButton(
                                 icon: const Icon(
                                   Icons.reply_all_rounded,
@@ -2712,9 +2714,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                                   size: 24,
                                 ),
                                 tooltip: 'Forward',
-                                onPressed: selectedSet.isEmpty
-                                    ? null
-                                    : _forwardSelectedMessages,
+                                onPressed: _forwardSelectedMessages,
                               );
                             },
                           ),
@@ -2722,7 +2722,9 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                             future: _getShareEligibilityFuture(selectedSet),
                             builder: (context, snapshot) {
                               final canShare = snapshot.data == true;
-                              if (!canShare) return const SizedBox.shrink();
+                              if (!canShare || selectedSet.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
                               return IconButton(
                                 icon: Icon(
                                   Icons.share_rounded,
