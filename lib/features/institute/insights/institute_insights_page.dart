@@ -24,7 +24,7 @@ class _InstituteInsightsPageState extends State<InstituteInsightsPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final bgColor = isDark ? Colors.black : const Color(0xFFF8FAFC);
     final authProvider = Provider.of<AuthProvider>(context);
     final schoolCode = authProvider.currentUser?.instituteId ?? '';
 

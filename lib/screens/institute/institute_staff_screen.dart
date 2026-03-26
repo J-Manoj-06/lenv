@@ -133,7 +133,7 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F1416) : const Color(0xFFF8FAFC);
+    final bgColor = isDark ? Colors.black : const Color(0xFFF8FAFC);
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final chipColor = isDark
         ? const Color(0xFF334155)

@@ -95,7 +95,7 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF111F21) : const Color(0xFFF8FAFC);
+    final bgColor = isDark ? Colors.black : const Color(0xFFF8FAFC);
     final cardColor = isDark ? const Color(0xFF1A2A2D) : Colors.white;
 
     return Scaffold(
@@ -164,7 +164,6 @@ class _InstituteProfileScreenState extends State<InstituteProfileScreen> {
 
   Future<void> _handleLogout() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0E0F14) : const Color(0xFFF8FAFC);
     final cardColor = isDark ? const Color(0xFF1A1C23) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subtitleColor = isDark ? Colors.white70 : const Color(0xFF64748B);

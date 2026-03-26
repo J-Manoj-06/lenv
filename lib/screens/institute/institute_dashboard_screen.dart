@@ -312,9 +312,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
         // Theme detection
         final isDark = Theme.of(context).brightness == Brightness.dark;
-        final bgColor = isDark
-            ? const Color(0xFF0F172A)
-            : const Color(0xFFF8FAFC);
+        final bgColor = isDark ? Colors.black : const Color(0xFFF8FAFC);
         final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
         final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
         final subtitleColor = isDark
@@ -814,7 +812,7 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
     // Get theme colors
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final bgColor = isDark ? Colors.black : const Color(0xFFF8FAFC);
     final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final subtitleColor = isDark
         ? const Color(0xFF94A3B8)
