@@ -4874,7 +4874,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
 
   Future<void> _forwardCurrentImageGroup() async {
     if (_isActionBusy) return;
-    final forwardMessage = widget.forwardMessage;
+    final forwardMessage = _buildForwardForCurrentImage();
     if (forwardMessage == null) {
       _showMessage('Forward unavailable for this image');
       return;
@@ -4883,6 +4883,31 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
       MaterialPageRoute(
         builder: (_) => ForwardSelectionScreen(messages: [forwardMessage]),
       ),
+    );
+  }
+
+  ForwardMessageData? _buildForwardForCurrentImage() {
+    final base = widget.forwardMessage;
+    if (base == null) return null;
+    if (base.messageType != 'multi_image') return base;
+
+    final metadata = _currentMetadata;
+    final publicUrl = metadata.publicUrl;
+    if (publicUrl.isEmpty) return base;
+
+    return ForwardMessageData(
+      originalMessageId: base.originalMessageId,
+      originalSenderId: base.originalSenderId,
+      originalSenderName: base.originalSenderName,
+      messageType: 'image',
+      text: base.text,
+      mediaUrl: publicUrl,
+      fileName: metadata.originalFileName ?? base.fileName,
+      mimeType: (metadata.mimeType ?? '').isNotEmpty
+          ? metadata.mimeType
+          : (base.mimeType ?? 'image/jpeg'),
+      fileSize: metadata.fileSize ?? base.fileSize,
+      wasAlreadyForwarded: base.wasAlreadyForwarded,
     );
   }
 
@@ -4976,7 +5001,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer>
                           : null,
                     ),
                     _circleIcon(
-                      icon: Icons.forward_rounded,
+                      icon: Icons.reply_all_rounded,
                       onTap: _isActionBusy ? null : _forwardCurrentImageGroup,
                     ),
                     _circleIcon(

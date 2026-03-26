@@ -7330,7 +7330,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
 
   Future<void> _forwardCurrentImage() async {
     if (_isActionBusy) return;
-    final forwardMessage = widget.forwardMessage;
+    final forwardMessage = _buildForwardForCurrentImage();
     final destinations = widget.availableForwardDestinations;
     if (forwardMessage == null) {
       _showMessage('Forward unavailable for this image');
@@ -7348,6 +7348,31 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           customSectionTitle: 'Other Children Groups',
         ),
       ),
+    );
+  }
+
+  ForwardMessageData? _buildForwardForCurrentImage() {
+    final base = widget.forwardMessage;
+    if (base == null) return null;
+    if (base.messageType != 'multi_image') return base;
+
+    final metadata = _currentMetadata;
+    final publicUrl = metadata.publicUrl;
+    if (publicUrl.isEmpty) return base;
+
+    return ForwardMessageData(
+      originalMessageId: base.originalMessageId,
+      originalSenderId: base.originalSenderId,
+      originalSenderName: base.originalSenderName,
+      messageType: 'image',
+      text: base.text,
+      mediaUrl: publicUrl,
+      fileName: metadata.originalFileName ?? base.fileName,
+      mimeType: (metadata.mimeType ?? '').isNotEmpty
+          ? metadata.mimeType
+          : (base.mimeType ?? 'image/jpeg'),
+      fileSize: metadata.fileSize ?? base.fileSize,
+      wasAlreadyForwarded: base.wasAlreadyForwarded,
     );
   }
 
@@ -7375,7 +7400,7 @@ class _ImageGalleryViewerState extends State<_ImageGalleryViewer> {
           if (widget.forwardMessage != null &&
               (widget.availableForwardDestinations?.isNotEmpty ?? false))
             IconButton(
-              icon: const Icon(Icons.forward_rounded, color: Colors.white),
+              icon: const Icon(Icons.reply_all_rounded, color: Colors.white),
               tooltip: 'Forward',
               onPressed: _isActionBusy ? null : _forwardCurrentImage,
             ),
