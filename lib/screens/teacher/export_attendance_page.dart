@@ -26,7 +26,6 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
   final Set<String> _selectedClasses = {};
   DateTime? _fromDate;
   DateTime? _toDate;
-  String _selectedFormat = 'excel'; // 'pdf' or 'excel'
   bool _isExporting = false;
 
   List<String> _availableClasses = [];
@@ -732,55 +731,34 @@ class _ExportAttendancePageState extends State<ExportAttendancePage> {
 
   Widget _buildFormatSelector(bool isDark) {
     return Row(
-      children: [
-        Expanded(child: _buildFormatOption('pdf', 'PDF', '📄')),
-        const SizedBox(width: 12),
-        Expanded(child: _buildFormatOption('excel', 'Excel (CSV)', '📊')),
-      ],
+      children: [Expanded(child: _buildFormatOption('Excel (CSV)', '📊'))],
     );
   }
 
-  Widget _buildFormatOption(String value, String title, String emoji) {
+  Widget _buildFormatOption(String title, String emoji) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final isSelected = _selectedFormat == value;
 
-    return InkWell(
-      onTap: () => setState(() => _selectedFormat = value),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF355872).withOpacity(0.1)
-              : isDark
-              ? const Color(0xFF1A1F2E)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFF355872)
-                : isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.grey.withOpacity(0.2),
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: theme.textTheme.bodySmall?.color,
-              ),
-              textAlign: TextAlign.center,
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF355872).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF355872), width: 1.5),
+      ),
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 28)),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: theme.textTheme.bodySmall?.color,
             ),
-          ],
-        ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
