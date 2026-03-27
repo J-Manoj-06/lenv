@@ -1432,20 +1432,25 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 
   Widget _buildRewardRequests(bool isDark, ParentProvider parentProvider) {
-    // Show all requests (pending, approved, orderPlaced) but not rejected
-    final rewardRequests = parentProvider.rewardRequests
-        .where((r) => r.status != RewardRequestStatus.rejected)
-        .toList();
+    // Show only pending requests across all linked children.
+    final childUids = parentProvider.children.map((c) => c.uid).toSet();
+    final childStudentIds = parentProvider.children
+        .where((c) => c.studentId != null && c.studentId!.isNotEmpty)
+        .map((c) => c.studentId!)
+        .toSet();
 
-    // Count only pending requests for the badge
-    final pendingCount = rewardRequests
-        .where(
-          (r) =>
-              r.status == RewardRequestStatus.requested ||
-              r.status == RewardRequestStatus.pending ||
-              r.status == RewardRequestStatus.pendingPrice,
-        )
-        .length;
+    final rewardRequests = parentProvider.rewardRequests.where((r) {
+      final isPending =
+          r.status == RewardRequestStatus.requested ||
+          r.status == RewardRequestStatus.pending ||
+          r.status == RewardRequestStatus.pendingPrice;
+      final belongsToLinkedChild =
+          childUids.contains(r.studentId) ||
+          childStudentIds.contains(r.studentId);
+      return isPending && belongsToLinkedChild;
+    }).toList()..sort((a, b) => b.requestedOn.compareTo(a.requestedOn));
+
+    final pendingCount = rewardRequests.length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1525,7 +1530,7 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
               ),
               child: Center(
                 child: Text(
-                  'No reward requests',
+                  'No pending reward requests',
                   style: TextStyle(
                     color: isDark ? Colors.grey[400] : Colors.grey[600],
                   ),
