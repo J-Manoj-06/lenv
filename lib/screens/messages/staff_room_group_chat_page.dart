@@ -3659,7 +3659,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                             IconButton(
                               icon: Icon(
                                 _showEmojiPicker
-                                    ? Icons.keyboard_outlined
+                                    ? Icons.keyboard
                                     : Icons.sentiment_satisfied_outlined,
                                 color: hintColor,
                                 size: 26,
@@ -3717,7 +3717,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                               builder: (context, isUploading, _) {
                                 return IconButton(
                                   icon: Icon(
-                                    Icons.attach_file_rounded,
+                                    Icons.attach_file,
                                     color: hintColor,
                                     size: 24,
                                   ),

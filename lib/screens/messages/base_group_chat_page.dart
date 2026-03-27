@@ -738,8 +738,8 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
                         },
                         child: Icon(
                           _showEmojiPicker
-                              ? Icons.keyboard_outlined
-                              : Icons.emoji_emotions_outlined,
+                              ? Icons.keyboard
+                              : Icons.sentiment_satisfied_outlined,
                           color: _accentColor,
                           size: 23,
                         ),
@@ -780,7 +780,7 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
                           return GestureDetector(
                             onTap: uploading ? null : _showAttachmentOptions,
                             child: Icon(
-                              Icons.attach_file_rounded,
+                              Icons.attach_file,
                               color: uploading ? hintColor : _accentColor,
                               size: 22,
                             ),

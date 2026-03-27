@@ -4198,8 +4198,8 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                         IconButton(
                           icon: Icon(
                             _showEmojiPicker
-                                ? Icons.keyboard_outlined
-                                : Icons.emoji_emotions_outlined,
+                                ? Icons.keyboard
+                                : Icons.sentiment_satisfied_outlined,
                             color: mutedText,
                             size: 22,
                           ),
@@ -4277,7 +4277,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                       onTap: _isUploading ? null : _showAttachmentSheet,
                       borderRadius: BorderRadius.circular(21),
                       child: Icon(
-                        Icons.attach_file_rounded,
+                        Icons.attach_file,
                         color: _isUploading ? mutedText : primaryColor,
                         size: 22,
                       ),
@@ -4313,9 +4313,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
                           child: Icon(
                             _isRecording.value
                                 ? Icons.send_rounded
-                                : (hasText
-                                      ? Icons.send_rounded
-                                      : Icons.mic_rounded),
+                                : (hasText ? Icons.send_rounded : Icons.mic),
                             color: Colors.white,
                             size: 20,
                           ),

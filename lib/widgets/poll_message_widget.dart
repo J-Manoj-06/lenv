@@ -115,6 +115,9 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
     final accentDark = _getAccentDark(accentColor);
     final accentGradient = _getAccentGradient(accentColor, accentDark);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final targetCardWidth = (MediaQuery.of(context).size.width * 0.74)
+        .clamp(260.0, 380.0)
+        .toDouble();
 
     // Use real-time stream for live updates with optimization
     return RepaintBoundary(
@@ -139,6 +142,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                 : Alignment.centerLeft,
             child: RepaintBoundary(
               child: Container(
+                width: targetCardWidth,
                 margin: const EdgeInsets.only(
                   top: 6,
                   bottom: 6,
@@ -390,7 +394,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -428,7 +432,7 @@ class _PollMessageWidgetState extends State<PollMessageWidget>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     // Option text
                     Expanded(
                       child: Text(
