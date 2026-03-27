@@ -1187,7 +1187,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           .where('studentId', isEqualTo: student.uid)
           .snapshots(),
       builder: (context, rewardsSnapshot) {
-        int studentPoints = 0;
+        double totalEarnedPoints = 0;
 
         if (rewardsSnapshot.hasData) {
           for (final doc in rewardsSnapshot.data!.docs) {
@@ -1195,69 +1195,94 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             if (data != null) {
               final points = data['pointsEarned'];
               if (points is int) {
-                studentPoints += points;
+                totalEarnedPoints += points;
               } else if (points is num) {
-                studentPoints += points.toInt();
+                totalEarnedPoints += points.toDouble();
               }
             }
           }
-        } else if (rewardsSnapshot.hasError) {
-          // Permission denied or network error — fall back to cached value on student model
-          studentPoints = student.rewardPoints;
         }
 
-        // Get topper points from class
-        return FutureBuilder<int>(
-          future: _topperPointsFuture,
-          builder: (context, topperSnapshot) {
-            final topperPoints = topperSnapshot.data ?? 0;
-            final isDark = Theme.of(context).brightness == Brightness.dark;
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('students')
+              .doc(student.uid)
+              .snapshots(),
+          builder: (context, studentSnapshot) {
+            int studentPoints = student.rewardPoints;
 
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
-              decoration: BoxDecoration(
-                color: _surface(context),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: Theme.of(context).dividerColor.withOpacity(0.4),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  // Circular Comparison Chart
-                  _buildCircularComparison(studentPoints, topperPoints),
-                  const SizedBox(height: 20),
+            if (rewardsSnapshot.hasError) {
+              // Permission/network fallback to cached model value
+              studentPoints = student.rewardPoints;
+            } else {
+              final studentData =
+                  studentSnapshot.data?.data() as Map<String, dynamic>?;
+              final lockedPoints =
+                  (studentData?['locked_points'] as num?)?.toDouble() ?? 0;
+              final availablePoints = (totalEarnedPoints - lockedPoints).clamp(
+                0.0,
+                double.infinity,
+              );
+              studentPoints = availablePoints.toInt();
+            }
 
-                  // Points Info
-                  Text(
-                    'Your Points: $studentPoints',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
+            // Get topper points from class
+            return FutureBuilder<int>(
+              future: _topperPointsFuture,
+              builder: (context, topperSnapshot) {
+                final topperPoints = topperSnapshot.data ?? 0;
+                final isDark = Theme.of(context).brightness == Brightness.dark;
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 22,
+                    horizontal: 20,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Topper: $topperPoints pts',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isDark
-                          ? const Color(0xFFBBBBBB)
-                          : Colors.grey.shade600,
+                  decoration: BoxDecoration(
+                    color: _surface(context),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Theme.of(context).dividerColor.withOpacity(0.4),
+                      width: 1,
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                  child: Column(
+                    children: [
+                      // Circular Comparison Chart
+                      _buildCircularComparison(studentPoints, topperPoints),
+                      const SizedBox(height: 20),
+
+                      // Points Info
+                      Text(
+                        'Your Points: $studentPoints',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Topper: $topperPoints pts',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark
+                              ? const Color(0xFFBBBBBB)
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             );
           },
         );
