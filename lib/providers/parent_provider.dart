@@ -462,42 +462,6 @@ class ParentProvider with ChangeNotifier {
     try {
       _rewardHistory = await _parentService.getStudentRewardHistory(studentId);
 
-      // Derive current reward points from history (handles missing field on student doc)
-      final computedPoints = _rewardHistory.fold<int>(0, (sum, entry) {
-        final candidates = [
-          entry['points'],
-          entry['pointsEarned'],
-          entry['rewardPoints'],
-          entry['delta'],
-          entry['amount'],
-        ];
-        int delta = 0;
-        for (final value in candidates) {
-          if (value is int) {
-            delta = value;
-            break;
-          }
-          if (value is num) {
-            delta = value.toInt();
-            break;
-          }
-          if (value is String) {
-            final parsed = int.tryParse(value);
-            if (parsed != null) {
-              delta = parsed;
-              break;
-            }
-          }
-        }
-        return sum + delta;
-      });
-
-      // Update selected child rewardPoints in memory so UI reflects actual total
-      if (selectedChild != null && selectedChild!.uid == studentId) {
-        final updated = selectedChild!.copyWith(rewardPoints: computedPoints);
-        _children[_selectedChildIndex] = updated;
-      }
-
       notifyListeners();
     } catch (e) {}
   }

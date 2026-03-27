@@ -49,6 +49,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   // Cache topper future to avoid re-creating it on every StreamBuilder rebuild
   Future<int>? _topperPointsFuture;
   String? _cachedTopperStudentId;
+  Future<String?>? _studentDocIdFuture;
+  String? _studentDocLookupUid;
 
   // Cache viewed status for immediate UI updates - key: announcementId, value: isViewed
   final Map<String, bool> _viewedCache = {};
@@ -1181,6 +1183,11 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       _topperPointsFuture = _getTopperPoints(student);
     }
 
+    if (_studentDocIdFuture == null || _studentDocLookupUid != student.uid) {
+      _studentDocLookupUid = student.uid;
+      _studentDocIdFuture = _resolveStudentDocId(student);
+    }
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('student_rewards')
@@ -1203,84 +1210,103 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           }
         }
 
-        return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('students')
-              .doc(student.uid)
-              .snapshots(),
-          builder: (context, studentSnapshot) {
-            int studentPoints = student.rewardPoints;
+        return FutureBuilder<String?>(
+          future: _studentDocIdFuture,
+          builder: (context, docIdSnapshot) {
+            final docId = docIdSnapshot.data;
 
-            if (rewardsSnapshot.hasError) {
-              // Permission/network fallback to cached model value
-              studentPoints = student.rewardPoints;
-            } else {
-              final studentData =
-                  studentSnapshot.data?.data() as Map<String, dynamic>?;
-              final lockedPoints =
-                  (studentData?['locked_points'] as num?)?.toDouble() ?? 0;
-              final availablePoints = (totalEarnedPoints - lockedPoints).clamp(
-                0.0,
-                double.infinity,
-              );
-              studentPoints = availablePoints.toInt();
-            }
+            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: docId == null
+                  ? const Stream.empty()
+                  : FirebaseFirestore.instance
+                        .collection('students')
+                        .doc(docId)
+                        .snapshots(),
+              builder: (context, studentSnapshot) {
+                int studentPoints = student.rewardPoints;
 
-            // Get topper points from class
-            return FutureBuilder<int>(
-              future: _topperPointsFuture,
-              builder: (context, topperSnapshot) {
-                final topperPoints = topperSnapshot.data ?? 0;
-                final isDark = Theme.of(context).brightness == Brightness.dark;
+                if (rewardsSnapshot.hasError) {
+                  // Permission/network fallback to cached model value
+                  studentPoints = student.rewardPoints;
+                } else {
+                  final studentData = studentSnapshot.data?.data();
+                  if (studentData != null &&
+                      studentData.containsKey('available_points')) {
+                    final available =
+                        (studentData['available_points'] as num?)?.toInt() ?? 0;
+                    studentPoints = available < 0 ? 0 : available;
+                  } else {
+                    final lockedPoints =
+                        (studentData?['locked_points'] as num?)?.toDouble() ??
+                        0;
+                    final availablePoints = (totalEarnedPoints - lockedPoints)
+                        .clamp(0.0, double.infinity);
+                    studentPoints = availablePoints.toInt();
+                  }
+                }
 
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 22,
-                    horizontal: 20,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _surface(context),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Theme.of(context).dividerColor.withOpacity(0.4),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.25 : 0.06),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                // Get topper points from class
+                return FutureBuilder<int>(
+                  future: _topperPointsFuture,
+                  builder: (context, topperSnapshot) {
+                    final topperPoints = topperSnapshot.data ?? 0;
+                    final isDark =
+                        Theme.of(context).brightness == Brightness.dark;
+
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 22,
+                        horizontal: 20,
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      // Circular Comparison Chart
-                      _buildCircularComparison(studentPoints, topperPoints),
-                      const SizedBox(height: 20),
-
-                      // Points Info
-                      Text(
-                        'Your Points: $studentPoints',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
+                      decoration: BoxDecoration(
+                        color: _surface(context),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Theme.of(
+                            context,
+                          ).dividerColor.withOpacity(0.4),
+                          width: 1,
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(
+                              isDark ? 0.25 : 0.06,
+                            ),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Topper: $topperPoints pts',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isDark
-                              ? const Color(0xFFBBBBBB)
-                              : Colors.grey.shade600,
-                        ),
+                      child: Column(
+                        children: [
+                          // Circular Comparison Chart
+                          _buildCircularComparison(studentPoints, topperPoints),
+                          const SizedBox(height: 20),
+
+                          // Points Info
+                          Text(
+                            'Your Points: $studentPoints',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Topper: $topperPoints pts',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: isDark
+                                  ? const Color(0xFFBBBBBB)
+                                  : Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 );
               },
             );
@@ -1288,6 +1314,41 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         );
       },
     );
+  }
+
+  Future<String?> _resolveStudentDocId(StudentModel student) async {
+    // Fast path where docId already equals uid.
+    try {
+      final byId = await FirebaseFirestore.instance
+          .collection('students')
+          .doc(student.uid)
+          .get();
+      if (byId.exists) return byId.id;
+    } catch (_) {}
+
+    // Canonical lookup by uid field.
+    try {
+      final byUid = await FirebaseFirestore.instance
+          .collection('students')
+          .where('uid', isEqualTo: student.uid)
+          .limit(1)
+          .get();
+      if (byUid.docs.isNotEmpty) return byUid.docs.first.id;
+    } catch (_) {}
+
+    // Legacy fallback by email.
+    if (student.email.isNotEmpty) {
+      try {
+        final byEmail = await FirebaseFirestore.instance
+            .collection('students')
+            .where('email', isEqualTo: student.email)
+            .limit(1)
+            .get();
+        if (byEmail.docs.isNotEmpty) return byEmail.docs.first.id;
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   Widget _buildCircularComparison(int studentPoints, int topperPoints) {
@@ -1374,7 +1435,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       );
       if (cachedPoints != null) return cachedPoints;
 
-      // Step 1: Get all student UIDs in this class/section
+      // Step 1: Load class roster.
       var q = FirebaseFirestore.instance
           .collection('students')
           .where('schoolCode', isEqualTo: schoolCode)
@@ -1385,30 +1446,15 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       final studentsSnap = await q.get();
       if (studentsSnap.docs.isEmpty) return 0;
 
-      final uids = studentsSnap.docs
-          .map((d) => d.data()['uid'] as String?)
-          .whereType<String>()
-          .toList();
-      if (uids.isEmpty) return 0;
-
-      // Step 2: Aggregate student_rewards pointsEarned for each student.
-      // This uses the exact same data source as the studentPoints displayed in the UI,
-      // so the topper value is always consistent with what each student sees for themselves.
+      // Step 2: Use canonical available points from student docs.
       int topperPoints = 0;
-      for (final uid in uids) {
-        final rewardsSnap = await FirebaseFirestore.instance
-            .collection('student_rewards')
-            .where('studentId', isEqualTo: uid)
-            .get();
-        int points = 0;
-        for (final doc in rewardsSnap.docs) {
-          final val = doc.data()['pointsEarned'];
-          if (val is int) {
-            points += val;
-          } else if (val is num) {
-            points += val.toInt();
-          }
-        }
+      for (final doc in studentsSnap.docs) {
+        final data = doc.data();
+        final points =
+            (data['available_points'] as num?)?.toInt() ??
+            (data['rewardPoints'] as num?)?.toInt() ??
+            (data['totalPoints'] as num?)?.toInt() ??
+            0;
         if (points > topperPoints) topperPoints = points;
       }
 

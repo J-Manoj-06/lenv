@@ -121,6 +121,7 @@ class TeacherService {
               // The rewardPoints field is automatically updated when students earn points
               // No need to query users collection or aggregate student_rewards
               final rewardPoints =
+                  studentData['available_points'] as int? ??
                   studentData['rewardPoints'] as int? ??
                   studentData['totalPoints'] as int? ??
                   0;
@@ -163,6 +164,7 @@ class TeacherService {
 
           // ✅ OPTIMIZED: Use cached rewardPoints from student document
           final rewardPoints =
+              studentData['available_points'] as int? ??
               studentData['rewardPoints'] as int? ??
               studentData['totalPoints'] as int? ??
               0;
@@ -475,7 +477,9 @@ class TeacherService {
               studentData['id'] = doc.id;
               // ✅ Use cached rewardPoints
               studentData['rewardPoints'] =
-                  studentData['rewardPoints'] as int? ?? 0;
+                  studentData['available_points'] as int? ??
+                  studentData['rewardPoints'] as int? ??
+                  0;
               allStudents.add(studentData);
             }
 
@@ -499,7 +503,9 @@ class TeacherService {
                   final studentData = doc.data();
                   studentData['id'] = doc.id;
                   studentData['rewardPoints'] =
-                      studentData['rewardPoints'] as int? ?? 0;
+                      studentData['available_points'] as int? ??
+                      studentData['rewardPoints'] as int? ??
+                      0;
                   allStudents.add(studentData);
                 }
               }

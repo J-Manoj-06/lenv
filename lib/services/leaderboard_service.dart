@@ -33,6 +33,39 @@ class StudentStats {
 class LeaderboardService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  int _parseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
+  Future<int> _computeCanonicalPoints({
+    required String uid,
+    required Map<String, dynamic> studentData,
+  }) async {
+    // Canonical source: students.available_points (trust explicit value, including zero)
+    if (studentData.containsKey('available_points')) {
+      return _parseInt(studentData['available_points']).clamp(0, 1 << 30);
+    }
+
+    // Fallback for older docs: sum(student_rewards.pointsEarned) - locked_points
+    try {
+      final rewardsSnap = await _db
+          .collection('student_rewards')
+          .where('studentId', isEqualTo: uid)
+          .get();
+      int earned = 0;
+      for (final doc in rewardsSnap.docs) {
+        earned += _parseInt(doc.data()['pointsEarned']);
+      }
+      final locked = _parseInt(studentData['locked_points']);
+      return (earned - locked).clamp(0, 1 << 30);
+    } catch (_) {
+      return _parseInt(studentData['rewardPoints']);
+    }
+  }
+
   // Helper: get student doc (students collection) for uid or email
   Future<Map<String, dynamic>?> _getStudentDocByUidOrEmail({
     required String uid,
@@ -52,8 +85,8 @@ class LeaderboardService {
     return null;
   }
 
-  // Overall leaderboard based on users.rewardPoints within same school/class/section
-  // OPTIMIZED: Gets class roster from students, then fetches rewardPoints from users in parallel
+  // Overall leaderboard based on available points within same school/class/section.
+  // Canonical order: students.available_points -> users.rewardPoints fallback.
   Future<List<LeaderboardEntry>> getOverallLeaderboardForClass({
     required String schoolCode,
     required String className,
@@ -74,7 +107,7 @@ class LeaderboardService {
       final studentsSnap = await q.get();
       if (studentsSnap.docs.isEmpty) return <LeaderboardEntry>[];
 
-      // 2) Batch fetch rewardPoints from users collection
+      // 2) Build leaderboard entries with canonical points.
       final entries = <LeaderboardEntry>[];
 
       for (final studentDoc in studentsSnap.docs) {
@@ -82,20 +115,47 @@ class LeaderboardService {
         final uid = studentData['uid'] as String?;
         if (uid == null) continue;
 
-        final userDoc = await _db.collection('users').doc(uid).get();
-        if (!userDoc.exists) continue;
+        num score = await _computeCanonicalPoints(
+          uid: uid,
+          studentData: studentData,
+        );
 
-        final userData = userDoc.data() ?? {};
+        String name =
+            (studentData['studentName'] as String?) ??
+            (studentData['name'] as String?) ??
+            'Student';
+        String? photoUrl = studentData['photoUrl'] as String?;
+
+        // Fallback to users doc if needed (legacy profiles).
+        if (score <= 0 || name == 'Student' || photoUrl == null) {
+          try {
+            final userDoc = await _db.collection('users').doc(uid).get();
+            if (userDoc.exists) {
+              final userData = userDoc.data() ?? {};
+              if (score <= 0) {
+                score = _parseInt(userData['available_points']) > 0
+                    ? _parseInt(userData['available_points'])
+                    : (_parseInt(userData['rewardPoints']) > 0
+                          ? _parseInt(userData['rewardPoints'])
+                          : (_parseInt(userData['totalPoints']) > 0
+                                ? _parseInt(userData['totalPoints'])
+                                : score));
+              }
+              if (name == 'Student') {
+                name = (userData['name'] as String?) ?? name;
+              }
+              photoUrl ??= userData['photoUrl'] as String?;
+            }
+          } catch (_) {}
+        }
+
         entries.add(
           LeaderboardEntry(
             studentId: uid,
-            name:
-                userData['name'] as String? ??
-                studentData['studentName'] as String? ??
-                'Student',
-            photoUrl: userData['photoUrl'] as String?,
+            name: name,
+            photoUrl: photoUrl,
             rank: 0, // Will assign after sorting
-            score: userData['rewardPoints'] as num? ?? 0,
+            score: score,
           ),
         );
       }
@@ -221,12 +281,21 @@ class LeaderboardService {
       yield _cacheableListToEntries(cachedData);
     }
 
-    // ✅ STEP 2: Listen to student_rewards for real-time updates
-    // Uses a debounce approach to avoid excessive refreshes
+    // ✅ STEP 2: Listen to students class roster for real-time point updates
+    // (available_points / locked_points changes are reflected here).
+    // Uses a debounce approach to avoid excessive refreshes.
     DateTime? lastUpdate;
     const debounceDuration = Duration(seconds: 2);
 
-    await for (final _ in _db.collection('student_rewards').snapshots()) {
+    Query<Map<String, dynamic>> studentsQuery = _db
+        .collection('students')
+        .where('schoolCode', isEqualTo: schoolCode)
+        .where('className', isEqualTo: className);
+    if (section != null && section.isNotEmpty) {
+      studentsQuery = studentsQuery.where('section', isEqualTo: section);
+    }
+
+    await for (final _ in studentsQuery.snapshots()) {
       final now = DateTime.now();
 
       // Debounce: Only refresh if 2 seconds passed since last update

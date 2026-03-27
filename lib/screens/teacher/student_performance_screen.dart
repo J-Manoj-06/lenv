@@ -163,34 +163,64 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
   Future<void> _fetchPoints() async {
     try {
       final authUid = _resolvedAuthUid ?? widget.studentId;
+      bool hasCanonicalData = false;
+
+      // Canonical points source: available = sum(student_rewards.pointsEarned) - students.locked_points
+      int totalEarned = 0;
       try {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(authUid)
+        final rewardsSnap = await FirebaseFirestore.instance
+            .collection('student_rewards')
+            .where('studentId', isEqualTo: authUid)
             .get();
-        if (userDoc.exists) {
-          final userData = userDoc.data();
-          _totalPoints =
-              (userData?['totalPoints'] ?? userData?['rewardPoints'] ?? 0)
-                  as int;
+        hasCanonicalData = true;
+        for (final doc in rewardsSnap.docs) {
+          final val = doc.data()['pointsEarned'];
+          if (val is num) totalEarned += val.toInt();
         }
-      } catch (e) {}
-      if (_totalPoints == 0) {
-        try {
-          final studentDoc = await FirebaseFirestore.instance
-              .collection('students')
-              .doc(widget.studentId)
-              .get();
-          if (studentDoc.exists) {
-            final studentData = studentDoc.data();
-            _totalPoints =
-                (studentData?['totalPoints'] ??
-                        studentData?['rewardPoints'] ??
-                        0)
-                    as int;
+      } catch (_) {}
+
+      int locked = 0;
+      int availableFromDoc = 0;
+      try {
+        final studentDoc = await FirebaseFirestore.instance
+            .collection('students')
+            .doc(widget.studentId)
+            .get();
+        if (studentDoc.exists) {
+          final studentData = studentDoc.data() ?? {};
+          locked = (studentData['locked_points'] as num?)?.toInt() ?? 0;
+          availableFromDoc =
+              (studentData['available_points'] as num?)?.toInt() ?? 0;
+          if (studentData.containsKey('available_points') ||
+              studentData.containsKey('locked_points')) {
+            hasCanonicalData = true;
           }
-        } catch (e) {}
+        }
+      } catch (_) {}
+
+      final computedAvailable = (totalEarned - locked).clamp(0, 1 << 31);
+      _totalPoints = computedAvailable > 0
+          ? computedAvailable
+          : availableFromDoc;
+
+      // Legacy final fallback only when canonical data could not be resolved.
+      if (_totalPoints == 0 && !hasCanonicalData) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(authUid)
+              .get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() ?? {};
+            _totalPoints =
+                (userData['available_points'] as num?)?.toInt() ??
+                (userData['rewardPoints'] as num?)?.toInt() ??
+                (userData['totalPoints'] as num?)?.toInt() ??
+                0;
+          }
+        } catch (_) {}
       }
+
       if (mounted) setState(() {});
     } catch (e) {}
   }

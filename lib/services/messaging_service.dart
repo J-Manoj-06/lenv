@@ -307,7 +307,7 @@ class MessagingService {
       'createdAt': FieldValue.serverTimestamp(),
       'readByTeacher': senderRole == 'teacher',
       'readByParent': senderRole == 'parent',
-      if (replyTo != null) 'replyTo': replyTo,
+      'replyTo': ?replyTo,
     });
 
     // Update conversation metadata

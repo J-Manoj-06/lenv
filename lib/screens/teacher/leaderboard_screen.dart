@@ -158,7 +158,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         classAssignments: teacherData['classAssignments'],
       );
 
-      // Enrich points for each student from rewards repo or student_rewards
+      // Enrich points for each student with canonical available points
       // and de-duplicate by uid (fallback docId/name), keeping the highest points
       final Map<String, Map<String, dynamic>> deduped = {};
       for (final s in allStudents) {
@@ -166,32 +166,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         final docId = (copy['id'] ?? copy['docId'])?.toString() ?? '';
         final uid = (copy['uid'] ?? copy['studentId'])?.toString() ?? '';
 
-        int points = _getStudentPoints(copy);
-
-        // Try available_points from students doc via RewardsRepository (use students docId)
-        if (points == 0 && docId.isNotEmpty) {
-          try {
-            final map = await _rewardsRepo.getStudentPoints(docId);
-            final available = map['available'] ?? 0;
-            if (available > 0) points = available;
-          } catch (_) {}
-        }
-
-        // Fallback: aggregate student_rewards pointsEarned (use UID)
-        if (points == 0 && uid.isNotEmpty) {
-          try {
-            final snap = await FirebaseFirestore.instance
-                .collection('student_rewards')
-                .where('studentId', isEqualTo: uid)
-                .get();
-            int total = 0;
-            for (final d in snap.docs) {
-              final val = d.data()['pointsEarned'];
-              if (val is num) total += val.toInt();
-            }
-            if (total > 0) points = total;
-          } catch (_) {}
-        }
+        final points = await _getCanonicalPointsForStudent(copy);
 
         copy['aggregatedRewardPoints'] = points;
 
@@ -297,18 +272,79 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       return null;
     }
 
-    final candidates = <int?>[
-      parse(rewardPoints),
-      parse(aggregated),
+    // Deterministic priority to avoid stale values overriding fresh available points.
+    final ordered = <int?>[
       parse(available),
+      parse(aggregated),
+      parse(rewardPoints),
       parse(totalPoints),
       parse(points),
     ];
 
-    // Choose the maximum non-null value to avoid a zero rewardPoints overriding real aggregated points
-    final nonNull = candidates.whereType<int>().toList();
-    if (nonNull.isEmpty) return 0;
-    return nonNull.reduce((a, b) => a > b ? a : b);
+    for (final value in ordered) {
+      if (value != null) return value;
+    }
+    return 0;
+  }
+
+  Future<int> _getCanonicalPointsForStudent(
+    Map<String, dynamic> student,
+  ) async {
+    final docId = (student['id'] ?? student['docId'])?.toString() ?? '';
+    final uid = (student['uid'] ?? student['studentId'])?.toString() ?? '';
+
+    int? parse(dynamic v) {
+      if (v == null) return null;
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      if (v is String) return int.tryParse(v);
+      return null;
+    }
+
+    // If available_points is explicitly present, trust it even when zero.
+    if (student.containsKey('available_points')) {
+      return (parse(student['available_points']) ?? 0).clamp(0, 1 << 30);
+    }
+
+    // Try canonical points from students doc via repository.
+    if (docId.isNotEmpty) {
+      try {
+        final map = await _rewardsRepo.getStudentPoints(docId);
+        if (map.containsKey('available')) {
+          return (map['available'] ?? 0).clamp(0, 1 << 30);
+        }
+      } catch (_) {}
+    }
+
+    // Fallback: available = sum(student_rewards.pointsEarned) - locked_points.
+    if (uid.isNotEmpty) {
+      try {
+        final rewardsSnap = await FirebaseFirestore.instance
+            .collection('student_rewards')
+            .where('studentId', isEqualTo: uid)
+            .get();
+
+        int earned = 0;
+        for (final d in rewardsSnap.docs) {
+          final val = d.data()['pointsEarned'];
+          if (val is num) earned += val.toInt();
+        }
+
+        int locked = 0;
+        if (docId.isNotEmpty) {
+          final studentDoc = await FirebaseFirestore.instance
+              .collection('students')
+              .doc(docId)
+              .get();
+          final data = studentDoc.data();
+          locked = (data?['locked_points'] as num?)?.toInt() ?? 0;
+        }
+
+        return (earned - locked).clamp(0, 1 << 30);
+      } catch (_) {}
+    }
+
+    return _getStudentPoints(student);
   }
 
   // Helper method to format grade and section

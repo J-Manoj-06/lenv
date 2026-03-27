@@ -91,8 +91,7 @@ class _ClassSectionsPerformersPageState
         final userData = userDataMap[student.uid];
 
         if (userData != null) {
-          final rewardPoints =
-              (userData['rewardPoints'] ?? userData['totalPoints'] ?? 0) as int;
+          final rewardPoints = student.rewardPoints;
           final completedTests = (userData['completedTests'] ?? 0) as int;
           final studentId = userData['studentId'] as String?;
           final userName = userData['name'] as String?;

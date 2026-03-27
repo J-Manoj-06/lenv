@@ -797,7 +797,7 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
             'senderRole': currentUser.role.toString().split('.').last,
             'timestamp': FieldValue.serverTimestamp(),
             'createdAt': createdAt,
-            if (replyTo != null) 'replyTo': replyTo,
+            'replyTo': ?replyTo,
           });
 
       unawaited(

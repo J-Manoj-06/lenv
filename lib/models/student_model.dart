@@ -85,6 +85,7 @@ class StudentModel {
 
   static int _parseRewardPoints(Map<String, dynamic> data) {
     final candidates = [
+      data['available_points'],
       data['rewardPoints'],
       data['totalPoints'],
       data['points'],
