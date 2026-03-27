@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'connectivity_service.dart';
@@ -77,6 +78,57 @@ class PendingAnnouncementService {
         try {
           final data = Map<String, dynamic>.from(item as Map);
 
+          final collection =
+              data['_collection'] as String? ?? 'class_highlights';
+          if (collection == 'class_highlights') {
+            final uid = FirebaseAuth.instance.currentUser?.uid;
+            final email = FirebaseAuth.instance.currentUser?.email;
+            if (uid != null && uid.isNotEmpty) {
+              await FirebaseFirestore.instance
+                  .collection('teachers')
+                  .doc(uid)
+                  .set({
+                    'uid': uid,
+                    'teacherId': uid,
+                    'teacherEmail': email ?? '',
+                    'updatedAt': FieldValue.serverTimestamp(),
+                  }, SetOptions(merge: true));
+            }
+          }
+
+          // Normalize payload to satisfy class_highlights create rules.
+          final audienceType = (data['audienceType'] as String?) ?? 'school';
+          final scopeType =
+              (data['scopeType'] as String?)?.trim().isNotEmpty == true
+              ? data['scopeType'] as String
+              : (audienceType == 'school' ? 'whole_school' : audienceType);
+          data['scopeType'] = scopeType;
+
+          final standards = ((data['standards'] as List?) ?? const [])
+              .map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList();
+          final sections = ((data['sections'] as List?) ?? const [])
+              .map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toList();
+          data['standards'] = standards;
+          data['sections'] = sections;
+          data['targetStandard'] =
+              (data['targetStandard'] as String?)?.isNotEmpty == true
+              ? data['targetStandard']
+              : (standards.isNotEmpty ? standards.first : '');
+          data['targetSection'] =
+              (data['targetSection'] as String?)?.isNotEmpty == true
+              ? data['targetSection']
+              : (sections.isNotEmpty ? sections.first : '');
+
+          final authUid = FirebaseAuth.instance.currentUser?.uid;
+          if ((data['teacherId'] as String?)?.isNotEmpty != true &&
+              authUid != null) {
+            data['teacherId'] = authUid;
+          }
+
           // Restore server-side fields
           data['createdAt'] = FieldValue.serverTimestamp();
 
@@ -87,7 +139,7 @@ class PendingAnnouncementService {
           }
 
           final docRef = await FirebaseFirestore.instance
-              .collection(data['_collection'] as String? ?? 'class_highlights')
+              .collection(collection)
               .add(
                 data
                   ..remove('_collection')

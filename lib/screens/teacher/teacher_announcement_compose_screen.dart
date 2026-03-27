@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -123,17 +124,34 @@ class _TeacherAnnouncementComposeScreenState
     setState(() => _posting = true);
 
     try {
-      // ── 1. Resolve current user ──────────────────────────────────────────
+      // 1) Resolve current user.
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.forceRefreshUser();
       final currentUser = authProvider.currentUser;
       if (currentUser == null) throw 'Unable to get user. Please try again.';
 
-      // ── 2. Upload images now if we are online ────────────────────────────
-      //      If offline, we skip images (announce text-only in queue).
+      // Ensure rules can resolve this account as teacher via teachers/{uid}.
+      final resolvedInstituteId =
+          currentUser.instituteId ?? widget.teacherData?['schoolCode'] ?? '';
+      await FirebaseFirestore.instance
+          .collection('teachers')
+          .doc(currentUser.uid)
+          .set({
+            'uid': currentUser.uid,
+            'teacherId': currentUser.uid,
+            'teacherName': currentUser.name,
+            'teacherEmail': currentUser.email,
+            'instituteId': resolvedInstituteId,
+            'schoolCode': resolvedInstituteId,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      final isOnline = ConnectivityService().isOnline;
+
+      // 2) Upload images only when online. Offline announcements are queued text-first.
       List<Map<String, String>> imageCaptions = [];
 
-      if (_imageItems.isNotEmpty && ConnectivityService().isOnline) {
+      if (_imageItems.isNotEmpty && isOnline) {
         final r2Service = CloudflareR2Service(
           accountId: CloudflareConfig.accountId,
           bucketName: CloudflareConfig.bucketName,
@@ -167,7 +185,7 @@ class _TeacherAnnouncementComposeScreenState
         }
       }
 
-      // ── 3. Build Firestore payload ────────────────────────────────────────
+      // 3) Build payload with scope fields required by Firestore rules.
       final now = DateTime.now();
       final expiresAt = now.add(const Duration(hours: 24));
       final instituteId =
@@ -175,8 +193,10 @@ class _TeacherAnnouncementComposeScreenState
       final scopeType = widget.audienceType == 'school'
           ? 'whole_school'
           : widget.audienceType;
+      final standards = List<String>.from(widget.standards);
+      final sections = List<String>.from(widget.sections);
 
-      final data = <String, dynamic>{
+      final baseData = <String, dynamic>{
         '_collection': 'class_highlights',
         'teacherId': currentUser.uid,
         'teacherName':
@@ -187,40 +207,57 @@ class _TeacherAnnouncementComposeScreenState
         'text': messageText,
         'imageUrl': imageCaptions.isNotEmpty ? imageCaptions[0]['url'] : '',
         'imageCaptions': imageCaptions,
-        // createdAt is set by PendingAnnouncementService to FieldValue.serverTimestamp()
+        // For queued payloads this remains ISO and is converted on flush.
         'expiresAt': expiresAt.toIso8601String(),
         'audienceType': widget.audienceType,
-        'standards': widget.standards,
-        'sections': widget.sections,
+        'standards': standards,
+        'sections': sections,
         'createdByRole': 'teacher',
         'scopeType': scopeType,
-        'targetStandard': widget.standards.isNotEmpty
-            ? widget.standards.first
-            : '',
-        'targetSection': widget.sections.isNotEmpty
-            ? widget.sections.first
-            : '',
+        'targetStandard': standards.isNotEmpty ? standards.first : '',
+        'targetSection': sections.isNotEmpty ? sections.first : '',
         'schoolId': instituteId,
-        'viewedBy': [],
+        'viewedBy': <String>[],
       };
 
-      // ── 4. Queue locally ─────────────────────────────────────────────────
-      await PendingAnnouncementService().enqueue(data);
+      if (isOnline) {
+        // 4A) Direct write when online so permission issues are surfaced instantly.
+        final directData = Map<String, dynamic>.from(baseData)
+          ..remove('_collection')
+          ..['createdAt'] = FieldValue.serverTimestamp()
+          ..['expiresAt'] = Timestamp.fromDate(expiresAt);
 
-      // ── 5. Navigate away immediately (WhatsApp-style) ────────────────────
-      if (mounted) {
-        Navigator.pop(context);
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sending announcement…'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+        await FirebaseFirestore.instance
+            .collection('class_highlights')
+            .add(directData);
+
+        if (mounted) {
+          Navigator.pop(context);
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Announcement posted'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        // 4B) Queue offline payload and let background service flush on reconnect.
+        await PendingAnnouncementService().enqueue(baseData);
+
+        if (mounted) {
+          Navigator.pop(context);
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sending announcement...'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+
+        PendingAnnouncementService().startProcessing();
       }
-
-      // ── 6. Flush in background ────────────────────────────────────────────
-      PendingAnnouncementService().startProcessing();
     } catch (e) {
       if (mounted) {
         setState(() => _posting = false);
