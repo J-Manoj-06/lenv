@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 
@@ -88,10 +89,26 @@ class ChildProfileScreen extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Quick Stats
-            _buildQuickStats(
-              isDark: isDark,
-              rewardPoints: child.rewardPoints,
-              testsAttended: testsAttended,
+            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('student_rewards')
+                  .where('studentId', isEqualTo: child.uid)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                int totalEarned = 0;
+                if (snapshot.hasData) {
+                  for (final doc in snapshot.data!.docs) {
+                    final pts = doc.data()['pointsEarned'];
+                    if (pts is num) totalEarned += pts.toInt();
+                  }
+                }
+
+                return _buildQuickStats(
+                  isDark: isDark,
+                  rewardPoints: totalEarned < 0 ? 0 : totalEarned,
+                  testsAttended: testsAttended,
+                );
+              },
             ),
             const SizedBox(height: 16),
 

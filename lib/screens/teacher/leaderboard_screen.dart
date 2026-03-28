@@ -6,7 +6,6 @@ import '../../providers/auth_provider.dart';
 import '../../services/teacher_service.dart';
 import '../../utils/session_manager.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../features/rewards/services/rewards_repository.dart';
 
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key});
@@ -17,7 +16,6 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   final TeacherService _teacherService = TeacherService();
-  final RewardsRepository _rewardsRepo = RewardsRepository();
 
   String? _selectedClass;
   List<String> _classes = [];
@@ -272,10 +270,10 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       return null;
     }
 
-    // Deterministic priority to avoid stale values overriding fresh available points.
+    // Deterministic priority: aggregatedRewardPoints (fresh total earned) > available > legacy
     final ordered = <int?>[
-      parse(available),
       parse(aggregated),
+      parse(available),
       parse(rewardPoints),
       parse(totalPoints),
       parse(points),
@@ -290,7 +288,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
   Future<int> _getCanonicalPointsForStudent(
     Map<String, dynamic> student,
   ) async {
-    final docId = (student['id'] ?? student['docId'])?.toString() ?? '';
     final uid = (student['uid'] ?? student['studentId'])?.toString() ?? '';
 
     int? parse(dynamic v) {
@@ -301,22 +298,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       return null;
     }
 
-    // If available_points is explicitly present, trust it even when zero.
-    if (student.containsKey('available_points')) {
-      return (parse(student['available_points']) ?? 0).clamp(0, 1 << 30);
-    }
-
-    // Try canonical points from students doc via repository.
-    if (docId.isNotEmpty) {
-      try {
-        final map = await _rewardsRepo.getStudentPoints(docId);
-        if (map.containsKey('available')) {
-          return (map['available'] ?? 0).clamp(0, 1 << 30);
-        }
-      } catch (_) {}
-    }
-
-    // Fallback: available = sum(student_rewards.pointsEarned) - locked_points.
+    // Calculate TOTAL EARNED POINTS (not available/deducted) for consistency
+    // with dashboard and leaderboard
     if (uid.isNotEmpty) {
       try {
         final rewardsSnap = await FirebaseFirestore.instance
@@ -330,18 +313,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           if (val is num) earned += val.toInt();
         }
 
-        int locked = 0;
-        if (docId.isNotEmpty) {
-          final studentDoc = await FirebaseFirestore.instance
-              .collection('students')
-              .doc(docId)
-              .get();
-          final data = studentDoc.data();
-          locked = (data?['locked_points'] as num?)?.toInt() ?? 0;
-        }
-
-        return (earned - locked).clamp(0, 1 << 30);
+        // Return TOTAL EARNED (not available/deducted)
+        return earned.clamp(0, 1 << 30);
       } catch (_) {}
+    }
+
+    // Fallback: try from available_points if earned calculation fails
+    if (student.containsKey('available_points')) {
+      return (parse(student['available_points']) ?? 0).clamp(0, 1 << 30);
     }
 
     return _getStudentPoints(student);

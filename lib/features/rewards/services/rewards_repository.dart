@@ -445,15 +445,14 @@ class RewardsRepository {
   /// Listen to student points (real-time)
   Stream<double> streamStudentPoints(String studentId) {
     // Read from student_rewards collection — the single source of truth for
-    // earned points. This is the same source the student dashboard uses.
-    // We subtract locked_points and deducted_points from the students doc
-    // to get the actual available balance.
+    // earned points. Return TOTAL EARNED POINTS (not available/deducted).
+    // This matches the dashboard and leaderboard display for consistency.
     return _firestore
         .collection('student_rewards')
         .where('studentId', isEqualTo: studentId)
         .snapshots()
         .asyncMap((snap) async {
-          // Sum all pointsEarned from student_rewards
+          // Sum all pointsEarned from student_rewards (TOTAL EARNED)
           double totalEarned = 0;
           for (final doc in snap.docs) {
             final data = doc.data();
@@ -487,7 +486,8 @@ class RewardsRepository {
                     .catchError((_) {});
               }
 
-              return available < 0 ? 0.0 : available;
+              // Return TOTAL EARNED (not available) for consistency with dashboard
+              return totalEarned < 0 ? 0.0 : totalEarned;
             }
           } catch (_) {}
 

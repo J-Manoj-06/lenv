@@ -1286,7 +1286,6 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
     Map<String, dynamic> performanceStats,
     double attendance,
   ) {
-    final rewardPoints = child.rewardPoints;
     final testsCompleted = (performanceStats['completedTests'] ?? 0) as int;
     final attendancePercentage = attendance > 0
         ? attendance
@@ -1313,11 +1312,27 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildStatCard(
-                  isDark: isDark,
-                  icon: Icons.emoji_events,
-                  value: rewardPoints.toString(),
-                  label: 'Rewards',
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('student_rewards')
+                      .where('studentId', isEqualTo: child.uid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    int totalEarned = 0;
+                    if (snapshot.hasData) {
+                      for (final doc in snapshot.data!.docs) {
+                        final pts = doc.data()['pointsEarned'];
+                        if (pts is num) totalEarned += pts.toInt();
+                      }
+                    }
+
+                    return _buildStatCard(
+                      isDark: isDark,
+                      icon: Icons.emoji_events,
+                      value: (totalEarned < 0 ? 0 : totalEarned).toString(),
+                      label: 'Rewards',
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 12),

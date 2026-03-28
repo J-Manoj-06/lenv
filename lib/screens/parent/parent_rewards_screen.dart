@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/reward_request_model.dart';
 import '../../widgets/student_selection/student_avatar_row.dart';
@@ -86,7 +87,6 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
     ParentProvider parentProvider,
   ) {
     final selectedChild = parentProvider.selectedChild;
-    final points = selectedChild?.rewardPoints ?? 0;
     final selectedUid = selectedChild?.uid;
     final selectedStudentId = selectedChild?.studentId;
     // Filter requests to show only those for current selected child
@@ -109,7 +109,7 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
         padding: const EdgeInsets.only(bottom: 32),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
-          _buildPointsHeader(isDark, points, selectedChild?.name ?? ''),
+          _buildPointsHeader(isDark, selectedUid, selectedChild?.name ?? ''),
           _buildFilterRow(isDark),
           if (requests.isEmpty)
             Padding(
@@ -149,7 +149,34 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
     }).toList();
   }
 
-  Widget _buildPointsHeader(bool isDark, int points, String childName) {
+  Widget _buildPointsHeader(bool isDark, String? childUid, String childName) {
+    if (childUid == null || childUid.isEmpty) {
+      return _buildPointsHeaderCard(isDark, 0, childName);
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('student_rewards')
+          .where('studentId', isEqualTo: childUid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        int totalEarned = 0;
+        if (snapshot.hasData) {
+          for (final doc in snapshot.data!.docs) {
+            final points = doc.data()['pointsEarned'];
+            if (points is num) totalEarned += points.toInt();
+          }
+        }
+        return _buildPointsHeaderCard(
+          isDark,
+          totalEarned < 0 ? 0 : totalEarned,
+          childName,
+        );
+      },
+    );
+  }
+
+  Widget _buildPointsHeaderCard(bool isDark, int points, String childName) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       padding: const EdgeInsets.all(20),

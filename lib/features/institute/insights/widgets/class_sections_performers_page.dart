@@ -65,6 +65,28 @@ class _ClassSectionsPerformersPageState
         }
       }
 
+      // Batch fetch earned reward points from student_rewards for all matched UIDs.
+      final Map<String, int> earnedPointsByUid = {};
+      for (int i = 0; i < uidsToFetch.length; i += 10) {
+        final batch = uidsToFetch.skip(i).take(10).toList();
+        if (batch.isEmpty) continue;
+        try {
+          final rewardsSnap = await FirebaseFirestore.instance
+              .collection('student_rewards')
+              .where('studentId', whereIn: batch)
+              .get();
+
+          for (final doc in rewardsSnap.docs) {
+            final data = doc.data();
+            final uid = data['studentId'] as String?;
+            final pts = data['pointsEarned'];
+            if (uid == null || uid.isEmpty || pts is! num) continue;
+            earnedPointsByUid[uid] =
+                (earnedPointsByUid[uid] ?? 0) + pts.toInt();
+          }
+        } catch (_) {}
+      }
+
       // Batch fetch user data (Firestore supports up to 10 items in whereIn)
       final Map<String, Map<String, dynamic>> userDataMap = {};
 
@@ -90,8 +112,13 @@ class _ClassSectionsPerformersPageState
       for (var student in matchingStudents) {
         final userData = userDataMap[student.uid];
 
+        final totalEarnedPoints =
+            earnedPointsByUid[student.uid] ?? student.rewardPoints;
+        student = student.copyWith(
+          rewardPoints: totalEarnedPoints < 0 ? 0 : totalEarnedPoints,
+        );
+
         if (userData != null) {
-          final rewardPoints = student.rewardPoints;
           final completedTests = (userData['completedTests'] ?? 0) as int;
           final studentId = userData['studentId'] as String?;
           final userName = userData['name'] as String?;
@@ -100,7 +127,6 @@ class _ClassSectionsPerformersPageState
             name: (userName != null && userName.isNotEmpty)
                 ? userName
                 : student.name,
-            rewardPoints: rewardPoints,
             completedTests: completedTests,
             studentId: studentId ?? student.studentId,
           );

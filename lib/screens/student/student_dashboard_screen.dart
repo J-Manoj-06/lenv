@@ -1229,19 +1229,21 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                   // Permission/network fallback to cached model value
                   studentPoints = student.rewardPoints;
                 } else {
-                  final studentData = studentSnapshot.data?.data();
-                  if (studentData != null &&
-                      studentData.containsKey('available_points')) {
-                    final available =
-                        (studentData['available_points'] as num?)?.toInt() ?? 0;
-                    studentPoints = available < 0 ? 0 : available;
-                  } else {
-                    final lockedPoints =
-                        (studentData?['locked_points'] as num?)?.toDouble() ??
-                        0;
-                    final availablePoints = (totalEarnedPoints - lockedPoints)
-                        .clamp(0.0, double.infinity);
-                    studentPoints = availablePoints.toInt();
+                  // Show total earned points (not available/deducted)
+                  // This matches the leaderboard and is the canonical source
+                  final earned = totalEarnedPoints.toInt();
+                  studentPoints = earned < 0 ? 0 : earned;
+
+                  // Fallback: if no earned points, use available_points from student doc
+                  if (studentPoints == 0) {
+                    final studentData = studentSnapshot.data?.data();
+                    if (studentData != null &&
+                        studentData.containsKey('available_points')) {
+                      final available =
+                          (studentData['available_points'] as num?)?.toInt() ??
+                          0;
+                      studentPoints = available < 0 ? 0 : available;
+                    }
                   }
                 }
 
@@ -1446,16 +1448,31 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       final studentsSnap = await q.get();
       if (studentsSnap.docs.isEmpty) return 0;
 
-      // Step 2: Use canonical available points from student docs.
+      // Step 2: Calculate total earned points for each student (not available/deducted)
+      // This ensures the topper points match the leaderboard display
       int topperPoints = 0;
       for (final doc in studentsSnap.docs) {
-        final data = doc.data();
-        final points =
-            (data['available_points'] as num?)?.toInt() ??
-            (data['rewardPoints'] as num?)?.toInt() ??
-            (data['totalPoints'] as num?)?.toInt() ??
-            0;
-        if (points > topperPoints) topperPoints = points;
+        final uid = (doc.data()['uid'] as String?);
+        if (uid == null) continue;
+
+        // Calculate earned points from student_rewards for this student
+        int earnedPoints = 0;
+        try {
+          final rewardsSnap = await FirebaseFirestore.instance
+              .collection('student_rewards')
+              .where('studentId', isEqualTo: uid)
+              .get();
+          for (final rewardDoc in rewardsSnap.docs) {
+            final pts = rewardDoc.data()['pointsEarned'];
+            if (pts is num) earnedPoints += pts.toInt();
+          }
+        } catch (_) {
+          // Fallback to available_points if student_rewards fails
+          final data = doc.data();
+          earnedPoints = (data['available_points'] as num?)?.toInt() ?? 0;
+        }
+
+        if (earnedPoints > topperPoints) topperPoints = earnedPoints;
       }
 
       await CacheManager.cacheTopperPoints(
