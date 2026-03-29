@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:io';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../models/user_model.dart';
 import '../../services/school_storage_service.dart';
+import '../../services/student_usage_service.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 import '../../utils/lenv_snackbar.dart';
@@ -32,6 +34,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   static const Color brandBrownLight = Color(0xFF9C7349);
   static const Color brandOffWhite = Color(0xFFFCFAF8);
   static const Color brandLightGray = Color(0xFFF4EDE7);
+  final StudentUsageService _studentUsageService = StudentUsageService();
 
   @override
   void dispose() {
@@ -118,6 +121,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               unreadProvider.initialize(user.uid);
             }
 
+            await _collectStudentUsageSafely(user.uid);
+
             if (mounted) {
               Navigator.pushReplacementNamed(context, '/student-dashboard');
             }
@@ -145,6 +150,45 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
     showLenvLoginError(context, message);
+  }
+
+  Future<void> _collectStudentUsageSafely(String studentId) async {
+    if (!Platform.isAndroid) return;
+
+    try {
+      final hasPermission = await _studentUsageService
+          .isUsagePermissionGranted();
+
+      if (!hasPermission && mounted) {
+        final shouldOpenSettings = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Enable App Usage Access'),
+            content: const Text(
+              'To show top used apps for parents, enable app usage access in system settings.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Not Now'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldOpenSettings == true) {
+          await _studentUsageService.openUsagePermissionSettings();
+        }
+      }
+
+      await _studentUsageService.collectAndSyncTodayUsage(studentId: studentId);
+    } catch (_) {
+      // Do not block login flow if usage tracking fails.
+    }
   }
 
   void _handleForgotPassword() async {

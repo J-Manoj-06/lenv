@@ -271,6 +271,28 @@ service cloud.firestore {
         : '';
     }
 
+    function studentDocFor(studentId) {
+      return /databases/$(database)/documents/students/$(studentId);
+    }
+
+    function parentCanReadStudentUsage(studentId) {
+      return isSignedIn()
+        && isParent()
+        && exists(studentDocFor(studentId))
+        && (
+          // UID-based links (preferred)
+          get(studentDocFor(studentId)).data.parentId == request.auth.uid
+          || get(studentDocFor(studentId)).data.parentUid == request.auth.uid
+          || get(studentDocFor(studentId)).data.parent_id == request.auth.uid
+          // Email-based fallback links used by legacy data
+          || (authEmail() != '' && (
+              get(studentDocFor(studentId)).data.parentEmail == authEmail()
+              || get(studentDocFor(studentId)).data.parent_email == authEmail()
+              || get(studentDocFor(studentId)).data.guardianEmail == authEmail()
+            ))
+        );
+    }
+
     function studentByIdPath(studentId) {
       return /databases/$(database)/documents/students/$(studentId);
     }
@@ -476,6 +498,34 @@ service cloud.firestore {
       match /chatReads/{chatId} {
         allow read, write: if isSignedIn() && uidIs(userId);
       }
+    }
+
+    // Parent-facing child app usage insights (privacy-safe metadata only)
+    match /student_app_usage/{usageId} {
+      allow read: if isSignedIn() && (
+        // Student can read own usage
+        resource.data.studentId == request.auth.uid
+        // Linked parent can read child's usage
+        || parentCanReadStudentUsage(resource.data.studentId)
+        // Staff/admin fallback for support/ops
+        || isTeacher() || isPrincipal() || isInstitute() || isAdmin()
+      );
+
+      allow create, update: if isSignedIn()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.keys().hasOnly([
+          'studentId',
+          'date',
+          'permissionEnabled',
+          'topApps',
+          'updatedAt'
+        ])
+        && request.resource.data.date is string
+        && request.resource.data.permissionEnabled is bool
+        && request.resource.data.topApps is list
+        && request.resource.data.topApps.size() <= 5;
+
+      allow delete: if isAdmin();
     }
     
     match /institutes/{instituteId} {

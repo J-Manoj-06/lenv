@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Internet permission for WebView and API calls -->
     <uses-permission android:name="android.permission.INTERNET"/>
     
@@ -16,6 +17,11 @@
     <!-- Permissions for contacts (WhatsApp integration) -->
     <uses-permission android:name="android.permission.READ_CONTACTS"/>
     <uses-permission android:name="android.permission.WRITE_CONTACTS"/>
+
+    <!-- Usage stats permission for top app usage tracking -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
     
     <application
         android:label="Lenv"

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
+import '../../widgets/app_usage_card.dart';
 
 class ChildProfileScreen extends StatelessWidget {
   const ChildProfileScreen({super.key});
@@ -118,6 +119,10 @@ class ChildProfileScreen extends StatelessWidget {
               performanceStats,
               parentProvider.testResults,
             ),
+            const SizedBox(height: 16),
+
+            // Top 5 used apps today
+            AppUsageCard(studentId: child.uid),
             const SizedBox(height: 16),
 
             // Attendance Overview Card
