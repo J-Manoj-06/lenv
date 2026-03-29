@@ -121,6 +121,21 @@ class RewardsRepository {
       // Ensure student document exists with points structure
       await _ensureStudentPointsStructure(studentId);
 
+      // Pre-fetch total earned outside transaction (queries not allowed in transactions)
+      double totalEarned = 0;
+      try {
+        final rewardsSnap = await _firestore
+            .collection('student_rewards')
+            .where('studentId', isEqualTo: studentId)
+            .get();
+        for (final doc in rewardsSnap.docs) {
+          final pts = doc.data()['pointsEarned'];
+          if (pts is num) totalEarned += pts.toDouble();
+        }
+      } catch (_) {
+        // Will use fallback if this fails
+      }
+
       // Run transaction to ensure atomicity
       await _firestore.runTransaction((transaction) async {
         // Get current student data
@@ -134,23 +149,22 @@ class RewardsRepository {
 
         final studentData = studentSnap.data() ?? {};
 
-        final availablePointsRaw =
-            studentData['available_points'] ??
-            studentData['pointsEarned'] ??
-            studentData['points'];
+        // Use pre-fetched total or fallback to available_points
+        final finalTotalEarned = totalEarned > 0
+            ? totalEarned
+            : ((studentData['available_points'] ?? 0) as num).toDouble();
+
         final lockedPointsRaw =
             studentData['locked_points'] ?? studentData['lockedPoints'] ?? 0;
-        final availablePoints = (availablePointsRaw is num)
-            ? availablePointsRaw.toInt()
-            : 0;
         final lockedPoints = (lockedPointsRaw is num)
             ? lockedPointsRaw.toInt()
             : 0;
+        final totalEarnedInt = finalTotalEarned.toInt();
 
-        // Check if student has enough points
-        if (availablePoints < pointsRequired) {
+        // Check if student has earned enough total points
+        if (totalEarnedInt < pointsRequired) {
           throw Exception(
-            'Insufficient points: You have $availablePoints points but need $pointsRequired points',
+            'Insufficient points: You have earned $totalEarnedInt points but need $pointsRequired points',
           );
         }
 
@@ -194,7 +208,7 @@ class RewardsRepository {
 
         // Update student points
         transaction.update(studentRef, {
-          'available_points': availablePoints - pointsRequired,
+          'available_points': totalEarnedInt - (lockedPoints + pointsRequired),
           'locked_points': lockedPoints + pointsRequired,
           'last_reward_request': Timestamp.now(),
         });

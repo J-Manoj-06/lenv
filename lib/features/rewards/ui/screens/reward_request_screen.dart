@@ -162,9 +162,12 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
               return availablePointsAsync.when(
                 data: (availablePoints) {
                   final userTotalPoints = totalPoints.toInt();
-                  final userAvailablePoints = availablePoints.toInt();
-                  final remainingPoints = pointsRequired - userAvailablePoints;
-                  final isEligible = userAvailablePoints >= pointsRequired;
+                  // Eligibility is based on TOTAL earned points (what user actually earned)
+                  final isEligible = userTotalPoints >= pointsRequired;
+                  // Remaining is based on total points needed vs total earned
+                  final remainingPoints = isEligible
+                      ? 0
+                      : (pointsRequired - userTotalPoints);
 
                   return SafeArea(
                     child: SingleChildScrollView(

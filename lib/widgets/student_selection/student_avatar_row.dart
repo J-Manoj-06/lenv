@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import 'student_select_bottom_sheet.dart';
@@ -180,53 +181,120 @@ class StudentAvatarRow extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Avatar with ring
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutBack,
-                  transform: Matrix4.identity()..scale(isActive ? 1.1 : 1.0),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: isActive ? parentGreen : Colors.transparent,
-                        width: 3,
-                      ),
-                      boxShadow: isActive
-                          ? [
-                              BoxShadow(
-                                color: parentGreen.withOpacity(0.4),
-                                blurRadius: 8,
-                                spreadRadius: 1,
+                // Avatar with ring and badge
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('reward_requests')
+                      .where('student_id', isEqualTo: student.uid)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    // Check if any pending/requested reward exists
+                    final hasPending =
+                        snapshot.hasData &&
+                        snapshot.data!.docs.any((doc) {
+                          final status = doc['status'] as String?;
+                          return status == 'pendingParentApproval' ||
+                              status == 'pending' ||
+                              status == 'requested';
+                        });
+
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Avatar with ring
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutBack,
+                          transform: Matrix4.identity()
+                            ..scale(isActive ? 1.1 : 1.0),
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isActive
+                                    ? parentGreen
+                                    : Colors.transparent,
+                                width: 3,
                               ),
-                            ]
-                          : [],
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [parentGreen.withOpacity(0.8), parentGreen],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          student.name.isNotEmpty
-                              ? student.name[0].toUpperCase()
-                              : 'S',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                              boxShadow: isActive
+                                  ? [
+                                      BoxShadow(
+                                        color: parentGreen.withOpacity(0.4),
+                                        blurRadius: 8,
+                                        spreadRadius: 1,
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    parentGreen.withOpacity(0.8),
+                                    parentGreen,
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  student.name.isNotEmpty
+                                      ? student.name[0].toUpperCase()
+                                      : 'S',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
+
+                        // Pending request badge on top right
+                        if (hasPending)
+                          Positioned(
+                            right: -6,
+                            top: -6,
+                            child: Container(
+                              width: 22,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.orange[600],
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.orange.withOpacity(0.7),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '!',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 4),
                 // Name

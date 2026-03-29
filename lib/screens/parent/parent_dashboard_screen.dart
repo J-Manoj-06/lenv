@@ -1632,13 +1632,16 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                               const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  Text(
-                                    '${request.pointsRequired} Points',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: isDark
-                                          ? Colors.grey[400]
-                                          : Colors.grey[600],
+                                  Flexible(
+                                    child: Text(
+                                      '${request.pointsRequired} Points',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: isDark
+                                            ? Colors.grey[400]
+                                            : Colors.grey[600],
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
