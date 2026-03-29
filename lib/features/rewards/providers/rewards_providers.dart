@@ -47,6 +47,20 @@ final studentPointsProvider = StreamProvider.family<double, String>((
   }
 });
 
+/// Provides current user's spendable/available points (real-time)
+/// Use this for reward request eligibility checks.
+final studentAvailablePointsProvider = StreamProvider.family<double, String>((
+  ref,
+  studentId,
+) {
+  try {
+    final repository = ref.watch(rewardsRepositoryProvider);
+    return repository.streamStudentAvailablePoints(studentId);
+  } catch (e) {
+    rethrow;
+  }
+});
+
 /// Provides list of reward requests for a student (real-time)
 final studentRequestsProvider =
     StreamProvider.family<List<RewardRequestModel>, String>((ref, studentId) {

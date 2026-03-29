@@ -145,42 +145,71 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
             maxPoints: product.pointsRule.maxPoints,
           );
 
-          // Watch student points if studentId is available
-          final studentPointsAsync =
+          // Watch total earned points for display
+          final totalPointsAsync =
               widget.studentId != null && widget.studentId!.isNotEmpty
               ? ref.watch(studentPointsProvider(widget.studentId!))
               : const AsyncValue.data(0.0);
 
-          return studentPointsAsync.when(
-            data: (studentPoints) {
-              final userPoints = studentPoints.toInt();
-              final remainingPoints = pointsRequired - userPoints;
-              final isEligible = userPoints >= pointsRequired;
+          // Watch available points for backend validation
+          final availablePointsAsync =
+              widget.studentId != null && widget.studentId!.isNotEmpty
+              ? ref.watch(studentAvailablePointsProvider(widget.studentId!))
+              : const AsyncValue.data(0.0);
 
-              return SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildProductPreview(context, data, isDark),
-                      const SizedBox(height: 24),
-                      _buildEligibilityCard(
-                        context,
-                        pointsRequired,
-                        userPoints,
-                        remainingPoints,
-                        isEligible,
-                        isDark,
+          return totalPointsAsync.when(
+            data: (totalPoints) {
+              return availablePointsAsync.when(
+                data: (availablePoints) {
+                  final userTotalPoints = totalPoints.toInt();
+                  final userAvailablePoints = availablePoints.toInt();
+                  final remainingPoints = pointsRequired - userAvailablePoints;
+                  final isEligible = userAvailablePoints >= pointsRequired;
+
+                  return SafeArea(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildProductPreview(context, data, isDark),
+                          const SizedBox(height: 24),
+                          _buildEligibilityCard(
+                            context,
+                            pointsRequired,
+                            userTotalPoints,
+                            remainingPoints,
+                            isEligible,
+                            isDark,
+                          ),
+                          const SizedBox(height: 24),
+                          _buildConfirmButton(
+                            context,
+                            product,
+                            pointsRequired,
+                            isEligible,
+                            remainingPoints,
+                            isDark,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      _buildConfirmButton(
-                        context,
-                        product,
-                        pointsRequired,
-                        isEligible,
-                        remainingPoints,
-                        isDark,
+                    ),
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, st) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.grey[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Unable to load your points',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ],
                   ),
@@ -197,12 +226,6 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
                   Text(
                     'Unable to load points',
                     style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    error.toString(),
-                    style: Theme.of(context).textTheme.bodySmall,
-                    textAlign: TextAlign.center,
                   ),
                 ],
               ),

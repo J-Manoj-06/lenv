@@ -495,6 +495,51 @@ class RewardsRepository {
         });
   }
 
+  /// Listen to student's spendable points (available_points) in real-time.
+  /// Use this for request eligibility checks so UI matches createRequest() validation.
+  Stream<double> streamStudentAvailablePoints(String studentId) {
+    return _firestore
+        .collection('student_rewards')
+        .where('studentId', isEqualTo: studentId)
+        .snapshots()
+        .asyncMap((snap) async {
+          double totalEarned = 0;
+          for (final doc in snap.docs) {
+            final data = doc.data();
+            final pts = data['pointsEarned'];
+            if (pts is num) totalEarned += pts.toDouble();
+          }
+
+          try {
+            final studentDoc = await _firestore
+                .collection(studentsCollection)
+                .doc(studentId)
+                .get();
+            if (studentDoc.exists) {
+              final sData = studentDoc.data() ?? {};
+              final locked = (sData['locked_points'] as num?)?.toDouble() ?? 0;
+              final available = totalEarned - locked;
+
+              // Keep available_points synced for transaction checks.
+              final currentAvailable = (sData['available_points'] as num?)
+                  ?.toDouble();
+              if (currentAvailable == null ||
+                  (currentAvailable - available).abs() > 0.5) {
+                _firestore
+                    .collection(studentsCollection)
+                    .doc(studentId)
+                    .update({'available_points': available.round()})
+                    .catchError((_) {});
+              }
+
+              return available < 0 ? 0.0 : available;
+            }
+          } catch (_) {}
+
+          return totalEarned < 0 ? 0.0 : totalEarned;
+        });
+  }
+
   /// Clear cache
   void clearCache() {
     _catalogCache = null;
