@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../screens/common/splash_screen.dart';
+import '../screens/onboarding/enhanced_splash_screen.dart';
+import '../screens/onboarding/onboarding_screen.dart';
+import '../screens/onboarding/school_selection_screen.dart';
 import '../screens/common/role_selection_screen.dart';
 import '../screens/teacher/teacher_login_screen.dart';
 import '../screens/teacher/create_test_screen.dart';
@@ -41,7 +43,17 @@ class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case '/':
-        return MaterialPageRoute(builder: (_) => const SplashScreen());
+        return MaterialPageRoute(builder: (_) => const EnhancedSplashScreen());
+
+      case '/onboarding':
+        return MaterialPageRoute(builder: (_) => const OnboardingScreen());
+
+      case '/school-selection':
+        return MaterialPageRoute(builder: (_) => const SchoolSelectionScreen());
+
+      // Compatibility alias used by some older navigation paths.
+      case '/dashboard':
+        return MaterialPageRoute(builder: (_) => const RoleSelectionScreen());
 
       case '/role-selection':
         return MaterialPageRoute(builder: (_) => const RoleSelectionScreen());

@@ -27,6 +27,7 @@ import 'services/offline_data_service.dart';
 import 'services/offline_first_initializer.dart';
 import 'services/notification_service.dart';
 import 'services/background_download_service.dart';
+import 'services/school_storage_service.dart';
 import 'models/local_message.dart';
 import 'share/share_controller.dart';
 import 'share/share_receiver_service.dart';
@@ -38,6 +39,9 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize School Storage first (for onboarding flow)
+  await schoolStorageService.initialize();
 
   // Initialize Firebase (with duplicate check for hot reload)
   try {
