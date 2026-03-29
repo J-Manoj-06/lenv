@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../models/user_model.dart';
-import '../../services/school_service.dart';
-import '../../models/school_model.dart';
+import '../../services/school_storage_service.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 import '../../utils/lenv_snackbar.dart';
@@ -23,6 +22,7 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   final _passwordController = TextEditingController();
 
   String? _selectedSchool;
+  String _selectedSchoolName = 'Selected school';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
@@ -32,12 +32,6 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   static const Color brandBrownLight = Color(0xFF9C7349);
   static const Color brandOffWhite = Color(0xFFFCFAF8);
   static const Color brandLightGray = Color(0xFFF4EDE7);
-
-  final _schoolService = SchoolService();
-  List<SchoolModel> _schools = [];
-  bool _isLoadingSchools = true;
-  String? _schoolLoadError;
-  bool _schoolLoadIsWarning = false;
 
   @override
   void dispose() {
@@ -49,50 +43,20 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSchools();
+    _initializeSelectedSchool();
   }
 
-  Future<void> _loadSchools() async {
+  Future<void> _initializeSelectedSchool() async {
+    await schoolStorageService.initialize();
+    if (!mounted) return;
+
     setState(() {
-      _isLoadingSchools = true;
-      _schoolLoadError = null;
-      _schoolLoadIsWarning = false;
+      _selectedSchool = schoolStorageService.schoolId;
+      final storedName = schoolStorageService.schoolName?.trim();
+      _selectedSchoolName = (storedName == null || storedName.isEmpty)
+          ? 'Selected school'
+          : storedName;
     });
-
-    try {
-      final schools = await _schoolService.fetchSchools();
-      if (mounted) {
-        setState(() {
-          _schools = schools;
-          _isLoadingSchools = false;
-
-          if (_schoolService.lastFetchUsedCache && schools.isNotEmpty) {
-            _schoolLoadError =
-                'Offline mode: showing previously loaded schools.';
-            _schoolLoadIsWarning = true;
-          }
-        });
-
-        if (schools.isEmpty) {
-          setState(() {
-            _schoolLoadError = 'No schools found. Please contact admin.';
-            _schoolLoadIsWarning = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        final bool isNetworkIssue =
-            e is SchoolFetchException && e.isNetworkIssue;
-        setState(() {
-          _isLoadingSchools = false;
-          _schoolLoadError = e is SchoolFetchException
-              ? e.message
-              : 'Failed to load schools. Please try again.';
-          _schoolLoadIsWarning = isNetworkIssue;
-        });
-      }
-    }
   }
 
   Future<void> _handleLogin() async {
@@ -101,7 +65,12 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     }
 
     if (_selectedSchool == null) {
-      _showErrorSnackBar('Please select your school');
+      _showErrorSnackBar(
+        'No school selected. Please choose your school first.',
+      );
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/school-selection');
+      }
       return;
     }
 
@@ -126,9 +95,12 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
             await authProvider.signOut();
           } else if (_selectedSchool != user.instituteId) {
             _showErrorSnackBar(
-              'Selected school does not match your account\'s school.',
+              'Your account belongs to a different school. Please change school and try again.',
             );
             await authProvider.signOut();
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/school-selection');
+            }
           } else {
             // Save session
             await SessionManager.saveLoginSession(
@@ -212,8 +184,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
                       const SizedBox(height: 40),
 
-                      // School Dropdown
-                      _buildSchoolDropdown(),
+                      // Selected School (read-only)
+                      _buildSelectedSchoolInfo(),
 
                       const SizedBox(height: 24),
 
@@ -307,17 +279,17 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     );
   }
 
-  Widget _buildSchoolDropdown() {
+  Widget _buildSelectedSchoolInfo() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF2A2A2A) : brandLightGray;
     final textColor = isDark ? Colors.white : brandBrownDark;
-    final hintColor = isDark ? Colors.grey[400]! : brandBrownLight;
+    final subTextColor = isDark ? Colors.grey[400]! : brandBrownLight;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Select School',
+          'School',
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -325,100 +297,31 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        if (_schoolLoadError != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _schoolLoadError!,
-                  style: TextStyle(
-                    color: _schoolLoadIsWarning ? Colors.orange : Colors.red,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _isLoadingSchools ? null : _loadSchools,
-                    icon: const Icon(Icons.refresh, size: 18),
-                    label: const Text('Retry'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: brandOrange,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             color: bgColor,
           ),
-          child: DropdownButtonFormField<String>(
-            initialValue: _selectedSchool,
-            decoration: InputDecoration(
-              hintText: _isLoadingSchools
-                  ? 'Loading schools...'
-                  : 'Choose your school',
-              hintStyle: TextStyle(color: hintColor),
-              filled: true,
-              fillColor: bgColor,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: brandOrange, width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-            ),
-            icon: _isLoadingSchools
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(brandOrange),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Icon(Icons.school_rounded, color: subTextColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _selectedSchoolName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
                     ),
-                  )
-                : Icon(Icons.keyboard_arrow_down, color: hintColor),
-            dropdownColor: bgColor,
-            items: _schools
-                .map(
-                  (s) => DropdownMenuItem(
-                    value: s.id,
-                    child: Text(s.name, style: TextStyle(color: textColor)),
                   ),
-                )
-                .toList(),
-            onChanged: _isLoadingSchools
-                ? null
-                : (value) {
-                    setState(() => _selectedSchool = value);
-                  },
-            validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please select your school';
-              }
-              return null;
-            },
+                ),
+              ],
+            ),
           ),
         ),
       ],

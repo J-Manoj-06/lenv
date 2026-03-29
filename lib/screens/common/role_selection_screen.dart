@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/role_provider.dart';
+import '../../services/school_storage_service.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
@@ -10,6 +11,10 @@ class RoleSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final roleProvider = Provider.of<RoleProvider>(context, listen: false);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final storedName = schoolStorageService.schoolName?.trim();
+    final schoolDisplayName = (storedName == null || storedName.isEmpty)
+        ? 'Your School'
+        : storedName;
 
     return Scaffold(
       body: Container(
@@ -39,13 +44,16 @@ class RoleSelectionScreen extends StatelessWidget {
               children: [
                 const SizedBox(height: 30),
                 // Title
-                const Text(
-                  'LenV',
-                  style: TextStyle(
-                    fontSize: 48,
+                Text(
+                  schoolDisplayName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 42,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
-                    letterSpacing: 2,
+                    height: 1.1,
                     shadows: [
                       Shadow(
                         color: Colors.black26,
@@ -63,6 +71,34 @@ class RoleSelectionScreen extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.w400,
                     letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed: () async {
+                    try {
+                      await schoolStorageService.clearSchoolData();
+                      if (context.mounted) {
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/school-selection',
+                          (route) => false,
+                        );
+                      }
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Unable to change school right now.'),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                  label: const Text('Change School'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white.withValues(alpha: 0.95),
                   ),
                 ),
                 const SizedBox(height: 35),
@@ -162,7 +198,7 @@ class RoleSelectionScreen extends StatelessWidget {
                         'Educational Ecosystem',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.white.withOpacity(0.9),
+                          color: Colors.white.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w300,
                         ),
                       ),
@@ -171,7 +207,7 @@ class RoleSelectionScreen extends StatelessWidget {
                         'Version 1.0.0',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.85),
+                          color: Colors.white.withValues(alpha: 0.85),
                           fontWeight: FontWeight.w300,
                         ),
                       ),
@@ -204,7 +240,7 @@ class RoleSelectionScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.15),
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.15),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -216,7 +252,9 @@ class RoleSelectionScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFFF97316).withOpacity(isDark ? 0.2 : 0.1),
+                color: const Color(
+                  0xFFF97316,
+                ).withValues(alpha: isDark ? 0.2 : 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(

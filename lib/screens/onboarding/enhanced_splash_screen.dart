@@ -16,6 +16,7 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  late Animation<double> _scaleAnimation;
 
   @override
   void initState() {
@@ -39,6 +40,10 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
             curve: Curves.easeOutCubic,
           ),
         );
+
+    _scaleAnimation = Tween<double>(begin: 0.94, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
+    );
 
     _animationController.forward();
 
@@ -99,10 +104,9 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
               ? LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.primary.withValues(alpha: 0.1),
-                    AppColors.primary.withValues(alpha: 0.05),
-                  ],
+                  colors: isDark
+                      ? const [Color(0xFF1F1A14), Color(0xFF14110E)]
+                      : const [Color(0xFFFFF8EF), Color(0xFFFFF2E2)],
                 )
               : LinearGradient(
                   begin: Alignment.topLeft,
@@ -122,27 +126,68 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
             child: SlideTransition(
               position: _slideAnimation,
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Spacer(),
-
-                  // Logo/Icon
-                  _buildLogo(isCustomSplash, schoolLogo),
-
-                  const SizedBox(height: 40),
-
-                  // Title
-                  if (isCustomSplash)
-                    _buildCustomSplashTitle(schoolName)
-                  else
-                    _buildDefaultSplashTitle(),
-
-                  const Spacer(),
-
-                  // Powered by text
-                  _buildPoweredByText(),
-
-                  const SizedBox(height: 40),
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ScaleTransition(
+                              scale: _scaleAnimation,
+                              child: _buildLogo(isCustomSplash, schoolLogo),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              isCustomSplash
+                                  ? (schoolName ?? 'School')
+                                  : 'Lenv',
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    fontSize: isCustomSplash ? 24 : 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? AppColors.textLight
+                                        : AppColors.textDark,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Powered by Lenv',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                    color: isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Educational Ecosystem',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontSize: 14,
+                      color:
+                          (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
                 ],
               ),
             ),
@@ -152,123 +197,38 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
     );
   }
 
-  /// Build logo widget (circular with school or default icon)
+  /// Build logo widget with balanced dimensions so text remains dominant.
   Widget _buildLogo(bool isCustom, String? schoolLogo) {
     return Container(
-      width: 140,
-      height: 140,
+      width: 112,
+      height: 112,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(70),
+        color: Colors.white.withValues(alpha: isCustom ? 0.16 : 0.96),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       child: isCustom && schoolLogo != null && schoolLogo.isNotEmpty
           ? ClipRRect(
-              borderRadius: BorderRadius.circular(70),
+              borderRadius: BorderRadius.circular(24),
               child: Image.network(
                 schoolLogo,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(
                     Icons.school_rounded,
-                    size: 80,
+                    size: 56,
                     color: AppColors.primary,
                   );
                 },
               ),
             )
-          : Icon(Icons.school_rounded, size: 80, color: AppColors.primary),
-    );
-  }
-
-  /// Build default Lenv splash title
-  Widget _buildDefaultSplashTitle() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Column(
-      children: [
-        Text(
-          'Lenv',
-          style: TextStyle(
-            fontSize: 60,
-            fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textLight : Colors.white,
-            letterSpacing: 2,
-            shadows: [
-              Shadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.2),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Learning Ecosystem',
-          style: TextStyle(
-            fontSize: 18,
-            color: isDark ? AppColors.textLight : Colors.white,
-            fontWeight: FontWeight.w400,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Build custom school splash title
-  Widget _buildCustomSplashTitle(String? schoolName) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Column(
-      children: [
-        Text(
-          schoolName ?? 'School',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: isDark ? AppColors.textDark : AppColors.textDark,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Powered by Lenv',
-          style: TextStyle(
-            fontSize: 14,
-            color: isDark
-                ? AppColors.textSecondaryDark
-                : AppColors.textSecondaryLight,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Build "Powered by Lenv" text at bottom
-  Widget _buildPoweredByText() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final schoolId = schoolStorageService.schoolId;
-    final isCustom = schoolId != null && schoolId.isNotEmpty;
-
-    return Text(
-      isCustom ? 'Educational Ecosystem' : 'Start Your Journey',
-      style: TextStyle(
-        fontSize: 14,
-        color: isDark
-            ? AppColors.textSecondaryDark
-            : (isCustom
-                  ? AppColors.textSecondaryLight
-                  : Colors.white.withValues(alpha: 0.9)),
-        fontWeight: FontWeight.w300,
-        letterSpacing: 0.5,
-      ),
+          : Icon(Icons.school_rounded, size: 56, color: AppColors.primary),
     );
   }
 }

@@ -13,8 +13,7 @@ class SchoolSelectionScreen extends StatefulWidget {
 }
 
 class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
-  late TextEditingController _schoolIdController;
-  late TextEditingController _schoolNameController;
+  late TextEditingController _searchController;
   bool _isLoading = false;
   final SchoolService _schoolService = SchoolService();
   List<SchoolModel> _schools = [];
@@ -25,16 +24,26 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _schoolIdController = TextEditingController();
-    _schoolNameController = TextEditingController();
+    _searchController = TextEditingController();
     _loadSchools();
   }
 
   @override
   void dispose() {
-    _schoolIdController.dispose();
-    _schoolNameController.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  List<SchoolModel> get _filteredSchools {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      return _schools;
+    }
+
+    return _schools.where((school) {
+      return school.name.toLowerCase().contains(query) ||
+          school.id.toLowerCase().contains(query);
+    }).toList();
   }
 
   Future<void> _loadSchools() async {
@@ -106,77 +115,20 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
     }
   }
 
-  /// Show manual school entry dialog
-  void _showManualSchoolDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Enter School Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _schoolIdController,
-              decoration: InputDecoration(
-                labelText: 'School ID',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _schoolNameController,
-              decoration: InputDecoration(
-                labelText: 'School Name',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (_schoolIdController.text.isEmpty ||
-                  _schoolNameController.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill all fields')),
-                );
-                return;
-              }
-
-              _selectSchool(
-                SchoolModel(
-                  id: _schoolIdController.text,
-                  name: _schoolNameController.text,
-                ),
-              );
-
-              Navigator.of(context).pop();
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Your School'),
+        title: const Text(
+          'Select Your School',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
         centerTitle: true,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: isDark ? AppColors.textLight : AppColors.textDark,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
       ),
       body: _isLoading
@@ -185,7 +137,10 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -197,7 +152,39 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: 'Search schools by name or ID',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        isDense: true,
+                        filled: true,
+                        fillColor: isDark
+                            ? AppColors.cardBackgroundDark
+                            : AppColors.cardBackground,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: isDark
+                                ? AppColors.dividerDark
+                                : AppColors.divider,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: isDark
+                                ? AppColors.dividerDark
+                                : AppColors.divider,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
 
                     if (_schoolLoadError != null) ...[
                       Container(
@@ -248,10 +235,10 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
                     ],
 
                     // School list
-                    if (_schools.isEmpty)
+                    if (_filteredSchools.isEmpty)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: isDark
                               ? AppColors.cardBackgroundDark
@@ -268,7 +255,9 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
                             const Icon(Icons.school_rounded, size: 40),
                             const SizedBox(height: 8),
                             Text(
-                              'No schools available',
+                              _schools.isEmpty
+                                  ? 'No schools available'
+                                  : 'No schools match your search',
                               style: TextStyle(
                                 color: isDark
                                     ? AppColors.textLight
@@ -278,59 +267,26 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
                             ),
                             const SizedBox(height: 8),
                             TextButton(
-                              onPressed: _loadSchools,
-                              child: const Text('Refresh'),
+                              onPressed: _schools.isEmpty
+                                  ? _loadSchools
+                                  : () {
+                                      _searchController.clear();
+                                      setState(() {});
+                                    },
+                              child: Text(
+                                _schools.isEmpty ? 'Refresh' : 'Clear Search',
+                              ),
                             ),
                           ],
                         ),
                       )
                     else
                       ...List.generate(
-                        _schools.length,
-                        (index) => _buildSchoolCard(_schools[index], isDark),
+                        _filteredSchools.length,
+                        (index) =>
+                            _buildSchoolCard(_filteredSchools[index], isDark),
                       ),
-
-                    const SizedBox(height: 24),
-
-                    // Divider
-                    Divider(
-                      color: isDark ? AppColors.dividerDark : AppColors.divider,
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Manual entry section
-                    Text(
-                      'Can\'t find your school?',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-
                     const SizedBox(height: 12),
-
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: OutlinedButton.icon(
-                        onPressed: _showManualSchoolDialog,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Enter School Details Manually'),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: AppColors.primary,
-                            width: 2,
-                          ),
-                          foregroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -343,8 +299,8 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
     return GestureDetector(
       onTap: () => _selectSchool(school),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isDark
               ? AppColors.cardBackgroundDark
@@ -366,8 +322,8 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
           children: [
             // School Logo
             Container(
-              width: 70,
-              height: 70,
+              width: 56,
+              height: 56,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 color: AppColors.primary.withValues(alpha: 0.1),
@@ -389,7 +345,7 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
                   Text(
                     school.name,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: isDark ? AppColors.textLight : AppColors.textDark,
                     ),
@@ -398,7 +354,7 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen> {
                   Text(
                     'School ID: ${school.id}',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 11,
                       color: isDark
                           ? AppColors.textSecondaryDark
                           : AppColors.textSecondaryLight,
