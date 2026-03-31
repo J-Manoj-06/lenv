@@ -36,6 +36,10 @@ class _AppUsageCardState extends State<AppUsageCard> {
         }
 
         if (snapshot.hasError) {
+          debugPrint(
+            '❌ [AppUsageCard] load error studentId=${widget.studentId} '
+            'error=${snapshot.error}',
+          );
           return _buildCardContainer(
             isDark,
             child: _buildSectionContent(
@@ -82,80 +86,103 @@ class _AppUsageCardState extends State<AppUsageCard> {
         }
 
         final itemCount = apps.length > 5 ? 5 : apps.length;
+        final consideredCount = usage.consideredAppCount;
 
         return _buildCardContainer(
           isDark,
           child: _buildSectionContent(
             context,
             title: 'Top 5 Used Apps Today',
-            body: ListView.builder(
-              itemCount: itemCount,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemBuilder: (context, index) {
-                final app = apps[index];
-                final iconBytes = _usageService.decodeIcon(app.appIconBase64);
+            body: Column(
+              children: [
+                if (consideredCount != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Based on $consideredCount installed apps',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
+                        ),
+                      ),
+                    ),
+                  ),
+                ListView.builder(
+                  itemCount: itemCount,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemBuilder: (context, index) {
+                    final app = apps[index];
+                    final iconBytes = _usageService.decodeIcon(
+                      app.appIconBase64,
+                    );
 
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: index == itemCount - 1 ? 0 : 10,
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: AppColors.primary.withValues(
-                          alpha: 0.16,
-                        ),
-                        backgroundImage: iconBytes != null
-                            ? MemoryImage(iconBytes)
-                            : null,
-                        child: iconBytes == null
-                            ? const Icon(
-                                Icons.apps_rounded,
-                                color: AppColors.primary,
-                              )
-                            : null,
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom: index == itemCount - 1 ? 0 : 10,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              app.appName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 22,
+                            backgroundColor: AppColors.primary.withValues(
+                              alpha: 0.16,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              app.packageName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight,
-                                  ),
+                            backgroundImage: iconBytes != null
+                                ? MemoryImage(iconBytes)
+                                : null,
+                            child: iconBytes == null
+                                ? const Icon(
+                                    Icons.apps_rounded,
+                                    color: AppColors.primary,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  app.appName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyLarge
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  app.packageName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: isDark
+                                            ? AppColors.textSecondaryDark
+                                            : AppColors.textSecondaryLight,
+                                      ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            StudentUsageService.formatMinutes(app.usageMinutes),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        StudentUsageService.formatMinutes(app.usageMinutes),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         );

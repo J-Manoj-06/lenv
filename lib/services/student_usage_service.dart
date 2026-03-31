@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class AppUsageItem {
@@ -41,12 +43,14 @@ class StudentDailyUsage {
   final String date;
   final bool permissionEnabled;
   final List<AppUsageItem> topApps;
+  final int? consideredAppCount;
 
   const StudentDailyUsage({
     required this.studentId,
     required this.date,
     required this.permissionEnabled,
     required this.topApps,
+    this.consideredAppCount,
   });
 
   factory StudentDailyUsage.fromDoc(
@@ -65,6 +69,7 @@ class StudentDailyUsage {
       date: (data['date'] ?? '').toString(),
       permissionEnabled: (data['permissionEnabled'] as bool?) ?? true,
       topApps: items,
+      consideredAppCount: (data['consideredAppCount'] as num?)?.toInt(),
     );
   }
 }
@@ -131,6 +136,19 @@ class StudentUsageService {
     return items.take(5).toList();
   }
 
+  Future<int?> _fetchConsideredAppCount() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final raw = await _channel.invokeMethod<List<dynamic>>(
+        'getTopAppsToday',
+        {'topN': 500},
+      );
+      return raw?.length;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> collectAndSyncTodayUsage({required String studentId}) async {
     if (!Platform.isAndroid || studentId.trim().isEmpty) return;
 
@@ -140,9 +158,11 @@ class StudentUsageService {
     final permissionGranted = await isUsagePermissionGranted();
 
     List<AppUsageItem> topApps = const [];
+    int? consideredAppCount;
     if (permissionGranted) {
       try {
         topApps = await _fetchTopAppsTodayFromDevice();
+        consideredAppCount = await _fetchConsideredAppCount();
       } on PlatformException {
         topApps = const [];
       }
@@ -155,6 +175,7 @@ class StudentUsageService {
           'studentId': studentId,
           'date': date,
           'permissionEnabled': permissionGranted,
+          'consideredAppCount': consideredAppCount,
           'topApps': topApps.map((e) => e.toMap()).toList(),
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: false));
@@ -164,6 +185,7 @@ class StudentUsageService {
       date: date,
       permissionEnabled: permissionGranted,
       topApps: topApps,
+      consideredAppCount: consideredAppCount,
     );
   }
 
@@ -175,25 +197,61 @@ class StudentUsageService {
 
     final date = _todayDateKey();
     final cacheKey = '${studentId}_$date';
+    final authUser = FirebaseAuth.instance.currentUser;
+    final docId = '${studentId}_$date';
+
+    debugPrint(
+      '📊 [AppUsage] getTodayUsageForStudent start '
+      'studentId=$studentId docId=$docId forceRefresh=$forceRefresh '
+      'authUid=${authUser?.uid} authEmail=${authUser?.email}',
+    );
 
     if (!forceRefresh && _sessionCache.containsKey(cacheKey)) {
+      debugPrint(
+        '📊 [AppUsage] cache hit cacheKey=$cacheKey '
+        'hasData=${_sessionCache[cacheKey] != null}',
+      );
       return _sessionCache[cacheKey];
     }
 
-    final docId = '${studentId}_$date';
-    final doc = await FirebaseFirestore.instance
-        .collection('student_app_usage')
-        .doc(docId)
-        .get();
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('student_app_usage')
+          .doc(docId)
+          .get();
 
-    if (!doc.exists) {
-      _sessionCache[cacheKey] = null;
-      return null;
+      if (!doc.exists) {
+        debugPrint('📊 [AppUsage] doc missing docId=$docId');
+        _sessionCache[cacheKey] = null;
+        return null;
+      }
+
+      final parsed = StudentDailyUsage.fromDoc(doc);
+      debugPrint(
+        '📊 [AppUsage] doc loaded docId=$docId '
+        'permissionEnabled=${parsed.permissionEnabled} '
+        'topApps=${parsed.topApps.length} '
+        'consideredAppCount=${parsed.consideredAppCount}',
+      );
+      _sessionCache[cacheKey] = parsed;
+      return parsed;
+    } on FirebaseException catch (e) {
+      debugPrint(
+        '❌ [AppUsage] firestore read failed '
+        'collection=student_app_usage docId=$docId '
+        'studentId=$studentId authUid=${authUser?.uid} '
+        'code=${e.code} message=${e.message}',
+      );
+      rethrow;
+    } catch (e) {
+      debugPrint(
+        '❌ [AppUsage] unexpected read error '
+        'collection=student_app_usage docId=$docId '
+        'studentId=$studentId authUid=${authUser?.uid} '
+        'error=$e',
+      );
+      rethrow;
     }
-
-    final parsed = StudentDailyUsage.fromDoc(doc);
-    _sessionCache[cacheKey] = parsed;
-    return parsed;
   }
 
   Uint8List? decodeIcon(String? base64Icon) {

@@ -10,13 +10,13 @@ class OnboardingPage extends StatelessWidget {
   final LinearGradient? backgroundGradient;
 
   const OnboardingPage({
-    Key? key,
+    super.key,
     required this.title,
     this.description,
     this.bulletPoints,
     this.icon,
     this.backgroundGradient,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

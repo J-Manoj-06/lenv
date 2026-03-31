@@ -165,16 +165,12 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           builder: (context) => AlertDialog(
             title: const Text('Enable App Usage Access'),
             content: const Text(
-              'To show top used apps for parents, enable app usage access in system settings.',
+              'Tap the button below to open Usage Access settings. After enabling, return to the app and data sync continues automatically.',
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Not Now'),
-              ),
-              TextButton(
+              ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Open Settings'),
+                child: const Text('Enable Permission'),
               ),
             ],
           ),
@@ -182,6 +178,19 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
         if (shouldOpenSettings == true) {
           await _studentUsageService.openUsagePermissionSettings();
+
+          // Give users time to toggle permission and return.
+          bool grantedAfterSettings = false;
+          for (int i = 0; i < 8; i++) {
+            await Future.delayed(const Duration(seconds: 1));
+            grantedAfterSettings = await _studentUsageService
+                .isUsagePermissionGranted();
+            if (grantedAfterSettings) break;
+          }
+
+          if (!grantedAfterSettings && mounted) {
+            _showErrorSnackBar('App usage permission not enabled yet.');
+          }
         }
       }
 

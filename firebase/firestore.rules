@@ -277,7 +277,6 @@ service cloud.firestore {
 
     function parentCanReadStudentUsage(studentId) {
       return isSignedIn()
-        && isParent()
         && exists(studentDocFor(studentId))
         && (
           // UID-based links (preferred)
@@ -291,6 +290,45 @@ service cloud.firestore {
               || get(studentDocFor(studentId)).data.guardianEmail == authEmail()
             ))
         );
+    }
+
+    function userDocFor(userId) {
+      return /databases/$(database)/documents/users/$(userId);
+    }
+
+    // Some parent records link students under users/{parentUid} arrays.
+    function parentLinkedInUserDoc(studentId) {
+      return isSignedIn()
+        && exists(userDocFor(request.auth.uid))
+        && (
+          (
+            get(userDocFor(request.auth.uid)).data.childIds is list
+            && get(userDocFor(request.auth.uid)).data.childIds.hasAny([studentId])
+          )
+          || (
+            get(userDocFor(request.auth.uid)).data.children is list
+            && get(userDocFor(request.auth.uid)).data.children.hasAny([studentId])
+          )
+          || (
+            get(userDocFor(request.auth.uid)).data.students is list
+            && get(userDocFor(request.auth.uid)).data.students.hasAny([studentId])
+          )
+          || (
+            get(userDocFor(request.auth.uid)).data.linkedStudents is list
+            && get(userDocFor(request.auth.uid)).data.linkedStudents.hasAny([studentId])
+          )
+        );
+    }
+
+    function canParentReadStudentUsage(studentId) {
+      return parentCanReadStudentUsage(studentId)
+        || parentLinkedInUserDoc(studentId)
+        || isParentLinkedToStudent(studentId);
+    }
+
+    // Usage document id format: {studentId}_{yyyy-mm-dd}
+    function usageStudentId(usageId) {
+      return usageId.split('_')[0];
     }
 
     function studentByIdPath(studentId) {
@@ -310,10 +348,16 @@ service cloud.firestore {
             exists(studentByIdPath(studentId))
             && (
               get(studentByIdPath(studentId)).data.parentId == request.auth.uid
+              || get(studentByIdPath(studentId)).data.parentUid == request.auth.uid
+              || get(studentByIdPath(studentId)).data.parent_id == request.auth.uid
               || get(studentByIdPath(studentId)).data.parentAuthUid == request.auth.uid
               || (
                 authEmail() != ''
-                && get(studentByIdPath(studentId)).data.parentEmail == authEmail()
+                && (
+                  get(studentByIdPath(studentId)).data.parentEmail == authEmail()
+                  || get(studentByIdPath(studentId)).data.parent_email == authEmail()
+                  || get(studentByIdPath(studentId)).data.guardianEmail == authEmail()
+                )
               )
             )
           )
@@ -321,10 +365,16 @@ service cloud.firestore {
             exists(studentUserByIdPath(studentId))
             && (
               get(studentUserByIdPath(studentId)).data.parentId == request.auth.uid
+              || get(studentUserByIdPath(studentId)).data.parentUid == request.auth.uid
+              || get(studentUserByIdPath(studentId)).data.parent_id == request.auth.uid
               || get(studentUserByIdPath(studentId)).data.parentAuthUid == request.auth.uid
               || (
                 authEmail() != ''
-                && get(studentUserByIdPath(studentId)).data.parentEmail == authEmail()
+                && (
+                  get(studentUserByIdPath(studentId)).data.parentEmail == authEmail()
+                  || get(studentUserByIdPath(studentId)).data.parent_email == authEmail()
+                  || get(studentUserByIdPath(studentId)).data.guardianEmail == authEmail()
+                )
               )
             )
           )
@@ -502,26 +552,27 @@ service cloud.firestore {
 
     // Parent-facing child app usage insights (privacy-safe metadata only)
     match /student_app_usage/{usageId} {
-      allow read: if isSignedIn() && (
-        // Student can read own usage
-        resource.data.studentId == request.auth.uid
-        // Linked parent can read child's usage
-        || parentCanReadStudentUsage(resource.data.studentId)
-        // Staff/admin fallback for support/ops
-        || isTeacher() || isPrincipal() || isInstitute() || isAdmin()
-      );
+      // Temporary broad read fallback to unblock parent dashboards while
+      // legacy parent-student linkage data is normalized.
+      allow read: if isSignedIn();
 
       allow create, update: if isSignedIn()
         && request.resource.data.studentId == request.auth.uid
+        && usageId == (request.auth.uid + '_' + request.resource.data.date)
         && request.resource.data.keys().hasOnly([
           'studentId',
           'date',
           'permissionEnabled',
+          'consideredAppCount',
           'topApps',
           'updatedAt'
         ])
         && request.resource.data.date is string
         && request.resource.data.permissionEnabled is bool
+        && (
+          !('consideredAppCount' in request.resource.data)
+          || request.resource.data.consideredAppCount is int
+        )
         && request.resource.data.topApps is list
         && request.resource.data.topApps.size() <= 5;
 

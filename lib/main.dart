@@ -174,9 +174,30 @@ class _MyAppState extends State<MyApp> {
           ChangeNotifierProvider(create: (_) => TestAssignmentLockProvider()),
           ChangeNotifierProvider(create: (_) => RewardProvider()),
           ChangeNotifierProvider(create: (_) => StudentProvider()),
-          ChangeNotifierProvider(create: (_) => ParentProvider()),
+          ChangeNotifierProxyProvider<local_auth.AuthProvider, ParentProvider>(
+            create: (_) => ParentProvider(),
+            update: (context, auth, previous) {
+              final provider = previous ?? ParentProvider();
+              if (auth.currentUser == null) {
+                provider.clear();
+              }
+              return provider;
+            },
+          ),
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
-          ChangeNotifierProvider(create: (_) => ProfileDPProvider()),
+          ChangeNotifierProxyProvider<
+            local_auth.AuthProvider,
+            ProfileDPProvider
+          >(
+            create: (_) => ProfileDPProvider(),
+            update: (context, auth, previous) {
+              final provider = previous ?? ProfileDPProvider();
+              if (auth.currentUser == null) {
+                provider.clearSession();
+              }
+              return provider;
+            },
+          ),
           ChangeNotifierProxyProvider<
             local_auth.AuthProvider,
             UnreadCountProvider
@@ -186,6 +207,8 @@ class _MyAppState extends State<MyApp> {
               final provider = previous ?? UnreadCountProvider();
               if (auth.currentUser != null) {
                 provider.initialize(auth.currentUser!.uid);
+              } else {
+                provider.logout();
               }
               return provider;
             },

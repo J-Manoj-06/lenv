@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 class SessionManager {
   static SharedPreferences? _prefsCache;
@@ -16,12 +17,19 @@ class SessionManager {
     String? schoolId, // instituteId
   }) async {
     final prefs = await _getPrefs();
+    debugPrint(
+      '🔐 [SessionManager] saveLoginSession -> userId=$userId, userRole=$userRole, schoolId=$schoolId',
+    );
     await prefs.setBool('isLoggedIn', true);
     await prefs.setString('userId', userId);
     await prefs.setString('userRole', userRole);
     if (schoolId != null && schoolId.isNotEmpty) {
       await prefs.setString('schoolId', schoolId);
     }
+
+    debugPrint(
+      '✅ [SessionManager] saved -> isLoggedIn=${prefs.getBool('isLoggedIn')}, userId=${prefs.getString('userId')}, userRole=${prefs.getString('userRole')}, schoolId=${prefs.getString('schoolId')}',
+    );
   }
 
   /// Check if user has an active session
@@ -38,6 +46,10 @@ class SessionManager {
     final hasLocalSession =
         isLoggedIn && userId != null && userId.isNotEmpty && userRole != null;
 
+    debugPrint(
+      '📦 [SessionManager] getLoginSession -> raw(isLoggedIn=$isLoggedIn, userId=$userId, userRole=$userRole, schoolId=$schoolId) => hasLocalSession=$hasLocalSession',
+    );
+
     return {
       'isLoggedIn': hasLocalSession,
       'userId': userId,
@@ -49,30 +61,39 @@ class SessionManager {
   /// Clear user session (logout)
   static Future<void> clearLoginSession() async {
     final prefs = await _getPrefs();
+    debugPrint(
+      '🧹 [SessionManager] clearLoginSession -> clearing persisted keys',
+    );
     await prefs.remove('isLoggedIn');
     await prefs.remove('userId');
     await prefs.remove('userRole');
     await prefs.remove('schoolId');
     _prefsCache = null; // Clear cache on logout
+    debugPrint('✅ [SessionManager] clearLoginSession -> done');
   }
 
   /// Get initial screen route based on session
   static Future<String> getInitialScreen() async {
     final session = await getLoginSession();
-    // ignore: avoid_print
+    debugPrint('🧭 [SessionManager] getInitialScreen -> session=$session');
     if (session['isLoggedIn'] == true) {
       final userRole = session['userRole'] as String?;
       if (userRole == 'teacher') {
+        debugPrint('🧭 [SessionManager] route=/teacher-dashboard');
         return '/teacher-dashboard';
       } else if (userRole == 'student') {
+        debugPrint('🧭 [SessionManager] route=/student-dashboard');
         return '/student-dashboard';
       } else if (userRole == 'parent') {
+        debugPrint('🧭 [SessionManager] route=/parent-dashboard');
         return '/parent-dashboard';
       } else if (userRole == 'institute') {
+        debugPrint('🧭 [SessionManager] route=/institute-dashboard');
         return '/institute-dashboard';
       }
     }
     // When not logged in, send to role selection (we don't have a '/login' route)
+    debugPrint('🧭 [SessionManager] route=/role-selection (fallback)');
     return '/role-selection';
   }
 }

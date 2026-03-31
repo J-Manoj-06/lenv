@@ -104,14 +104,53 @@ class MainActivity : FlutterActivity() {
 			val pkg = entry.packageName ?: continue
 			if (pkg == packageName) continue
 			val foregroundMs = entry.totalTimeInForeground
-			if (foregroundMs <= 0L) continue
-
-			usageByPackage[pkg] = (usageByPackage[pkg] ?: 0L) + foregroundMs
+			if (foregroundMs > 0L) {
+				usageByPackage[pkg] = (usageByPackage[pkg] ?: 0L) + foregroundMs
+			}
 		}
 
 		val pm = packageManager
-		return usageByPackage.entries
-			.sortedByDescending { it.value }
+		val launchableApps = pm.getInstalledApplications(0)
+			.asSequence()
+			.filter { app ->
+				app.packageName != packageName
+					&& pm.getLaunchIntentForPackage(app.packageName) != null
+			}
+			.map { app ->
+				val pkg = app.packageName
+				val usage = usageByPackage[pkg] ?: 0L
+				val isPureSystem =
+					(app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+						&& (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0
+				Triple(pkg, usage, isPureSystem)
+			}
+			.toList()
+
+		val preferredPool = run {
+			val userApps = launchableApps.filter { !it.third }
+			val usedUserApps = userApps.filter { it.second > 0L }
+
+			when {
+				usedUserApps.isNotEmpty() -> usedUserApps
+				userApps.isNotEmpty() -> userApps
+				else -> {
+					val usedAnyApps = launchableApps.filter { it.second > 0L }
+					if (usedAnyApps.isNotEmpty()) usedAnyApps else launchableApps
+				}
+			}
+		}
+
+		return preferredPool
+			.map { pair -> pair.first to pair.second }
+			.sortedWith(
+				compareByDescending<Pair<String, Long>> { it.second }
+					.thenBy { pair ->
+						runCatching {
+							val appInfo = pm.getApplicationInfo(pair.first, 0)
+							pm.getApplicationLabel(appInfo).toString().lowercase()
+						}.getOrElse { pair.first.lowercase() }
+					}
+			)
 			.take(topN)
 			.map { (pkg, millis) ->
 				val appName = runCatching {

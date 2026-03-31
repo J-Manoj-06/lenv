@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/user_model.dart';
@@ -241,9 +242,22 @@ class AuthProvider with ChangeNotifier {
   // Sign out
   Future<void> signOut() async {
     try {
-      // Clear all SharedPreferences data
+      // Pause Firestore network to avoid transient permission-denied noise
+      // from listeners while auth token is being revoked.
+      try {
+        await FirebaseFirestore.instance.disableNetwork();
+      } catch (_) {}
+
+      // Clear only auth/session-related keys.
+      // Keep school selection keys so the last selected school is preserved.
       final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      await Future.wait([
+        prefs.remove('isLoggedIn'),
+        prefs.remove('userId'),
+        prefs.remove('userRole'),
+        prefs.remove('schoolId'),
+        prefs.remove('cached_user_data'),
+      ]);
 
       // Sign out from Firebase
       await _authService.signOut();
@@ -255,6 +269,14 @@ class AuthProvider with ChangeNotifier {
       _initialized = false;
 
       notifyListeners();
+
+      // Re-enable network after a short delay so the logged-out UI can mount
+      // and stale listeners from the previous route are fully disposed.
+      Future<void>.delayed(const Duration(milliseconds: 900), () async {
+        try {
+          await FirebaseFirestore.instance.enableNetwork();
+        } catch (_) {}
+      });
     } catch (e) {
       _errorMessage = e.toString();
       notifyListeners();

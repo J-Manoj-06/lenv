@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../services/school_storage_service.dart';
 import '../../constants/app_colors.dart';
+import '../../utils/session_manager.dart';
 
 /// Enhanced splash screen that handles both first-time and returning users
 class EnhancedSplashScreen extends StatefulWidget {
@@ -61,13 +62,33 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
 
   /// Resolve navigation based on stored school data
   Future<void> _resolveAndNavigate() async {
+    debugPrint('🚀 [Splash] _resolveAndNavigate start');
+
     // Ensure storage is initialized
     await schoolStorageService.initialize();
+    debugPrint(
+      '🏫 [Splash] schoolStorage -> schoolId=${schoolStorageService.schoolId}, schoolName=${schoolStorageService.schoolName}',
+    );
 
     // Determine next route based on school selection
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
+
+    final session = await SessionManager.getLoginSession();
+    final hasActiveSession = session['isLoggedIn'] == true;
+    debugPrint(
+      '🧠 [Splash] session -> hasActiveSession=$hasActiveSession, userId=${session['userId']}, userRole=${session['userRole']}',
+    );
+
+    if (hasActiveSession) {
+      final resumeRoute = await SessionManager.getInitialScreen();
+      debugPrint('➡️ [Splash] resumeRoute=$resumeRoute');
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(resumeRoute);
+      }
+      return;
+    }
 
     final isSchoolSelected = schoolStorageService.isSchoolSelected;
 
@@ -79,6 +100,10 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
       // Returning user with selected school.
       nextRoute = '/role-selection';
     }
+
+    debugPrint(
+      '➡️ [Splash] fallback route=$nextRoute (isSchoolSelected=$isSchoolSelected)',
+    );
 
     if (mounted) {
       Navigator.of(context).pushReplacementNamed(nextRoute);
