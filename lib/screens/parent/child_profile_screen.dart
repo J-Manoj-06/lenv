@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../widgets/app_usage_card.dart';
@@ -19,8 +20,11 @@ class ChildProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final authProvider = Provider.of<AuthProvider>(context);
     final parentProvider = Provider.of<ParentProvider>(context);
     final child = parentProvider.selectedChild;
+    final canListen =
+        authProvider.currentUser != null && !authProvider.isSigningOut;
 
     if (child == null) {
       return Scaffold(
@@ -91,10 +95,12 @@ class ChildProfileScreen extends StatelessWidget {
 
             // Quick Stats
             StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('student_rewards')
-                  .where('studentId', isEqualTo: child.uid)
-                  .snapshots(),
+              stream: canListen
+                  ? FirebaseFirestore.instance
+                        .collection('student_rewards')
+                        .where('studentId', isEqualTo: child.uid)
+                        .snapshots()
+                  : null,
               builder: (context, snapshot) {
                 int totalEarned = 0;
                 if (snapshot.hasData) {

@@ -1313,10 +1313,14 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
             children: [
               Expanded(
                 child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance
-                      .collection('student_rewards')
-                      .where('studentId', isEqualTo: child.uid)
-                      .snapshots(),
+                  stream:
+                      (context.watch<AuthProvider>().currentUser != null &&
+                          !context.watch<AuthProvider>().isSigningOut)
+                      ? FirebaseFirestore.instance
+                            .collection('student_rewards')
+                            .where('studentId', isEqualTo: child.uid)
+                            .snapshots()
+                      : null,
                   builder: (context, snapshot) {
                     int totalEarned = 0;
                     if (snapshot.hasData) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import 'student_select_bottom_sheet.dart';
@@ -154,6 +155,9 @@ class StudentAvatarRow extends StatelessWidget {
     ParentProvider parentProvider,
   ) {
     final isActive = index == selectedIndex;
+    final authProvider = context.watch<AuthProvider>();
+    final canListen =
+        authProvider.currentUser != null && !authProvider.isSigningOut;
     final firstName = student.name.split(' ').first;
     final shortName = firstName.length > 8
         ? '${firstName.substring(0, 7)}.'
@@ -183,10 +187,12 @@ class StudentAvatarRow extends StatelessWidget {
               children: [
                 // Avatar with ring and badge
                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: FirebaseFirestore.instance
-                      .collection('reward_requests')
-                      .where('student_id', isEqualTo: student.uid)
-                      .snapshots(),
+                  stream: canListen
+                      ? FirebaseFirestore.instance
+                            .collection('reward_requests')
+                            .where('student_id', isEqualTo: student.uid)
+                            .snapshots()
+                      : null,
                   builder: (context, snapshot) {
                     // Check if any pending/requested reward exists
                     final hasPending =

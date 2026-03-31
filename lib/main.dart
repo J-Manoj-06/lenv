@@ -178,7 +178,7 @@ class _MyAppState extends State<MyApp> {
             create: (_) => ParentProvider(),
             update: (context, auth, previous) {
               final provider = previous ?? ParentProvider();
-              if (auth.currentUser == null) {
+              if (auth.currentUser == null || auth.isSigningOut) {
                 provider.clear();
               }
               return provider;
@@ -192,7 +192,7 @@ class _MyAppState extends State<MyApp> {
             create: (_) => ProfileDPProvider(),
             update: (context, auth, previous) {
               final provider = previous ?? ProfileDPProvider();
-              if (auth.currentUser == null) {
+              if (auth.currentUser == null || auth.isSigningOut) {
                 provider.clearSession();
               }
               return provider;
@@ -205,7 +205,7 @@ class _MyAppState extends State<MyApp> {
             create: (_) => UnreadCountProvider(),
             update: (context, auth, previous) {
               final provider = previous ?? UnreadCountProvider();
-              if (auth.currentUser != null) {
+              if (auth.currentUser != null && !auth.isSigningOut) {
                 provider.initialize(auth.currentUser!.uid);
               } else {
                 provider.logout();

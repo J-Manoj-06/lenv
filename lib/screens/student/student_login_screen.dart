@@ -10,6 +10,7 @@ import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 import '../../utils/lenv_snackbar.dart';
 import '../auth/forgot_password_screen.dart';
+import '../permissions/usage_access_permission_screen.dart';
 
 class StudentLoginScreen extends StatefulWidget {
   const StudentLoginScreen({super.key});
@@ -160,37 +161,14 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           .isUsagePermissionGranted();
 
       if (!hasPermission && mounted) {
-        final shouldOpenSettings = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Enable App Usage Access'),
-            content: const Text(
-              'Tap the button below to open Usage Access settings. After enabling, return to the app and data sync continues automatically.',
-            ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Enable Permission'),
-              ),
-            ],
+        final granted = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => const UsageAccessPermissionScreen(),
           ),
         );
 
-        if (shouldOpenSettings == true) {
-          await _studentUsageService.openUsagePermissionSettings();
-
-          // Give users time to toggle permission and return.
-          bool grantedAfterSettings = false;
-          for (int i = 0; i < 8; i++) {
-            await Future.delayed(const Duration(seconds: 1));
-            grantedAfterSettings = await _studentUsageService
-                .isUsagePermissionGranted();
-            if (grantedAfterSettings) break;
-          }
-
-          if (!grantedAfterSettings && mounted) {
-            _showErrorSnackBar('App usage permission not enabled yet.');
-          }
+        if (granted != true && mounted) {
+          _showErrorSnackBar('Permission not enabled yet');
         }
       }
 

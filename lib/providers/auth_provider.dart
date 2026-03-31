@@ -11,11 +11,13 @@ class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   UserModel? _currentUser;
   bool _isLoading = false;
+  bool _isSigningOut = false;
   String? _errorMessage;
   bool _initialized = false;
 
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
+  bool get isSigningOut => _isSigningOut;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _currentUser != null;
   bool get isInitialized => _initialized;
@@ -242,6 +244,9 @@ class AuthProvider with ChangeNotifier {
   // Sign out
   Future<void> signOut() async {
     try {
+      _isSigningOut = true;
+      notifyListeners();
+
       // Pause Firestore network to avoid transient permission-denied noise
       // from listeners while auth token is being revoked.
       try {
@@ -279,6 +284,9 @@ class AuthProvider with ChangeNotifier {
       });
     } catch (e) {
       _errorMessage = e.toString();
+      notifyListeners();
+    } finally {
+      _isSigningOut = false;
       notifyListeners();
     }
   }

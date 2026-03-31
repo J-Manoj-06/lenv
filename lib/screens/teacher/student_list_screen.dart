@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/app_usage_service.dart';
 import '../../services/teacher_service.dart';
 import '../../utils/session_manager.dart';
+import '../../widgets/student_usage_card.dart';
 
 class StudentListScreen extends StatefulWidget {
   final String className;
@@ -21,17 +23,19 @@ class _StudentListScreenState extends State<StudentListScreen> {
   final FocusNode _searchFocusNode = FocusNode();
 
   final TeacherService _teacherService = TeacherService();
+  final AppUsageService _appUsageService = AppUsageService();
   bool _isLoading = true;
+  bool _isUsageLoading = false;
   String? _error;
   List<Map<String, dynamic>> _students = [];
   final Map<String, int> _attendanceCache =
       {}; // Cache for calculated attendance
+  Map<String, TeacherStudentUsageSummary> _usageByStudent = {};
   bool _isSearchFocused = false;
 
   // Teacher brand + dark palette (UI only; no logic changes)
   static const Color _teacherPrimary = Color(0xFF355872);
   static const Color _bgDark = Color(0xFF120F23);
-  static const Color _tileDark = Color(0xFF1E1E2D);
   static const Color _mutedPurple = Color(0xFF978DCE);
 
   // Parsed from widget.className (e.g., "Grade 4 - A")
@@ -141,6 +145,8 @@ class _StudentListScreenState extends State<StudentListScreen> {
         _isLoading = false;
       });
 
+      await _loadClassUsageData();
+
       // Calculate attendance for each student in the background
       _calculateAttendanceForStudents(schoolId ?? '');
     } catch (e) {
@@ -240,12 +246,95 @@ class _StudentListScreenState extends State<StudentListScreen> {
 
   List<Map<String, dynamic>> get _filteredStudents {
     final query = _searchController.text.trim().toLowerCase();
-    if (query.isEmpty) return _students;
+    final source = query.isEmpty
+        ? List<Map<String, dynamic>>.from(_students)
+        : _students.where((s) {
+            final name = _displayName(s).toLowerCase();
+            return name.contains(query);
+          }).toList();
 
-    return _students.where((s) {
-      final name = _displayName(s).toLowerCase();
-      return name.contains(query);
-    }).toList();
+    source.sort((a, b) {
+      final aSummary = _usageByStudent[_usageLookupId(a)];
+      final bSummary = _usageByStudent[_usageLookupId(b)];
+
+      int rank(TeacherStudentUsageSummary? s) {
+        if (s == null || !s.hasData || s.permissionEnabled != true) return 3;
+        switch (s.priority) {
+          case UsagePriority.high:
+            return 0;
+          case UsagePriority.medium:
+            return 1;
+          case UsagePriority.low:
+            return 2;
+          case UsagePriority.unknown:
+            return 3;
+        }
+      }
+
+      final r = rank(aSummary).compareTo(rank(bSummary));
+      if (r != 0) return r;
+
+      final usageCompare = (bSummary?.totalUsageMinutes ?? -1).compareTo(
+        aSummary?.totalUsageMinutes ?? -1,
+      );
+      if (usageCompare != 0) return usageCompare;
+
+      return _displayName(
+        a,
+      ).toLowerCase().compareTo(_displayName(b).toLowerCase());
+    });
+
+    return source;
+  }
+
+  String _usageLookupId(Map<String, dynamic> s) {
+    final uid = (s['uid'] ?? '').toString().trim();
+    if (uid.isNotEmpty) return uid;
+    final studentId = (s['studentId'] ?? '').toString().trim();
+    if (studentId.isNotEmpty) return studentId;
+    return (s['id'] ?? '').toString().trim();
+  }
+
+  Future<void> _loadClassUsageData() async {
+    final ids = _students
+        .map(_usageLookupId)
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (ids.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _usageByStudent = {};
+          _isUsageLoading = false;
+        });
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() => _isUsageLoading = true);
+    }
+
+    try {
+      final batch = await _appUsageService.getClassTodayUsage(
+        classId: widget.className,
+        studentIds: ids,
+      );
+      if (!mounted) return;
+      setState(() {
+        _usageByStudent = batch;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _usageByStudent = {};
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isUsageLoading = false);
+      }
+    }
   }
 
   @override
@@ -548,8 +637,23 @@ class _StudentListScreenState extends State<StudentListScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: students.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) =>
-          _buildStudentCard(theme, students[index]),
+      itemBuilder: (context, index) {
+        final student = students[index];
+        final usage = _usageByStudent[_usageLookupId(student)];
+        final card = _buildStudentCard(theme, student, usage: usage);
+        if (index == 0 && _isUsageLoading) {
+          return Column(
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+              card,
+            ],
+          );
+        }
+        return card;
+      },
     );
   }
 
@@ -569,131 +673,22 @@ class _StudentListScreenState extends State<StudentListScreen> {
     return int.tryParse(v.toString()) ?? 0;
   }
 
-  int _getAttendancePercentage(Map<String, dynamic> s) {
-    final studentId = s['id']?.toString();
-
-    // First check calculated attendance cache
-    if (studentId != null && _attendanceCache.containsKey(studentId)) {
-      return _attendanceCache[studentId]!;
-    }
-
-    // Fallback to static field (will be 0 if not calculated yet)
-    final attendance =
-        s['attendance'] ??
-        s['attendancePercentage'] ??
-        s['attendancePercent'] ??
-        0;
-    if (attendance is int) return attendance;
-    if (attendance is double) return attendance.round();
-    return int.tryParse(attendance.toString()) ?? 0;
-  }
-
   String? _avatar(Map<String, dynamic> s) {
     return (s['imageUrl'] ?? s['photoUrl'] ?? s['avatar'])?.toString();
   }
 
-  Widget _buildStudentCard(ThemeData theme, Map<String, dynamic> student) {
-    final isDark = theme.brightness == Brightness.dark;
+  Widget _buildStudentCard(
+    ThemeData theme,
+    Map<String, dynamic> student, {
+    TeacherStudentUsageSummary? usage,
+  }) {
     final name = _displayName(student);
     final avatarUrl = _avatar(student);
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? _tileDark : theme.cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          if (isDark)
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-        ],
-      ),
-      child: InkWell(
-        onTap: () => _viewStudentDetails(student),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _buildAvatarOrInitials(avatarUrl, name),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.white
-                            : theme.colorScheme.onSurface,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Attendance: ${_getAttendancePercentage(student)}%',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: isDark
-                            ? Colors.white
-                            : theme.colorScheme.onSurface.withOpacity(0.7),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.arrow_forward_ios, color: _teacherPrimary, size: 18),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAvatarOrInitials(String? url, String name) {
-    final initials = _initials(name);
-    if (url != null && url.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          url,
-          width: 48,
-          height: 48,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => _initialsBlock(initials),
-        ),
-      );
-    }
-    return _initialsBlock(initials);
-  }
-
-  Widget _initialsBlock(String initials) {
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: _teacherPrimary.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        initials,
-        style: const TextStyle(
-          color: _teacherPrimary,
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+    return StudentUsageCard(
+      studentName: name,
+      profileImageUrl: avatarUrl,
+      usage: usage,
+      onTap: () => _viewStudentDetails(student),
     );
   }
 
@@ -710,16 +705,4 @@ class _StudentListScreenState extends State<StudentListScreen> {
       },
     );
   }
-}
-
-String _initials(String name) {
-  final parts = name
-      .trim()
-      .split(RegExp(r"\s+"))
-      .where((p) => p.isNotEmpty)
-      .toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
-  return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
-      .toUpperCase();
 }
