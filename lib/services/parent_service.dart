@@ -1469,7 +1469,10 @@ class ParentService {
 
       final approverId = _auth.currentUser?.uid;
       await _firestore.collection('reward_requests').doc(requestId).update({
-        'status': 'pending_price',
+        // Keep canonical status aligned with Firestore transition rules.
+        'status': 'pendingPrice',
+        // Legacy alias kept for backward compatibility in older clients/reports.
+        'status_legacy': 'pending_price',
         'purchaseMethod': 'manual',
         'purchase_method': 'manual',
         'purchase_mode': 'manual',
@@ -1557,13 +1560,29 @@ class ParentService {
           return 0;
         }
 
-        final availableInStudent = toInt(studentData['rewardPoints']);
-        final availableInUser = toInt(userData['rewardPoints']);
+        int readAvailablePoints(Map<String, dynamic> data) {
+          final candidates = [
+            data['available_points'],
+            data['rewardPoints'],
+            data['totalPoints'],
+            data['points'],
+            data['reward_points'],
+          ];
+
+          for (final candidate in candidates) {
+            if (candidate == null) continue;
+            return toInt(candidate);
+          }
+          return 0;
+        }
+
+        final availableInStudent = readAvailablePoints(studentData);
+        final availableInUser = readAvailablePoints(userData);
         final available = availableInStudent > 0
             ? availableInStudent
             : availableInUser;
 
-        if (available > 0 && available < pointsToDeduct) {
+        if (available < pointsToDeduct) {
           throw Exception(
             'Insufficient points: $available available, $pointsToDeduct required',
           );

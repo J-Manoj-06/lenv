@@ -270,116 +270,6 @@ service cloud.firestore {
         ? request.auth.token.email
         : '';
     }
-
-    function studentDocFor(studentId) {
-      return /databases/$(database)/documents/students/$(studentId);
-    }
-
-    function parentCanReadStudentUsage(studentId) {
-      return isSignedIn()
-        && exists(studentDocFor(studentId))
-        && (
-          // UID-based links (preferred)
-          get(studentDocFor(studentId)).data.parentId == request.auth.uid
-          || get(studentDocFor(studentId)).data.parentUid == request.auth.uid
-          || get(studentDocFor(studentId)).data.parent_id == request.auth.uid
-          // Email-based fallback links used by legacy data
-          || (authEmail() != '' && (
-              get(studentDocFor(studentId)).data.parentEmail == authEmail()
-              || get(studentDocFor(studentId)).data.parent_email == authEmail()
-              || get(studentDocFor(studentId)).data.guardianEmail == authEmail()
-            ))
-        );
-    }
-
-    function userDocFor(userId) {
-      return /databases/$(database)/documents/users/$(userId);
-    }
-
-    // Some parent records link students under users/{parentUid} arrays.
-    function parentLinkedInUserDoc(studentId) {
-      return isSignedIn()
-        && exists(userDocFor(request.auth.uid))
-        && (
-          (
-            get(userDocFor(request.auth.uid)).data.childIds is list
-            && get(userDocFor(request.auth.uid)).data.childIds.hasAny([studentId])
-          )
-          || (
-            get(userDocFor(request.auth.uid)).data.children is list
-            && get(userDocFor(request.auth.uid)).data.children.hasAny([studentId])
-          )
-          || (
-            get(userDocFor(request.auth.uid)).data.students is list
-            && get(userDocFor(request.auth.uid)).data.students.hasAny([studentId])
-          )
-          || (
-            get(userDocFor(request.auth.uid)).data.linkedStudents is list
-            && get(userDocFor(request.auth.uid)).data.linkedStudents.hasAny([studentId])
-          )
-        );
-    }
-
-    function canParentReadStudentUsage(studentId) {
-      return parentCanReadStudentUsage(studentId)
-        || parentLinkedInUserDoc(studentId)
-        || isParentLinkedToStudent(studentId);
-    }
-
-    // Usage document id format: {studentId}_{yyyy-mm-dd}
-    function usageStudentId(usageId) {
-      return usageId.split('_')[0];
-    }
-
-    function studentByIdPath(studentId) {
-      return /databases/$(database)/documents/students/$(studentId);
-    }
-
-    function studentUserByIdPath(studentId) {
-      return /databases/$(database)/documents/users/$(studentId);
-    }
-
-    function isParentLinkedToStudent(studentId) {
-      return isSignedIn()
-        && studentId != null
-        && studentId != ''
-        && (
-          (
-            exists(studentByIdPath(studentId))
-            && (
-              get(studentByIdPath(studentId)).data.parentId == request.auth.uid
-              || get(studentByIdPath(studentId)).data.parentUid == request.auth.uid
-              || get(studentByIdPath(studentId)).data.parent_id == request.auth.uid
-              || get(studentByIdPath(studentId)).data.parentAuthUid == request.auth.uid
-              || (
-                authEmail() != ''
-                && (
-                  get(studentByIdPath(studentId)).data.parentEmail == authEmail()
-                  || get(studentByIdPath(studentId)).data.parent_email == authEmail()
-                  || get(studentByIdPath(studentId)).data.guardianEmail == authEmail()
-                )
-              )
-            )
-          )
-          || (
-            exists(studentUserByIdPath(studentId))
-            && (
-              get(studentUserByIdPath(studentId)).data.parentId == request.auth.uid
-              || get(studentUserByIdPath(studentId)).data.parentUid == request.auth.uid
-              || get(studentUserByIdPath(studentId)).data.parent_id == request.auth.uid
-              || get(studentUserByIdPath(studentId)).data.parentAuthUid == request.auth.uid
-              || (
-                authEmail() != ''
-                && (
-                  get(studentUserByIdPath(studentId)).data.parentEmail == authEmail()
-                  || get(studentUserByIdPath(studentId)).data.parent_email == authEmail()
-                  || get(studentUserByIdPath(studentId)).data.guardianEmail == authEmail()
-                )
-              )
-            )
-          )
-        );
-    }
     
     function uidIs(id) {
       return isSignedIn() && request.auth.uid == id;
@@ -443,17 +333,18 @@ service cloud.firestore {
       let oldStatus = resource.data.status;
       let newStatus = request.resource.data.status;
       
-      return (oldStatus == 'requested' && newStatus in ['pending', 'approved', 'pendingPrice', 'rejected', 'pendingParentApproval', 'pending_parent_approval'])
-        || (oldStatus == 'pending' && newStatus in ['approved', 'pendingPrice', 'rejected', 'pendingParentApproval', 'pending_parent_approval'])
-        || (oldStatus == 'pendingPrice' && newStatus in ['approved', 'rejected'])
-        || (oldStatus == 'pending_price' && newStatus in ['approved', 'rejected'])
+      return oldStatus == newStatus
+        || (oldStatus == 'requested' && newStatus in ['pending', 'approved', 'pendingPrice', 'pending_price', 'rejected', 'pendingParentApproval', 'pending_parent_approval'])
+        || (oldStatus == 'pending' && newStatus in ['approved', 'pendingPrice', 'pending_price', 'rejected', 'pendingParentApproval', 'pending_parent_approval'])
+        || (oldStatus == 'pendingPrice' && newStatus in ['approved', 'rejected', 'pending_price'])
+        || (oldStatus == 'pending_price' && newStatus in ['approved', 'rejected', 'pendingPrice'])
         || (oldStatus == 'approved' && newStatus in ['orderPlaced', 'order_placed', 'rejected', 'approvedPurchaseInProgress', 'approved_purchase_in_progress'])
         || (oldStatus == 'approvedPurchaseInProgress' && newStatus in ['orderPlaced', 'order_placed', 'delivered', 'rejected'])
         || (oldStatus == 'approved_purchase_in_progress' && newStatus in ['orderPlaced', 'order_placed', 'delivered', 'rejected'])
         || (oldStatus == 'orderPlaced' && newStatus in ['delivered'])
         || (oldStatus == 'order_placed' && newStatus in ['delivered'])
-        || (oldStatus == 'pending_parent_approval' && newStatus in ['approved', 'rejected', 'approvedPurchaseInProgress'])
-        || (oldStatus == 'pendingParentApproval' && newStatus in ['approved', 'rejected', 'approvedPurchaseInProgress', 'approved_purchase_in_progress']);
+        || (oldStatus == 'pending_parent_approval' && newStatus in ['approved', 'rejected', 'pendingPrice', 'pending_price', 'approvedPurchaseInProgress', 'approved_purchase_in_progress'])
+        || (oldStatus == 'pendingParentApproval' && newStatus in ['approved', 'rejected', 'pendingPrice', 'pending_price', 'approvedPurchaseInProgress', 'approved_purchase_in_progress']);
     }
     
     function rewardIdentityFieldsUnchanged() {

@@ -8,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/whatsapp_chat_service.dart';
+import '../../widgets/app_usage_card.dart';
 
 class StudentPerformanceScreen extends StatefulWidget {
   final String studentId;
@@ -290,6 +291,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                                 testsTaken,
                                 totalPoints,
                                 latestScore,
+                              ),
+                              const SizedBox(height: 24),
+                              AppUsageCard(
+                                studentId: _resolvedAuthUid ?? widget.studentId,
                               ),
                               const SizedBox(height: 24),
                               _buildPerformanceTrend(theme, perf),

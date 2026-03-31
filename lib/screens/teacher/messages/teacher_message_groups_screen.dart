@@ -369,12 +369,14 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
   StreamSubscription<DocumentSnapshot>? _groupsStreamSubscription;
+  StreamSubscription<firebase_auth.User?>? _authStateSubscription;
   Timer? _refreshTimer;
   String _instituteId = ''; // ✅ Cached offline: used by Staff Room card onTap
   final Set<String> _openingGroupIds = <String>{};
   DateTime? _networkBackoffUntil;
   bool _isNetworkFetchInProgress = false;
   bool _isAnyGroupChatOpen = false;
+  String? _activeTeacherUid;
 
   int _compareGroupsForDisplay(MessageGroup a, MessageGroup b) {
     final aTs = a.lastMessageTime?.millisecondsSinceEpoch ?? 0;
@@ -419,6 +421,9 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _authStateSubscription = firebase_auth.FirebaseAuth.instance
+        .authStateChanges()
+        .listen(_handleAuthStateChanged);
     // ✅ NEW: Ensure auth is initialized before loading groups
     _initializeAndLoad();
   }
@@ -426,9 +431,37 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   @override
   void dispose() {
     _searchController.dispose();
+    _authStateSubscription?.cancel();
     _groupsStreamSubscription?.cancel();
     _refreshTimer?.cancel();
     super.dispose();
+  }
+
+  void _stopLiveGroupListeners() {
+    _groupsStreamSubscription?.cancel();
+    _groupsStreamSubscription = null;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _activeTeacherUid = null;
+  }
+
+  void _handleAuthStateChanged(firebase_auth.User? user) {
+    if (!mounted) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final isTeacher = authProvider.currentUser?.role == UserRole.teacher;
+    final uid = user?.uid;
+
+    if (!isTeacher || uid == null || uid.isEmpty) {
+      _stopLiveGroupListeners();
+      return;
+    }
+
+    if (_activeTeacherUid == uid) {
+      return;
+    }
+
+    _setupTeacherGroupsStream(uid);
   }
 
   void _onSearchChanged() {
@@ -561,6 +594,8 @@ class _TeacherMessageGroupsScreenState extends State<TeacherMessageGroupsScreen>
   /// Set up real-time listener on teacher_groups Firestore document
   /// This ensures groups reorder immediately when new messages arrive
   void _setupTeacherGroupsStream(String teacherId) {
+    _activeTeacherUid = teacherId;
+
     // Cancel previous subscription if exists
     _groupsStreamSubscription?.cancel();
 

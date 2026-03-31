@@ -517,6 +517,7 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
                 requestId: r.id,
                 provider: provider,
                 isEnterPriceLaterFlow: true,
+                maxAvailablePoints: provider.selectedChild?.rewardPoints,
               ),
         icon: const Icon(Icons.currency_rupee, size: 18),
         label: const Text('Enter Price'),
@@ -651,6 +652,7 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
       requestId: request.id,
       provider: provider,
       isEnterPriceLaterFlow: false,
+      maxAvailablePoints: provider.selectedChild?.rewardPoints,
     );
   }
 
@@ -658,102 +660,27 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
     required String requestId,
     required ParentProvider provider,
     required bool isEnterPriceLaterFlow,
+    int? maxAvailablePoints,
   }) async {
-    final priceController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    final confirmed = await showDialog<bool>(
+    final enteredPrice = await showDialog<double>(
       context: context,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Enter Purchase Price'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextFormField(
-                controller: priceController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  prefixText: '₹ ',
-                  labelText: 'Price',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  final parsed = double.tryParse((value ?? '').trim());
-                  if (parsed == null || parsed <= 0) {
-                    return 'Enter a valid price greater than zero';
-                  }
-                  return null;
-                },
-                autofocus: true,
-              ),
-              const SizedBox(height: 12),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: priceController,
-                builder: (context, value, _) {
-                  final parsed = double.tryParse(value.text.trim()) ?? 0;
-                  final points = parsed.round();
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: parentGreen.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'Price: ₹${parsed.toStringAsFixed(2)}\nPoints to Deduct: $points',
-                      style: TextStyle(
-                        color: Colors.grey[800],
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState?.validate() ?? false) {
-                Navigator.pop(c, true);
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: parentGreen),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
+      builder: (c) => _ManualPriceDialog(maxAvailablePoints: maxAvailablePoints),
     );
 
-    if (confirmed != true || !mounted) {
-      priceController.dispose();
+    if (enteredPrice == null || !mounted) {
       return;
     }
-
-    final price = double.tryParse(priceController.text.trim()) ?? 0;
-    priceController.dispose();
 
     Map<String, dynamic> result;
     if (isEnterPriceLaterFlow) {
       result = await provider.enterRewardPriceLater(
         requestId: requestId,
-        price: price,
+        price: enteredPrice,
       );
     } else {
       result = await provider.approveRewardManualNow(
         requestId: requestId,
-        price: price,
+        price: enteredPrice,
       );
     }
 
@@ -903,6 +830,125 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
         ),
       );
     }
+  }
+}
+
+class _ManualPriceDialog extends StatefulWidget {
+  final int? maxAvailablePoints;
+
+  const _ManualPriceDialog({this.maxAvailablePoints});
+
+  @override
+  State<_ManualPriceDialog> createState() => _ManualPriceDialogState();
+}
+
+class _ManualPriceDialogState extends State<_ManualPriceDialog> {
+  final TextEditingController _priceController = TextEditingController();
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  double _livePrice = 0;
+
+  @override
+  void dispose() {
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final points = _livePrice.round();
+    final maxAvailablePoints = widget.maxAvailablePoints;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final summaryBg = isDark
+      ? const Color(0xFF1E6B4B)
+      : _ParentRewardsScreenState.parentGreen.withOpacity(0.10);
+    final summaryTextColor = isDark
+      ? Colors.white
+      : const Color(0xFF1F2937);
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Text('Enter Purchase Price'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _priceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  prefixText: '₹ ',
+                  labelText: 'Price',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  final parsed = double.tryParse((value ?? '').trim());
+                  if (parsed == null || parsed <= 0) {
+                    return 'Enter a valid price greater than zero';
+                  }
+                  final enteredPoints = parsed.round();
+                  if (maxAvailablePoints != null && enteredPoints > maxAvailablePoints) {
+                    return 'Enter a price up to $maxAvailablePoints points';
+                  }
+                  return null;
+                },
+                onChanged: (value) {
+                  final parsed = double.tryParse(value.trim()) ?? 0;
+                  setState(() {
+                    _livePrice = parsed;
+                  });
+                },
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: summaryBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _ParentRewardsScreenState.parentGreen.withOpacity(
+                      isDark ? 0.65 : 0.22,
+                    ),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  'Price: ₹${_livePrice.toStringAsFixed(2)}\nPoints to Deduct: $points${maxAvailablePoints != null ? '\nAvailable Points: $maxAvailablePoints' : ''}',
+                  style: TextStyle(
+                    color: summaryTextColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_formKey.currentState?.validate() ?? false) {
+              final parsed = double.tryParse(_priceController.text.trim()) ?? 0;
+              Navigator.pop(context, parsed);
+            }
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _ParentRewardsScreenState.parentGreen,
+          ),
+          child: const Text('Confirm'),
+        ),
+      ],
+    );
   }
 }
 

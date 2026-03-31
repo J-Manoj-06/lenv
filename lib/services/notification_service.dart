@@ -560,15 +560,15 @@ class NotificationService {
 
   /// Stream of unread notification count
   Stream<int> unreadCountStream() {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value(0);
-
-    return FirebaseFirestore.instance
-        .collection('notifications')
-        .where('userId', isEqualTo: user.uid)
-        .where('isRead', isEqualTo: false)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+    return _streamForCurrentUser<int>(
+      emptyValue: 0,
+      buildForUid: (uid) => FirebaseFirestore.instance
+          .collection('notifications')
+          .where('userId', isEqualTo: uid)
+          .where('isRead', isEqualTo: false)
+          .snapshots()
+          .map((snapshot) => snapshot.docs.length),
+    );
   }
 
   Stream<List<NotificationModel>> notificationsStream({
@@ -576,30 +576,32 @@ class NotificationService {
     bool unreadOnly = true,
     int limit = 150,
   }) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value(const <NotificationModel>[]);
+    return _streamForCurrentUser<List<NotificationModel>>(
+      emptyValue: const <NotificationModel>[],
+      buildForUid: (uid) {
+        Query query = FirebaseFirestore.instance
+            .collection('notifications')
+            .where('userId', isEqualTo: uid);
 
-    Query query = FirebaseFirestore.instance
-        .collection('notifications')
-        .where('userId', isEqualTo: user.uid);
+        if (unreadOnly) {
+          query = query.where('isRead', isEqualTo: false);
+        }
 
-    if (unreadOnly) {
-      query = query.where('isRead', isEqualTo: false);
-    }
+        if (category != null) {
+          query = query.where('category', isEqualTo: category.name);
+        }
 
-    if (category != null) {
-      query = query.where('category', isEqualTo: category.name);
-    }
-
-    return query
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => NotificationModel.fromFirestore(doc))
-              .toList(),
-        );
+        return query
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .snapshots()
+            .map(
+              (snapshot) => snapshot.docs
+                  .map((doc) => NotificationModel.fromFirestore(doc))
+                  .toList(),
+            );
+      },
+    );
   }
 
   /// Optimized unread-only stream for notification center UI.
@@ -609,21 +611,71 @@ class NotificationService {
   /// - orderBy createdAt desc
   /// - limit 50
   Stream<List<NotificationModel>> unreadNotificationsStream({int limit = 50}) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return Stream.value(const <NotificationModel>[]);
+    return _streamForCurrentUser<List<NotificationModel>>(
+      emptyValue: const <NotificationModel>[],
+      buildForUid: (uid) => FirebaseFirestore.instance
+          .collection('notifications')
+          .where('userId', isEqualTo: uid)
+          .where('isRead', isEqualTo: false)
+          .orderBy('createdAt', descending: true)
+          .limit(limit)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map((doc) => NotificationModel.fromFirestore(doc))
+                .toList(),
+          ),
+    );
+  }
 
-    return FirebaseFirestore.instance
-        .collection('notifications')
-        .where('userId', isEqualTo: user.uid)
-        .where('isRead', isEqualTo: false)
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => NotificationModel.fromFirestore(doc))
-              .toList(),
+  /// Keeps notification streams bound to the currently authenticated UID.
+  /// Any previous Firestore listener is canceled immediately when auth changes.
+  Stream<T> _streamForCurrentUser<T>({
+    required T emptyValue,
+    required Stream<T> Function(String uid) buildForUid,
+  }) {
+    late final StreamController<T> controller;
+    StreamSubscription<User?>? authSub;
+    StreamSubscription<T>? dataSub;
+
+    Future<void> bindUser(User? user) async {
+      await dataSub?.cancel();
+      dataSub = null;
+
+      if (user == null) {
+        controller.add(emptyValue);
+        return;
+      }
+
+      dataSub = buildForUid(user.uid).listen(
+        controller.add,
+        onError: (error, _) {
+          debugPrint('Notification stream error for uid=${user.uid}: $error');
+          controller.add(emptyValue);
+        },
+      );
+    }
+
+    controller = StreamController<T>.broadcast(
+      onListen: () {
+        authSub = FirebaseAuth.instance.authStateChanges().listen(
+          (user) {
+            unawaited(bindUser(user));
+          },
+          onError: (error, _) {
+            debugPrint('Auth stream error in NotificationService: $error');
+            controller.add(emptyValue);
+          },
         );
+        unawaited(bindUser(FirebaseAuth.instance.currentUser));
+      },
+      onCancel: () async {
+        await dataSub?.cancel();
+        await authSub?.cancel();
+      },
+    );
+
+    return controller.stream;
   }
 
   Future<void> markAllAsRead() async {
