@@ -432,8 +432,8 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
                   (r) => _isSameDay(r.date, date),
                 );
               } catch (e) {
-                // No record found, mark as absent for past dates
-                record = AttendanceRecord(date: date, status: 'absent');
+                // No record found - attendance not taken
+                record = null;
               }
             }
 
@@ -456,9 +456,12 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
     IconData? icon;
     Color? iconColor;
 
-    if (isFuture || record == null) {
-      // Future dates - no marking
+    if (isFuture) {
+      // Future dates - grey
       bgColor = isDark ? Colors.grey[900]! : Colors.grey[100]!;
+    } else if (record == null) {
+      // Attendance not taken - light yellow
+      bgColor = const Color(0xFFFFF9E6); // Light yellow
     } else if (record.status == 'present') {
       bgColor = Colors.green.withOpacity(0.2);
       icon = Icons.check;

@@ -15,13 +15,36 @@ class AppUsageCard extends StatefulWidget {
 class _AppUsageCardState extends State<AppUsageCard> {
   final StudentUsageService _usageService = StudentUsageService();
   late Future<StudentDailyUsage?> _usageFuture;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
+    _loadUsage();
+  }
+
+  void _loadUsage() {
     _usageFuture = _usageService.getTodayUsageForStudent(
       studentId: widget.studentId,
     );
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _isRefreshing = true);
+    _loadUsage();
+    // Wait for at least one second to show refresh indicator
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      setState(() => _isRefreshing = false);
+    }
+  }
+
+  @override
+  void didUpdateWidget(AppUsageCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.studentId != widget.studentId) {
+      _loadUsage();
+    }
   }
 
   @override
@@ -198,12 +221,30 @@ class _AppUsageCardState extends State<AppUsageCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            if (_isRefreshing)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _refresh,
+                constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                padding: EdgeInsets.zero,
+              ),
+          ],
         ),
         const SizedBox(height: 12),
         body,

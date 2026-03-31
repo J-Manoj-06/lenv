@@ -5,9 +5,47 @@ import '../../providers/auth_provider.dart';
 import '../../providers/parent_provider.dart';
 import '../../models/student_model.dart';
 import '../../widgets/app_usage_card.dart';
+import '../../services/student_usage_service.dart';
 
-class ChildProfileScreen extends StatelessWidget {
+class ChildProfileScreen extends StatefulWidget {
   const ChildProfileScreen({super.key});
+
+  @override
+  State<ChildProfileScreen> createState() => _ChildProfileScreenState();
+}
+
+class _ChildProfileScreenState extends State<ChildProfileScreen> {
+  final StudentUsageService _usageService = StudentUsageService();
+  bool _refreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshLatestAppUsage();
+  }
+
+  Future<void> _refreshLatestAppUsage() async {
+    final parentProvider = Provider.of<ParentProvider>(context, listen: false);
+    final child = parentProvider.selectedChild;
+
+    if (child == null || _refreshing) return;
+
+    setState(() => _refreshing = true);
+
+    try {
+      debugPrint(
+        '📊 [ChildProfile] Refreshing latest app usage for ${child.uid}',
+      );
+      await _usageService.collectAndSyncTodayUsage(studentId: child.uid);
+      debugPrint('📊 [ChildProfile] Latest app usage refreshed successfully');
+    } catch (e) {
+      debugPrint('❌ [ChildProfile] Error refreshing app usage: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _refreshing = false);
+      }
+    }
+  }
 
   // Parent green theme colors
   static const Color parentGreen = Color(0xFF14A670);
@@ -83,6 +121,26 @@ class ChildProfileScreen extends StatelessWidget {
           ),
         ),
         centerTitle: true,
+        actions: [
+          if (_refreshing)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              icon: Icon(
+                Icons.refresh,
+                color: isDark ? Colors.white : textPrimary,
+              ),
+              onPressed: _refreshLatestAppUsage,
+              tooltip: 'Refresh app usage data',
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
