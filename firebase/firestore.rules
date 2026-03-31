@@ -467,7 +467,7 @@ service cloud.firestore {
         && request.resource.data.topApps is list
         && request.resource.data.topApps.size() <= 5;
 
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn();
     }
     
     match /institutes/{instituteId} {
@@ -852,7 +852,7 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn();
     }
     
     // ============================================
@@ -895,7 +895,7 @@ service cloud.firestore {
       
       allow read: if isSignedIn();
       
-      allow delete: if isAdmin();
+      allow delete: if isSignedIn();
     }
     
     match /rewards/{rewardId} {

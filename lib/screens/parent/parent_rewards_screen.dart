@@ -664,7 +664,8 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
   }) async {
     final enteredPrice = await showDialog<double>(
       context: context,
-      builder: (c) => _ManualPriceDialog(maxAvailablePoints: maxAvailablePoints),
+      builder: (c) =>
+          _ManualPriceDialog(maxAvailablePoints: maxAvailablePoints),
     );
 
     if (enteredPrice == null || !mounted) {
@@ -859,11 +860,9 @@ class _ManualPriceDialogState extends State<_ManualPriceDialog> {
     final maxAvailablePoints = widget.maxAvailablePoints;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final summaryBg = isDark
-      ? const Color(0xFF1E6B4B)
-      : _ParentRewardsScreenState.parentGreen.withOpacity(0.10);
-    final summaryTextColor = isDark
-      ? Colors.white
-      : const Color(0xFF1F2937);
+        ? const Color(0xFF1E6B4B)
+        : _ParentRewardsScreenState.parentGreen.withOpacity(0.10);
+    final summaryTextColor = isDark ? Colors.white : const Color(0xFF1F2937);
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -891,7 +890,8 @@ class _ManualPriceDialogState extends State<_ManualPriceDialog> {
                     return 'Enter a valid price greater than zero';
                   }
                   final enteredPoints = parsed.round();
-                  if (maxAvailablePoints != null && enteredPoints > maxAvailablePoints) {
+                  if (maxAvailablePoints != null &&
+                      enteredPoints > maxAvailablePoints) {
                     return 'Enter a price up to $maxAvailablePoints points';
                   }
                   return null;
