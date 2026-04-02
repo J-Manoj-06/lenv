@@ -13,6 +13,7 @@ class StudentModel {
   final String? section; // Added: Section like "A", "B", etc.
   final String? phone;
   final String? parentPhone;
+  final String? parentEmail;
   final int rewardPoints;
   final int classRank;
   final double monthlyProgress;
@@ -38,6 +39,7 @@ class StudentModel {
     this.section, // Added
     this.phone,
     this.parentPhone,
+    this.parentEmail,
     this.rewardPoints = 0,
     this.classRank = 0,
     this.monthlyProgress = 0.0,
@@ -69,6 +71,7 @@ class StudentModel {
       section: data['section'], // Added: Read section from Firestore
       phone: data['phone'],
       parentPhone: data['parentPhone'],
+      parentEmail: data['parentEmail'] ?? data['parent_email'],
       rewardPoints: _parseRewardPoints(data),
       classRank: data['classRank'] ?? 0,
       monthlyProgress: (data['monthlyProgress'] ?? 0.0).toDouble(),
@@ -121,6 +124,7 @@ class StudentModel {
       'section': section, // Added: Write section to Firestore
       'phone': phone,
       'parentPhone': parentPhone,
+      'parentEmail': parentEmail,
       'rewardPoints': rewardPoints,
       'classRank': classRank,
       'monthlyProgress': monthlyProgress,
@@ -150,6 +154,7 @@ class StudentModel {
       'section': section,
       'phone': phone,
       'parentPhone': parentPhone,
+      'parentEmail': parentEmail,
       'rewardPoints': rewardPoints,
       'classRank': classRank,
       'monthlyProgress': monthlyProgress,
@@ -180,6 +185,7 @@ class StudentModel {
     String? section, // Added
     String? phone,
     String? parentPhone,
+    String? parentEmail,
     int? rewardPoints,
     int? classRank,
     double? monthlyProgress,
@@ -205,6 +211,7 @@ class StudentModel {
       section: section ?? this.section, // Added
       phone: phone ?? this.phone,
       parentPhone: parentPhone ?? this.parentPhone,
+      parentEmail: parentEmail ?? this.parentEmail,
       rewardPoints: rewardPoints ?? this.rewardPoints,
       classRank: classRank ?? this.classRank,
       monthlyProgress: monthlyProgress ?? this.monthlyProgress,

@@ -43,83 +43,125 @@ class StudentService {
         String? resolvedSchoolName;
         final String? schoolCode = studentRefData['schoolCode'] as String?;
         if (schoolCode != null && schoolCode.isNotEmpty) {
-          try {
-            final schoolSnap = await _firestore
-                .collection('schools')
-                .where('schoolCode', isEqualTo: schoolCode)
-                .limit(1)
-                .get();
-            if (schoolSnap.docs.isNotEmpty) {
-              resolvedSchoolName =
-                  schoolSnap.docs.first.data()['name'] as String? ?? schoolCode;
-            } else {
-              resolvedSchoolName = schoolCode;
-            }
-          } catch (_) {
-            resolvedSchoolName = schoolCode;
-          }
-        }
+                  if (snapshot.docs.isEmpty) return null;
 
-        // Build a StudentModel from students data
-        final bootstrap = StudentModel(
-          uid: user.uid,
-          email: emailFallback,
-          name:
-              (studentRefData['studentName'] ?? studentRefData['name'] ?? '')
-                  as String,
-          photoUrl: null,
-          schoolId: null,
-          schoolCode:
-              studentRefData['schoolCode'] as String?, // FIXED: Read schoolCode
-          schoolName: resolvedSchoolName,
-          className: studentRefData['className'] as String?,
-          section: studentRefData['section'] as String?, // FIXED: Read section
-          phone: studentRefData['contactNumber'] as String?,
-          parentPhone: studentRefData['parentPhone'] as String?,
-          rewardPoints: 0,
-          classRank: 0,
-          monthlyProgress: 0.0,
-          monthlyTarget: 90.0,
-          pendingTests: 0,
-          completedTests: 0,
-          newNotifications: 0,
-          createdAt: DateTime.now(),
-          isActive: true,
-        );
+                  return DailyChallengeModel.fromFirestore(snapshot.docs.first);
+                } catch (e) {
+                  return null;
+                }
+              }
 
-        try {
-          await userDocRef.set(
-            bootstrap.toFirestore(),
-            SetOptions(merge: true),
-          );
-        } catch (_) {}
+              Future<String?> _resolveParentEmail({
+                required String studentUid,
+                required String studentEmail,
+                Map<String, dynamic>? studentData,
+              }) async {
+                String? normalize(dynamic value) {
+                  final s = value?.toString().trim();
+                  return (s == null || s.isEmpty) ? null : s;
+                }
 
-        return bootstrap;
-      }
+                final directParentEmail =
+                    normalize(studentData?['parentEmail']) ??
+                    normalize(studentData?['parent_email']);
+                if (directParentEmail != null) return directParentEmail;
 
-      // Base model from users collection
-      StudentModel base = StudentModel.fromFirestore(userDoc);
+                try {
+                  final userDoc = await _firestore.collection('users').doc(studentUid).get();
+                  if (userDoc.exists) {
+                    final userData = userDoc.data() ?? <String, dynamic>{};
+                    final fromUser =
+                        normalize(userData['parentEmail']) ??
+                        normalize(userData['parent_email']);
+                    if (fromUser != null) return fromUser;
+                  }
+                } catch (_) {}
 
-      // If any key fields are missing, enrich from students collection (by email)
-      String email = base.email.isNotEmpty
-          ? base.email
-          : (userDoc.data()?['email'] ?? user.email ?? '');
+                final studentParentPhone =
+                    normalize(studentData?['parentPhone']) ??
+                    normalize(studentData?['parent_phone']);
 
-      Map<String, dynamic>? studentRefData;
-      try {
-        if (email.isNotEmpty) {
-          // Force server read to avoid stale cache
-          final sSnap = await _firestore
-              .collection('students')
-              .where('email', isEqualTo: email)
-              .limit(1)
-              .get(const GetOptions(source: Source.server));
-          if (sSnap.docs.isNotEmpty) {
-            studentRefData = sSnap.docs.first.data();
-          }
-        }
-      } catch (_) {
-        // best-effort enrichment; ignore failures
+                if (studentParentPhone != null) {
+                  try {
+                    final phoneQueries = await Future.wait([
+                      _firestore
+                          .collection('parents')
+                          .where('phoneNumber', isEqualTo: studentParentPhone)
+                          .limit(1)
+                          .get(),
+                      _firestore
+                          .collection('parents')
+                          .where('phone', isEqualTo: studentParentPhone)
+                          .limit(1)
+                          .get(),
+                      _firestore
+                          .collection('parents')
+                          .where('parentPhone', isEqualTo: studentParentPhone)
+                          .limit(1)
+                          .get(),
+                    ]);
+
+                    for (final snap in phoneQueries) {
+                      if (snap.docs.isNotEmpty) {
+                        final email = normalize(snap.docs.first.data()['email']);
+                        if (email != null) {
+                          try {
+                            await _firestore.collection('users').doc(studentUid).set(
+                              {'parentEmail': email},
+                              SetOptions(merge: true),
+                            );
+                          } catch (_) {}
+                          try {
+                            await _firestore.collection('students').doc(studentUid).set(
+                              {'parentEmail': email},
+                              SetOptions(merge: true),
+                            );
+                          } catch (_) {}
+                          return email;
+                        }
+                      }
+                    }
+                  } catch (_) {}
+                }
+
+                try {
+                  final parentsSnap = await _firestore.collection('parents').limit(100).get();
+                  for (final doc in parentsSnap.docs) {
+                    final data = doc.data();
+                    final linkedStudents = (data['linkedStudents'] as List?) ?? const [];
+                    final isLinked = linkedStudents.any((entry) {
+                      if (entry is Map) {
+                        final entryUid = normalize(entry['id']) ?? normalize(entry['uid']);
+                        final entryEmail = normalize(entry['email']);
+                        return entryUid == studentUid || entryEmail == studentEmail;
+                      }
+                      final entryValue = normalize(entry);
+                      return entryValue == studentUid || entryValue == studentEmail;
+                    });
+
+                    if (isLinked) {
+                      final email = normalize(data['email']);
+                      if (email != null) {
+                        try {
+                          await _firestore.collection('users').doc(studentUid).set(
+                            {'parentEmail': email},
+                            SetOptions(merge: true),
+                          );
+                        } catch (_) {}
+                        try {
+                          await _firestore.collection('students').doc(studentUid).set(
+                            {'parentEmail': email},
+                            SetOptions(merge: true),
+                          );
+                        } catch (_) {}
+                        return email;
+                      }
+                    }
+                  }
+                } catch (_) {}
+
+                return null;
+              }
       }
 
       String resolvedName = base.name.isNotEmpty
@@ -176,6 +218,12 @@ class StudentService {
         }
       }
 
+      final String? resolvedParentEmail = await _resolveParentEmail(
+        studentUid: user.uid,
+        studentEmail: email,
+        studentData: studentRefData,
+      );
+
       // Determine if we should persist back to users/<uid>
       final Map<String, dynamic> updates = {};
       if (resolvedName.isNotEmpty && resolvedName != base.name) {
@@ -210,6 +258,11 @@ class StudentService {
           resolvedSchoolName.isNotEmpty &&
           resolvedSchoolName != base.schoolName) {
         updates['schoolName'] = resolvedSchoolName;
+      }
+      if (resolvedParentEmail != null &&
+          resolvedParentEmail.isNotEmpty &&
+          resolvedParentEmail != base.parentEmail) {
+        updates['parentEmail'] = resolvedParentEmail;
       }
 
       if (updates.isNotEmpty) {
@@ -247,6 +300,8 @@ class StudentService {
             'phone': resolvedPhone ?? '',
             'contactNumber': resolvedPhone ?? '',
             'parentPhone': resolvedParentPhone ?? '',
+            if (resolvedParentEmail != null && resolvedParentEmail.isNotEmpty)
+              'parentEmail': resolvedParentEmail,
             'createdAt': FieldValue.serverTimestamp(),
             // Don't set reward fields - they'll be populated by rewards system
           }, SetOptions(merge: true));
@@ -259,6 +314,8 @@ class StudentService {
               'section': resolvedSection ?? '',
               'schoolCode': resolvedSchoolCode ?? '',
               'schoolName': resolvedSchoolName ?? '',
+              if (resolvedParentEmail != null && resolvedParentEmail.isNotEmpty)
+                'parentEmail': resolvedParentEmail,
             });
           }
         }
@@ -269,6 +326,7 @@ class StudentService {
         name: resolvedName,
         phone: resolvedPhone,
         parentPhone: resolvedParentPhone,
+        parentEmail: resolvedParentEmail,
         className: resolvedClassName,
         section: resolvedSection, // FIXED: Include section
         schoolCode: resolvedSchoolCode, // FIXED: Include schoolCode
@@ -284,6 +342,79 @@ class StudentService {
       }
       return null;
     }
+  }
+
+  Future<String?> _resolveParentEmail({
+    required String studentUid,
+    required String studentEmail,
+    Map<String, dynamic>? studentData,
+  }) async {
+    String? normalize(dynamic value) {
+      final s = value?.toString().trim();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
+    // 1) Prefer values already present on the student/user docs.
+    final directParentEmail =
+        normalize(studentData?['parentEmail']) ??
+        normalize(studentData?['parent_email']);
+    if (directParentEmail != null) return directParentEmail;
+
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(studentUid)
+          .get();
+      if (userDoc.exists) {
+        final userData = userDoc.data() ?? <String, dynamic>{};
+        final fromUser =
+            normalize(userData['parentEmail']) ??
+            normalize(userData['parent_email']);
+        if (fromUser != null) return fromUser;
+      }
+    } catch (_) {}
+
+    // 2) Resolve from linked parent record once, then cache it.
+    try {
+      final parentSnap = await _firestore
+          .collection('parents')
+          .where('linkedStudents', arrayContains: studentUid)
+          .limit(1)
+          .get();
+      if (parentSnap.docs.isNotEmpty) {
+        final parentData = parentSnap.docs.first.data();
+        final email = normalize(parentData['email']);
+        if (email != null) {
+          // Best-effort cache back into the student/user docs for future single reads.
+          try {
+            await _firestore.collection('users').doc(studentUid).set({
+              'parentEmail': email,
+            }, SetOptions(merge: true));
+          } catch (_) {}
+          try {
+            await _firestore.collection('students').doc(studentUid).set({
+              'parentEmail': email,
+            }, SetOptions(merge: true));
+          } catch (_) {}
+          return email;
+        }
+      }
+    } catch (_) {}
+
+    // 3) Fallback: if parent doc links by student email instead of UID, use that.
+    try {
+      final parentSnap = await _firestore
+          .collection('parents')
+          .where('linkedStudentsEmails', arrayContains: studentEmail)
+          .limit(1)
+          .get();
+      if (parentSnap.docs.isNotEmpty) {
+        final email = normalize(parentSnap.docs.first.data()['email']);
+        if (email != null) return email;
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   /// Fallback builder: minimal student using auth info + student_rewards sum
@@ -407,34 +538,86 @@ class StudentService {
           .where('isActive', isEqualTo: true)
           .limit(1)
           .get();
+    final studentParentPhone =
+        normalize(studentData?['parentPhone']) ??
+        normalize(studentData?['parent_phone']);
+
+    if (studentParentPhone != null) {
+      try {
+        final phoneQueries = await Future.wait([
+          _firestore
+              .collection('parents')
+              .where('phoneNumber', isEqualTo: studentParentPhone)
+              .limit(1)
+              .get(),
+          _firestore
+              .collection('parents')
+              .where('phone', isEqualTo: studentParentPhone)
+              .limit(1)
+              .get(),
+          _firestore
+              .collection('parents')
+              .where('parentPhone', isEqualTo: studentParentPhone)
+              .limit(1)
+              .get(),
+        ]);
+
+        for (final snap in phoneQueries) {
+          if (snap.docs.isNotEmpty) {
+            final email = normalize(snap.docs.first.data()['email']);
+            if (email != null) {
+              try {
+                await _firestore.collection('users').doc(studentUid).set(
+                  {'parentEmail': email},
+                  SetOptions(merge: true),
+                );
+              } catch (_) {}
+              try {
+                await _firestore.collection('students').doc(studentUid).set(
+                  {'parentEmail': email},
+                  SetOptions(merge: true),
+                );
+              } catch (_) {}
+              return email;
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
       if (snapshot.docs.isEmpty) return null;
 
-      return DailyChallengeModel.fromFirestore(snapshot.docs.first);
-    } catch (e) {
-      return null;
-    }
-  }
+      final parentsSnap = await _firestore.collection('parents').limit(100).get();
+      for (final doc in parentsSnap.docs) {
+        final data = doc.data();
+        final linkedStudents = (data['linkedStudents'] as List?) ?? const [];
+        final isLinked = linkedStudents.any((entry) {
+          if (entry is Map) {
+            final entryUid = normalize(entry['id']) ?? normalize(entry['uid']);
+            return entryUid == studentUid;
+          }
+          return normalize(entry) == studentUid;
+        });
 
-  // Get student notifications
-  Future<List<NotificationModel>> getStudentNotifications(
-    String studentId, {
-    int limit = 10,
-  }) async {
-    try {
-      final snapshot = await _firestore
-          .collection('notifications')
-          .where('studentId', isEqualTo: studentId)
-          .orderBy('createdAt', descending: true)
-          .limit(limit)
-          .get();
-
-      return snapshot.docs
-          .map((doc) => NotificationModel.fromFirestore(doc))
-          .toList();
-    } catch (e) {
-      return [];
-    }
+        if (isLinked) {
+          final email = normalize(data['email']);
+          if (email != null) {
+            try {
+              await _firestore.collection('users').doc(studentUid).set(
+                {'parentEmail': email},
+                SetOptions(merge: true),
+              );
+            } catch (_) {}
+            try {
+              await _firestore.collection('students').doc(studentUid).set(
+                {'parentEmail': email},
+                SetOptions(merge: true),
+              );
+            } catch (_) {}
+            return email;
+          }
+        }
+      }
   }
 
   // Get unread notification count

@@ -502,6 +502,7 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     final String phone = _studentData?.phone ?? 'N/A';
     final String schoolName = _studentData?.schoolName ?? 'N/A';
     final String parentPhone = _studentData?.parentPhone ?? 'N/A';
+    final String parentEmail = _studentData?.parentEmail ?? 'N/A';
 
     return Column(
       children: [
@@ -536,7 +537,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                 _infoRow('Email', email, top: true),
                 _infoRow('Phone', phone),
                 _infoRow('School Name', schoolName),
-                _infoRow('Parent Phone', parentPhone, bottom: true),
+                _infoRow('Parent Phone', parentPhone),
+                _infoRow('Parent Email', parentEmail, bottom: true),
               ],
             ),
           ),

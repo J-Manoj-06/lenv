@@ -148,7 +148,7 @@ class MainActivity : FlutterActivity() {
 
 		Log.d(tag, "Unique launcher packages after dedupe: ${appsByPackage.size}")
 
-		return appsByPackage
+		val sortedApps = appsByPackage
 			.asSequence()
 			.map { entry -> Triple(entry.key, entry.value.first, entry.value.second) }
 			.sortedWith(
@@ -156,8 +156,23 @@ class MainActivity : FlutterActivity() {
 					.thenBy { it.second.lowercase() }
 			)
 			.take(topN)
-			.map { (pkg, appName, millis) ->
-				val iconBase64 = if (includeIcons) {
+			.toList()
+
+		// Encoding icons for every installed app can stall UI thread on some OEM ROMs.
+		// Keep icons for top visible subset and use placeholders for remaining apps.
+		val iconBudget = if (includeIcons) {
+			when {
+				topN <= 10 -> topN
+				topN <= 100 -> 40
+				else -> 60
+			}
+		} else {
+			0
+		}
+
+		return sortedApps
+			.mapIndexed { index, (pkg, appName, millis) ->
+				val iconBase64 = if (includeIcons && index < iconBudget) {
 					runCatching {
 						val drawable = pm.getApplicationIcon(pkg)
 						drawableToBase64(drawable)

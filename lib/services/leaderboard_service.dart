@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../utils/cache_manager.dart';
 import 'dart:async';
 
@@ -295,25 +297,46 @@ class LeaderboardService {
       studentsQuery = studentsQuery.where('section', isEqualTo: section);
     }
 
-    await for (final _ in studentsQuery.snapshots()) {
-      final now = DateTime.now();
+    try {
+      await for (final _ in studentsQuery.snapshots()) {
+        final now = DateTime.now();
 
-      // Debounce: Only refresh if 2 seconds passed since last update
-      if (lastUpdate != null && now.difference(lastUpdate) < debounceDuration) {
-        continue;
+        // Debounce: Only refresh if 2 seconds passed since last update
+        if (lastUpdate != null &&
+            now.difference(lastUpdate) < debounceDuration) {
+          continue;
+        }
+
+        lastUpdate = now;
+
+        // Fetch fresh data and cache it
+        final entries = await getOverallLeaderboardForClassWithCache(
+          schoolCode: schoolCode,
+          className: className,
+          section: section,
+          limit: limit,
+        );
+
+        yield entries;
       }
+    } on FirebaseException catch (e) {
+      final msg = (e.message ?? '').toLowerCase();
+      final isSignedOut = FirebaseAuth.instance.currentUser == null;
+      final isPermissionIssue =
+          e.code == 'permission-denied' ||
+          msg.contains('permission denied') ||
+          msg.contains('insufficient permissions');
 
-      lastUpdate = now;
-
-      // Fetch fresh data and cache it
-      final entries = await getOverallLeaderboardForClassWithCache(
-        schoolCode: schoolCode,
-        className: className,
-        section: section,
-        limit: limit,
-      );
-
-      yield entries;
+      if (isSignedOut && isPermissionIssue) {
+        if (kDebugMode) {
+          debugPrint(
+            '[LeaderboardService] Ignoring stream error after sign-out: $e',
+          );
+        }
+        yield const <LeaderboardEntry>[];
+        return;
+      }
+      rethrow;
     }
   }
 

@@ -89,6 +89,8 @@ class StudentDailyUsage {
 class StudentUsageService {
   static const MethodChannel _channel = MethodChannel('lenv/app_usage_tracker');
   static final Map<String, StudentDailyUsage?> _sessionCache = {};
+  static final Set<String> _writeDeniedStudents = <String>{};
+  static final DateTime _serviceStartTime = DateTime.now();
 
   static String _todayDateKey() {
     final now = DateTime.now();
@@ -157,6 +159,20 @@ class StudentUsageService {
   Future<void> collectAndSyncTodayUsage({required String studentId}) async {
     if (!Platform.isAndroid || studentId.trim().isEmpty) return;
 
+    // Avoid heavy icon/usage collection right after login for the same student
+    // to keep dashboard transition smooth.
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final secondsSinceStart = DateTime.now()
+        .difference(_serviceStartTime)
+        .inSeconds;
+    if (currentUid == studentId && secondsSinceStart < 25) {
+      debugPrint(
+        '⏭️ [AppUsage] deferred initial sync for studentId=$studentId '
+        'secondsSinceStart=$secondsSinceStart',
+      );
+      return;
+    }
+
     final date = _todayDateKey();
     final docId = '${studentId}_$date';
 
@@ -193,19 +209,34 @@ class StudentUsageService {
         .toList();
 
     try {
-      await FirebaseFirestore.instance
-          .collection('student_app_usage')
-          .doc(docId)
-          .set({
-            'studentId': studentId,
-            'date': date,
-            'permissionEnabled': permissionGranted,
-            'consideredAppCount': consideredAppCount,
-            'topApps': topApps.map((e) => e.toMap()).toList(),
-            'allApps': lightweightAllApps.map((e) => e.toMap()).toList(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: false))
-          .timeout(const Duration(seconds: 8));
+      if (!_writeDeniedStudents.contains(studentId)) {
+        await FirebaseFirestore.instance
+            .collection('student_app_usage')
+            .doc(docId)
+            .set({
+              'studentId': studentId,
+              'date': date,
+              'permissionEnabled': permissionGranted,
+              'consideredAppCount': consideredAppCount,
+              'topApps': topApps.map((e) => e.toMap()).toList(),
+              'allApps': lightweightAllApps.map((e) => e.toMap()).toList(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: false))
+            .timeout(const Duration(seconds: 8));
+      }
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        _writeDeniedStudents.add(studentId);
+        debugPrint(
+          '⚠️ [AppUsage] write denied for student_app_usage; '
+          'will use in-memory data only for studentId=$studentId',
+        );
+      } else {
+        debugPrint(
+          '❌ [AppUsage] sync write failed docId=$docId studentId=$studentId '
+          'code=${e.code} message=${e.message}',
+        );
+      }
     } catch (e) {
       debugPrint(
         '❌ [AppUsage] sync write failed docId=$docId studentId=$studentId error=$e',

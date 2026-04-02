@@ -143,16 +143,30 @@ class _CommunitiesListPageState extends State<CommunitiesListPage>
         .collection('messages')
         .orderBy('createdAt', descending: true);
 
-    _messageListeners[communityId] = query.snapshots().listen((snapshot) {
-      if (!mounted) return;
-      try {
-        final unread = Provider.of<UnreadCountProvider>(context, listen: false);
-        unread.loadUnreadCount(
-          chatId: communityId,
-          chatType: ChatTypeConfig.communityChat,
-        );
-      } catch (_) {}
-    });
+    _messageListeners[communityId] = query.snapshots().listen(
+      (snapshot) {
+        if (!mounted) return;
+        try {
+          final unread = Provider.of<UnreadCountProvider>(
+            context,
+            listen: false,
+          );
+          unread.loadUnreadCount(
+            chatId: communityId,
+            chatType: ChatTypeConfig.communityChat,
+          );
+        } catch (_) {}
+      },
+      onError: (e) {
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('permission-denied') ||
+            msg.contains('permission denied') ||
+            msg.contains('insufficient permissions')) {
+          _messageListeners[communityId]?.cancel();
+          _messageListeners.remove(communityId);
+        }
+      },
+    );
   }
 
   @override

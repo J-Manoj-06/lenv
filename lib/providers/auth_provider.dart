@@ -22,6 +22,12 @@ class AuthProvider with ChangeNotifier {
   bool get isAuthenticated => _currentUser != null;
   bool get isInitialized => _initialized;
 
+  Future<void> _enableFirestoreNetworkIfNeeded() async {
+    try {
+      await FirebaseFirestore.instance.enableNetwork();
+    } catch (_) {}
+  }
+
   /// Ensure auth is initialized (idempotent)
   Future<void> ensureInitialized() async {
     if (!_initialized) {
@@ -187,6 +193,7 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      await _enableFirestoreNetworkIfNeeded();
       _currentUser = await _authService.signInWithEmailPassword(
         email,
         password,
@@ -222,6 +229,7 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      await _enableFirestoreNetworkIfNeeded();
       _currentUser = await _authService.registerWithEmailPassword(
         email: email,
         password: password,
@@ -244,14 +252,14 @@ class AuthProvider with ChangeNotifier {
   // Sign out
   Future<void> signOut() async {
     try {
-      _isSigningOut = true;
-      notifyListeners();
-
-      // Pause Firestore network to avoid transient permission-denied noise
-      // from listeners while auth token is being revoked.
+      // Disable network first so active listeners stop reaching backend while
+      // auth/session state is being torn down.
       try {
         await FirebaseFirestore.instance.disableNetwork();
       } catch (_) {}
+
+      _isSigningOut = true;
+      notifyListeners();
 
       // Clear only auth/session-related keys.
       // Keep school selection keys so the last selected school is preserved.
@@ -274,14 +282,6 @@ class AuthProvider with ChangeNotifier {
       _initialized = false;
 
       notifyListeners();
-
-      // Re-enable network after a short delay so the logged-out UI can mount
-      // and stale listeners from the previous route are fully disposed.
-      Future<void>.delayed(const Duration(milliseconds: 900), () async {
-        try {
-          await FirebaseFirestore.instance.enableNetwork();
-        } catch (_) {}
-      });
     } catch (e) {
       _errorMessage = e.toString();
       notifyListeners();

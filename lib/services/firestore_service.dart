@@ -962,87 +962,119 @@ class FirestoreService {
         .where('status', whereIn: ['assigned', 'started'])
         .snapshots();
 
-    await for (var assignmentsSnapshot in assignmentsQuery) {
-      // Fallback for legacy assignment docs that stored studentEmail but used a
-      // non-auth studentId value.
-      QuerySnapshot<Map<String, dynamic>>? emailSnapshot;
-      final email = (studentEmail ?? '').trim();
-      if (email.isNotEmpty) {
-        try {
-          emailSnapshot = await _db
-              .collection('testResults')
-              .where('studentEmail', isEqualTo: email)
-              .where('status', whereIn: ['assigned', 'started'])
-              .get();
-        } on FirebaseException catch (e) {
-          debugPrint(
-            '[ASSIGN_DEBUG] email fallback query denied for $email '
-            'code=${e.code} message=${e.message}',
-          );
-        }
-      }
-
-      final assignmentDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-      assignmentDocs.addAll(assignmentsSnapshot.docs);
-      if (emailSnapshot != null) {
-        final seenIds = assignmentsSnapshot.docs.map((d) => d.id).toSet();
-        for (final doc in emailSnapshot.docs) {
-          if (!seenIds.contains(doc.id)) {
-            assignmentDocs.add(doc);
+    try {
+      await for (var assignmentsSnapshot in assignmentsQuery) {
+        // Fallback for legacy assignment docs that stored studentEmail but used a
+        // non-auth studentId value.
+        QuerySnapshot<Map<String, dynamic>>? emailSnapshot;
+        final email = (studentEmail ?? '').trim();
+        if (email.isNotEmpty) {
+          try {
+            emailSnapshot = await _db
+                .collection('testResults')
+                .where('studentEmail', isEqualTo: email)
+                .where('status', whereIn: ['assigned', 'started'])
+                .get();
+          } on FirebaseException catch (e) {
+            debugPrint(
+              '[ASSIGN_DEBUG] email fallback query denied for $email '
+              'code=${e.code} message=${e.message}',
+            );
           }
         }
-      }
 
-      // Extract unique test IDs from assignments
-      final testIds = assignmentDocs
-          .map((doc) => doc.data()['testId'] as String?)
-          .where((id) => id != null && id.isNotEmpty)
-          .toSet()
-          .toList();
-
-      if (testIds.isEmpty) {
-        yield [];
-        continue;
-      }
-
-      // Fetch test details from scheduledTests collection
-      // Firestore whereIn has a limit of 10, so we need to batch if more than 10
-      final List<TestModel> tests = [];
-
-      for (var i = 0; i < testIds.length; i += 10) {
-        final batch = testIds.skip(i).take(10).toList();
-        final testsSnapshot = await _db
-            .collection('scheduledTests')
-            .where(FieldPath.documentId, whereIn: batch)
-            .get();
-
-        for (var doc in testsSnapshot.docs) {
-          try {
-            final test = TestModel.fromScheduledTest(doc.id, doc.data());
-            // Only include published tests
-            if (test.status == TestStatus.published) {
-              tests.add(test);
+        final assignmentDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+        assignmentDocs.addAll(assignmentsSnapshot.docs);
+        if (emailSnapshot != null) {
+          final seenIds = assignmentsSnapshot.docs.map((d) => d.id).toSet();
+          for (final doc in emailSnapshot.docs) {
+            if (!seenIds.contains(doc.id)) {
+              assignmentDocs.add(doc);
             }
-          } catch (e) {}
+          }
         }
-      }
 
-      yield tests;
+        // Extract unique test IDs from assignments
+        final testIds = assignmentDocs
+            .map((doc) => doc.data()['testId'] as String?)
+            .where((id) => id != null && id.isNotEmpty)
+            .toSet()
+            .toList();
+
+        if (testIds.isEmpty) {
+          yield [];
+          continue;
+        }
+
+        // Fetch test details from scheduledTests collection
+        // Firestore whereIn has a limit of 10, so we need to batch if more than 10
+        final List<TestModel> tests = [];
+
+        for (var i = 0; i < testIds.length; i += 10) {
+          final batch = testIds.skip(i).take(10).toList();
+          final testsSnapshot = await _db
+              .collection('scheduledTests')
+              .where(FieldPath.documentId, whereIn: batch)
+              .get();
+
+          for (var doc in testsSnapshot.docs) {
+            try {
+              final test = TestModel.fromScheduledTest(doc.id, doc.data());
+              // Only include published tests
+              if (test.status == TestStatus.published) {
+                tests.add(test);
+              }
+            } catch (e) {}
+          }
+        }
+
+        yield tests;
+      }
+    } on FirebaseException catch (e) {
+      final signedOut = FirebaseAuth.instance.currentUser == null;
+      final msg = (e.message ?? '').toLowerCase();
+      final permissionIssue =
+          e.code == 'permission-denied' ||
+          msg.contains('permission denied') ||
+          msg.contains('insufficient permissions');
+
+      if (signedOut && permissionIssue) {
+        yield const <TestModel>[];
+        return;
+      }
+      rethrow;
     }
   }
 
   // Test Results Operations (for students)
-  Stream<List<TestResultModel>> getTestResultsByStudent(String studentId) {
-    return _db
-        .collection('testResults')
-        .where('studentId', isEqualTo: studentId)
-        .orderBy('completedAt', descending: true)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => TestResultModel.fromFirestore(doc))
-              .toList(),
-        );
+  Stream<List<TestResultModel>> getTestResultsByStudent(
+    String studentId,
+  ) async* {
+    try {
+      await for (final snapshot
+          in _db
+              .collection('testResults')
+              .where('studentId', isEqualTo: studentId)
+              .orderBy('completedAt', descending: true)
+              .snapshots()) {
+        yield snapshot.docs
+            .map((doc) => TestResultModel.fromFirestore(doc))
+            .toList();
+      }
+    } on FirebaseException catch (e) {
+      final signedOut = FirebaseAuth.instance.currentUser == null;
+      final msg = (e.message ?? '').toLowerCase();
+      final permissionIssue =
+          e.code == 'permission-denied' ||
+          msg.contains('permission denied') ||
+          msg.contains('insufficient permissions');
+
+      if (signedOut && permissionIssue) {
+        yield const <TestResultModel>[];
+        return;
+      }
+      rethrow;
+    }
   }
 
   // Reward Operations

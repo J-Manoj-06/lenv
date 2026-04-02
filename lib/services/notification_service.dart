@@ -650,7 +650,16 @@ class NotificationService {
       dataSub = buildForUid(user.uid).listen(
         controller.add,
         onError: (error, _) {
-          debugPrint('Notification stream error for uid=${user.uid}: $error');
+          final msg = error.toString().toLowerCase();
+          final isSignedOut = FirebaseAuth.instance.currentUser == null;
+          final isPermissionIssue =
+              msg.contains('permission-denied') ||
+              msg.contains('permission denied') ||
+              msg.contains('insufficient permissions');
+
+          if (!(isSignedOut && isPermissionIssue)) {
+            debugPrint('Notification stream error for uid=${user.uid}: $error');
+          }
           controller.add(emptyValue);
         },
       );
