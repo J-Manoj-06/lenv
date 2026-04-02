@@ -17,6 +17,7 @@ class ChildProfileScreen extends StatefulWidget {
 class _ChildProfileScreenState extends State<ChildProfileScreen> {
   final StudentUsageService _usageService = StudentUsageService();
   bool _refreshing = false;
+  int _appUsageRefreshTrigger = 0;
 
   @override
   void initState() {
@@ -42,7 +43,10 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
       debugPrint('❌ [ChildProfile] Error refreshing app usage: $e');
     } finally {
       if (mounted) {
-        setState(() => _refreshing = false);
+        setState(() {
+          _refreshing = false;
+          _appUsageRefreshTrigger++;
+        });
       }
     }
   }
@@ -186,7 +190,10 @@ class _ChildProfileScreenState extends State<ChildProfileScreen> {
             const SizedBox(height: 16),
 
             // Top 5 used apps today
-            AppUsageCard(studentId: child.uid),
+            AppUsageCard(
+              studentId: child.uid,
+              refreshTrigger: _appUsageRefreshTrigger,
+            ),
             const SizedBox(height: 16),
 
             // Attendance Overview Card

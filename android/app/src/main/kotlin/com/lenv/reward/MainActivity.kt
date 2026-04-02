@@ -4,14 +4,13 @@ import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.provider.Settings
 import android.util.Base64
+import android.util.Log
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.MethodChannel
@@ -20,6 +19,7 @@ import java.util.Calendar
 
 class MainActivity : FlutterActivity() {
 	private val channelName = "lenv/app_usage_tracker"
+	private val tag = "AppUsageTracker"
 
 	override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
 		super.configureFlutterEngine(flutterEngine)
@@ -47,7 +47,8 @@ class MainActivity : FlutterActivity() {
 						}
 
 						val topN = call.argument<Int>("topN") ?: 5
-						result.success(getTopUsedAppsToday(topN))
+						val includeIcons = call.argument<Boolean>("includeIcons") ?: true
+						result.success(getTopUsedAppsToday(topN, includeIcons))
 					}
 
 					else -> result.notImplemented()
@@ -81,8 +82,14 @@ class MainActivity : FlutterActivity() {
 		startActivity(intent)
 	}
 
-	private fun getTopUsedAppsToday(topN: Int): List<Map<String, Any?>> {
+	private fun getTopUsedAppsToday(topN: Int, includeIcons: Boolean): List<Map<String, Any?>> {
 		val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+		val debugPackages = listOf(
+			"com.instagram.android",
+			"com.google.android.youtube",
+			"com.whatsapp",
+			"com.spotify.music",
+		)
 
 		val now = System.currentTimeMillis()
 		val cal = Calendar.getInstance().apply {
@@ -102,7 +109,6 @@ class MainActivity : FlutterActivity() {
 		val usageByPackage = mutableMapOf<String, Long>()
 		for (entry in stats) {
 			val pkg = entry.packageName ?: continue
-			if (pkg == packageName) continue
 			val foregroundMs = entry.totalTimeInForeground
 			if (foregroundMs > 0L) {
 				usageByPackage[pkg] = (usageByPackage[pkg] ?: 0L) + foregroundMs
@@ -110,59 +116,55 @@ class MainActivity : FlutterActivity() {
 		}
 
 		val pm = packageManager
-		val launchableApps = pm.getInstalledApplications(0)
-			.asSequence()
-			.filter { app ->
-				app.packageName != packageName
-					&& pm.getLaunchIntentForPackage(app.packageName) != null
-			}
-			.map { app ->
-				val pkg = app.packageName
-				val usage = usageByPackage[pkg] ?: 0L
-				val isPureSystem =
-					(app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-						&& (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0
-				Triple(pkg, usage, isPureSystem)
-			}
-			.toList()
+		val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+			addCategory(Intent.CATEGORY_LAUNCHER)
+		}
+		val launcherActivities = pm.queryIntentActivities(launcherIntent, 0)
+		Log.d(tag, "Launcher activities discovered: ${launcherActivities.size}")
 
-		val preferredPool = run {
-			val userApps = launchableApps.filter { !it.third }
-			val usedUserApps = userApps.filter { it.second > 0L }
-
-			when {
-				usedUserApps.isNotEmpty() -> usedUserApps
-				userApps.isNotEmpty() -> userApps
-				else -> {
-					val usedAnyApps = launchableApps.filter { it.second > 0L }
-					if (usedAnyApps.isNotEmpty()) usedAnyApps else launchableApps
-				}
-			}
+		val appsByPackage = linkedMapOf<String, Pair<String, Long>>()
+		for (activity in launcherActivities) {
+			val pkg = activity.activityInfo?.packageName ?: continue
+			if (appsByPackage.containsKey(pkg)) continue
+			val appName = activity.loadLabel(pm)?.toString()?.ifBlank { pkg } ?: pkg
+			val usage = usageByPackage[pkg] ?: 0L
+			appsByPackage[pkg] = appName to usage
 		}
 
-		return preferredPool
-			.map { pair -> pair.first to pair.second }
+		for (pkg in debugPackages) {
+			val visibleInLauncher = appsByPackage.containsKey(pkg)
+			val launchIntentExists = pm.getLaunchIntentForPackage(pkg) != null
+			val installed = runCatching {
+				pm.getPackageInfo(pkg, 0)
+				true
+			}.getOrElse { false }
+			val usageMinutes = ((usageByPackage[pkg] ?: 0L) / 60000L).toInt()
+			Log.d(
+				tag,
+				"Debug package=$pkg installed=$installed launchIntent=$launchIntentExists " +
+					"visibleInLauncher=$visibleInLauncher usageMinutes=$usageMinutes",
+			)
+		}
+
+		Log.d(tag, "Unique launcher packages after dedupe: ${appsByPackage.size}")
+
+		return appsByPackage
+			.asSequence()
+			.map { entry -> Triple(entry.key, entry.value.first, entry.value.second) }
 			.sortedWith(
-				compareByDescending<Pair<String, Long>> { it.second }
-					.thenBy { pair ->
-						runCatching {
-							val appInfo = pm.getApplicationInfo(pair.first, 0)
-							pm.getApplicationLabel(appInfo).toString().lowercase()
-						}.getOrElse { pair.first.lowercase() }
-					}
+				compareByDescending<Triple<String, String, Long>> { it.third }
+					.thenBy { it.second.lowercase() }
 			)
 			.take(topN)
-			.map { (pkg, millis) ->
-				val appName = runCatching {
-					val appInfo = pm.getApplicationInfo(pkg, 0)
-					pm.getApplicationLabel(appInfo).toString()
-				}.getOrElse { pkg }
-
-				val iconBase64 = runCatching {
-					val appInfo: ApplicationInfo = pm.getApplicationInfo(pkg, 0)
-					val drawable = pm.getApplicationIcon(appInfo)
-					drawableToBase64(drawable)
-				}.getOrNull()
+			.map { (pkg, appName, millis) ->
+				val iconBase64 = if (includeIcons) {
+					runCatching {
+						val drawable = pm.getApplicationIcon(pkg)
+						drawableToBase64(drawable)
+					}.getOrNull()
+				} else {
+					null
+				}
 
 				mapOf(
 					"appName" to appName,
@@ -171,20 +173,16 @@ class MainActivity : FlutterActivity() {
 					"appIcon" to iconBase64,
 				)
 			}
+			.toList()
 	}
 
 	private fun drawableToBase64(drawable: Drawable): String? {
-		val bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null) {
-			drawable.bitmap
-		} else {
-			val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96
-			val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96
-			val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-			val canvas = Canvas(bmp)
-			drawable.setBounds(0, 0, canvas.width, canvas.height)
-			drawable.draw(canvas)
-			bmp
-		}
+		val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 96
+		val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 96
+		val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+		val canvas = Canvas(bitmap)
+		drawable.setBounds(0, 0, canvas.width, canvas.height)
+		drawable.draw(canvas)
 
 		val output = ByteArrayOutputStream()
 		return try {
