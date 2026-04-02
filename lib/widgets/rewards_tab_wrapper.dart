@@ -6,13 +6,20 @@ import '../features/rewards/rewards_module.dart';
 /// Wraps the Rewards catalog with local Riverpod + GoRouter support
 /// This allows the rewards feature to use its own routing independently
 /// from the main app router without conflicts
-class RewardsTabWrapper extends StatelessWidget {
+class RewardsTabWrapper extends StatefulWidget {
   const RewardsTabWrapper({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Create a local GoRouter for rewards feature routes
-    final router = GoRouter(
+  State<RewardsTabWrapper> createState() => _RewardsTabWrapperState();
+}
+
+class _RewardsTabWrapperState extends State<RewardsTabWrapper> {
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    _router = GoRouter(
       // Ensure we land on the catalog instead of '/'
       initialLocation: RewardsModule.catalogRoute,
       routes: RewardsModule.getRoutes(),
@@ -35,11 +42,13 @@ class RewardsTabWrapper extends StatelessWidget {
         ),
       ),
     );
+  }
 
-    // Wrap with ProviderScope for Riverpod + local GoRouter
+  @override
+  Widget build(BuildContext context) {
     return ProviderScope(
       child: MaterialApp.router(
-        routerConfig: router,
+        routerConfig: _router,
         theme: Theme.of(context),
         debugShowCheckedModeBanner: false,
       ),

@@ -12,22 +12,30 @@ import 'ui/screens/request_detail_screen.dart';
 /// Wrapper that provides local ProviderScope + GoRouter for Rewards feature
 /// This allows the Rewards catalog and detail screens to work independently
 /// without conflicting with the app's main Provider/routing setup
-class RewardsScreenWrapper extends StatelessWidget {
+class RewardsScreenWrapper extends StatefulWidget {
   final String? userId;
 
   const RewardsScreenWrapper({super.key, this.userId});
 
   @override
-  Widget build(BuildContext context) {
-    // Create a local GoRouter for rewards navigation
-    // Routes must match what RewardsCatalogScreen.onTap calls (e.g., /rewards/product/:productId)
-    final rewardsRouter = GoRouter(
+  State<RewardsScreenWrapper> createState() => _RewardsScreenWrapperState();
+}
+
+class _RewardsScreenWrapperState extends State<RewardsScreenWrapper> {
+  late final GoRouter _rewardsRouter;
+
+  @override
+  void initState() {
+    super.initState();
+    // Keep a single router instance alive so detail pages survive rebuilds.
+    _rewardsRouter = GoRouter(
       initialLocation: '/rewards/catalog',
       routes: [
         GoRoute(
           path: '/rewards/catalog',
           name: 'rewards-catalog',
-          builder: (context, state) => RewardsCatalogScreen(studentId: userId),
+          builder: (context, state) =>
+              RewardsCatalogScreen(studentId: widget.userId),
         ),
         GoRoute(
           path: '/rewards/product/:productId',
@@ -38,7 +46,7 @@ class RewardsScreenWrapper extends StatelessWidget {
             return ProductDetailScreen(
               productId: productId,
               initialProduct: product,
-              studentId: userId,
+              studentId: widget.userId,
             );
           },
         ),
@@ -72,12 +80,13 @@ class RewardsScreenWrapper extends StatelessWidget {
         ),
       ],
     );
+  }
 
-    // Wrap with ProviderScope so Riverpod providers work
-    // Wrap with MaterialApp so GoRouter can provide navigation context
+  @override
+  Widget build(BuildContext context) {
     return ProviderScope(
       child: MaterialApp.router(
-        routerConfig: rewardsRouter,
+        routerConfig: _rewardsRouter,
         theme: Theme.of(context),
         darkTheme: Theme.of(context),
         themeMode: ThemeMode.system,
