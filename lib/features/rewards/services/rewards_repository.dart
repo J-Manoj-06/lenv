@@ -17,6 +17,37 @@ class RewardsRepository {
   RewardsRepository({FirebaseFirestore? firestore})
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
+  Future<DocumentReference<Map<String, dynamic>>?> _resolveRequestRef(
+    String requestId,
+  ) async {
+    // 1) Direct document lookup (fast path)
+    final directRef = _firestore.collection(requestsCollection).doc(requestId);
+    final directSnap = await directRef.get();
+    if (directSnap.exists) return directRef;
+
+    // 2) Fallback to business key stored in request_id
+    final byRequestId = await _firestore
+        .collection(requestsCollection)
+        .where('request_id', isEqualTo: requestId)
+        .limit(1)
+        .get();
+    if (byRequestId.docs.isNotEmpty) {
+      return byRequestId.docs.first.reference;
+    }
+
+    // 3) Legacy fallback key
+    final byLegacyId = await _firestore
+        .collection(requestsCollection)
+        .where('id', isEqualTo: requestId)
+        .limit(1)
+        .get();
+    if (byLegacyId.docs.isNotEmpty) {
+      return byLegacyId.docs.first.reference;
+    }
+
+    return null;
+  }
+
   /// Get all products from catalog (with caching)
   Future<List<ProductModel>> getCatalog({bool forceRefresh = false}) async {
     try {
@@ -252,10 +283,12 @@ class RewardsRepository {
     Map<String, dynamic>? metadata,
   }) async {
     try {
+      final requestRef = await _resolveRequestRef(requestId);
+      if (requestRef == null) {
+        throw Exception('Request not found');
+      }
+
       await _firestore.runTransaction((transaction) async {
-        final requestRef = _firestore
-            .collection(requestsCollection)
-            .doc(requestId);
         final requestSnap = await transaction.get(requestRef);
 
         if (!requestSnap.exists) {
@@ -325,10 +358,10 @@ class RewardsRepository {
   /// Get single request
   Future<RewardRequestModel?> getRequest(String requestId) async {
     try {
-      final doc = await _firestore
-          .collection(requestsCollection)
-          .doc(requestId)
-          .get();
+      final requestRef = await _resolveRequestRef(requestId);
+      if (requestRef == null) return null;
+
+      final doc = await requestRef.get();
       if (doc.exists) {
         return RewardRequestModel.fromMap(doc.data()!);
       }
@@ -612,7 +645,11 @@ class RewardsRepository {
   /// Delete reward request
   Future<void> deleteRewardRequest(String requestId) async {
     try {
-      await _firestore.collection(requestsCollection).doc(requestId).delete();
+      final requestRef = await _resolveRequestRef(requestId);
+      if (requestRef == null) {
+        throw Exception('Request not found');
+      }
+      await requestRef.delete();
     } catch (e) {
       rethrow;
     }

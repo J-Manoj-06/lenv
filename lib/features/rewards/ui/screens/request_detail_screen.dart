@@ -24,6 +24,7 @@ class RequestDetailScreen extends ConsumerStatefulWidget {
 
 class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
   bool _isLoading = false;
+  RewardRequestModel? _optimisticRequest;
 
   @override
   Widget build(BuildContext context) {
@@ -38,8 +39,10 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
           );
         }
 
+        final visibleRequest = _optimisticRequest ?? request;
+
         return _RequestDetailContent(
-          request: request,
+          request: visibleRequest,
           isLoading: _isLoading,
           onStatusChanged: _onStatusChanged,
         );
@@ -63,17 +66,18 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
 
     try {
       final updateNotifier = ref.read(updateRequestStatusProvider.notifier);
+
+      if (mounted) {
+        setState(() {
+          _optimisticRequest = request.copyWith(status: newStatus);
+        });
+      }
+
       await updateNotifier.updateStatus(
         requestId: request.requestId,
         newStatus: newStatus,
         userId: 'current_user',
       );
-
-      // Invalidate the current request provider to refresh the data
-      ref.invalidate(currentRequestProvider(widget.requestId));
-
-      // Wait a moment for the provider to refresh
-      await Future.delayed(const Duration(milliseconds: 100));
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,6 +85,11 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         );
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _optimisticRequest = null;
+        });
+      }
       if (mounted) {
         ScaffoldMessenger.of(
           context,
