@@ -1197,14 +1197,14 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                             const SizedBox(width: 10),
                             const Flexible(
                               child: Text(
-                              'Opening Chat...',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                'Opening Chat...',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
                             ),
                           ],
                         )
@@ -1218,11 +1218,11 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                                 'Start',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
                             ),
                           ],
                         ),
@@ -1255,11 +1255,11 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                             const SizedBox(width: 8),
                             const Flexible(
                               child: Text(
-                              'Opening...',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
+                                'Opening...',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
                             ),
                           ],
                         )
@@ -1273,8 +1273,8 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                                 'Call Parent',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontWeight: FontWeight.w700),
-                            ),
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
                             ),
                           ],
                         ),
