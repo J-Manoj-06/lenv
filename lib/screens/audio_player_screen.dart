@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
@@ -21,11 +22,26 @@ class AudioPlayerScreen extends StatefulWidget {
 
 class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   late AudioPlayer _audioPlayer;
+  StreamSubscription<PlayerState>? _playerStateSubscription;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _hasCompleted = false;
+
+  bool _isAtOrNearEnd() {
+    final duration = _audioPlayer.duration;
+    if (duration == null || duration == Duration.zero) return false;
+    final position = _audioPlayer.position;
+    final remaining = duration - position;
+    return remaining <= const Duration(milliseconds: 300);
+  }
 
   Future<void> _togglePlayback(PlayerState? playerState) async {
     if (playerState == null) {
+      if (mounted) {
+        setState(() {
+          _hasCompleted = false;
+        });
+      }
       await _audioPlayer.play();
       return;
     }
@@ -35,8 +51,23 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
       return;
     }
 
-    if (playerState.processingState == ProcessingState.completed) {
+    final shouldRestartFromBeginning =
+        playerState.processingState == ProcessingState.completed ||
+        _isAtOrNearEnd();
+
+    if (shouldRestartFromBeginning) {
+      if (mounted) {
+        setState(() {
+          _hasCompleted = false;
+        });
+      }
       await _audioPlayer.seek(Duration.zero);
+    }
+
+    if (mounted) {
+      setState(() {
+        _hasCompleted = false;
+      });
     }
 
     await _audioPlayer.play();
@@ -51,6 +82,20 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   Future<void> _initializeAudio() async {
     _audioPlayer = AudioPlayer();
     try {
+      await _playerStateSubscription?.cancel();
+      _playerStateSubscription = _audioPlayer.playerStateStream.listen((state) {
+        if (!mounted) return;
+        if (state.processingState == ProcessingState.completed) {
+          setState(() {
+            _hasCompleted = true;
+          });
+        } else if (state.playing) {
+          setState(() {
+            _hasCompleted = false;
+          });
+        }
+      });
+
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -124,6 +169,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
 
   @override
   void dispose() {
+    _playerStateSubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -327,6 +373,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                   builder: (context, snapshot) {
                     final playerState = snapshot.data;
                     final isPlaying = playerState?.playing ?? false;
+                    final showPlayIcon = _hasCompleted || !isPlaying;
 
                     return GestureDetector(
                       onTap: () => _togglePlayback(playerState),
@@ -340,7 +387,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          isPlaying ? Icons.pause : Icons.play_arrow,
+                          showPlayIcon ? Icons.play_arrow : Icons.pause,
                           color: Colors.white,
                           size: 40,
                         ),

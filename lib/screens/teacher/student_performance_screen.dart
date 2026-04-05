@@ -1181,10 +1181,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     ),
                   ),
                   child: _parentChatLoading
-                      ? const Row(
+                      ? Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
@@ -1194,13 +1194,17 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                                 ),
                               ),
                             ),
-                            SizedBox(width: 12),
-                            Text(
+                            const SizedBox(width: 10),
+                            const Flexible(
+                              child: Text(
                               'Opening Chat...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
+                            ),
                             ),
                           ],
                         )
@@ -1209,12 +1213,16 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                           children: [
                             Icon(Icons.chat_bubble, size: 20),
                             SizedBox(width: 10),
-                            Text(
-                              'Start',
+                            Flexible(
+                              child: Text(
+                                'Start',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
+                            ),
                             ),
                           ],
                         ),
@@ -1236,18 +1244,22 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                     ),
                   ),
                   child: _parentCallLoading
-                      ? const Row(
+                      ? Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                            SizedBox(width: 10),
-                            Text(
+                            const SizedBox(width: 8),
+                            const Flexible(
+                              child: Text(
                               'Opening...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
                             ),
                           ],
                         )
@@ -1256,9 +1268,13 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                           children: [
                             Icon(Icons.call, size: 20),
                             SizedBox(width: 10),
-                            Text(
-                              'Call Parent',
+                            Flexible(
+                              child: Text(
+                                'Call Parent',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
                             ),
                           ],
                         ),
