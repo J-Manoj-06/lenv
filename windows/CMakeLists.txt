@@ -10,6 +10,10 @@ set(BINARY_NAME "new_reward")
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
+# Allow legacy third-party CMake scripts (e.g. Firebase C++ SDK) to configure
+# under newer CMake versions that removed compatibility with very old policies.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
 # Define build configuration option.
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)

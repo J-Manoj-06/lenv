@@ -1,0 +1,28 @@
+{
+  "configurations": [
+    {
+      "name": "Win32",
+      "includePath": [
+        "${workspaceFolder}/windows",
+        "${workspaceFolder}/windows/flutter",
+        "${workspaceFolder}/windows/flutter/ephemeral",
+        "${workspaceFolder}/windows/flutter/ephemeral/.plugin_symlinks/**",
+        "${env:LOCALAPPDATA}/Pub/Cache/hosted/pub.dev/**",
+        "${workspaceFolder}/build/windows/x64/extracted/**",
+        "D:/flutter_sdk/flutter/bin/cache/artifacts/engine/windows-x64/cpp_client_wrapper/include",
+        "D:/flutter_sdk/flutter/bin/cache/artifacts/engine/windows-x64"
+      ],
+      "defines": [
+        "_DEBUG",
+        "UNICODE",
+        "_UNICODE"
+      ],
+      "windowsSdkVersion": "10.0.22000.0",
+      "intelliSenseMode": "windows-msvc-x64",
+      "compilerPath": "cl.exe",
+      "cStandard": "c17",
+      "cppStandard": "c++17"
+    }
+  ],
+  "version": 4
+}
