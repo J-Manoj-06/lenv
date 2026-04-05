@@ -21,7 +21,9 @@ class RewardsRepository {
   Future<DocumentReference<Map<String, dynamic>>?> _resolveRequestRef(
     String requestId,
   ) async {
-    debugPrint('[Rewards][Repository] resolve request ref start: requestId=$requestId');
+    debugPrint(
+      '[Rewards][Repository] resolve request ref start: requestId=$requestId',
+    );
 
     // 1) Direct document lookup (fast path)
     final directRef = _firestore.collection(requestsCollection).doc(requestId);
@@ -300,8 +302,7 @@ class RewardsRepository {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      final String persistedStatus =
-          newStatus == RewardRequestStatus.cancelled
+      final String persistedStatus = newStatus == RewardRequestStatus.cancelled
           ? 'rejected'
           : newStatus.value;
 
