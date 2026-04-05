@@ -24,6 +24,24 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  Future<void> _togglePlayback(PlayerState? playerState) async {
+    if (playerState == null) {
+      await _audioPlayer.play();
+      return;
+    }
+
+    if (playerState.playing) {
+      await _audioPlayer.pause();
+      return;
+    }
+
+    if (playerState.processingState == ProcessingState.completed) {
+      await _audioPlayer.seek(Duration.zero);
+    }
+
+    await _audioPlayer.play();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -311,13 +329,7 @@ class _AudioPlayerScreenState extends State<AudioPlayerScreen> {
                     final isPlaying = playerState?.playing ?? false;
 
                     return GestureDetector(
-                      onTap: () {
-                        if (isPlaying) {
-                          _audioPlayer.pause();
-                        } else {
-                          _audioPlayer.play();
-                        }
-                      },
+                      onTap: () => _togglePlayback(playerState),
                       child: Container(
                         width: 80,
                         height: 80,
