@@ -240,6 +240,29 @@ class InstituteAnnouncementModel {
     }
 
     if (scope == 'section') {
+      String normalizeStandard(String value) {
+        return value
+            .toUpperCase()
+            .replaceAll(RegExp(r'GRADE\s*'), '')
+            .replaceAll(' ', '')
+            .trim();
+      }
+
+      String normalizeToken(String value) {
+        return value.toUpperCase().replaceAll(' ', '').trim();
+      }
+
+      String normalizeSectionOnly(String sectionValue, String standardValue) {
+        final token = normalizeToken(sectionValue).replaceAll('-', '');
+        final std = normalizeStandard(standardValue);
+        if (std.isNotEmpty &&
+            token.startsWith(std) &&
+            token.length > std.length) {
+          return token.substring(std.length);
+        }
+        return token;
+      }
+
       final effectiveStandard = targetStandard.isNotEmpty
           ? targetStandard
           : (standards.isNotEmpty ? standards.first : userStandard);
@@ -247,20 +270,45 @@ class InstituteAnnouncementModel {
           ? targetSection
           : (sections.isNotEmpty ? sections.first : userSection);
 
-      final userCombined = '$userStandard$userSection';
-      final userHyphen = '$userStandard-$userSection';
-      final targetCombined = '$effectiveStandard$effectiveSection';
-      final targetHyphen = '$effectiveStandard-$effectiveSection';
+      final normalizedTargetStandard = normalizeStandard(effectiveStandard);
+      final normalizedUserStandard = normalizeStandard(userStandard);
+      final normalizedTargetSection = normalizeSectionOnly(
+        effectiveSection,
+        effectiveStandard,
+      );
+      final normalizedUserSection = normalizeSectionOnly(
+        userSection,
+        userStandard,
+      );
+
+      final targetCombined =
+          '$normalizedTargetStandard$normalizedTargetSection';
+      final targetHyphen = '$normalizedTargetStandard-$normalizedTargetSection';
+      final userCombined = '$normalizedUserStandard$normalizedUserSection';
+      final userHyphen = '$normalizedUserStandard-$normalizedUserSection';
+
+      final isStandardMatch =
+          normalizedTargetStandard.isEmpty ||
+          normalizedUserStandard.isEmpty ||
+          normalizedTargetStandard == normalizedUserStandard;
 
       final isSectionMatch =
-          (effectiveSection == userSection) ||
-          (targetCombined == userCombined) ||
-          (targetHyphen == userHyphen);
+          isStandardMatch &&
+          ((normalizedTargetSection == normalizedUserSection) ||
+              (targetCombined == userCombined) ||
+              (targetHyphen == userHyphen));
+
+      final normalizedHandledSections = handledSections
+          .map(normalizeToken)
+          .toSet();
 
       final isHandledByTeacher =
-          handledSections.contains(effectiveSection) ||
-          handledSections.contains(targetCombined) ||
-          handledSections.contains(targetHyphen);
+          normalizedHandledSections.contains(
+            normalizeToken(effectiveSection),
+          ) ||
+          normalizedHandledSections.contains(targetCombined) ||
+          normalizedHandledSections.contains(targetHyphen) ||
+          normalizedHandledSections.contains(normalizedTargetSection);
 
       if (role == 'principal') {
         if (creatorRole == 'teacher') return false;

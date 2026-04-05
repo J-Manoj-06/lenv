@@ -94,6 +94,10 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     // Mark as viewed
     widget.onAnnouncementViewed?.call(_currentIndex);
 
+    // Initialize media loading for the first announcement so timeline starts
+    // when the first content (image or text) is ready.
+    _startMediaLoadingForAnnouncement(_currentIndex);
+
     // Hide tap hints after 3 seconds
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
@@ -854,6 +858,13 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     if ((announcement['title'] as String?)?.isNotEmpty ?? false) {
       final title = announcement['title'] as String;
 
+      if (!(_mediaLoaded[announcementIndex] ?? false) &&
+          !(_mediaError[announcementIndex] ?? false)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _markMediaAsLoaded(announcementIndex);
+        });
+      }
+
       return _ExpandablePostText(
         text: title,
         textColor: Colors.white,
@@ -862,6 +873,13 @@ class _AnnouncementPageViewScreenState extends State<AnnouncementPageViewScreen>
     }
 
     // Empty announcement
+    if (!(_mediaLoaded[announcementIndex] ?? false) &&
+        !(_mediaError[announcementIndex] ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _markMediaAsLoaded(announcementIndex);
+      });
+    }
+
     return Container(color: Colors.black);
   }
 

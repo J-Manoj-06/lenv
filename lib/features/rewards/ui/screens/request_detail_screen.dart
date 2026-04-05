@@ -62,6 +62,9 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
     RewardRequestModel request,
     RewardRequestStatus newStatus,
   ) async {
+    debugPrint(
+      '[Rewards][RequestDetail] status change requested: requestId=${request.requestId}, from=${request.status.value}, to=${newStatus.value}',
+    );
     setState(() => _isLoading = true);
 
     try {
@@ -79,12 +82,19 @@ class _RequestDetailScreenState extends ConsumerState<RequestDetailScreen> {
         userId: 'current_user',
       );
 
+      debugPrint(
+        '[Rewards][RequestDetail] status update success: requestId=${request.requestId}, newStatus=${newStatus.value}',
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Request updated successfully')),
         );
       }
     } catch (e) {
+      debugPrint(
+        '[Rewards][RequestDetail] status update failed: requestId=${request.requestId}, target=${newStatus.value}, error=$e',
+      );
       if (mounted) {
         setState(() {
           _optimisticRequest = null;
@@ -128,52 +138,63 @@ class _RequestDetailContent extends StatelessWidget {
 
     final pointsNeeded = _computePointsNeeded();
 
-    return Scaffold(
-      backgroundColor: theme.brightness == Brightness.dark
-          ? const Color(0xFF18181b)
-          : Colors.grey[50],
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _TopBar(
-                requestIdShort: requestIdShort,
-                onBack: () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  } else {
+    return WillPopScope(
+      onWillPop: () async {
+        debugPrint(
+          '[Rewards][RequestDetail] system back tapped: requestId=${request.requestId}, redirecting to student requests',
+        );
+        RewardsModule.navigateToStudentRequests(
+          context,
+          studentId: request.studentId,
+        );
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: theme.brightness == Brightness.dark
+            ? const Color(0xFF18181b)
+            : Colors.grey[50],
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _TopBar(
+                  requestIdShort: requestIdShort,
+                  onBack: () {
+                    debugPrint(
+                      '[Rewards][RequestDetail] appbar back tapped: requestId=${request.requestId}, redirecting to student requests',
+                    );
                     RewardsModule.navigateToStudentRequests(
                       context,
                       studentId: request.studentId,
                     );
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
+                  },
+                ),
+                const SizedBox(height: 16),
 
-              _SummaryCard(
-                request: request,
-                productName: productName,
-                pointsNeeded: pointsNeeded,
-                remainingDays: remainingDays,
-              ),
+                _SummaryCard(
+                  request: request,
+                  productName: productName,
+                  pointsNeeded: pointsNeeded,
+                  remainingDays: remainingDays,
+                ),
 
-              const SizedBox(height: 20),
-              _ProgressTimeline(request: request),
+                const SizedBox(height: 20),
+                _ProgressTimeline(request: request),
 
-              const SizedBox(height: 20),
-              _RequestDetailsCard(request: request),
+                const SizedBox(height: 20),
+                _RequestDetailsCard(request: request),
 
-              const SizedBox(height: 20),
-              _ActionButtons(
-                request: request,
-                isLoading: isLoading,
-                onStatusChanged: onStatusChanged,
-              ),
-              const SizedBox(height: 12),
-            ],
+                const SizedBox(height: 20),
+                _ActionButtons(
+                  request: request,
+                  isLoading: isLoading,
+                  onStatusChanged: onStatusChanged,
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
           ),
         ),
       ),
@@ -719,6 +740,9 @@ class _ActionButtons extends StatelessWidget {
           onPressed: isLoading
               ? null
               : () async {
+                  debugPrint(
+                    '[Rewards][RequestDetail] cancel button pressed: requestId=${request.requestId}, currentStatus=${request.status.value}',
+                  );
                   await onStatusChanged(request, RewardRequestStatus.cancelled);
                 },
           style: ElevatedButton.styleFrom(

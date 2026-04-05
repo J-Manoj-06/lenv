@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../models/product_model.dart';
 import '../models/reward_request_model.dart';
@@ -20,10 +21,17 @@ class RewardsRepository {
   Future<DocumentReference<Map<String, dynamic>>?> _resolveRequestRef(
     String requestId,
   ) async {
+    debugPrint('[Rewards][Repository] resolve request ref start: requestId=$requestId');
+
     // 1) Direct document lookup (fast path)
     final directRef = _firestore.collection(requestsCollection).doc(requestId);
     final directSnap = await directRef.get();
-    if (directSnap.exists) return directRef;
+    if (directSnap.exists) {
+      debugPrint(
+        '[Rewards][Repository] resolve request ref matched direct doc id: docId=${directRef.id}',
+      );
+      return directRef;
+    }
 
     // 2) Fallback to business key stored in request_id
     final byRequestId = await _firestore
@@ -32,6 +40,9 @@ class RewardsRepository {
         .limit(1)
         .get();
     if (byRequestId.docs.isNotEmpty) {
+      debugPrint(
+        '[Rewards][Repository] resolve request ref matched request_id: docId=${byRequestId.docs.first.id}',
+      );
       return byRequestId.docs.first.reference;
     }
 
@@ -42,9 +53,15 @@ class RewardsRepository {
         .limit(1)
         .get();
     if (byLegacyId.docs.isNotEmpty) {
+      debugPrint(
+        '[Rewards][Repository] resolve request ref matched legacy id: docId=${byLegacyId.docs.first.id}',
+      );
       return byLegacyId.docs.first.reference;
     }
 
+    debugPrint(
+      '[Rewards][Repository] resolve request ref failed: requestId=$requestId',
+    );
     return null;
   }
 
@@ -283,10 +300,22 @@ class RewardsRepository {
     Map<String, dynamic>? metadata,
   }) async {
     try {
+      final String persistedStatus =
+          newStatus == RewardRequestStatus.cancelled
+          ? 'rejected'
+          : newStatus.value;
+
+      debugPrint(
+        '[Rewards][Repository] updateRequestStatus start: requestId=$requestId, requestedStatus=${newStatus.value}, persistedStatus=$persistedStatus, userId=$userId',
+      );
       final requestRef = await _resolveRequestRef(requestId);
       if (requestRef == null) {
         throw Exception('Request not found');
       }
+
+      debugPrint(
+        '[Rewards][Repository] updateRequestStatus resolved ref: docId=${requestRef.id}',
+      );
 
       await _firestore.runTransaction((transaction) async {
         final requestSnap = await transaction.get(requestRef);
@@ -305,18 +334,25 @@ class RewardsRepository {
         // Create audit entry
         final auditEntry = AuditEntry(
           actor: userId,
-          action: newStatus.value,
+          action: persistedStatus,
           timestamp: DateTime.now(),
           metadata: metadata,
         );
 
         // Update request
         transaction.update(requestRef, {
-          'status': newStatus.value,
+          'status': persistedStatus,
           'audit': [...request.audit.map((e) => e.toMap()), auditEntry.toMap()],
         });
       });
+
+      debugPrint(
+        '[Rewards][Repository] updateRequestStatus success: requestId=$requestId, docId=${requestRef.id}, persistedStatus=$persistedStatus',
+      );
     } catch (e) {
+      debugPrint(
+        '[Rewards][Repository] updateRequestStatus error: requestId=$requestId, requestedStatus=${newStatus.value}, error=$e',
+      );
       rethrow;
     }
   }
