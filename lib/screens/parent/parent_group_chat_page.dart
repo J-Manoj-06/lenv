@@ -128,6 +128,7 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
   late final MediaUploadService _mediaUploadService;
   bool _isUploading = false;
   bool _isOnline = true;
+  bool _isNoInternetDialogVisible = false;
   StreamSubscription<bool>? _connectivitySub;
   StreamSubscription<List<CommunityMessageModel>>? _firestoreMirrorSub;
   final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
@@ -2428,92 +2429,52 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     }
   }
 
-  void _showOfflineSnackBar({bool isMedia = false}) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        padding: EdgeInsets.zero,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        duration: const Duration(seconds: 3),
-        content: Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E2E),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: Colors.orange.withOpacity(0.45),
-              width: 1.2,
+  Future<bool> _hasUsableInternet() async {
+    if (!_isOnline) return false;
+    try {
+      final lookup = await InternetAddress.lookup(
+        'one.one.one.one',
+      ).timeout(const Duration(seconds: 2));
+      return lookup.isNotEmpty && lookup.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _showOfflineSnackBar({bool isMedia = false}) async {
+    if (!mounted || _isNoInternetDialogVisible) return;
+    _isNoInternetDialogVisible = true;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('No internet connection'),
+          content: Text(
+            isMedia
+                ? 'Please connect to the internet to open attachments.'
+                : 'Please connect to the internet to send messages.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.4),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.wifi_off_rounded,
-                  color: Colors.orange,
-                  size: 19,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'No internet connection',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.5,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      isMedia
-                          ? 'Connect to send media files'
-                          : 'Connect to send messages',
-                      style: const TextStyle(
-                        color: Color(0xFF9CA3AF),
-                        fontSize: 12,
-                        decoration: TextDecoration.none,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.signal_wifi_connected_no_internet_4_rounded,
-                color: Colors.orange.withOpacity(0.7),
-                size: 18,
-              ),
-            ],
-          ),
-        ),
-      ),
+          ],
+        );
+      },
     );
+    _isNoInternetDialogVisible = false;
   }
 
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
+
+    final hasInternet = await _hasUsableInternet();
+    if (!hasInternet) {
+      await _showOfflineSnackBar();
+      return;
+    }
 
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
@@ -2575,10 +2536,6 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     _scrollToBottom();
 
     unawaited(_sendPendingTextMessage(pendingMessage));
-
-    if (!_isOnline) {
-      _showOfflineSnackBar();
-    }
   }
 
   /// ✅ NEW: Instant scroll to bottom to show latest message
@@ -4427,9 +4384,10 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     );
   }
 
-  void _showAttachmentSheet() {
-    if (!_isOnline) {
-      _showOfflineSnackBar(isMedia: true);
+  Future<void> _showAttachmentSheet() async {
+    final hasInternet = await _hasUsableInternet();
+    if (!hasInternet) {
+      await _showOfflineSnackBar(isMedia: true);
       return;
     }
     final primaryColor = _chatAccentColor(context);
