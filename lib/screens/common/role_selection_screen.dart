@@ -11,6 +11,24 @@ class RoleSelectionScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final roleProvider = Provider.of<RoleProvider>(context, listen: false);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final isCompactHeight = screenHeight < 760;
+    final isVeryCompactHeight = screenHeight < 700;
+    final horizontalPadding = isCompactHeight ? 20.0 : 24.0;
+    final topSpacing = isVeryCompactHeight
+        ? 8.0
+        : (isCompactHeight ? 14.0 : 30.0);
+    final titleFontSize = isVeryCompactHeight
+        ? 34.0
+        : (isCompactHeight ? 38.0 : 42.0);
+    final subTitleFontSize = isCompactHeight ? 16.0 : 18.0;
+    final rolePromptTopSpacing = isCompactHeight ? 20.0 : 35.0;
+    final rolePromptBottomSpacing = isCompactHeight ? 14.0 : 25.0;
+    final roleCardGap = isCompactHeight ? 12.0 : 18.0;
+    final roleCardHeight = isVeryCompactHeight
+        ? 150.0
+        : (isCompactHeight ? 165.0 : 190.0);
+    final footerBottomPadding = isCompactHeight ? 16.0 : 25.0;
     final storedName = schoolStorageService.schoolName?.trim();
     final schoolDisplayName = (storedName == null || storedName.isEmpty)
         ? 'Your School'
@@ -39,18 +57,18 @@ class RoleSelectionScreen extends StatelessWidget {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: Column(
               children: [
-                const SizedBox(height: 30),
+                SizedBox(height: topSpacing),
                 // Title
                 Text(
                   schoolDisplayName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 42,
+                  style: TextStyle(
+                    fontSize: titleFontSize,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                     height: 1.1,
@@ -64,10 +82,10 @@ class RoleSelectionScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Welcome to your Portal',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: subTitleFontSize,
                     color: Colors.white,
                     fontWeight: FontWeight.w400,
                     letterSpacing: 0.5,
@@ -101,16 +119,16 @@ class RoleSelectionScreen extends StatelessWidget {
                     foregroundColor: Colors.white.withValues(alpha: 0.95),
                   ),
                 ),
-                const SizedBox(height: 35),
-                const Text(
+                SizedBox(height: rolePromptTopSpacing),
+                Text(
                   'Choose your role to login',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: isCompactHeight ? 16 : 17,
                     color: Colors.white,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 25),
+                SizedBox(height: rolePromptBottomSpacing),
                 // Role Cards Grid
                 Expanded(
                   child: SingleChildScrollView(
@@ -124,6 +142,8 @@ class RoleSelectionScreen extends StatelessWidget {
                                 role: UserRole.student,
                                 title: 'Student',
                                 icon: Icons.school_rounded,
+                                cardHeight: roleCardHeight,
+                                isCompact: isCompactHeight,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.student);
                                   Navigator.pushNamed(
@@ -133,13 +153,15 @@ class RoleSelectionScreen extends StatelessWidget {
                                 },
                               ),
                             ),
-                            const SizedBox(width: 18),
+                            SizedBox(width: roleCardGap),
                             Expanded(
                               child: _buildRoleCard(
                                 context,
                                 role: UserRole.teacher,
                                 title: 'Teacher',
                                 icon: Icons.menu_book_rounded,
+                                cardHeight: roleCardHeight,
+                                isCompact: isCompactHeight,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.teacher);
                                   Navigator.pushNamed(
@@ -151,7 +173,7 @@ class RoleSelectionScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 18),
+                        SizedBox(height: roleCardGap),
                         Row(
                           children: [
                             Expanded(
@@ -160,19 +182,23 @@ class RoleSelectionScreen extends StatelessWidget {
                                 role: UserRole.parent,
                                 title: 'Parent',
                                 icon: Icons.family_restroom_rounded,
+                                cardHeight: roleCardHeight,
+                                isCompact: isCompactHeight,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.parent);
                                   Navigator.pushNamed(context, '/parent-login');
                                 },
                               ),
                             ),
-                            const SizedBox(width: 18),
+                            SizedBox(width: roleCardGap),
                             Expanded(
                               child: _buildRoleCard(
                                 context,
                                 role: UserRole.institute,
                                 title: 'Institute',
                                 icon: Icons.business_rounded,
+                                cardHeight: roleCardHeight,
+                                isCompact: isCompactHeight,
                                 onTap: () {
                                   roleProvider.setRole(UserRole.institute);
                                   Navigator.pushNamed(
@@ -184,20 +210,20 @@ class RoleSelectionScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 25),
+                        SizedBox(height: isCompactHeight ? 12 : 25),
                       ],
                     ),
                   ),
                 ),
                 // Version at bottom
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 25),
+                  padding: EdgeInsets.only(bottom: footerBottomPadding),
                   child: Column(
                     children: [
                       Text(
                         'Educational Ecosystem',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: isCompactHeight ? 12 : 13,
                           color: Colors.white.withValues(alpha: 0.9),
                           fontWeight: FontWeight.w300,
                         ),
@@ -206,7 +232,7 @@ class RoleSelectionScreen extends StatelessWidget {
                       Text(
                         'Version 1.0.0',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: isCompactHeight ? 11 : 12,
                           color: Colors.white.withValues(alpha: 0.85),
                           fontWeight: FontWeight.w300,
                         ),
@@ -227,6 +253,8 @@ class RoleSelectionScreen extends StatelessWidget {
     required UserRole role,
     required String title,
     required IconData icon,
+    required double cardHeight,
+    required bool isCompact,
     required VoidCallback onTap,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -234,10 +262,10 @@ class RoleSelectionScreen extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 190,
+        height: cardHeight,
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(isCompact ? 20 : 24),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.15),
@@ -250,7 +278,7 @@ class RoleSelectionScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.all(isCompact ? 16 : 20),
               decoration: BoxDecoration(
                 color: const Color(
                   0xFFF97316,
@@ -259,15 +287,15 @@ class RoleSelectionScreen extends StatelessWidget {
               ),
               child: Icon(
                 icon,
-                size: 55,
+                size: isCompact ? 44 : 55,
                 color: const Color(0xFFF97316), // Orange icon color
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: isCompact ? 12 : 16),
             Text(
               title,
               style: TextStyle(
-                fontSize: 19,
+                fontSize: isCompact ? 17 : 19,
                 fontWeight: FontWeight.w600,
                 color: isDark ? Colors.white : const Color(0xFF2D2D2D),
               ),
