@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/community_model.dart';
@@ -30,6 +31,7 @@ class _InstituteCommunityExploreScreenState
   bool _isOnline = true;
   final Set<String> _joiningCommunities = {};
   Set<String> _joinedCommunities = {};
+  StreamSubscription<bool>? _connectivitySub;
 
   final List<String> _categories = [
     'All',
@@ -44,6 +46,19 @@ class _InstituteCommunityExploreScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _networkService.initialize();
+    _connectivitySub = _networkService.onConnectivityChanged.listen((online) {
+      if (!mounted) return;
+      final wasOnline = _isOnline;
+      setState(() {
+        _isOnline = online;
+      });
+
+      // When connectivity returns, switch to normal mode and refresh live data.
+      if (!wasOnline && online) {
+        _loadCommunities();
+      }
+    });
     _checkConnectivity();
     _loadCommunities();
     _searchController.addListener(_onSearchChanged);
@@ -61,6 +76,8 @@ class _InstituteCommunityExploreScreenState
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
+    _networkService.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();

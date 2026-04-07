@@ -74,7 +74,13 @@ class _AllStandardsPerformersPageState
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: const Text('Top Performers'),
+        title: Text(
+          'Top Performers',
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         backgroundColor: cardColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: textColor),

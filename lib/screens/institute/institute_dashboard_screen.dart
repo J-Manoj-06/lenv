@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -41,10 +42,27 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   bool _cleanupScheduled = false;
   bool _isOnline = true;
   Map<String, dynamic>? _cachedStats;
+  StreamSubscription<bool>? _connectivitySub;
 
   @override
   void initState() {
     super.initState();
+    _networkService.initialize();
+    _connectivitySub = _networkService.onConnectivityChanged.listen((online) {
+      if (!mounted) return;
+      final wasOnline = _isOnline;
+      setState(() {
+        _isOnline = online;
+      });
+
+      // Auto-recover to live mode and refresh data when internet comes back.
+      if (!wasOnline && online) {
+        _loadCachedStats();
+        _loadViewedAnnouncements();
+        PendingAnnouncementService().startProcessing();
+      }
+    });
+
     // Flush any announcements queued while offline
     PendingAnnouncementService().startProcessing();
     _loadViewedAnnouncements();
@@ -1355,6 +1373,13 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
     } catch (e) {
       return null;
     }
+  }
+
+  @override
+  void dispose() {
+    _connectivitySub?.cancel();
+    _networkService.dispose();
+    super.dispose();
   }
 }
 

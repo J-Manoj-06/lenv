@@ -28,7 +28,10 @@ class SectionAllStudentsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('Class $className - Section $section'),
+        title: Text(
+          'Class $className - Section $section',
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w700),
+        ),
         backgroundColor: cardColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: textColor),

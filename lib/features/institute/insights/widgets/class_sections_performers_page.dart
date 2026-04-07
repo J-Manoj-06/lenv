@@ -177,7 +177,13 @@ class _ClassSectionsPerformersPageState
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('Class ${widget.className} Sections'),
+        title: Text(
+          'Class ${widget.className} Sections',
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         backgroundColor: cardColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new, color: textColor),

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui';
 import '../../widgets/principal_dashboard_header.dart';
 import '../../services/offline_cache_manager.dart';
+import '../../services/network_service.dart';
 import 'staff_details_page.dart';
 
 class InstituteStaffScreen extends StatefulWidget {
@@ -19,11 +21,34 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
   String _query = '';
   String _filter = 'all';
   final OfflineCacheManager _cacheManager = OfflineCacheManager();
+  final NetworkService _networkService = NetworkService();
+  bool _isOnline = true;
+  StreamSubscription<bool>? _connectivitySub;
 
   @override
   void initState() {
     super.initState();
+    _networkService.initialize();
+    _connectivitySub = _networkService.onConnectivityChanged.listen((online) {
+      if (!mounted) return;
+      final wasOnline = _isOnline;
+      setState(() {
+        _isOnline = online;
+      });
+
+      // Auto-switch back to live mode and fetch fresh staff when online again.
+      if (!wasOnline && online) {
+        _loadStaff();
+      }
+    });
     _loadStaff();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySub?.cancel();
+    _networkService.dispose();
+    super.dispose();
   }
 
   List<_StaffMember> _staffFromCachedList(dynamic cachedData) {
@@ -82,6 +107,7 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
 
   Future<void> _loadStaff() async {
     await _cacheManager.initialize();
+    _isOnline = await _networkService.isConnected();
 
     // Get current Firebase Auth user
     final firebaseUser = FirebaseAuth.instance.currentUser;
@@ -277,6 +303,29 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
               subtitle: '${_staff.length} staff members',
               icon: Icons.people_alt_rounded,
             ),
+            if (!_isOnline)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                color: Colors.orange.shade700,
+                child: const Row(
+                  children: [
+                    Icon(Icons.cloud_off, color: Colors.white, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'Offline Mode - Showing cached staff list',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             _SearchFilters(
               primary: primaryColor,
               chip: chipColor,
