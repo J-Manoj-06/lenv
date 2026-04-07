@@ -685,6 +685,7 @@ class _TestCard extends StatelessWidget {
     final fmt = DateFormat('MMM d, yyyy');
     final fmtTime = DateFormat('MMM d, yyyy • h:mm a');
     final now = DateTime.now();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final Color statusBg;
     final Color statusText;
@@ -701,6 +702,10 @@ class _TestCard extends StatelessWidget {
     Color leadingBg;
     Color leadingFg;
     bool isExpired = false;
+    DateTime? startAt;
+    DateTime? endAt;
+    DateTime? completedAt;
+    String stateDescription = '';
 
     if (item.isPending) {
       final t = item.test!;
@@ -710,6 +715,8 @@ class _TestCard extends StatelessWidget {
       title = t.title;
       subject = t.subject;
       assignedBy = t.teacherName;
+      startAt = t.startDate;
+      endAt = t.endDate;
       // Show start or due date based on schedule
       if (notStartedYet) {
         dateLabel = 'Starts:';
@@ -742,6 +749,7 @@ class _TestCard extends StatelessWidget {
         statusBg = Colors.grey.shade400;
         statusText = Colors.white;
         statusLabel = 'Expired';
+        stateDescription = 'Not attempted (test expired)';
       } else {
         if (notStartedYet) {
           buttonText = 'Yet to start';
@@ -766,6 +774,7 @@ class _TestCard extends StatelessWidget {
           statusBg = const Color(0xFFE3F2FD);
           statusText = const Color(0xFF1565C0);
           statusLabel = 'Scheduled';
+          stateDescription = 'Scheduled';
         } else {
           buttonText = 'Start Test';
           onPressed = () {
@@ -777,6 +786,7 @@ class _TestCard extends StatelessWidget {
           statusBg = const Color(0xFFF2800D);
           statusText = Colors.white;
           statusLabel = 'Pending';
+          stateDescription = 'Not attempted';
         }
       }
 
@@ -789,6 +799,8 @@ class _TestCard extends StatelessWidget {
       title = r.testTitle;
       subject = r.subject;
       assignedBy = '';
+      completedAt = r.completedAt;
+      endAt = item.endDate;
       if (canShow) {
         dateLabel = 'Completed:';
         dateValue = fmt.format(r.completedAt);
@@ -815,78 +827,93 @@ class _TestCard extends StatelessWidget {
       statusBg = const Color(0xFFE8E9EB);
       statusText = const Color(0xFF656669);
       statusLabel = canShow ? 'Completed' : 'Completed';
+      stateDescription = canShow ? 'Completed' : 'Completed (results locked)';
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    final cardColor = isDark
+        ? Theme.of(context).cardColor
+        : Color.alphaBlend(statusBg.withOpacity(0.08), Colors.white);
+    final borderColor = isDark ? Colors.white10 : statusBg.withOpacity(0.35);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _StudentTestDetailsPage(
+              title: title,
+              subject: subject,
+              assignedBy: assignedBy,
+              statusLabel: statusLabel,
+              statusBg: statusBg,
+              statusText: statusText,
+              stateDescription: stateDescription,
+              startAt: startAt,
+              endAt: endAt,
+              completedAt: completedAt,
+              actionLabel: buttonText,
+              onAction: onPressed,
+              actionEnabled:
+                  (item.isPending &&
+                      !isExpired &&
+                      buttonText != 'Yet to start') ||
+                  buttonText == 'View Results',
+            ),
           ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: leadingBg,
-                  borderRadius: BorderRadius.circular(12),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor, width: 1.1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.16 : 0.07),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: leadingBg,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(leadingIcon, color: leadingFg),
                 ),
-                child: Icon(leadingIcon, color: leadingFg),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          'Subject: ',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        Expanded(
-                          child: Text(
-                            subject,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (assignedBy.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           Text(
-                            'Assigned By: ',
+                            'Subject: ',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           Expanded(
                             child: Text(
-                              assignedBy,
+                              subject,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodySmall
@@ -895,10 +922,198 @@ class _TestCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (assignedBy.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              'Assigned By: ',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            Expanded(
+                              child: Text(
+                                assignedBy,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    statusLabel,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: statusText,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Divider(
+              color: Theme.of(context).dividerColor,
+              height: 16,
+              thickness: 1,
+              indent: 0,
+              endIndent: 0,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '$dateLabel ',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        TextSpan(
+                          text: dateValue,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _PrimaryButton(
+                        label: buttonText,
+                        onPressed: onPressed,
+                        isPrimary: item.isPending && !isExpired,
+                        enabled:
+                            (item.isPending &&
+                                !isExpired &&
+                                buttonText != 'Yet to start') ||
+                            buttonText == 'View Results',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StudentTestDetailsPage extends StatelessWidget {
+  const _StudentTestDetailsPage({
+    required this.title,
+    required this.subject,
+    required this.assignedBy,
+    required this.statusLabel,
+    required this.statusBg,
+    required this.statusText,
+    required this.stateDescription,
+    required this.startAt,
+    required this.endAt,
+    required this.completedAt,
+    required this.actionLabel,
+    required this.onAction,
+    required this.actionEnabled,
+  });
+
+  final String title;
+  final String subject;
+  final String assignedBy;
+  final String statusLabel;
+  final Color statusBg;
+  final Color statusText;
+  final String stateDescription;
+  final DateTime? startAt;
+  final DateTime? endAt;
+  final DateTime? completedAt;
+  final String actionLabel;
+  final VoidCallback onAction;
+  final bool actionEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('EEE, MMM d, yyyy • h:mm a');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Widget row(String label, String value) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 118,
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.color?.withOpacity(0.7),
                 ),
               ),
+            ),
+            Expanded(
+              child: Text(
+                value,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(title: const Text('Test Details'), elevation: 0),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark ? Colors.white10 : const Color(0xFFE3D3C2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -910,69 +1125,34 @@ class _TestCard extends StatelessWidget {
                 ),
                 child: Text(
                   statusLabel,
-                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
                     color: statusText,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              row('State', stateDescription),
+              row('Subject', subject.isEmpty ? '-' : subject),
+              if (assignedBy.isNotEmpty) row('Assigned By', assignedBy),
+              if (startAt != null) row('Starts At', fmt.format(startAt!)),
+              if (endAt != null) row('Ends At', fmt.format(endAt!)),
+              if (completedAt != null)
+                row('Completed At', fmt.format(completedAt!)),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: _PrimaryButton(
+                  label: actionLabel,
+                  onPressed: onAction,
+                  isPrimary: actionEnabled,
+                  enabled: actionEnabled,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Divider(
-            color: Theme.of(context).dividerColor,
-            height: 16,
-            thickness: 1,
-            indent: 0,
-            endIndent: 0,
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: '$dateLabel ',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      TextSpan(
-                        text: dateValue,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: _PrimaryButton(
-                      label: buttonText,
-                      onPressed: onPressed,
-                      isPrimary: item.isPending && !isExpired,
-                      enabled:
-                          (item.isPending &&
-                              !isExpired &&
-                              buttonText != 'Yet to start') ||
-                          buttonText == 'View Results',
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
