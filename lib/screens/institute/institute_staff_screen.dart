@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:ui';
 import '../../widgets/principal_dashboard_header.dart';
+import '../../services/offline_cache_manager.dart';
 import 'staff_details_page.dart';
 
 class InstituteStaffScreen extends StatefulWidget {
@@ -17,6 +18,7 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
   bool _isLoading = true;
   String _query = '';
   String _filter = 'all';
+  final OfflineCacheManager _cacheManager = OfflineCacheManager();
 
   @override
   void initState() {
@@ -24,12 +26,74 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
     _loadStaff();
   }
 
+  List<_StaffMember> _staffFromCachedList(dynamic cachedData) {
+    if (cachedData is! List) return const <_StaffMember>[];
+
+    final items = <_StaffMember>[];
+    for (final item in cachedData) {
+      if (item is! Map) continue;
+
+      final map = Map<String, dynamic>.from(item);
+      final subjectsRaw = map['subjects'];
+      final classesRaw = map['classes'];
+
+      items.add(
+        _StaffMember(
+          id: map['id']?.toString() ?? '',
+          name: map['name']?.toString() ?? 'Unknown',
+          email: map['email']?.toString() ?? '',
+          phone: map['phone']?.toString() ?? '',
+          status: map['status']?.toString() ?? 'Active',
+          role: map['role']?.toString() ?? 'Teaching',
+          roleKey: map['roleKey']?.toString() ?? 'teaching',
+          imageUrl: map['imageUrl']?.toString() ?? '',
+          subjects: subjectsRaw is List
+              ? subjectsRaw.map((e) => e.toString()).toList()
+              : const <String>['Not assigned'],
+          classes: classesRaw is List
+              ? classesRaw.map((e) => e.toString()).toList()
+              : const <String>['Not assigned'],
+          tests: const <_TestInfo>[],
+          stats: const _StaffStats(
+            totalTests: 0,
+            avgScore: 0,
+            studentsImpacted: 0,
+          ),
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  Future<void> _loadFromCache(String schoolCode) async {
+    final cached = _cacheManager.getCachedUserData(
+      userId: schoolCode,
+      dataType: 'principal_staff',
+    );
+    final cachedStaff = _staffFromCachedList(cached);
+
+    if (!mounted) return;
+    setState(() {
+      _staff = cachedStaff;
+      _isLoading = false;
+    });
+  }
+
   Future<void> _loadStaff() async {
+    await _cacheManager.initialize();
+
     // Get current Firebase Auth user
     final firebaseUser = FirebaseAuth.instance.currentUser;
 
+    String? fallbackSchoolCode = _cacheManager.getLastPrincipalSchoolCode();
+
     if (firebaseUser == null) {
-      setState(() => _isLoading = false);
+      if (fallbackSchoolCode != null && fallbackSchoolCode.isNotEmpty) {
+        await _loadFromCache(fallbackSchoolCode);
+      } else {
+        setState(() => _isLoading = false);
+      }
       return;
     }
 
@@ -60,6 +124,10 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
               .data()['schoolCode']
               ?.toString();
         }
+      }
+
+      if (schoolCode == null || schoolCode.isEmpty) {
+        schoolCode = fallbackSchoolCode;
       }
 
       if (schoolCode == null || schoolCode.isEmpty) {
@@ -122,12 +190,37 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
         );
       }
 
+      await _cacheManager.cacheUserData(
+        userId: schoolCode,
+        dataType: 'principal_staff',
+        data: staffList
+            .map(
+              (s) => {
+                'id': s.id,
+                'name': s.name,
+                'email': s.email,
+                'phone': s.phone,
+                'status': s.status,
+                'role': s.role,
+                'roleKey': s.roleKey,
+                'imageUrl': s.imageUrl,
+                'subjects': s.subjects,
+                'classes': s.classes,
+              },
+            )
+            .toList(),
+      );
+
       setState(() {
         _staff = staffList;
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (fallbackSchoolCode != null && fallbackSchoolCode.isNotEmpty) {
+        await _loadFromCache(fallbackSchoolCode);
+      } else {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -617,48 +710,6 @@ class _SearchFiltersState extends State<_SearchFilters> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.value,
-    required this.active,
-    required this.primary,
-    required this.chip,
-    required this.slate,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final bool active;
-  final Color primary;
-  final Color chip;
-  final Color slate;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: active ? primary : chip,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? Colors.white : slate,
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
       ),
     );
   }
