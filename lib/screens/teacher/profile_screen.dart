@@ -898,10 +898,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _performLogout() async {
     try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
       // Clear session
       await SessionManager.clearLoginSession();
+
+      // Sign out from Firebase
+      await authProvider.signOut();
+
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/role-selection');
+        // Clear entire navigation stack and go to role-selection
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/role-selection',
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {

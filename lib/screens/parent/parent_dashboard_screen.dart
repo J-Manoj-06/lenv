@@ -8,6 +8,7 @@ import '../../models/parent_teacher_group.dart';
 import '../../models/student_model.dart';
 import '../../models/reward_request_model.dart';
 import '../../services/parent_teacher_group_service.dart';
+import '../../services/school_storage_service.dart';
 import '../../widgets/notification_bell_button.dart';
 import '../../widgets/pending_reward_popup.dart';
 import '../common/announcement_pageview_screen.dart';
@@ -702,21 +703,37 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   }
 
   Widget _buildHeader(bool isDark, AuthProvider authProvider) {
+    final schoolName = schoolStorageService.schoolName ?? 'School';
+
     return SizedBox(
-      height: 60,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Text(
-              'Dashboard',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : _onBackground(context),
-              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Dashboard',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : _onBackground(context),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  schoolName,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+              ],
             ),
             Align(
               alignment: Alignment.centerRight,

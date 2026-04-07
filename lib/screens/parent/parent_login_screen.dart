@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../models/user_model.dart';
+import '../../services/school_storage_service.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 import '../../utils/lenv_snackbar.dart';
@@ -20,6 +21,8 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  String? _selectedSchool;
+  String _selectedSchoolName = 'Selected school';
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
@@ -31,6 +34,25 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
   static const Color brandLightGray = Color(0xFFF4EDE7);
 
   @override
+  void initState() {
+    super.initState();
+    _initializeSelectedSchool();
+  }
+
+  Future<void> _initializeSelectedSchool() async {
+    await schoolStorageService.initialize();
+    if (!mounted) return;
+
+    setState(() {
+      _selectedSchool = schoolStorageService.schoolId;
+      final storedName = schoolStorageService.schoolName?.trim();
+      _selectedSchoolName = (storedName == null || storedName.isEmpty)
+          ? 'Selected school'
+          : storedName;
+    });
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -39,6 +61,16 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
   Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (_selectedSchool == null) {
+      _showErrorSnackBar(
+        'No school selected. Please choose your school first.',
+      );
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/school-selection');
+      }
       return;
     }
 
@@ -133,6 +165,11 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
 
                       const SizedBox(height: 40),
 
+                      // Selected School (read-only)
+                      _buildSelectedSchoolInfo(),
+
+                      const SizedBox(height: 24),
+
                       // Email Field
                       _buildEmailField(),
 
@@ -222,6 +259,55 @@ class _ParentLoginScreenState extends State<ParentLoginScreen> {
             color: isDark ? Colors.grey[400] : brandBrownLight,
           ),
           textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSelectedSchoolInfo() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF2A2A2A) : brandLightGray;
+    final textColor = isDark ? Colors.white : brandBrownDark;
+    final subTextColor = isDark ? Colors.grey[400]! : brandBrownLight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'School',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: textColor,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: bgColor,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Icon(Icons.school_rounded, color: subTextColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _selectedSchoolName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
