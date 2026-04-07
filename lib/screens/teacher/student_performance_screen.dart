@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/performance_model.dart';
+import '../../models/attendance_record.dart';
 import '../../services/firestore_service.dart';
 import '../../services/messaging_service.dart';
 import '../../providers/auth_provider.dart';
@@ -44,9 +46,19 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
   // Extras
   double? _attendancePct;
+  int _attendancePresentDays = 0;
+  int _attendanceAbsentDays = 0;
+  int _attendanceLateDays = 0;
+  int _attendanceTotalDays = 0;
+  DateTime _selectedAttendanceMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+  );
+  List<AttendanceRecord> _attendanceRecords = <AttendanceRecord>[];
   int _totalPoints = 0;
   Map<String, dynamic>? _studentDetails;
   bool _loadingExtras = true;
+  bool _loadingAttendanceCalendar = true;
   bool _parentChatLoading = false;
   bool _parentCallLoading = false;
   String? _resolvedAuthUid; // Store resolved auth UID for reuse
@@ -82,7 +94,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
 
       await Future.wait([
         _fetchStudentDetails(),
-        _fetchAttendancePercentage(),
+        _fetchAttendanceSummary(),
         _fetchPoints(),
       ]);
     } finally {
@@ -117,11 +129,30 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     } catch (e) {}
   }
 
-  Future<void> _fetchAttendancePercentage() async {
+  Future<void> _fetchAttendanceSummary() async {
     try {
+      if (mounted) {
+        setState(() {
+          _loadingAttendanceCalendar = true;
+        });
+      }
+
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final schoolCode = auth.currentUser?.instituteId ?? '';
-      if (schoolCode.isEmpty) return;
+      if (schoolCode.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _attendancePresentDays = 0;
+            _attendanceAbsentDays = 0;
+            _attendanceLateDays = 0;
+            _attendanceTotalDays = 0;
+            _attendancePct = 0;
+            _attendanceRecords = <AttendanceRecord>[];
+            _loadingAttendanceCalendar = false;
+          });
+        }
+        return;
+      }
       final gradeMatch = RegExp(
         r'Grade\s+(\d+)',
       ).firstMatch(widget.studentClass);
@@ -130,9 +161,32 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
       ).firstMatch(widget.studentClass);
       final grade = gradeMatch?.group(1);
       final section = sectionMatch?.group(1);
-      if (grade == null || section == null) return;
+      if (grade == null || section == null) {
+        if (mounted) {
+          setState(() {
+            _attendancePresentDays = 0;
+            _attendanceAbsentDays = 0;
+            _attendanceLateDays = 0;
+            _attendanceTotalDays = 0;
+            _attendancePct = 0;
+            _attendanceRecords = <AttendanceRecord>[];
+            _loadingAttendanceCalendar = false;
+          });
+        }
+        return;
+      }
 
       final authUid = _resolvedAuthUid ?? widget.studentId;
+      final startOfMonth = DateTime(
+        _selectedAttendanceMonth.year,
+        _selectedAttendanceMonth.month,
+        1,
+      );
+      final endOfMonth = DateTime(
+        _selectedAttendanceMonth.year,
+        _selectedAttendanceMonth.month + 1,
+        0,
+      );
 
       final q = await FirebaseFirestore.instance
           .collection('attendance')
@@ -141,24 +195,90 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           .where('section', isEqualTo: section)
           .limit(120)
           .get();
-      int total = 0;
+
       int present = 0;
+      int absent = 0;
+      int late = 0;
+      final records = <AttendanceRecord>[];
+
       for (final doc in q.docs) {
-        final students = doc.data()['students'] as Map<String, dynamic>?;
-        if (students == null) continue;
-        // Direct lookup by auth UID (new schema)
-        final info = students[authUid] as Map<String, dynamic>?;
-        if (info == null) {
+        final data = doc.data();
+        final dateField = data['date'];
+        DateTime? docDate;
+        if (dateField is Timestamp) {
+          docDate = dateField.toDate();
+        } else if (dateField is String) {
+          try {
+            docDate = DateTime.parse(dateField);
+          } catch (_) {
+            continue;
+          }
+        }
+
+        if (docDate == null ||
+            docDate.isBefore(startOfMonth) ||
+            docDate.isAfter(endOfMonth)) {
           continue;
         }
-        total++;
-        if ((info['status']?.toString().toLowerCase() ?? 'present') ==
-            'present') {
-          present++;
+
+        final students = data['students'] as Map<String, dynamic>?;
+        if (students == null) continue;
+
+        final info = students[authUid] as Map<String, dynamic>?;
+        if (info == null) continue;
+
+        final status = info['status']?.toString().toLowerCase() ?? 'present';
+        records.add(AttendanceRecord(date: docDate, status: status));
+        switch (status) {
+          case 'present':
+            present++;
+            break;
+          case 'absent':
+            absent++;
+            break;
+          case 'late':
+            late++;
+            break;
+          default:
+            present++;
+            break;
         }
       }
-      if (total > 0) _attendancePct = (present / total * 100).clamp(0, 100);
+
+      final total = present + absent + late;
+      if (!mounted) return;
+      setState(() {
+        _attendancePresentDays = present;
+        _attendanceAbsentDays = absent;
+        _attendanceLateDays = late;
+        _attendanceTotalDays = total;
+        _attendancePct = total > 0 ? (present / total * 100).clamp(0, 100) : 0;
+        _attendanceRecords = records;
+        _loadingAttendanceCalendar = false;
+      });
     } catch (e) {}
+  }
+
+  Future<void> _previousAttendanceMonth() async {
+    setState(() {
+      _selectedAttendanceMonth = DateTime(
+        _selectedAttendanceMonth.year,
+        _selectedAttendanceMonth.month - 1,
+      );
+      _loadingAttendanceCalendar = true;
+    });
+    await _fetchAttendanceSummary();
+  }
+
+  Future<void> _nextAttendanceMonth() async {
+    setState(() {
+      _selectedAttendanceMonth = DateTime(
+        _selectedAttendanceMonth.year,
+        _selectedAttendanceMonth.month + 1,
+      );
+      _loadingAttendanceCalendar = true;
+    });
+    await _fetchAttendanceSummary();
   }
 
   Future<void> _fetchPoints() async {
@@ -284,6 +404,10 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                             children: [
                               _buildMessageParent(theme),
                               const SizedBox(height: 24),
+                              _buildAttendanceSummary(theme),
+                              const SizedBox(height: 24),
+                              _buildAttendanceCalendar(theme),
+                              const SizedBox(height: 24),
                               _buildQuickStats(
                                 theme,
                                 perf,
@@ -292,7 +416,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                                 totalPoints,
                                 latestScore,
                               ),
-                              const SizedBox(height: 24),
                               AppUsageCard(
                                 studentId: _resolvedAuthUid ?? widget.studentId,
                               ),
@@ -756,11 +879,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
     int totalPoints,
     double latestScore,
   ) {
-    final attendanceStr = _attendancePct != null
-        ? '${_attendancePct!.round()}%'
-        : _loadingExtras
-        ? '…'
-        : '—';
     final latestScoreDisplay = latestScore > 0
         ? '${latestScore.round()}%'
         : '0%';
@@ -811,9 +929,9 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
               const SizedBox(width: 12),
               _statCard(
                 theme,
-                'Attendance',
-                attendanceStr,
-                Icons.event_available,
+                'Points',
+                totalPoints.toString(),
+                Icons.stars,
                 brandPrimary,
               ),
             ],
@@ -821,14 +939,6 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
           const SizedBox(height: 12),
           Row(
             children: [
-              _statCard(
-                theme,
-                'Points',
-                totalPoints.toString(),
-                Icons.stars,
-                brandPrimary,
-              ),
-              const SizedBox(width: 12),
               _statCard(
                 theme,
                 'Tests',
@@ -836,11 +946,7 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
                 Icons.assignment,
                 brandPrimary,
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
+              const SizedBox(width: 12),
               _statCard(
                 theme,
                 'Latest',
@@ -912,6 +1018,390 @@ class _StudentPerformanceScreenState extends State<StudentPerformanceScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAttendanceSummary(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
+    final attendanceLabel = _loadingExtras
+        ? 'Loading...'
+        : _attendanceTotalDays > 0
+        ? '${_attendancePct?.round() ?? 0}%'
+        : '—';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor.withOpacity(0.45), width: 1),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: brandPrimary.withOpacity(isDark ? 0.20 : 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.event_available,
+                  color: brandPrimary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Attendance',
+                    style: TextStyle(
+                      color: theme.textTheme.bodyLarge?.color,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Student attendance overview',
+                    style: TextStyle(
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(
+                        0.65,
+                      ),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                attendanceLabel,
+                style: TextStyle(
+                  color: brandPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _attendanceStatTile(
+                  theme: theme,
+                  label: 'Present',
+                  value: _loadingExtras
+                      ? '…'
+                      : _attendancePresentDays.toString(),
+                  icon: Icons.check_circle,
+                  color: const Color(0xFF10B981),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _attendanceStatTile(
+                  theme: theme,
+                  label: 'Absent',
+                  value: _loadingExtras
+                      ? '…'
+                      : _attendanceAbsentDays.toString(),
+                  icon: Icons.cancel,
+                  color: const Color(0xFFEF4444),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _attendanceStatTile(
+                  theme: theme,
+                  label: 'Late',
+                  value: _loadingExtras ? '…' : _attendanceLateDays.toString(),
+                  icon: Icons.watch_later,
+                  color: const Color(0xFFF59E0B),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceCalendar(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final borderColor = isDark ? const Color(0xFF2A2D3A) : theme.dividerColor;
+    final weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor.withOpacity(0.45), width: 1),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                onPressed: _previousAttendanceMonth,
+                icon: Icon(
+                  Icons.arrow_back_ios_new,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+              Text(
+                DateFormat('MMMM yyyy').format(_selectedAttendanceMonth),
+                style: TextStyle(
+                  color: theme.textTheme.bodyLarge?.color,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              IconButton(
+                onPressed: _nextAttendanceMonth,
+                icon: Icon(
+                  Icons.arrow_forward_ios,
+                  color: theme.textTheme.bodyLarge?.color,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: weekdays
+                .map(
+                  (day) => Expanded(
+                    child: Center(
+                      child: Text(
+                        day,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(
+                            0.7,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 12),
+          _loadingAttendanceCalendar
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 48),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _buildAttendanceCalendarGrid(theme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAttendanceCalendarGrid(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final firstDayOfMonth = DateTime(
+      _selectedAttendanceMonth.year,
+      _selectedAttendanceMonth.month,
+      1,
+    );
+    final lastDayOfMonth = DateTime(
+      _selectedAttendanceMonth.year,
+      _selectedAttendanceMonth.month + 1,
+      0,
+    );
+    final startWeekday = firstDayOfMonth.weekday;
+    final daysInMonth = lastDayOfMonth.day;
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        childAspectRatio: 1,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
+      ),
+      itemCount: startWeekday - 1 + daysInMonth,
+      itemBuilder: (context, index) {
+        if (index < startWeekday - 1) {
+          return const SizedBox.shrink();
+        }
+
+        final day = index - (startWeekday - 1) + 1;
+        final date = DateTime(
+          _selectedAttendanceMonth.year,
+          _selectedAttendanceMonth.month,
+          day,
+        );
+        final isToday = _isSameDay(date, DateTime.now());
+        final isFuture = date.isAfter(DateTime.now());
+
+        AttendanceRecord? record;
+        if (!isFuture) {
+          try {
+            record = _attendanceRecords.firstWhere(
+              (r) => _isSameDay(r.date, date),
+            );
+          } catch (_) {
+            record = null;
+          }
+        }
+
+        return _buildAttendanceDateCell(
+          isDark: isDark,
+          day: day,
+          record: record,
+          isToday: isToday,
+          isFuture: isFuture,
+        );
+      },
+    );
+  }
+
+  Widget _buildAttendanceDateCell({
+    required bool isDark,
+    required int day,
+    required AttendanceRecord? record,
+    required bool isToday,
+    required bool isFuture,
+  }) {
+    Color bgColor;
+    Color? borderColor;
+    IconData? icon;
+    Color? iconColor;
+    bool showNoAttendanceCircle = false;
+
+    if (isFuture) {
+      bgColor = isDark ? Colors.grey[900]! : Colors.grey[100]!;
+    } else if (record == null) {
+      bgColor = const Color(0xFFFFF2C6);
+      showNoAttendanceCircle = true;
+    } else if (record.status == 'present') {
+      bgColor = Colors.green.withOpacity(0.18);
+      icon = Icons.check;
+      iconColor = Colors.green;
+    } else if (record.status == 'holiday') {
+      bgColor = isDark ? Colors.grey[800]! : Colors.grey[200]!;
+      borderColor = isDark ? Colors.grey[700] : Colors.grey[400];
+    } else {
+      bgColor = Colors.red.withOpacity(0.1);
+      icon = Icons.close;
+      iconColor = Colors.red;
+    }
+
+    if (isToday && borderColor == null) {
+      borderColor = brandPrimary;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+        border: borderColor != null
+            ? Border.all(color: borderColor, width: 2)
+            : null,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (showNoAttendanceCircle)
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4B400),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isToday ? brandPrimary : const Color(0xFFE39B00),
+                  width: 1.5,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                day.toString(),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          if (!showNoAttendanceCircle)
+            Text(
+              day.toString(),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          if (icon != null) Icon(icon, size: 16, color: iconColor),
+        ],
+      ),
+    );
+  }
+
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
+  }
+
+  Widget _attendanceStatTile({
+    required ThemeData theme,
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(
+          theme.brightness == Brightness.dark ? 0.12 : 0.08,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: color.withOpacity(
+            theme.brightness == Brightness.dark ? 0.22 : 0.16,
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: theme.textTheme.bodyLarge?.color,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }

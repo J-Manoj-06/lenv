@@ -455,13 +455,15 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
     Color? borderColor;
     IconData? icon;
     Color? iconColor;
+    bool showNoAttendanceCircle = false;
 
     if (isFuture) {
       // Future dates - grey
       bgColor = isDark ? Colors.grey[900]! : Colors.grey[100]!;
     } else if (record == null) {
       // Attendance not taken - light yellow
-      bgColor = const Color(0xFFFFF9E6); // Light yellow
+      bgColor = const Color(0xFFFFF2C6); // Clear yellow background
+      showNoAttendanceCircle = true;
     } else if (record.status == 'present') {
       bgColor = Colors.green.withOpacity(0.2);
       icon = Icons.check;
@@ -491,14 +493,37 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            day.toString(),
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-              color: isDark ? Colors.white : textPrimary,
+          if (showNoAttendanceCircle)
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4B400),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isToday ? parentGreen : const Color(0xFFE39B00),
+                  width: 1.5,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                day.toString(),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
             ),
-          ),
+          if (!showNoAttendanceCircle)
+            Text(
+              day.toString(),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                color: isDark ? Colors.white : textPrimary,
+              ),
+            ),
           if (icon != null) Icon(icon, size: 16, color: iconColor),
         ],
       ),
