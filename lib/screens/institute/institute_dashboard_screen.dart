@@ -12,6 +12,7 @@ import '../common/announcement_pageview_screen.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/institute_announcement_model.dart';
 import '../../models/status_model.dart';
+import '../../models/user_model.dart';
 import '../../services/media_repository.dart';
 import '../../services/institute_announcement_service.dart';
 import '../../services/attendance_service.dart';
@@ -114,8 +115,18 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
   Future<void> _initSchoolCode() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final currentUser = authProvider.currentUser;
-    final code = (currentUser?.instituteId?.isNotEmpty == true)
-        ? (currentUser!.instituteId ?? '')
+
+    if (currentUser == null || currentUser.role != UserRole.institute) {
+      if (mounted && _schoolCode.isNotEmpty) {
+        setState(() {
+          _schoolCode = '';
+        });
+      }
+      return;
+    }
+
+    final code = (currentUser.instituteId?.isNotEmpty == true)
+        ? (currentUser.instituteId ?? '')
         : (_cacheManager.getLastPrincipalSchoolCode() ?? '');
     if (mounted && code.isNotEmpty) {
       setState(() {
@@ -126,8 +137,12 @@ class _InstituteDashboardScreenState extends State<InstituteDashboardScreen> {
 
   Future<void> _loadViewedAnnouncements() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userId = authProvider.currentUser?.uid;
-    if (userId == null || userId.isEmpty) return;
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null || currentUser.role != UserRole.institute) {
+      return;
+    }
+    final userId = currentUser.uid;
+    if (userId.isEmpty) return;
 
     try {
       final snap = await FirebaseFirestore.instance

@@ -1,13 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../models/user_model.dart';
+import '../../services/student_usage_service.dart';
 import '../../services/school_storage_service.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 import '../../utils/lenv_snackbar.dart';
 import '../auth/forgot_password_screen.dart';
+import '../permissions/usage_access_permission_screen.dart';
 
 class StudentLoginScreen extends StatefulWidget {
   const StudentLoginScreen({super.key});
@@ -57,6 +62,33 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
           ? 'Selected school'
           : storedName;
     });
+  }
+
+  Future<void> _handlePostLoginUsagePermission(String userId) async {
+    if (!Platform.isAndroid || !mounted) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final promptKey = 'student_usage_permission_prompted_$userId';
+      final promptedBefore = prefs.getBool(promptKey) ?? false;
+
+      final usageService = StudentUsageService();
+      final permissionGranted = await usageService.isUsagePermissionGranted();
+
+      // Show on first student login and whenever permission is still disabled.
+      if (!promptedBefore || !permissionGranted) {
+        if (mounted) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const UsageAccessPermissionScreen(),
+            ),
+          );
+        }
+        await prefs.setBool(promptKey, true);
+      }
+    } catch (_) {
+      // Do not block student login if permission prompt flow fails.
+    }
   }
 
   Future<void> _handleLogin() async {
@@ -117,6 +149,8 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
               );
               unreadProvider.initialize(user.uid);
             }
+
+            await _handlePostLoginUsagePermission(user.uid);
 
             if (mounted) {
               Navigator.pushReplacementNamed(context, '/student-dashboard');

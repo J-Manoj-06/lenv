@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'dart:ui';
+import '../../providers/auth_provider.dart' as app_auth;
+import '../../models/user_model.dart';
 import '../../widgets/principal_dashboard_header.dart';
 import '../../services/offline_cache_manager.dart';
 import '../../services/network_service.dart';
@@ -108,6 +111,20 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
   Future<void> _loadStaff() async {
     await _cacheManager.initialize();
     _isOnline = await _networkService.isConnected();
+
+    final authProvider = Provider.of<app_auth.AuthProvider>(
+      context,
+      listen: false,
+    );
+    final currentUser = authProvider.currentUser;
+    if (currentUser == null || currentUser.role != UserRole.institute) {
+      if (!mounted) return;
+      setState(() {
+        _staff = [];
+        _isLoading = false;
+      });
+      return;
+    }
 
     // Get current Firebase Auth user
     final firebaseUser = FirebaseAuth.instance.currentUser;

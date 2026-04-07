@@ -1055,34 +1055,113 @@ class _StudentTestDetailsPage extends StatelessWidget {
   final VoidCallback onAction;
   final bool actionEnabled;
 
+  String _formatTime(DateTime? dateTime) {
+    if (dateTime == null) return '-';
+    return DateFormat('dd MMM yyyy, h:mm a').format(dateTime);
+  }
+
+  String _statusMessage() {
+    final label = statusLabel.toLowerCase();
+    final action = actionLabel.toLowerCase();
+
+    if (label.contains('expired') || action == 'test ended') {
+      return 'Test expired • Not attempted';
+    }
+    if (action.contains('view result')) {
+      return 'Test completed';
+    }
+    if (action == 'start test') {
+      return 'Ready to attempt';
+    }
+    return stateDescription;
+  }
+
+  ({Color bg, Color fg, String text}) _semanticBadge() {
+    final label = statusLabel.toLowerCase();
+    final action = actionLabel.toLowerCase();
+
+    if (label.contains('expired') || action == 'test ended') {
+      return (bg: const Color(0xFF5E6169), fg: Colors.white, text: 'Expired');
+    }
+    if (action.contains('view result')) {
+      return (bg: const Color(0xFF2B8A3E), fg: Colors.white, text: 'Active');
+    }
+    if (action == 'start test') {
+      return (bg: const Color(0xFFF2800D), fg: Colors.white, text: 'Upcoming');
+    }
+
+    return (bg: statusBg, fg: statusText, text: statusLabel);
+  }
+
+  IconData _subjectIcon() {
+    final s = subject.toLowerCase();
+    if (s.contains('math')) return Icons.calculate_rounded;
+    if (s.contains('eng')) return Icons.menu_book_rounded;
+    if (s.contains('science')) return Icons.science_rounded;
+    if (s.contains('history')) return Icons.account_balance_rounded;
+    if (s.contains('computer')) return Icons.memory_rounded;
+    return Icons.book_rounded;
+  }
+
+  String? _durationText() {
+    if (startAt == null || endAt == null) return null;
+    final diff = endAt!.difference(startAt!);
+    if (diff.inMinutes <= 0) return null;
+    final hours = diff.inHours;
+    final minutes = diff.inMinutes % 60;
+    if (hours == 0) return '${diff.inMinutes} min';
+    if (minutes == 0) return '$hours hr';
+    return '$hours hr $minutes min';
+  }
+
+  String? _countdownText() {
+    if (actionLabel.toLowerCase() != 'start test' || endAt == null) {
+      return null;
+    }
+    final now = DateTime.now();
+    if (now.isAfter(endAt!)) return null;
+    final diff = endAt!.difference(now);
+    final hours = diff.inHours;
+    final minutes = diff.inMinutes % 60;
+    if (hours <= 0) return 'Ends in ${diff.inMinutes} min';
+    return 'Ends in ${hours}h ${minutes}m';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final fmt = DateFormat('EEE, MMM d, yyyy • h:mm a');
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final badge = _semanticBadge();
+    final countdown = _countdownText();
+    final duration = _durationText();
+    final statusMessage = _statusMessage();
+    final displayActionLabel = actionLabel == 'View Results'
+        ? 'View Result'
+        : actionLabel;
 
     Widget row(String label, String value) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.only(bottom: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            SizedBox(
-              width: 118,
+            Expanded(
               child: Text(
                 label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.white.withOpacity(0.62),
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
             Expanded(
               child: Text(
                 value,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.right,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
               ),
             ),
           ],
@@ -1092,62 +1171,143 @@ class _StudentTestDetailsPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('Test Details'), elevation: 0),
+      appBar: AppBar(
+        toolbarHeight: 54,
+        centerTitle: true,
+        elevation: 6,
+        shadowColor: Colors.black.withOpacity(0.16),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text('Test Details'),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFF59A3E), Color(0xFFF2800D)],
+            ),
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isDark ? Colors.white10 : const Color(0xFFE3D3C2),
-            ),
+            color: isDark ? const Color(0xFF171A1F) : const Color(0xFF20242A),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.22),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF2800D).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFF2800D).withOpacity(0.35),
+                      ),
+                    ),
+                    child: Icon(_subjectIcon(), color: const Color(0xFFFFB978)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
+                  horizontal: 12,
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: statusBg,
+                  color: badge.bg,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  statusLabel,
+                  badge.text,
                   style: TextStyle(
-                    color: statusText,
+                    color: badge.fg,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              row('State', stateDescription),
+              Text(
+                statusMessage,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFFFFC48A),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (countdown != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  countdown,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF74D99F),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 16),
+                height: 1,
+                color: Colors.white.withOpacity(0.12),
+              ),
               row('Subject', subject.isEmpty ? '-' : subject),
               if (assignedBy.isNotEmpty) row('Assigned By', assignedBy),
-              if (startAt != null) row('Starts At', fmt.format(startAt!)),
-              if (endAt != null) row('Ends At', fmt.format(endAt!)),
+              if (startAt != null) row('Start Time', _formatTime(startAt)),
+              if (endAt != null) row('End Time', _formatTime(endAt)),
+              if (duration != null) row('Duration', duration),
               if (completedAt != null)
-                row('Completed At', fmt.format(completedAt!)),
-              const SizedBox(height: 14),
+                row('Completed At', _formatTime(completedAt)),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
-                child: _PrimaryButton(
-                  label: actionLabel,
-                  onPressed: onAction,
-                  isPrimary: actionEnabled,
-                  enabled: actionEnabled,
+                child: ElevatedButton(
+                  onPressed: actionEnabled ? onAction : null,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    elevation: actionEnabled ? 2 : 0,
+                    backgroundColor: actionEnabled
+                        ? const Color(0xFFF2800D)
+                        : const Color(0xFF4A4D54),
+                    foregroundColor: actionEnabled
+                        ? Colors.white
+                        : Colors.white.withOpacity(0.55),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    displayActionLabel,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
             ],
