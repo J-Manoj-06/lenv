@@ -60,6 +60,7 @@ class _TeacherAnnouncementTargetScreenState
   void _toggleStandard(String s) {
     setState(() {
       _target = 'standard';
+      _selectedSections.clear();
       if (_selectedStandards.contains(s)) {
         _selectedStandards.remove(s);
       } else {
@@ -71,11 +72,34 @@ class _TeacherAnnouncementTargetScreenState
   void _toggleSection(String s) {
     setState(() {
       _target = 'section';
+      _selectedStandards.clear();
       if (_selectedSections.contains(s)) {
         _selectedSections.remove(s);
       } else {
         _selectedSections.add(s);
       }
+    });
+  }
+
+  void _selectWholeSchool() {
+    setState(() {
+      _target = 'school';
+      _selectedStandards.clear();
+      _selectedSections.clear();
+    });
+  }
+
+  void _selectStandardsMode() {
+    setState(() {
+      _target = 'standard';
+      _selectedSections.clear();
+    });
+  }
+
+  void _selectSectionsMode() {
+    setState(() {
+      _target = 'section';
+      _selectedStandards.clear();
     });
   }
 
@@ -159,7 +183,7 @@ class _TeacherAnnouncementTargetScreenState
                     subtitle: 'Send announcement to all students and staff.',
                     icon: Icons.school_rounded,
                     selected: _target == 'school',
-                    onTap: () => setState(() => _target = 'school'),
+                    onTap: _selectWholeSchool,
                     surfaceColor: surfaceColor,
                     textColor: textColor,
                     mutedColor: mutedColor,
@@ -170,7 +194,7 @@ class _TeacherAnnouncementTargetScreenState
                     subtitle: 'Choose individual standards to notify.',
                     icon: Icons.class_rounded,
                     selected: _target == 'standard',
-                    onTap: () => setState(() => _target = 'standard'),
+                    onTap: _selectStandardsMode,
                     surfaceColor: surfaceColor,
                     textColor: textColor,
                     mutedColor: mutedColor,
@@ -206,7 +230,7 @@ class _TeacherAnnouncementTargetScreenState
                     subtitle: 'Choose your sections to notify.',
                     icon: Icons.groups_rounded,
                     selected: _target == 'section',
-                    onTap: () => setState(() => _target = 'section'),
+                    onTap: _selectSectionsMode,
                     surfaceColor: surfaceColor,
                     textColor: textColor,
                     mutedColor: mutedColor,
