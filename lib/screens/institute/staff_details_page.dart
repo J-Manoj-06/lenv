@@ -159,39 +159,6 @@ class StaffDetailsPage extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 12),
-
-          // Status Badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: staff.statusColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: staff.statusColor, width: 1),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: staff.statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  staff.status,
-                  style: TextStyle(
-                    color: staff.statusColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -297,6 +264,8 @@ class StaffDetailsPage extends StatelessWidget {
   }
 
   Widget _buildAssignmentsSection(BuildContext context) {
+    final subjectClassMap = _buildSubjectClassMap();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -309,108 +278,86 @@ class StaffDetailsPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (_hasSubjects())
-              Expanded(
-                child: _buildAssignmentCard(
-                  context,
-                  title: 'Subjects Handled',
-                  items: staff.subjects.map(_parseSubject).toSet().toList(),
-                  icon: Icons.menu_book,
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _getCardBg(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _getBorder(context), width: 0.5),
+          ),
+          child: Column(
+            children: subjectClassMap.entries.map((entry) {
+              final subject = entry.key;
+              final classes = entry.value;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _getPanel(context),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _getPrimary().withOpacity(0.18),
+                    width: 1,
+                  ),
                 ),
-              ),
-            if (_hasSubjects() && _hasClasses()) const SizedBox(width: 12),
-            if (_hasClasses())
-              Expanded(
-                child: _buildAssignmentCard(
-                  context,
-                  title: 'Classes',
-                  items: staff.classes.map(_parseClass).toSet().toList(),
-                  icon: Icons.class_,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.menu_book, color: _getPrimary(), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            subject,
+                            style: TextStyle(
+                              color: _getTextPrimary(context),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: classes
+                          .map(
+                            (className) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _getCardBg(context),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _getPrimary().withOpacity(0.3),
+                                ),
+                              ),
+                              child: Text(
+                                className,
+                                style: TextStyle(
+                                  color: _getIconColor(context),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ],
                 ),
-              ),
-          ],
+              );
+            }).toList(),
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildAssignmentCard(
-    BuildContext context, {
-    required String title,
-    required List<String> items,
-    required IconData icon,
-  }) {
-    // Filter out "Not assigned" entries
-    final validItems = items
-        .where(
-          (item) =>
-              item.isNotEmpty &&
-              !item.toLowerCase().contains('not assigned') &&
-              !item.toLowerCase().contains('none'),
-        )
-        .toList();
-
-    if (validItems.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _getCardBg(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _getBorder(context), width: 0.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: _getPrimary(), size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: _getTextSecondary(context),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: validItems
-                .map(
-                  (item) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getPanel(context),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _getPrimary().withOpacity(0.3)),
-                    ),
-                    child: Text(
-                      item,
-                      style: TextStyle(
-                        color: _getIconColor(context),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-      ),
     );
   }
 
@@ -511,24 +458,65 @@ class StaffDetailsPage extends StatelessWidget {
   // Helper methods
   bool _hasAssignments() => _hasSubjects() || _hasClasses();
 
+  Map<String, List<String>> _buildSubjectClassMap() {
+    final subjectToClasses = <String, Set<String>>{};
+    final allEntries = <String>[...staff.subjects, ...staff.classes];
+
+    for (final entry in allEntries) {
+      if (!_isValidAssignmentItem(entry)) continue;
+
+      final subject = _parseSubject(entry);
+      final className = _parseClass(entry);
+
+      if (!_isValidAssignmentItem(subject) ||
+          !_isValidAssignmentItem(className)) {
+        continue;
+      }
+
+      (subjectToClasses[subject] ??= <String>{}).add(className);
+    }
+
+    // If assignments are split as plain lists, map each subject to all classes.
+    if (subjectToClasses.isEmpty && _hasSubjects() && _hasClasses()) {
+      final subjects = staff.subjects
+          .where(_isValidAssignmentItem)
+          .map(_parseSubject)
+          .toSet();
+      final classes = staff.classes
+          .where(_isValidAssignmentItem)
+          .map(_parseClass)
+          .toSet()
+          .toList();
+
+      for (final subject in subjects) {
+        subjectToClasses[subject] = classes.toSet();
+      }
+    }
+
+    final sorted = <String, List<String>>{};
+    final sortedSubjects = subjectToClasses.keys.toList()..sort();
+    for (final subject in sortedSubjects) {
+      final classes = subjectToClasses[subject]!.toList()..sort();
+      sorted[subject] = classes;
+    }
+    return sorted;
+  }
+
+  bool _isValidAssignmentItem(String item) {
+    final lower = item.toLowerCase().trim();
+    return lower.isNotEmpty &&
+        !lower.contains('not assigned') &&
+        !lower.contains('none');
+  }
+
   bool _hasSubjects() {
     return staff.subjects.isNotEmpty &&
-        staff.subjects.any(
-          (s) =>
-              s.isNotEmpty &&
-              !s.toLowerCase().contains('not assigned') &&
-              !s.toLowerCase().contains('none'),
-        );
+        staff.subjects.any(_isValidAssignmentItem);
   }
 
   bool _hasClasses() {
     return staff.classes.isNotEmpty &&
-        staff.classes.any(
-          (c) =>
-              c.isNotEmpty &&
-              !c.toLowerCase().contains('not assigned') &&
-              !c.toLowerCase().contains('none'),
-        );
+        staff.classes.any(_isValidAssignmentItem);
   }
 
   // Parse subject name from "Grade 11: A, physics" -> "Physics"

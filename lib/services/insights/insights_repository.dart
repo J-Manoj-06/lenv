@@ -274,19 +274,64 @@ class InsightsRepository {
         return null;
       }
 
+      // Apply scope filtering so AI analysis reflects the selected scope.
+      final String? scopeStandard = scopeKey.startsWith('STD')
+          ? scopeKey.substring(3).split('_').first
+          : null;
+      final String? scopeSection =
+          (scopeKey.startsWith('STD') && scopeKey.contains('_'))
+          ? scopeKey.substring(3).split('_').last.toUpperCase()
+          : null;
+
+      final filteredDocs = testResultsSnapshot.docs.where((doc) {
+        if (!scopeKey.startsWith('STD')) return true;
+
+        final data = doc.data();
+        final className = data['className']?.toString() ?? '';
+        final standard = _extractStandardFromClassName(className);
+        final section = (data['section']?.toString() ?? '')
+            .trim()
+            .toUpperCase();
+
+        if (scopeStandard != null && standard != scopeStandard) {
+          return false;
+        }
+
+        if (scopeSection != null && scopeSection.isNotEmpty) {
+          return section == scopeSection;
+        }
+
+        return true;
+      }).toList();
+
+      if (filteredDocs.isEmpty) {
+        return null;
+      }
+
       // Compute minimal aggregated metrics
       double totalScore = 0;
       int validScores = 0;
       Set<String> uniqueTests = {};
+      final Set<String> weakStudents = {};
+      final Map<String, List<double>> subjectScores = {};
 
-      for (var doc in testResultsSnapshot.docs) {
+      for (var doc in filteredDocs) {
         final data = doc.data();
         final score = (data['score'] as num?)?.toDouble();
         final testId = data['testId'] as String?;
+        final subject = (data['subject']?.toString().trim().isNotEmpty ?? false)
+            ? data['subject'].toString().trim()
+            : 'General';
+        final studentId =
+            data['studentId']?.toString() ?? data['studentUid']?.toString();
 
         if (score != null && score >= 0 && score <= 100) {
           totalScore += score;
           validScores++;
+          (subjectScores[subject] ??= <double>[]).add(score);
+          if (score < 60 && studentId != null && studentId.isNotEmpty) {
+            weakStudents.add(studentId);
+          }
         }
 
         if (testId != null) uniqueTests.add(testId);
@@ -294,8 +339,15 @@ class InsightsRepository {
 
       final avgScore = validScores > 0 ? totalScore / validScores : 0.0;
       final participation = validScores > 0
-          ? (validScores.toDouble() / testResultsSnapshot.docs.length) * 100
+          ? (validScores.toDouble() / filteredDocs.length) * 100
           : 0.0;
+
+      final subjectAverages = <String, double>{};
+      subjectScores.forEach((subject, scores) {
+        if (scores.isEmpty) return;
+        final sum = scores.reduce((a, b) => a + b);
+        subjectAverages[subject] = sum / scores.length;
+      });
 
       // Create minimal metrics object
       final metrics = InsightsMetrics(
@@ -305,12 +357,12 @@ class InsightsRepository {
         avgScore: avgScore,
         testCount: uniqueTests.length,
         updatedAt: now,
-        // Minimal data - only essentials
+        // Performance-only essentials for AI analysis.
         attendanceAvg: 0.0,
         participationAvg: participation,
         topImproversCount: 0,
-        weakStudentsCount: 0,
-        subjectAverages: {},
+        weakStudentsCount: weakStudents.length,
+        subjectAverages: subjectAverages,
       );
 
       _metricsCache[cacheKey] = metrics;
@@ -318,6 +370,12 @@ class InsightsRepository {
     } catch (e) {
       return null;
     }
+  }
+
+  String _extractStandardFromClassName(String className) {
+    if (className.trim().isEmpty) return '';
+    final match = RegExp(r'\d+').firstMatch(className);
+    return match?.group(0) ?? '';
   }
 
   /// Fetch cached AI report

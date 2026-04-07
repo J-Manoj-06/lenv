@@ -785,8 +785,6 @@ class _StaffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = staff.statusColor;
-
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -847,30 +845,11 @@ class _StaffCard extends StatelessWidget {
                       maxLines: 1,
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: Text(
-                            '${staff.status} • ${staff.subjects.join(', ')}',
-                            style: TextStyle(
-                              color: subtitleColor,
-                              fontSize: 13,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      staff.subjects.join(', '),
+                      style: TextStyle(color: subtitleColor, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
                   ],
                 ),
