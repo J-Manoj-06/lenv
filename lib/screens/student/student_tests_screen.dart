@@ -1196,6 +1196,7 @@ class _StudentTestDetailsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         surfaceTintColor: Colors.transparent,
+        iconTheme: IconThemeData(color: textPrimary),
         centerTitle: true,
         elevation: 0,
         leading: IconButton(
