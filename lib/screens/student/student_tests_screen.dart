@@ -1134,6 +1134,28 @@ class _StudentTestDetailsPage extends StatelessWidget {
     final countdown = _countdownText();
     final duration = _durationText();
     final statusMessage = _statusMessage();
+    final textPrimary = isDark
+        ? Colors.white
+        : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black87;
+    final textSecondary = isDark
+        ? Colors.white.withOpacity(0.62)
+        : (Theme.of(context).textTheme.bodySmall?.color ?? Colors.black54)
+              .withOpacity(0.9);
+    final cardBackground = isDark
+        ? const Color(0xFF171A1F)
+        : Theme.of(context).cardColor;
+    final cardBorder = isDark
+        ? Colors.white.withOpacity(0.08)
+        : const Color(0xFFE8DBCE);
+    final dividerColor = isDark
+        ? Colors.white.withOpacity(0.12)
+        : Colors.black.withOpacity(0.08);
+    final statusMsgColor = isDark
+        ? const Color(0xFFFFC48A)
+        : const Color(0xFFB15E08);
+    final countdownColor = isDark
+        ? const Color(0xFF74D99F)
+        : const Color(0xFF2B8A3E);
     final displayActionLabel = actionLabel == 'View Results'
         ? 'View Result'
         : actionLabel;
@@ -1149,7 +1171,7 @@ class _StudentTestDetailsPage extends StatelessWidget {
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.white.withOpacity(0.62),
+                  color: textSecondary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -1160,7 +1182,7 @@ class _StudentTestDetailsPage extends StatelessWidget {
                 textAlign: TextAlign.right,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: textPrimary,
                 ),
               ),
             ),
@@ -1172,23 +1194,19 @@ class _StudentTestDetailsPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        toolbarHeight: 54,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        surfaceTintColor: Colors.transparent,
         centerTitle: true,
-        elevation: 6,
-        shadowColor: Colors.black.withOpacity(0.16),
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('Test Details'),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFFF59A3E), Color(0xFFF2800D)],
-            ),
-          ),
+        title: Text(
+          'Test Details',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
       ),
       body: SingleChildScrollView(
@@ -1196,14 +1214,14 @@ class _StudentTestDetailsPage extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF171A1F) : const Color(0xFF20242A),
+            color: cardBackground,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: cardBorder),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.22),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
+                color: Colors.black.withOpacity(isDark ? 0.22 : 0.08),
+                blurRadius: isDark ? 24 : 14,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -1231,7 +1249,7 @@ class _StudentTestDetailsPage extends StatelessWidget {
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                            color: textPrimary,
                           ),
                     ),
                   ),
@@ -1260,7 +1278,7 @@ class _StudentTestDetailsPage extends StatelessWidget {
               Text(
                 statusMessage,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFFFFC48A),
+                  color: statusMsgColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -1269,7 +1287,7 @@ class _StudentTestDetailsPage extends StatelessWidget {
                 Text(
                   countdown,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF74D99F),
+                    color: countdownColor,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -1277,7 +1295,7 @@ class _StudentTestDetailsPage extends StatelessWidget {
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 16),
                 height: 1,
-                color: Colors.white.withOpacity(0.12),
+                color: dividerColor,
               ),
               row('Subject', subject.isEmpty ? '-' : subject),
               if (assignedBy.isNotEmpty) row('Assigned By', assignedBy),
