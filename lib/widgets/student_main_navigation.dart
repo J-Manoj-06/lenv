@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:io';
 import 'package:provider/provider.dart';
 import '../screens/student/student_dashboard_screen.dart';
 import '../screens/student/student_tests_screen.dart';
 import '../screens/student/student_leaderboard_screen.dart';
 import '../screens/student/student_messages_screen.dart';
 import '../screens/student/student_profile_screen.dart';
+import '../screens/permissions/usage_access_permission_screen.dart';
 import '../features/rewards/rewards_screen_wrapper.dart';
 import 'student_bottom_nav.dart';
 import '../utils/share_handler_mixin.dart';
 import '../providers/student_provider.dart';
 import '../providers/profile_dp_provider.dart';
 import '../widgets/profile_avatar_widget.dart';
+import '../services/student_usage_service.dart';
 
 /// Student Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -31,12 +34,37 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
   late int _currentIndex;
   final List<Widget> _screens = [];
   bool _initialized = false;
+  bool _permissionPromptInProgress = false;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialIndex;
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureUsagePermissionOnEntry();
+    });
+  }
+
+  Future<void> _ensureUsagePermissionOnEntry() async {
+    if (!mounted || _permissionPromptInProgress || !Platform.isAndroid) return;
+
+    _permissionPromptInProgress = true;
+    try {
+      final usageService = StudentUsageService();
+      final granted = await usageService.isUsagePermissionGranted();
+      if (!mounted || granted) return;
+
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const UsageAccessPermissionScreen(),
+        ),
+      );
+    } catch (_) {
+      // Do not block student navigation if permission prompt flow fails.
+    } finally {
+      _permissionPromptInProgress = false;
+    }
   }
 
   @override

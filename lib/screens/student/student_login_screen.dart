@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/unread_count_provider.dart';
 import '../../models/user_model.dart';
@@ -68,15 +67,11 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
     if (!Platform.isAndroid || !mounted) return;
 
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final promptKey = 'student_usage_permission_prompted_$userId';
-      final promptedBefore = prefs.getBool(promptKey) ?? false;
-
       final usageService = StudentUsageService();
       final permissionGranted = await usageService.isUsagePermissionGranted();
 
-      // Show on first student login and whenever permission is still disabled.
-      if (!promptedBefore || !permissionGranted) {
+      // Prompt every login whenever permission is not enabled.
+      if (!permissionGranted) {
         if (mounted) {
           await Navigator.of(context).push(
             MaterialPageRoute(
@@ -84,7 +79,6 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
             ),
           );
         }
-        await prefs.setBool(promptKey, true);
       }
     } catch (_) {
       // Do not block student login if permission prompt flow fails.

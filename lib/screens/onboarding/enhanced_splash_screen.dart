@@ -120,6 +120,10 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
     // Determine if showing custom school splash or default Lenv splash
     final isCustomSplash = schoolId != null && schoolId.isNotEmpty;
 
+    final defaultGradient = isDark
+        ? const [Color(0xFF2A1806), Color(0xFF1D1105), Color(0xFF140C04)]
+        : const [Color(0xFFFFC774), Color(0xFFF29A22), Color(0xFFD97B08)];
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -136,86 +140,143 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
               : LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          AppColors.primaryDark.withValues(alpha: 0.9),
-                          AppColors.primary.withValues(alpha: 0.7),
-                        ]
-                      : [AppColors.primaryLight, AppColors.primary],
+                  colors: defaultGradient,
                 ),
           color: isDark ? AppColors.darkBackground : AppColors.background,
         ),
         child: SafeArea(
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: SlideTransition(
-              position: _slideAnimation,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ScaleTransition(
-                              scale: _scaleAnimation,
-                              child: _buildLogo(isCustomSplash, schoolLogo),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              isCustomSplash
-                                  ? (schoolName ?? 'School')
-                                  : 'Lenv',
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.headlineSmall
-                                  ?.copyWith(
-                                    fontSize: isCustomSplash ? 24 : 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: isDark
-                                        ? AppColors.textLight
-                                        : AppColors.textDark,
-                                  ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Powered by Lenv',
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                    color: isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight,
-                                  ),
-                            ),
-                          ],
-                        ),
+          child: Stack(
+            children: [
+              if (!isCustomSplash) ...[
+                Positioned(
+                  top: -120,
+                  right: -70,
+                  child: Container(
+                    width: 280,
+                    height: 280,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(
+                        alpha: isDark ? 0.05 : 0.14,
                       ),
                     ),
                   ),
-                  Text(
-                    'Educational Ecosystem',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontSize: 14,
-                      color:
-                          (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.9),
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: 0.3,
+                ),
+                Positioned(
+                  bottom: 110,
+                  left: -80,
+                  child: Container(
+                    width: 230,
+                    height: 230,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withValues(
+                        alpha: isDark ? 0.20 : 0.06,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 28),
-                ],
+                ),
+              ],
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                ScaleTransition(
+                                  scale: _scaleAnimation,
+                                  child: _buildLogo(isCustomSplash, schoolLogo),
+                                ),
+                                SizedBox(height: isCustomSplash ? 24 : 26),
+                                Text(
+                                  isCustomSplash
+                                      ? (schoolName ?? 'School')
+                                      : 'LenV',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(
+                                        fontSize: isCustomSplash ? 24 : 30,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: isCustomSplash ? 0 : 0.2,
+                                        color: isDark
+                                            ? AppColors.textLight
+                                            : AppColors.textDark,
+                                      ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Powered by Lenv',
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        fontSize: isCustomSplash ? 15 : 17,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark
+                                            ? AppColors.textSecondaryDark
+                                            : Colors.white.withValues(
+                                                alpha: 0.86,
+                                              ),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isCustomSplash ? 0 : 16,
+                          vertical: isCustomSplash ? 0 : 8,
+                        ),
+                        decoration: isCustomSplash
+                            ? null
+                            : BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                color: Colors.white.withValues(
+                                  alpha: isDark ? 0.06 : 0.16,
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withValues(
+                                    alpha: isDark ? 0.08 : 0.26,
+                                  ),
+                                ),
+                              ),
+                        child: Text(
+                          'Educational Ecosystem',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                fontSize: 14,
+                                color: isCustomSplash
+                                    ? (isDark
+                                              ? AppColors.textSecondaryDark
+                                              : AppColors.textSecondaryLight)
+                                          .withValues(alpha: 0.9)
+                                    : Colors.white.withValues(alpha: 0.9),
+                                fontWeight: isCustomSplash
+                                    ? FontWeight.w400
+                                    : FontWeight.w500,
+                                letterSpacing: isCustomSplash ? 0.3 : 0.4,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -225,16 +286,26 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
   /// Build logo widget with balanced dimensions so text remains dominant.
   Widget _buildLogo(bool isCustom, String? schoolLogo) {
     return Container(
-      width: 112,
-      height: 112,
+      width: isCustom ? 112 : 124,
+      height: isCustom ? 112 : 124,
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: isCustom ? 0.16 : 0.96),
-        borderRadius: BorderRadius.circular(24),
+        gradient: isCustom
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFFFFCF7), Color(0xFFF8F4EE)],
+              ),
+        color: isCustom ? Colors.white.withValues(alpha: 0.16) : null,
+        borderRadius: BorderRadius.circular(isCustom ? 24 : 28),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isCustom ? 0.20 : 0.75),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.10),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: isCustom ? 0.10 : 0.15),
+            blurRadius: isCustom ? 14 : 22,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -247,13 +318,17 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(
                     Icons.school_rounded,
-                    size: 56,
+                    size: isCustom ? 56 : 60,
                     color: AppColors.primary,
                   );
                 },
               ),
             )
-          : Icon(Icons.school_rounded, size: 56, color: AppColors.primary),
+          : Icon(
+              Icons.school_rounded,
+              size: isCustom ? 56 : 60,
+              color: AppColors.primary,
+            ),
     );
   }
 }
