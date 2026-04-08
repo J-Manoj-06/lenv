@@ -2,10 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart' as app;
+import '../../models/notification_model.dart';
+import '../../services/notification_service.dart';
 import '../messages/messages_home_page.dart';
 
-class StudentMessagesScreen extends StatelessWidget {
+class StudentMessagesScreen extends StatefulWidget {
   const StudentMessagesScreen({super.key});
+
+  @override
+  State<StudentMessagesScreen> createState() => _StudentMessagesScreenState();
+}
+
+class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
+  final NotificationService _notificationService = NotificationService();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notificationService.markUnreadByCategoriesAsRead({
+        NotificationCategory.messaging,
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

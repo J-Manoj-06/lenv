@@ -5,8 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../../models/test_model.dart';
 import '../../models/test_result_model.dart';
+import '../../models/notification_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
+import '../../services/notification_service.dart';
 import 'test_rules_screen.dart';
 
 class StudentTestsScreen extends StatefulWidget {
@@ -19,6 +21,7 @@ class StudentTestsScreen extends StatefulWidget {
 class _StudentTestsScreenState extends State<StudentTestsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void initState() {
@@ -33,6 +36,11 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
           studentEmail: auth.currentUser!.email,
         );
       }
+
+      _notificationService.markUnreadByCategoriesAsRead({
+        NotificationCategory.tests,
+        NotificationCategory.academic,
+      });
     });
   }
 

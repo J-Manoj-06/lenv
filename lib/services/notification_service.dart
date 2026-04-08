@@ -711,6 +711,45 @@ class NotificationService {
     }
   }
 
+  /// Mark unread notifications as read for selected categories.
+  /// Useful for auto-clearing notifications when users visit target screens
+  /// (e.g. opening Messages clears messaging notifications).
+  Future<void> markUnreadByCategoriesAsRead(
+    Set<NotificationCategory> categories,
+  ) async {
+    try {
+      if (categories.isEmpty) return;
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final unreadDocs = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('userId', isEqualTo: user.uid)
+          .where('isRead', isEqualTo: false)
+          .limit(500)
+          .get();
+
+      if (unreadDocs.docs.isEmpty) return;
+
+      final batch = FirebaseFirestore.instance.batch();
+      var updates = 0;
+
+      for (final doc in unreadDocs.docs) {
+        final model = NotificationModel.fromFirestore(doc);
+        if (categories.contains(model.category)) {
+          batch.update(doc.reference, {'isRead': true});
+          updates++;
+        }
+      }
+
+      if (updates == 0) return;
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error marking category notifications as read: $e');
+    }
+  }
+
   /// Delete notification
   Future<void> deleteNotification(String notificationId) async {
     try {
