@@ -79,106 +79,10 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
     setState(() => isSubmitting = false);
 
-    // Show result dialog
-    await _showResultDialog(context, isCorrect);
-
     if (!mounted) return;
 
     // Navigate back to dashboard - the dashboard will refresh on return
     Navigator.pop(context, isCorrect);
-  }
-
-  Future<void> _showResultDialog(BuildContext context, bool isCorrect) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return showDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: isDark ? const Color(0xFF23190F) : Colors.black45,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 400),
-          decoration: BoxDecoration(
-            color: _surface(context),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Result Icon
-              Container(
-                width: 96,
-                height: 96,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isCorrect
-                      ? const Color(0xFF28A745).withOpacity(0.1)
-                      : const Color(0xFFDC3545).withOpacity(0.1),
-                ),
-                child: Icon(
-                  isCorrect ? Icons.check_rounded : Icons.close_rounded,
-                  size: 64,
-                  color: isCorrect
-                      ? const Color(0xFF28A745)
-                      : const Color(0xFFDC3545),
-                ),
-              ),
-              const SizedBox(height: 24),
-              // Result Title
-              Text(
-                isCorrect ? 'Great Job!' : 'Nice Try!',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: _onSurface(context),
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Result Description
-              Text(
-                isCorrect ? 'You earned +5 points!' : 'Better luck next time.',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: _muted(context),
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              // Close Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Color _getOptionColor(String option) {

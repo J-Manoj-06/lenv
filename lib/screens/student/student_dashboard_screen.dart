@@ -19,6 +19,7 @@ import '../../utils/cache_manager.dart';
 import '../../widgets/stat_ring_card.dart';
 import '../../widgets/profile_avatar_widget.dart';
 import '../../widgets/notification_bell_button.dart';
+import '../daily_challenge_result_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import '../ai/ai_chat_page.dart';
@@ -1545,7 +1546,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
               ? null
               : () async {
                   // Navigate to challenge screen
-                  await Navigator.push(
+                  final challengeResult = await Navigator.push<bool>(
                     context,
                     MaterialPageRoute(
                       builder: (context) => DailyChallengeScreen(
@@ -1554,15 +1555,39 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       ),
                     ),
                   );
-                  // Refresh state after returning from challenge
-                  if (mounted) {
-                    // Small delay to ensure database write has completed
-                    await Future.delayed(const Duration(milliseconds: 300));
-                    // Re-check if student answered today (provider will fetch fresh state)
-                    await dailyChallengeProvider.initialize(student.uid);
-                    // Also refresh student data to get updated streak
-                    await studentProvider.refreshStudentStreak(student.uid);
+
+                  if (!mounted || challengeResult == null) {
+                    return;
                   }
+
+                  // Refresh streak before showing the overlay so the badge is current.
+                  await studentProvider.refreshStudentStreak(student.uid);
+                  final streakDays =
+                      studentProvider.currentStudent?.streak ?? 0;
+
+                  await Navigator.push(
+                    context,
+                    PageRouteBuilder(
+                      opaque: false,
+                      barrierColor: Colors.transparent,
+                      pageBuilder: (_, __, ___) => DailyChallengeResultScreen(
+                        isWinner: challengeResult,
+                        score: challengeResult ? 100 : 0,
+                        passingScore: 50,
+                        streakDays: streakDays,
+                        onContinue: () {},
+                      ),
+                    ),
+                  );
+
+                  if (!mounted) {
+                    return;
+                  }
+
+                  // Re-check completion state after the overlay closes.
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  await dailyChallengeProvider.initialize(student.uid);
+                  await studentProvider.refreshStudentStreak(student.uid);
                 },
           child: Container(
             padding: const EdgeInsets.all(18),
