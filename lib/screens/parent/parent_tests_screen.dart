@@ -108,9 +108,7 @@ class _ParentTestsScreenState extends State<ParentTestsScreen> {
                     Container(
                       height: 3,
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? parentGreen
-                            : Colors.transparent,
+                        color: isSelected ? parentGreen : Colors.transparent,
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),
@@ -134,10 +132,12 @@ class _ParentTestsScreenState extends State<ParentTestsScreen> {
       }
 
       return completedTests
-          .map((test) => Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: _buildTestResultCard(isDark, test, provider),
-              ))
+          .map(
+            (test) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: _buildTestResultCard(isDark, test, provider),
+            ),
+          )
           .toList();
     }
 
@@ -152,10 +152,12 @@ class _ParentTestsScreenState extends State<ParentTestsScreen> {
     }
 
     return upcoming
-        .map((test) => Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: _buildUpcomingTestCard(isDark, test),
-            ))
+        .map(
+          (test) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: _buildUpcomingTestCard(isDark, test),
+          ),
+        )
         .toList();
   }
 
