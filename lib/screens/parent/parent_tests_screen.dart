@@ -27,7 +27,7 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
 
   double _contentBottomInset(BuildContext context) {
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    return 24 + 64 + safeBottom;
+    return 128 + 64 + safeBottom;
   }
 
   @override
