@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -39,6 +40,9 @@ final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Force portrait-only orientation across the app.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   // Initialize School Storage first (for onboarding flow)
   await schoolStorageService.initialize();

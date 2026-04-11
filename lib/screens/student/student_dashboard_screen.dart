@@ -54,6 +54,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   // Cache viewed status for immediate UI updates - key: announcementId, value: isViewed
   final Map<String, bool> _viewedCache = {};
+  final Map<String, Stream<List<Map<String, dynamic>>>>
+  _announcementStreamCache = {};
   final OfflineCacheManager _offlineCacheManager = OfflineCacheManager();
 
   @override
@@ -543,7 +545,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final userSection = snapshot.data!['section'] ?? '';
 
         return StreamBuilder<List<Map<String, dynamic>>>(
-          stream: _combineAnnouncementStreams(schoolIdentifier),
+          stream: _getAnnouncementStream(schoolIdentifier),
           builder: (context, announcementSnapshot) {
             if (announcementSnapshot.connectionState ==
                 ConnectionState.waiting) {
@@ -602,6 +604,17 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         );
       },
     );
+  }
+
+  Stream<List<Map<String, dynamic>>> _getAnnouncementStream(
+    String instituteId,
+  ) {
+    final cached = _announcementStreamCache[instituteId];
+    if (cached != null) return cached;
+
+    final stream = _combineAnnouncementStreams(instituteId).asBroadcastStream();
+    _announcementStreamCache[instituteId] = stream;
+    return stream;
   }
 
   Widget _buildAnnouncementsRow(
@@ -1822,9 +1835,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Widget _buildAssignedTestsSection(StudentModel? student) {
     if (student == null) return const SizedBox.shrink();
 
-    final resultsStream = FirestoreService().getTestResultsByStudent(
-      student.uid,
-    );
+    final resultsStream = FirestoreService()
+        .getTestResultsByStudent(student.uid)
+        .asBroadcastStream();
 
     return StreamBuilder<List<TestResultModel>>(
       stream: resultsStream,
@@ -2070,7 +2083,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     if (student == null) return const SizedBox.shrink();
 
     return StreamBuilder<List<TestResultModel>>(
-      stream: FirestoreService().getTestResultsByStudent(student.uid),
+      stream: FirestoreService()
+          .getTestResultsByStudent(student.uid)
+          .asBroadcastStream(),
       builder: (context, snapshot) {
         int testsTaken = 0;
         double avgScore = 0.0;
