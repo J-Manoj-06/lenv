@@ -30,6 +30,11 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
   bool _queuedReload = false;
   String? _lastLoadedChildId; // Track which child we loaded teachers for
 
+  double _contentBottomInset(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return 24 + 64 + safeBottom;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -372,9 +377,11 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
                         onRefresh: _loadTeachers,
                         color: parentGreen,
                         child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            8,
+                            16,
+                            _contentBottomInset(context),
                           ),
                           itemCount: _filteredTeachers.length,
                           itemBuilder: (context, index) {

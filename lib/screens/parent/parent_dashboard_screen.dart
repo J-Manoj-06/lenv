@@ -37,6 +37,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
   Color _onBackground(BuildContext context) =>
       Theme.of(context).colorScheme.onSurface;
 
+  double _contentBottomInset(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return 24 + 64 + safeBottom;
+  }
+
   final PageController _childrenPageController = PageController();
   Future<List<_SectionGroupDisplayItem>>? _allSectionGroupsFuture;
   String _groupsSignature = '';
@@ -269,64 +274,57 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
         return Scaffold(
           backgroundColor: _scaffoldBg(context),
           body: SafeArea(
-            child: Column(
-              children: [
-                // Header
-                _buildHeader(isDark, authProvider),
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await parentProvider.refresh();
+                if (!mounted) return;
+                setState(() {
+                  _allSectionGroupsFuture = _loadAllSectionGroups(
+                    parentProvider.children,
+                  );
+                });
+              },
+              color: parentGreen,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header scrolls with dashboard content; bottom nav stays fixed in parent shell.
+                    _buildHeader(isDark, authProvider),
 
-                // Scrollable Content
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () async {
-                      await parentProvider.refresh();
-                      if (!mounted) return;
-                      setState(() {
-                        _allSectionGroupsFuture = _loadAllSectionGroups(
-                          parentProvider.children,
-                        );
-                      });
-                    },
-                    color: parentGreen,
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Children Profile Cards Carousel
-                          _buildChildrenCarousel(isDark, parentProvider),
+                    // Children Profile Cards Carousel
+                    _buildChildrenCarousel(isDark, parentProvider),
 
-                          const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                          // Announcements Section
-                          _buildAnnouncementsSection(isDark, parentProvider),
+                    // Announcements Section
+                    _buildAnnouncementsSection(isDark, parentProvider),
 
-                          const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                          // Parent-Teacher Section Groups
-                          _buildSectionGroupsSection(isDark, parentProvider),
+                    // Parent-Teacher Section Groups
+                    _buildSectionGroupsSection(isDark, parentProvider),
 
-                          const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                          // Performance Summary
-                          _buildPerformanceSummary(
-                            isDark,
-                            currentChild,
-                            performanceStats,
-                            parentProvider.attendance,
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Reward Requests
-                          _buildRewardRequests(isDark, parentProvider),
-
-                          const SizedBox(height: 16),
-                        ],
-                      ),
+                    // Performance Summary
+                    _buildPerformanceSummary(
+                      isDark,
+                      currentChild,
+                      performanceStats,
+                      parentProvider.attendance,
                     ),
-                  ),
+
+                    const SizedBox(height: 16),
+
+                    // Reward Requests
+                    _buildRewardRequests(isDark, parentProvider),
+
+                    SizedBox(height: _contentBottomInset(context)),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         );

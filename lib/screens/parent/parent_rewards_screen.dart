@@ -25,6 +25,11 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
   String _filter =
       'all'; // all | pending | pendingPrice | approved | orderPlaced | rejected
 
+  double _contentBottomInset(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return 24 + 64 + safeBottom;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -106,7 +111,7 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
       onRefresh: () => parentProvider.refresh(),
       color: parentGreen,
       child: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: EdgeInsets.only(bottom: _contentBottomInset(context)),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           _buildPointsHeader(isDark, selectedUid, selectedChild?.name ?? ''),

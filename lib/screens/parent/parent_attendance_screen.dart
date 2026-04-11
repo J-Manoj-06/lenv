@@ -31,6 +31,11 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
 
   final ParentService _parentService = ParentService();
 
+  double _contentBottomInset(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return 24 + 64 + safeBottom;
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -160,7 +165,12 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           child: Padding(
-                            padding: const EdgeInsets.all(16),
+                            padding: EdgeInsets.fromLTRB(
+                              16,
+                              16,
+                              16,
+                              _contentBottomInset(context),
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

@@ -25,6 +25,11 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
 
   late TabController _tabController;
 
+  double _contentBottomInset(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return 24 + 64 + safeBottom;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -131,7 +136,7 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, _contentBottomInset(context)),
       itemCount: provider.upcomingTests.length,
       itemBuilder: (context, index) {
         final test = provider.upcomingTests[index];
@@ -154,7 +159,7 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, _contentBottomInset(context)),
       itemCount: completedTests.length,
       itemBuilder: (context, index) {
         final test = completedTests[index];
@@ -170,7 +175,7 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, _contentBottomInset(context)),
       itemCount: provider.upcomingTests.length,
       itemBuilder: (context, index) {
         final test = provider.upcomingTests[index];
