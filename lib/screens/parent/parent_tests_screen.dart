@@ -47,29 +47,6 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
-      appBar: AppBar(
-        title: const Text(
-          'Tests',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: isDark ? backgroundDark : Colors.white,
-        foregroundColor: isDark ? Colors.white : textPrimary,
-        elevation: 0.5,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person, size: 28),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ParentProfileScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
       body: Consumer<ParentProvider>(
         builder: (context, parentProvider, child) {
           if (!parentProvider.hasChildren) {
@@ -84,48 +61,84 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
             );
           }
 
-          return Column(
-            children: [
-              // Student Selection Row
-              const StudentAvatarRow(),
-
-              // Filters (Completed/Pending/Upcoming)
-              Container(
-                color: isDark ? backgroundDark : Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: TabBar(
-                  controller: _tabController,
-                  labelColor: parentGreen,
-                  unselectedLabelColor: isDark
-                      ? Colors.grey[400]
-                      : Colors.grey[600],
-                  indicatorColor: parentGreen,
-                  tabs: const [
-                    Tab(text: 'Completed'),
-                    Tab(text: 'Pending'),
-                    Tab(text: 'Upcoming'),
-                  ],
-                ),
+          return NestedScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(
+                child: _buildScrollableHeader(context, isDark),
               ),
-
-              // Tabs Content
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () => parentProvider.refresh(),
-                  color: parentGreen,
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildCompletedTests(isDark, parentProvider),
-                      _buildPendingTests(isDark, parentProvider),
-                      _buildUpcomingTests(isDark, parentProvider),
-                    ],
+              const SliverToBoxAdapter(child: StudentAvatarRow()),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _PinnedHeaderDelegate(
+                  height: 48,
+                  child: Container(
+                    color: isDark ? backgroundDark : Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: TabBar(
+                      controller: _tabController,
+                      labelColor: parentGreen,
+                      unselectedLabelColor: isDark
+                          ? Colors.grey[400]
+                          : Colors.grey[600],
+                      indicatorColor: parentGreen,
+                      tabs: const [
+                        Tab(text: 'Completed'),
+                        Tab(text: 'Pending'),
+                        Tab(text: 'Upcoming'),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ],
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildCompletedTests(isDark, parentProvider),
+                _buildPendingTests(isDark, parentProvider),
+                _buildUpcomingTests(isDark, parentProvider),
+              ],
+            ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildScrollableHeader(BuildContext context, bool isDark) {
+    final iconColor = isDark ? Colors.white : textPrimary;
+    final surfaceColor = isDark ? backgroundDark : Colors.white;
+
+    return Container(
+      color: surfaceColor,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          const SizedBox(width: 48),
+          Expanded(
+            child: Text(
+              'Tests',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: iconColor,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.person, size: 28, color: iconColor),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ParentProfileScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
@@ -489,5 +502,32 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
         ],
       ),
     );
+  }
+}
+
+class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double height;
+  final Widget child;
+
+  _PinnedHeaderDelegate({required this.height, required this.child});
+
+  @override
+  double get minExtent => height;
+
+  @override
+  double get maxExtent => height;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    return SizedBox.expand(child: child);
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) {
+    return height != oldDelegate.height || child != oldDelegate.child;
   }
 }

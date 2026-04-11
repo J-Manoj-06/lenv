@@ -115,18 +115,77 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
-      appBar: AppBar(
-        title: const Text(
-          'Attendance',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: isDark ? backgroundDark : Colors.white,
-        foregroundColor: isDark ? Colors.white : textPrimary,
-        elevation: 0.5,
-        automaticallyImplyLeading: false,
-        actions: [
+      body: Consumer<ParentProvider>(
+        builder: (context, parentProvider, child) {
+          if (!parentProvider.hasChildren) {
+            return _buildEmptyState(isDark, 'No children found');
+          }
+
+          if (_isLoading) {
+            return const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(parentGreen),
+              ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: _loadAttendance,
+            color: parentGreen,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(
+                0,
+                0,
+                0,
+                _contentBottomInset(context),
+              ),
+              children: [
+                _buildScrollableHeader(context, isDark),
+                const SizedBox(height: 8),
+                const StudentAvatarRow(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSummaryCards(isDark),
+                      const SizedBox(height: 24),
+                      _buildCalendarSection(isDark),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildScrollableHeader(BuildContext context, bool isDark) {
+    final iconColor = isDark ? Colors.white : textPrimary;
+    final surfaceColor = isDark ? backgroundDark : Colors.white;
+
+    return Container(
+      color: surfaceColor,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          const SizedBox(width: 48),
+          Expanded(
+            child: Text(
+              'Attendance',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: iconColor,
+              ),
+            ),
+          ),
           IconButton(
-            icon: const Icon(Icons.person, size: 28),
+            icon: Icon(Icons.person, size: 28, color: iconColor),
             onPressed: () {
               Navigator.push(
                 context,
@@ -137,58 +196,6 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
             },
           ),
         ],
-      ),
-      body: Consumer<ParentProvider>(
-        builder: (context, parentProvider, child) {
-          if (!parentProvider.hasChildren) {
-            return _buildEmptyState(isDark, 'No children found');
-          }
-
-          return Column(
-            children: [
-              // Student Selection Row
-              const StudentAvatarRow(),
-
-              // Main Content
-              Expanded(
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            parentGreen,
-                          ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadAttendance,
-                        color: parentGreen,
-                        child: SingleChildScrollView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          child: Padding(
-                            padding: EdgeInsets.fromLTRB(
-                              16,
-                              16,
-                              16,
-                              _contentBottomInset(context),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Summary Cards
-                                _buildSummaryCards(isDark),
-                                const SizedBox(height: 24),
-
-                                // Calendar Section
-                                _buildCalendarSection(isDark),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }
