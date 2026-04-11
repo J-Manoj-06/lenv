@@ -293,18 +293,114 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
-      appBar: AppBar(
-        title: const Text(
-          'Messages',
-          style: TextStyle(fontWeight: FontWeight.bold),
+      body: SafeArea(
+        child: Consumer<ParentProvider>(
+          builder: (context, parentProvider, child) {
+            // If children just finished loading, auto-load teachers once
+            if (parentProvider.hasChildren &&
+                _teachers.isEmpty &&
+                !_isLoading &&
+                !_queuedReload) {
+              _queuedReload = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _queuedReload = false;
+                _loadTeachers();
+              });
+            }
+
+            if (!parentProvider.hasChildren) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.message_outlined,
+                      size: 64,
+                      color: isDark ? Colors.grey[600] : Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No children found',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            if (_isLoading) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(parentGreen),
+                ),
+              );
+            }
+
+            final hasResults = _filteredTeachers.isNotEmpty;
+
+            return RefreshIndicator(
+              onRefresh: _loadTeachers,
+              color: parentGreen,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  0,
+                  0,
+                  0,
+                  _contentBottomInset(context),
+                ),
+                children: [
+                  _buildScrollableHeader(context, isDark),
+                  const SizedBox(height: 8),
+                  const StudentAvatarRow(),
+                  _buildSearchBar(isDark),
+                  if (hasResults)
+                    ..._filteredTeachers.map(
+                      (teacher) => Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: _buildTeacherCard(isDark, teacher),
+                      ),
+                    )
+                  else
+                    Padding(
+                      padding: const EdgeInsets.only(top: 24),
+                      child: _buildEmptyState(isDark),
+                    ),
+                ],
+              ),
+            );
+          },
         ),
-        backgroundColor: isDark ? backgroundDark : Colors.white,
-        foregroundColor: isDark ? Colors.white : textPrimary,
-        elevation: 0.5,
-        automaticallyImplyLeading: false,
-        actions: [
+      ),
+    );
+  }
+
+  Widget _buildScrollableHeader(BuildContext context, bool isDark) {
+    final iconColor = isDark ? Colors.white : textPrimary;
+    final surfaceColor = isDark ? backgroundDark : Colors.white;
+
+    return Container(
+      color: surfaceColor,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          const SizedBox(width: 48),
+          Expanded(
+            child: Text(
+              'Messages',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: iconColor,
+              ),
+            ),
+          ),
           IconButton(
-            icon: const Icon(Icons.person, size: 28),
+            icon: Icon(Icons.person, size: 28, color: iconColor),
             onPressed: () {
               Navigator.push(
                 context,
@@ -315,85 +411,6 @@ class _ParentMessagesScreenState extends State<ParentMessagesScreen> {
             },
           ),
         ],
-      ),
-      body: Consumer<ParentProvider>(
-        builder: (context, parentProvider, child) {
-          // If children just finished loading, auto-load teachers once
-          if (parentProvider.hasChildren &&
-              _teachers.isEmpty &&
-              !_isLoading &&
-              !_queuedReload) {
-            _queuedReload = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _queuedReload = false;
-              _loadTeachers();
-            });
-          }
-
-          if (!parentProvider.hasChildren) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.message_outlined,
-                    size: 64,
-                    color: isDark ? Colors.grey[600] : Colors.grey[400],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No children found',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: isDark ? Colors.grey[400] : Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return Column(
-            children: [
-              // Student Selection Row
-              const StudentAvatarRow(),
-
-              // Search Bar
-              _buildSearchBar(isDark),
-
-              // Teachers List
-              Expanded(
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            parentGreen,
-                          ),
-                        ),
-                      )
-                    : _filteredTeachers.isEmpty
-                    ? _buildEmptyState(isDark)
-                    : RefreshIndicator(
-                        onRefresh: _loadTeachers,
-                        color: parentGreen,
-                        child: ListView.builder(
-                          padding: EdgeInsets.fromLTRB(
-                            16,
-                            8,
-                            16,
-                            _contentBottomInset(context),
-                          ),
-                          itemCount: _filteredTeachers.length,
-                          itemBuilder: (context, index) {
-                            final teacher = _filteredTeachers[index];
-                            return _buildTeacherCard(isDark, teacher);
-                          },
-                        ),
-                      ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }

@@ -35,53 +35,24 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
-      appBar: AppBar(
-        title: const Text(
-          'Rewards',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: isDark ? backgroundDark : Colors.white,
-        foregroundColor: isDark ? Colors.white : textPrimary,
-        elevation: 0.5,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person, size: 28),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ParentProfileScreen(),
+      body: SafeArea(
+        child: Consumer<ParentProvider>(
+          builder: (context, parentProvider, _) {
+            if (!parentProvider.hasChildren) {
+              return _buildEmpty(isDark, 'No children found');
+            }
+
+            if (parentProvider.isLoadingRewards) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation(parentGreen),
                 ),
               );
-            },
-          ),
-        ],
-      ),
-      body: Consumer<ParentProvider>(
-        builder: (context, parentProvider, _) {
-          if (!parentProvider.hasChildren) {
-            return _buildEmpty(isDark, 'No children found');
-          }
+            }
 
-          return Column(
-            children: [
-              // ✅ NEW: Student selection row
-              const StudentAvatarRow(),
-
-              // Main content
-              Expanded(
-                child: parentProvider.isLoadingRewards
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation(parentGreen),
-                        ),
-                      )
-                    : _buildRewardsContent(context, isDark, parentProvider),
-              ),
-            ],
-          );
-        },
+            return _buildRewardsContent(context, isDark, parentProvider);
+          },
+        ),
       ),
     );
   }
@@ -114,6 +85,10 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
         padding: EdgeInsets.only(bottom: _contentBottomInset(context)),
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
+          _buildScrollableHeader(context, isDark),
+          const SizedBox(height: 8),
+          // Child selector is part of the same scrollable content in landscape.
+          const StudentAvatarRow(),
           _buildPointsHeader(isDark, selectedUid, selectedChild?.name ?? ''),
           _buildFilterRow(isDark),
           if (requests.isEmpty)
@@ -125,6 +100,43 @@ class _ParentRewardsScreenState extends State<ParentRewardsScreen> {
             ...requests.map(
               (r) => _buildRequestCard(isDark, r, parentProvider),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScrollableHeader(BuildContext context, bool isDark) {
+    final iconColor = isDark ? Colors.white : textPrimary;
+    final surfaceColor = isDark ? backgroundDark : Colors.white;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: surfaceColor,
+      child: Row(
+        children: [
+          const SizedBox(width: 48),
+          Expanded(
+            child: Text(
+              'Rewards',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: iconColor,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.person, size: 28, color: iconColor),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ParentProfileScreen(),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
