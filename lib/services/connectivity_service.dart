@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -8,6 +10,9 @@ class ConnectivityService {
 
   final Connectivity _connectivity = Connectivity();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final StreamController<bool> _connectivityController =
+      StreamController<bool>.broadcast();
+  StreamSubscription<ConnectivityResult>? _connectivitySub;
   bool _isOnline = true;
   bool _initialized = false;
   bool? _lastAppliedFirestoreOnline;
@@ -31,11 +36,14 @@ class ConnectivityService {
             ConnectivityResult.wifi, // Assume online if check times out
       );
       _isOnline = result != ConnectivityResult.none;
+      _emitConnectivity(_isOnline);
       await _applyFirestoreNetworkState(_isOnline);
       _initialized = true;
 
       // Listen for connectivity changes
-      _connectivity.onConnectivityChanged.listen((result) async {
+      _connectivitySub = _connectivity.onConnectivityChanged.listen((
+        result,
+      ) async {
         final nextIsOnline = result != ConnectivityResult.none;
         if (_isOnline == nextIsOnline &&
             _lastAppliedFirestoreOnline == nextIsOnline) {
@@ -43,12 +51,20 @@ class ConnectivityService {
         }
 
         _isOnline = nextIsOnline;
+        _emitConnectivity(_isOnline);
         await _applyFirestoreNetworkState(_isOnline);
       });
     } catch (e) {
       // If we can't determine state, assume online (safer default)
       _isOnline = true;
       _initialized = true;
+      _emitConnectivity(_isOnline);
+    }
+  }
+
+  void _emitConnectivity(bool online) {
+    if (!_connectivityController.isClosed) {
+      _connectivityController.add(online);
     }
   }
 
@@ -75,6 +91,10 @@ class ConnectivityService {
 
   /// Get stream of connectivity changes
   /// Useful for listening to network state changes in UI/providers
-  Stream<bool> get onConnectivityChanged => _connectivity.onConnectivityChanged
-      .map((result) => result != ConnectivityResult.none);
+  Stream<bool> get onConnectivityChanged => _connectivityController.stream;
+
+  Future<void> dispose() async {
+    await _connectivitySub?.cancel();
+    await _connectivityController.close();
+  }
 }

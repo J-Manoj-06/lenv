@@ -15,31 +15,17 @@ class ParentTestsScreen extends StatefulWidget {
   State<ParentTestsScreen> createState() => _ParentTestsScreenState();
 }
 
-class _ParentTestsScreenState extends State<ParentTestsScreen>
-    with SingleTickerProviderStateMixin {
+class _ParentTestsScreenState extends State<ParentTestsScreen> {
   static const Color parentGreen = Color(0xFF14A670);
   static const Color backgroundLight = Color(0xFFF6F6F8);
   static const Color backgroundDark = Color(0xFF151022);
   static const Color cardBg = Colors.white;
   static const Color textPrimary = Color(0xFF110D1B);
-
-  late TabController _tabController;
+  int _selectedTab = 0;
 
   double _contentBottomInset(BuildContext context) {
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    return 128 + 64 + safeBottom;
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+    return 24 + safeBottom;
   }
 
   @override
@@ -47,62 +33,136 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? backgroundDark : backgroundLight,
-      body: Consumer<ParentProvider>(
-        builder: (context, parentProvider, child) {
-          if (!parentProvider.hasChildren) {
-            return _buildEmptyState(isDark, 'No children found');
-          }
+      body: SafeArea(
+        child: Consumer<ParentProvider>(
+          builder: (context, parentProvider, child) {
+            if (!parentProvider.hasChildren) {
+              return _buildEmptyState(isDark, 'No children found');
+            }
 
-          if (parentProvider.isLoadingTests) {
-            return const Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(parentGreen),
+            if (parentProvider.isLoadingTests) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(parentGreen),
+                ),
+              );
+            }
+
+            return RefreshIndicator(
+              onRefresh: () => parentProvider.refresh(),
+              color: parentGreen,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  0,
+                  0,
+                  0,
+                  _contentBottomInset(context),
+                ),
+                children: [
+                  _buildScrollableHeader(context, isDark),
+                  const SizedBox(height: 8),
+                  const StudentAvatarRow(),
+                  _buildTestsTabSelector(isDark),
+                  const SizedBox(height: 12),
+                  ..._buildCurrentTabContent(isDark, parentProvider),
+                ],
               ),
             );
-          }
+          },
+        ),
+      ),
+    );
+  }
 
-          return NestedScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverToBoxAdapter(
-                child: _buildScrollableHeader(context, isDark),
-              ),
-              const SliverToBoxAdapter(child: StudentAvatarRow()),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _PinnedHeaderDelegate(
-                  height: 48,
-                  child: Container(
-                    color: isDark ? backgroundDark : Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: TabBar(
-                      controller: _tabController,
-                      labelColor: parentGreen,
-                      unselectedLabelColor: isDark
-                          ? Colors.grey[400]
-                          : Colors.grey[600],
-                      indicatorColor: parentGreen,
-                      tabs: const [
-                        Tab(text: 'Completed'),
-                        Tab(text: 'Pending'),
-                        Tab(text: 'Upcoming'),
-                      ],
+  Widget _buildTestsTabSelector(bool isDark) {
+    const labels = ['Completed', 'Pending', 'Upcoming'];
+
+    return Container(
+      color: isDark ? backgroundDark : Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: List.generate(labels.length, (index) {
+          final isSelected = _selectedTab == index;
+          return Expanded(
+            child: InkWell(
+              onTap: () => setState(() => _selectedTab = index),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      labels[index],
+                      style: TextStyle(
+                        color: isSelected
+                            ? parentGreen
+                            : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                        fontSize: 14,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? parentGreen
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildCompletedTests(isDark, parentProvider),
-                _buildPendingTests(isDark, parentProvider),
-                _buildUpcomingTests(isDark, parentProvider),
-              ],
             ),
           );
-        },
+        }),
       ),
+    );
+  }
+
+  List<Widget> _buildCurrentTabContent(bool isDark, ParentProvider provider) {
+    if (_selectedTab == 0) {
+      final completedTests = provider.testResults.toList()
+        ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+
+      if (completedTests.isEmpty) {
+        return [_buildInlineEmptyState(isDark, 'No completed tests')];
+      }
+
+      return completedTests
+          .map((test) => Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: _buildTestResultCard(isDark, test, provider),
+              ))
+          .toList();
+    }
+
+    final upcoming = provider.upcomingTests;
+    if (upcoming.isEmpty) {
+      return [
+        _buildInlineEmptyState(
+          isDark,
+          _selectedTab == 1 ? 'No pending tests' : 'No upcoming tests',
+        ),
+      ];
+    }
+
+    return upcoming
+        .map((test) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: _buildUpcomingTestCard(isDark, test),
+            ))
+        .toList();
+  }
+
+  Widget _buildInlineEmptyState(bool isDark, String message) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+      child: _buildEmptyState(isDark, message),
     );
   }
 
@@ -140,60 +200,6 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildUpcomingTests(bool isDark, ParentProvider provider) {
-    if (provider.upcomingTests.isEmpty) {
-      return _buildEmptyState(isDark, 'No upcoming tests');
-    }
-
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, _contentBottomInset(context)),
-      itemCount: provider.upcomingTests.length,
-      itemBuilder: (context, index) {
-        final test = provider.upcomingTests[index];
-        return _buildUpcomingTestCard(isDark, test);
-      },
-    );
-  }
-
-  Widget _buildCompletedTests(bool isDark, ParentProvider provider) {
-    final completedTests = provider.testResults.where((test) {
-      return true; // All test results are completed tests
-    }).toList();
-
-    completedTests.sort((a, b) {
-      return b.completedAt.compareTo(a.completedAt);
-    });
-
-    if (completedTests.isEmpty) {
-      return _buildEmptyState(isDark, 'No completed tests');
-    }
-
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, _contentBottomInset(context)),
-      itemCount: completedTests.length,
-      itemBuilder: (context, index) {
-        final test = completedTests[index];
-        return _buildTestResultCard(isDark, test, provider);
-      },
-    );
-  }
-
-  Widget _buildPendingTests(bool isDark, ParentProvider provider) {
-    // Pending tests are upcoming tests that haven't been completed yet
-    if (provider.upcomingTests.isEmpty) {
-      return _buildEmptyState(isDark, 'No pending tests');
-    }
-
-    return ListView.builder(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, _contentBottomInset(context)),
-      itemCount: provider.upcomingTests.length,
-      itemBuilder: (context, index) {
-        final test = provider.upcomingTests[index];
-        return _buildUpcomingTestCard(isDark, test);
-      },
     );
   }
 
@@ -502,32 +508,5 @@ class _ParentTestsScreenState extends State<ParentTestsScreen>
         ],
       ),
     );
-  }
-}
-
-class _PinnedHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final double height;
-  final Widget child;
-
-  _PinnedHeaderDelegate({required this.height, required this.child});
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return SizedBox.expand(child: child);
-  }
-
-  @override
-  bool shouldRebuild(covariant _PinnedHeaderDelegate oldDelegate) {
-    return height != oldDelegate.height || child != oldDelegate.child;
   }
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import '../../services/school_storage_service.dart';
 import '../../constants/app_colors.dart';
 import '../../utils/session_manager.dart';
+import '../../widgets/student_main_navigation.dart';
 
 /// Enhanced splash screen that handles both first-time and returning users
 class EnhancedSplashScreen extends StatefulWidget {
@@ -85,7 +86,18 @@ class _EnhancedSplashScreenState extends State<EnhancedSplashScreen>
       final resumeRoute = await SessionManager.getInitialScreen();
       debugPrint('➡️ [Splash] resumeRoute=$resumeRoute');
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed(resumeRoute);
+        if (resumeRoute == '/student-dashboard') {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => const StudentMainNavigation(
+                initialIndex: 0,
+                shouldCheckUsagePermissionOnEntry: true,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).pushReplacementNamed(resumeRoute);
+        }
       }
       return;
     }

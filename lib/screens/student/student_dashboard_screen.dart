@@ -1217,7 +1217,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: docId == null
-                  ? const Stream.empty()
+                  ? null
                   : FirebaseFirestore.instance
                         .collection('students')
                         .doc(docId)

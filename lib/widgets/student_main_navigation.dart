@@ -22,8 +22,13 @@ import '../services/student_usage_service.dart';
 /// Prevents unnecessary rebuilds and reloading of data
 class StudentMainNavigation extends StatefulWidget {
   final int initialIndex;
+  final bool shouldCheckUsagePermissionOnEntry;
 
-  const StudentMainNavigation({super.key, this.initialIndex = 0});
+  const StudentMainNavigation({
+    super.key,
+    this.initialIndex = 0,
+    this.shouldCheckUsagePermissionOnEntry = false,
+  });
 
   @override
   State<StudentMainNavigation> createState() => _StudentMainNavigationState();
@@ -41,9 +46,11 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
     super.initState();
     _currentIndex = widget.initialIndex;
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _ensureUsagePermissionOnEntry();
-    });
+    if (widget.shouldCheckUsagePermissionOnEntry) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _ensureUsagePermissionOnEntry();
+      });
+    }
   }
 
   Future<void> _ensureUsagePermissionOnEntry() async {
@@ -56,9 +63,7 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
       if (!mounted || granted) return;
 
       await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const UsageAccessPermissionScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const UsageAccessPermissionScreen()),
       );
     } catch (_) {
       // Do not block student navigation if permission prompt flow fails.

@@ -843,18 +843,22 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
   // Build a stream for overall leaderboard from school path; fallback to service
   Stream<List<LeaderboardEntry>> _buildOverallStream() {
     if (_schoolCode == null || _schoolCode!.isEmpty) {
-      return const Stream.empty();
+      return Stream<List<LeaderboardEntry>>.value(
+        const <LeaderboardEntry>[],
+      ).asBroadcastStream();
     }
 
     // ✅ OPTIMIZATION: Use cached stream with instant display + real-time updates
     // Emits cached data immediately (0s) then listens for real-time updates
 
-    return _leaderboardService.getOverallLeaderboardStreamForClass(
-      schoolCode: _schoolCode!,
-      className: _className ?? '',
-      section: _section,
-      limit: 100,
-    );
+    return _leaderboardService
+        .getOverallLeaderboardStreamForClass(
+          schoolCode: _schoolCode!,
+          className: _className ?? '',
+          section: _section,
+          limit: 100,
+        )
+        .asBroadcastStream();
   }
 
   // Build per-test leaderboard stream from school path; fallback to service
@@ -881,7 +885,8 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
               testId: testId,
               schoolCode: null, // Don't filter by schoolCode
             );
-          });
+          })
+          .asBroadcastStream();
     }
 
     // Direct query if no school context
@@ -890,7 +895,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
         testId: testId,
         schoolCode: null,
       ),
-    );
+    ).asBroadcastStream();
   }
 
   List<LeaderboardEntry> _mapEntries(

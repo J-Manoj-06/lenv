@@ -20,6 +20,7 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
   static const Color backgroundDark = Color(0xFF151022);
   static const Color cardBg = Colors.white;
   static const Color textPrimary = Color(0xFF110D1B);
+  static const double _navClearance = 96;
 
   DateTime _selectedMonth = DateTime(
     2026,
@@ -33,7 +34,7 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
 
   double _contentBottomInset(BuildContext context) {
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    return 128 + 64 + safeBottom;
+    return 24 + safeBottom;
   }
 
   @override
@@ -129,33 +130,36 @@ class _ParentAttendanceScreenState extends State<ParentAttendanceScreen> {
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: _loadAttendance,
-            color: parentGreen,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(
-                0,
-                0,
-                0,
-                _contentBottomInset(context),
-              ),
-              children: [
-                _buildScrollableHeader(context, isDark),
-                const SizedBox(height: 8),
-                const StudentAvatarRow(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSummaryCards(isDark),
-                      const SizedBox(height: 24),
-                      _buildCalendarSection(isDark),
-                    ],
-                  ),
+          return Padding(
+            padding: const EdgeInsets.only(bottom: _navClearance),
+            child: RefreshIndicator(
+              onRefresh: _loadAttendance,
+              color: parentGreen,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  0,
+                  0,
+                  0,
+                  _contentBottomInset(context),
                 ),
-              ],
+                children: [
+                  _buildScrollableHeader(context, isDark),
+                  const SizedBox(height: 8),
+                  const StudentAvatarRow(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSummaryCards(isDark),
+                        const SizedBox(height: 24),
+                        _buildCalendarSection(isDark),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },
