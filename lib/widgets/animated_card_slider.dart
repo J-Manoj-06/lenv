@@ -89,7 +89,8 @@ class _AnimatedCardSliderState extends State<AnimatedCardSlider> {
                     duration: const Duration(milliseconds: 280),
                     curve: Curves.easeOutCubic,
                     child: Padding(
-                      padding: widget.padding ??
+                      padding:
+                          widget.padding ??
                           const EdgeInsets.symmetric(horizontal: 4),
                       child: widget.cards[index],
                     ),

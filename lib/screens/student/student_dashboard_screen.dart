@@ -445,7 +445,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () {
-              Navigator.of(context).push(_buildAnimatedRoute(const AiChatPage()));
+              Navigator.of(
+                context,
+              ).push(_buildAnimatedRoute(const AiChatPage()));
             },
             backgroundColor: _primary,
             elevation: 4,
@@ -456,7 +458,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     );
   }
 
-  Widget _buildAnimatedEntrance({required bool visible, required Widget child}) {
+  Widget _buildAnimatedEntrance({
+    required bool visible,
+    required Widget child,
+  }) {
     return AnimatedOpacity(
       opacity: visible ? 1 : 0,
       duration: const Duration(milliseconds: 480),
@@ -473,7 +478,10 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   Widget _buildTopSliderSection(StudentModel? student) {
     final cards = [
       _buildPointsCard(student),
-      if (student != null) _buildDailyChallengeCard(student) else _buildEmptyPointsCard(),
+      if (student != null)
+        _buildDailyChallengeCard(student)
+      else
+        _buildEmptyPointsCard(),
       _buildPerformancePreviewCard(student),
     ];
 
@@ -523,10 +531,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
             student == null
                 ? 'Your latest results will appear here.'
                 : 'Keep your streak alive with daily challenge and tests.',
-            style: TextStyle(
-              fontSize: 14,
-              color: _muted(context),
-            ),
+            style: TextStyle(fontSize: 14, color: _muted(context)),
           ),
           const SizedBox(height: 16),
           Container(
@@ -1456,58 +1461,61 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                       duration: const Duration(milliseconds: 360),
                       curve: Curves.easeOutCubic,
                       child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 22,
-                        horizontal: 20,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _surface(context),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: Theme.of(
-                            context,
-                          ).dividerColor.withOpacity(0.4),
-                          width: 1,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 22,
+                          horizontal: 20,
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(
-                              isDark ? 0.25 : 0.06,
-                            ),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                        decoration: BoxDecoration(
+                          color: _surface(context),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).dividerColor.withOpacity(0.4),
+                            width: 1,
                           ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          // Circular Comparison Chart
-                          _buildCircularComparison(studentPoints, topperPoints),
-                          const SizedBox(height: 20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(
+                                isDark ? 0.25 : 0.06,
+                              ),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            // Circular Comparison Chart
+                            _buildCircularComparison(
+                              studentPoints,
+                              topperPoints,
+                            ),
+                            const SizedBox(height: 20),
 
-                          // Points Info
-                          Text(
-                            'Your Points: $_displayedPoints',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: isDark ? Colors.white : Colors.black87,
+                            // Points Info
+                            Text(
+                              'Your Points: $_displayedPoints',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black87,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Topper: $topperPoints pts',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: isDark
-                                  ? const Color(0xFFBBBBBB)
-                                  : Colors.grey.shade600,
+                            const SizedBox(height: 4),
+                            Text(
+                              'Topper: $topperPoints pts',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: isDark
+                                    ? const Color(0xFFBBBBBB)
+                                    : Colors.grey.shade600,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
                     );
                   },
                 );
@@ -1722,114 +1730,112 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         );
 
         return Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: hasAnswered
+                ? (isCorrect
+                      ? const Color(0xFF4CAF50).withOpacity(0.08)
+                      : const Color(0xFFEF5350).withOpacity(0.08))
+                : _surface(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
               color: hasAnswered
                   ? (isCorrect
-                        ? const Color(0xFF4CAF50).withOpacity(0.08)
-                        : const Color(0xFFEF5350).withOpacity(0.08))
-                  : _surface(context),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: hasAnswered
-                    ? (isCorrect
-                          ? const Color(0xFF4CAF50)
-                          : const Color(0xFFEF5350))
-                    : Theme.of(context).dividerColor.withOpacity(0.35),
-                width: hasAnswered ? 1.2 : 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFEF5350))
+                  : Theme.of(context).dividerColor.withOpacity(0.35),
+              width: hasAnswered ? 1.2 : 1,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title with icon
-                Row(
-                  children: [
-                    Icon(
-                      hasAnswered
-                          ? (isCorrect
-                                ? Icons.check_circle
-                                : Icons.info_outline)
-                          : Icons.emoji_events_outlined,
-                      color: hasAnswered
-                          ? (isCorrect
-                                ? const Color(0xFF4CAF50)
-                                : const Color(0xFFEF5350))
-                          : _primary,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        hasAnswered
-                            ? (isCorrect
-                                  ? 'Challenge Completed! 🎉'
-                                  : 'Challenge Attempted')
-                            : 'Daily Challenge 🏆',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: hasAnswered
-                              ? (isCorrect
-                                    ? const Color(0xFF4CAF50)
-                                    : const Color(0xFFEF5350))
-                              : Theme.of(context).textTheme.bodyLarge?.color,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Subtitle
-                Text(
-                  hasAnswered
-                      ? (isCorrect
-                            ? 'Perfect! You earned +5 points! 🌟'
-                            : 'Keep trying! Check the correct answer below.')
-                      : "Answer today's MCQ to earn points and boost your streak!",
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Title with icon
+              Row(
+                children: [
+                  Icon(
+                    hasAnswered
+                        ? (isCorrect ? Icons.check_circle : Icons.info_outline)
+                        : Icons.emoji_events_outlined,
                     color: hasAnswered
                         ? (isCorrect
-                              ? const Color(0xFF4CAF50).withOpacity(0.9)
-                              : const Color(0xFFEF5350).withOpacity(0.9))
-                        : _muted(context),
+                              ? const Color(0xFF4CAF50)
+                              : const Color(0xFFEF5350))
+                        : _primary,
+                    size: 24,
                   ),
-                ),
-
-                // Premium Correct Answer Display (only shown after attempt)
-                if (hasAnswered && challengeData != null) ...[
-                  const SizedBox(height: 16),
-                  _buildCorrectAnswerDisplay(
-                    challengeData['correctAnswer'] as String?,
-                    challengeData['question'] as String?,
-                    isCorrect,
-                  ),
-                ],
-
-                // Button
-                if (!hasAnswered) ...[
-                  const SizedBox(height: 16),
-                  AnimatedChallengeButton(
-                    onPressed: () => _openDailyChallenge(
-                      student,
-                      studentProvider,
-                      dailyChallengeProvider,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hasAnswered
+                          ? (isCorrect
+                                ? 'Challenge Completed! 🎉'
+                                : 'Challenge Attempted')
+                          : 'Daily Challenge 🏆',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: hasAnswered
+                            ? (isCorrect
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFEF5350))
+                            : Theme.of(context).textTheme.bodyLarge?.color,
+                        height: 1.2,
+                      ),
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 8),
+
+              // Subtitle
+              Text(
+                hasAnswered
+                    ? (isCorrect
+                          ? 'Perfect! You earned +5 points! 🌟'
+                          : 'Keep trying! Check the correct answer below.')
+                    : "Answer today's MCQ to earn points and boost your streak!",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: hasAnswered
+                      ? (isCorrect
+                            ? const Color(0xFF4CAF50).withOpacity(0.9)
+                            : const Color(0xFFEF5350).withOpacity(0.9))
+                      : _muted(context),
+                ),
+              ),
+
+              // Premium Correct Answer Display (only shown after attempt)
+              if (hasAnswered && challengeData != null) ...[
+                const SizedBox(height: 16),
+                _buildCorrectAnswerDisplay(
+                  challengeData['correctAnswer'] as String?,
+                  challengeData['question'] as String?,
+                  isCorrect,
+                ),
               ],
-            ),
+
+              // Button
+              if (!hasAnswered) ...[
+                const SizedBox(height: 16),
+                AnimatedChallengeButton(
+                  onPressed: () => _openDailyChallenge(
+                    student,
+                    studentProvider,
+                    dailyChallengeProvider,
+                  ),
+                ),
+              ],
+            ],
+          ),
         );
       },
     );
@@ -2482,10 +2488,7 @@ class _StreakPulseBadge extends StatefulWidget {
   final int streakDays;
   final Color primary;
 
-  const _StreakPulseBadge({
-    required this.streakDays,
-    required this.primary,
-  });
+  const _StreakPulseBadge({required this.streakDays, required this.primary});
 
   @override
   State<_StreakPulseBadge> createState() => _StreakPulseBadgeState();
@@ -2569,7 +2572,8 @@ class _AnimatedDashboardBackground extends StatefulWidget {
       _AnimatedDashboardBackgroundState();
 }
 
-class _AnimatedDashboardBackgroundState extends State<_AnimatedDashboardBackground>
+class _AnimatedDashboardBackgroundState
+    extends State<_AnimatedDashboardBackground>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 

@@ -38,7 +38,8 @@ class _AnimatedProgressRingState extends State<AnimatedProgressRing>
   @override
   void didUpdateWidget(covariant AnimatedProgressRing oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value || oldWidget.maxValue != widget.maxValue) {
+    if (oldWidget.value != widget.value ||
+        oldWidget.maxValue != widget.maxValue) {
       _setTween();
       _controller
         ..reset()
@@ -56,9 +57,10 @@ class _AnimatedProgressRingState extends State<AnimatedProgressRing>
     final target = widget.maxValue > 0
         ? (widget.value / widget.maxValue).clamp(0.0, 1.0)
         : 0.0;
-    _progress = Tween<double>(begin: 0, end: target).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
+    _progress = Tween<double>(
+      begin: 0,
+      end: target,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
   }
 
   @override
@@ -80,9 +82,9 @@ class _AnimatedProgressRingState extends State<AnimatedProgressRing>
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFF2800D).withValues(
-                        alpha: isDark ? 0.25 : 0.14,
-                      ),
+                      color: const Color(
+                        0xFFF2800D,
+                      ).withValues(alpha: isDark ? 0.25 : 0.14),
                       blurRadius: 20,
                       spreadRadius: 1,
                     ),
@@ -114,11 +116,9 @@ class _AnimatedProgressRingState extends State<AnimatedProgressRing>
                       fontSize: 11,
                       letterSpacing: 1.1,
                       fontWeight: FontWeight.w700,
-                      color: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.color
-                          ?.withValues(alpha: 0.72),
+                      color: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.color?.withValues(alpha: 0.72),
                     ),
                   ),
                 ],

@@ -13,7 +13,8 @@ class AnimatedChallengeButton extends StatefulWidget {
   });
 
   @override
-  State<AnimatedChallengeButton> createState() => _AnimatedChallengeButtonState();
+  State<AnimatedChallengeButton> createState() =>
+      _AnimatedChallengeButtonState();
 }
 
 class _AnimatedChallengeButtonState extends State<AnimatedChallengeButton>
@@ -119,7 +120,9 @@ class _AnimatedChallengeButtonState extends State<AnimatedChallengeButton>
                     children: [
                       Positioned.fill(
                         child: IgnorePointer(
-                          child: _ShimmerSweep(progress: _breathController.value),
+                          child: _ShimmerSweep(
+                            progress: _breathController.value,
+                          ),
                         ),
                       ),
                       Row(

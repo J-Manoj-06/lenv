@@ -80,7 +80,10 @@ class AnimatedNavbar extends StatelessWidget {
                       AnimatedAlign(
                         duration: const Duration(milliseconds: 260),
                         curve: Curves.easeOutCubic,
-                        alignment: Alignment(-1 + ((currentIndex * 2) / (items.length - 1)), 0),
+                        alignment: Alignment(
+                          -1 + ((currentIndex * 2) / (items.length - 1)),
+                          0,
+                        ),
                         child: FractionallySizedBox(
                           widthFactor: 1 / items.length,
                           child: Center(
@@ -110,17 +113,25 @@ class AnimatedNavbar extends StatelessWidget {
                                   children: [
                                     AnimatedScale(
                                       scale: selected ? 1.1 : 1.0,
-                                      duration: const Duration(milliseconds: 220),
+                                      duration: const Duration(
+                                        milliseconds: 220,
+                                      ),
                                       curve: Curves.easeOut,
                                       child: Icon(
-                                        selected ? item.selectedIcon : item.icon,
-                                        color: selected ? selectedColor : unselectedColor,
+                                        selected
+                                            ? item.selectedIcon
+                                            : item.icon,
+                                        color: selected
+                                            ? selectedColor
+                                            : unselectedColor,
                                         size: selected ? 26 : 24,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     AnimatedDefaultTextStyle(
-                                      duration: const Duration(milliseconds: 220),
+                                      duration: const Duration(
+                                        milliseconds: 220,
+                                      ),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: selected
