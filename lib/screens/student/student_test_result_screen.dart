@@ -290,24 +290,6 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
                         },
                       ),
                       const SizedBox(height: 24),
-                      // Badges (optional)
-                      if (result.badges != null &&
-                          result.badges!.isNotEmpty) ...[
-                        Text(
-                          'Badges Earned',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          children: result.badges!
-                              .map((b) => _badgeChip(b))
-                              .toList(),
-                        ),
-                      ],
-                      const SizedBox(height: 24),
                       // SWOT (optional)
                       if (result.swot != null) ...[
                         Text(
@@ -705,50 +687,6 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _badgeChip(String label) {
-    IconData icon = Icons.workspace_premium;
-    if (label.toLowerCase().contains('math')) {
-      icon = Icons.star;
-    } else if (label.toLowerCase().contains('solver') ||
-        label.toLowerCase().contains('problem')) {
-      icon = Icons.psychology;
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFB923C), Color(0xFFF97316)],
-        ),
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33F59E0B),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
-        ],
       ),
     );
   }

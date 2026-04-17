@@ -92,7 +92,6 @@ class TestResultModel {
   final int? totalPoints;
   final double? percentage;
   final List<QuestionResult>? questions;
-  final List<String>? badges;
   final SwotSummary? swot;
 
   TestResultModel({
@@ -116,7 +115,6 @@ class TestResultModel {
     this.totalPoints,
     this.percentage,
     this.questions,
-    this.badges,
     this.swot,
   });
 
@@ -157,9 +155,6 @@ class TestResultModel {
                 )
                 .toList())
           : null,
-      badges: data['badges'] != null
-          ? ((data['badges'] as List).map((e) => e.toString()).toList())
-          : null,
       swot: data['swot'] != null
           ? SwotSummary.fromMap(data['swot'] as Map<String, dynamic>?)
           : null,
@@ -188,7 +183,6 @@ class TestResultModel {
     if (percentage != null) 'percentage': percentage,
     if (questions != null)
       'questions': questions!.map((q) => q.toMap()).toList(),
-    if (badges != null) 'badges': badges,
     if (swot != null) 'swot': swot!.toMap(),
   };
 }
