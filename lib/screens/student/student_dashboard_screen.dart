@@ -1868,7 +1868,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           builder: (context, testsSnap) {
             if (resultsSnap.connectionState == ConnectionState.waiting ||
                 testsSnap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const SizedBox.shrink();
             }
 
             final tests = testsSnap.data ?? [];

@@ -113,7 +113,7 @@ class _AnimatedStreakIconState extends State<AnimatedStreakIcon>
                       if (!mounted) return;
                       setState(() => _glowForward = !_glowForward);
                     },
-                    builder: (context, glowValue, __) {
+                    builder: (context, glowValue, _) {
                       final burstBoost = _burstActive ? 0.25 : 0.0;
                       final opacity = (glowValue + burstBoost).clamp(0.0, 1.0);
                       final blur = 8.0 + (opacity * 8.0);

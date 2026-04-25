@@ -118,6 +118,9 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/animations/
+    - assets/animations/test/strict_mother.gif
+    - assets/strict_mother.gif
+    - assets/strict_mother.mp4
     - assets/dummy_rewards.json
 
   # An image asset can refer to one or more resolution-specific "variants", see

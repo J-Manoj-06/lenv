@@ -1,22 +1,19 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'student_main_navigation.dart';
 
 class StudentBottomNav extends StatelessWidget {
   final int currentIndex;
-  const StudentBottomNav({super.key, required this.currentIndex});
+  final ValueChanged<int> onTabSelected;
+
+  const StudentBottomNav({
+    super.key,
+    required this.currentIndex,
+    required this.onTabSelected,
+  });
 
   void _onTap(BuildContext context, int index) {
     if (index == currentIndex) return;
-
-    // Navigate to the main navigation wrapper with the selected index
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (context) => StudentMainNavigation(initialIndex: index),
-      ),
-      (route) => false,
-    );
+    onTabSelected(index);
   }
 
   @override

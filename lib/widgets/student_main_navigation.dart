@@ -133,7 +133,13 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
               ),
           ],
         ),
-        bottomNavigationBar: StudentBottomNav(currentIndex: _currentIndex),
+        bottomNavigationBar: StudentBottomNav(
+          currentIndex: _currentIndex,
+          onTabSelected: (index) {
+            if (_currentIndex == index) return;
+            setState(() => _currentIndex = index);
+          },
+        ),
       ),
     );
   }

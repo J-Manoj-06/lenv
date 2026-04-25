@@ -11,6 +11,7 @@ import '../../utils/visibility_stub.dart'
     if (dart.library.html) '../../utils/visibility_web.dart'
     as vis;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../widgets/study_watcher_avatar.dart';
 
 class TakeTestScreen extends StatefulWidget {
   final TestModel test;
@@ -628,6 +629,37 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      "Don't",
+                                      style: TextStyle(
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1C140D),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const StudyWatcherAvatar(size: 90),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Cheat',
+                                      style: TextStyle(
+                                        fontSize: 28,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF1C140D),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                             Text(
                               'Question ${currentQuestionIndex + 1} of $totalQuestions',
                               style: const TextStyle(
@@ -647,206 +679,193 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               ),
                             const SizedBox(height: 24),
 
-                            // Options for MCQ
-                            if (question != null &&
-                                question.type == QuestionType.multipleChoice &&
-                                question.options != null) ...[
-                              ...(_shuffledOptions[currentQuestionIndex] ??
-                                      question.options!)
-                                  .map((option) {
-                                    final isSelected =
-                                        answers[currentQuestionIndex] == option;
-                                    return Padding(
-                                      padding: const EdgeInsets.only(
-                                        bottom: 16,
+                                // Options for MCQ
+                                if (question != null &&
+                                    question.type ==
+                                        QuestionType.multipleChoice &&
+                                    question.options != null) ...[
+                                  ...(_shuffledOptions[currentQuestionIndex] ??
+                                          question.options!)
+                                      .map((option) {
+                                        final isSelected =
+                                            answers[currentQuestionIndex] ==
+                                            option;
+                                        return Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 16,
+                                          ),
+                                          child: _buildOptionButton(
+                                            option,
+                                            isSelected,
+                                          ),
+                                        );
+                                      }),
+                                  // Clear Response Button for MCQ
+                                  if (answers.containsKey(currentQuestionIndex))
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: TextButton.icon(
+                                        onPressed: () {
+                                          setState(() {
+                                            answers.remove(
+                                              currentQuestionIndex,
+                                            );
+                                          });
+                                        },
+                                        icon: const Icon(
+                                          Icons.clear,
+                                          size: 18,
+                                          color: Colors.red,
+                                        ),
+                                        label: const Text(
+                                          'Clear Response',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                        ),
                                       ),
-                                      child: _buildOptionButton(
-                                        option,
-                                        isSelected,
+                                    ),
+                                ] else if (question != null &&
+                                    question.type ==
+                                        QuestionType.trueFalse) ...[
+                                  // True/False options
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _buildOptionButton(
+                                      'True',
+                                      answers[currentQuestionIndex] == 'True',
+                                    ),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _buildOptionButton(
+                                      'False',
+                                      answers[currentQuestionIndex] == 'False',
+                                    ),
+                                  ),
+                                  // Clear Response Button for True/False
+                                  if (answers.containsKey(currentQuestionIndex))
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: TextButton.icon(
+                                        onPressed: () {
+                                          setState(() {
+                                            answers.remove(
+                                              currentQuestionIndex,
+                                            );
+                                          });
+                                        },
+                                        icon: const Icon(
+                                          Icons.clear,
+                                          size: 18,
+                                          color: Colors.red,
+                                        ),
+                                        label: const Text(
+                                          'Clear Response',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                        ),
                                       ),
-                                    );
-                                  }),
-                              // Clear Response Button for MCQ
-                              if (answers.containsKey(currentQuestionIndex))
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: TextButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        answers.remove(currentQuestionIndex);
-                                      });
+                                    ),
+                                ] else ...[
+                                  // Short answer
+                                  TextField(
+                                    decoration: InputDecoration(
+                                      hintText: 'Type your answer here...',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.grey[100],
+                                    ),
+                                    maxLines: 3,
+                                    onChanged: (value) {
+                                      answers[currentQuestionIndex] = value;
                                     },
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      size: 18,
-                                      color: Colors.red,
-                                    ),
-                                    label: const Text(
-                                      'Clear Response',
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
+                                    controller: TextEditingController(
+                                      text: answers[currentQuestionIndex] ?? '',
                                     ),
                                   ),
-                                ),
-                            ] else if (question != null &&
-                                question.type == QuestionType.trueFalse) ...[
-                              // True/False options
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: _buildOptionButton(
-                                  'True',
-                                  answers[currentQuestionIndex] == 'True',
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 16),
-                                child: _buildOptionButton(
-                                  'False',
-                                  answers[currentQuestionIndex] == 'False',
-                                ),
-                              ),
-                              // Clear Response Button for True/False
-                              if (answers.containsKey(currentQuestionIndex))
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: TextButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        answers.remove(currentQuestionIndex);
-                                      });
-                                    },
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      size: 18,
-                                      color: Colors.red,
-                                    ),
-                                    label: const Text(
-                                      'Clear Response',
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
+                                  // Clear Response Button for Text Field
+                                  if (answers.containsKey(
+                                        currentQuestionIndex,
+                                      ) &&
+                                      answers[currentQuestionIndex]!.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 12),
+                                      child: TextButton.icon(
+                                        onPressed: () {
+                                          setState(() {
+                                            answers.remove(
+                                              currentQuestionIndex,
+                                            );
+                                          });
+                                        },
+                                        icon: const Icon(
+                                          Icons.clear,
+                                          size: 18,
+                                          color: Colors.red,
+                                        ),
+                                        label: const Text(
+                                          'Clear Response',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ] else ...[
-                              // Short answer
-                              TextField(
-                                decoration: InputDecoration(
-                                  hintText: 'Type your answer here...',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.grey[100],
-                                ),
-                                maxLines: 3,
-                                onChanged: (value) {
-                                  answers[currentQuestionIndex] = value;
-                                },
-                                controller: TextEditingController(
-                                  text: answers[currentQuestionIndex] ?? '',
-                                ),
-                              ),
-                              // Clear Response Button for Text Field
-                              if (answers.containsKey(currentQuestionIndex) &&
-                                  answers[currentQuestionIndex]!.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: TextButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        answers.remove(currentQuestionIndex);
-                                      });
-                                    },
-                                    icon: const Icon(
-                                      Icons.clear,
-                                      size: 18,
-                                      color: Colors.red,
-                                    ),
-                                    label: const Text(
-                                      'Clear Response',
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ],
-                        ),
-                      ),
-
-                      // Progress Dots
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(
-                          totalQuestions,
-                          (index) => Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: index == currentQuestionIndex
-                                  ? const Color(0xFFF2800D)
-                                  : const Color(0xFFE8DBCE),
+                                ],
+                              ],
                             ),
                           ),
-                        ),
-                      ),
 
-                      // Mascot
-                      const SizedBox(height: 24),
-                      Container(
-                        width: 96,
-                        height: 96,
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFED7AA),
-                          shape: BoxShape.circle,
-                        ),
-                        child: ClipOval(
-                          child: Image.network(
-                            'https://lh3.googleusercontent.com/aida-public/AB6AXuAECnMmFhJ1ePsH1b-Lr28Nn9yv2FRIS-xEZQT6ll2luWP_7KHApEZMq_oEemv8HnqRG98HMU965zPk-KTJQRbOJCmHLoqKuxX5LIXrYZzURmwzwajZqoEa0oZzi1zn7gTs6mfIoCBAQhy23auHpmKT0gMNINQMoPGtwgVcoGScTU9tB3dX5CdjdQ_os3nZrRKh29w_L4L1DjUhrBLaKMQce52H5GpQQXy0q5ahkKeAtsubJR4QbEYBh-mljRBkDXkFHBDOIe4Udd0',
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.emoji_emotions,
-                                size: 64,
-                                color: Color(0xFFF2800D),
-                              );
-                            },
+                          // Progress Dots
+                          const SizedBox(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(
+                              totalQuestions,
+                              (index) => Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: index == currentQuestionIndex
+                                      ? const Color(0xFFF2800D)
+                                      : const Color(0xFFE8DBCE),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
+                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
