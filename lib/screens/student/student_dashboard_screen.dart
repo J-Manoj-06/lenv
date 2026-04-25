@@ -19,17 +19,15 @@ import '../../utils/cache_manager.dart';
 import '../../widgets/stat_ring_card.dart';
 import '../../widgets/profile_avatar_widget.dart';
 import '../../widgets/notification_bell_button.dart';
+import '../../widgets/animated_streak_icon.dart';
+import '../../widgets/animated_points_card_shell.dart';
+import '../../widgets/animated_button.dart';
 import '../daily_challenge_result_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import '../ai/ai_chat_page.dart';
 import '../common/announcement_pageview_screen.dart';
 import 'dart:math' as math;
-import 'dart:async';
-import '../../controllers/animation_controller.dart';
-import '../../widgets/animated_card_slider.dart';
-import '../../widgets/animated_button.dart';
-import '../../widgets/animated_progress_ring.dart';
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -63,113 +61,20 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   final Map<String, Stream<List<Map<String, dynamic>>>>
   _announcementStreamCache = {};
   final OfflineCacheManager _offlineCacheManager = OfflineCacheManager();
-  final ScrollController _scrollController = ScrollController();
-
-  bool _showChallengeSection = false;
-  bool _showPerformanceSection = false;
-  bool _showPointsPulse = false;
-
-  int _lastAnimatedPoints = 0;
-  int _displayedPoints = 0;
-  Timer? _pointsCounterTimer;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_handleScrollAnimations);
     _loadDashboardData();
     _preloadViewedStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FirestoreService().processEndedTests();
-      if (mounted) {
-        setState(() {
-          _showChallengeSection = true;
-        });
-      }
     });
   }
 
   @override
   void dispose() {
-    _pointsCounterTimer?.cancel();
-    _scrollController.dispose();
     super.dispose();
-  }
-
-  void _handleScrollAnimations() {
-    final offset = _scrollController.offset;
-    if (!_showChallengeSection && offset > 120) {
-      setState(() => _showChallengeSection = true);
-    }
-    if (!_showPerformanceSection && offset > 320) {
-      setState(() => _showPerformanceSection = true);
-    }
-  }
-
-  void _animatePointsCounter(int targetValue) {
-    if (targetValue == _lastAnimatedPoints && _displayedPoints != 0) {
-      return;
-    }
-
-    _lastAnimatedPoints = targetValue;
-    _pointsCounterTimer?.cancel();
-
-    final start = _displayedPoints;
-    final end = targetValue;
-    const steps = 22;
-    var currentStep = 0;
-
-    _pointsCounterTimer = Timer.periodic(const Duration(milliseconds: 28), (
-      timer,
-    ) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      currentStep++;
-      final t = (currentStep / steps).clamp(0.0, 1.0);
-      final eased = Curves.easeOutCubic.transform(t);
-      final next = start + ((end - start) * eased).round();
-
-      if (_displayedPoints != next) {
-        setState(() => _displayedPoints = next);
-      }
-
-      if (currentStep >= steps) {
-        setState(() {
-          _displayedPoints = end;
-          _showPointsPulse = true;
-        });
-        timer.cancel();
-      }
-    });
-  }
-
-  Route<T> _buildAnimatedRoute<T>(Widget page) {
-    return PageRouteBuilder<T>(
-      transitionDuration: DashboardAnimationConfig.pageTransition,
-      pageBuilder: (context, animation, secondaryAnimation) => page,
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        final fade = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        );
-        final slide = Tween<Offset>(
-          begin: const Offset(0.04, 0),
-          end: Offset.zero,
-        ).animate(fade);
-        final scale = Tween<double>(begin: 0.985, end: 1.0).animate(fade);
-
-        return FadeTransition(
-          opacity: fade,
-          child: SlideTransition(
-            position: slide,
-            child: ScaleTransition(scale: scale, child: child),
-          ),
-        );
-      },
-    );
   }
 
   /// Preload all viewed statuses at startup for instant display
@@ -377,77 +282,61 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         // Show dashboard content
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          body: Stack(
-            children: [
-              const Positioned.fill(child: _AnimatedDashboardBackground()),
-              RefreshIndicator(
-                onRefresh: _loadDashboardData,
-                color: const Color(0xFFF2800D),
-                child: CustomScrollView(
-                  controller: _scrollController,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    // Custom Header
-                    SliverToBoxAdapter(child: _buildHeader(student, authUser)),
+          body: RefreshIndicator(
+            onRefresh: _loadDashboardData,
+            color: const Color(0xFFF2800D),
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                // Custom Header
+                SliverToBoxAdapter(child: _buildHeader(student, authUser)),
 
-                    // Main Content
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      sliver: SliverList(
-                        delegate: SliverChildListDelegate([
-                          // Announcements Section (above points)
-                          if (student != null)
-                            _buildAnimatedEntrance(
-                              visible: true,
-                              child: _buildAnnouncementsSection(student),
-                            ),
+                // Main Content
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      // Announcements Section (above points)
+                      if (student != null) _buildAnnouncementsSection(student),
 
-                          const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                          // Auto sliding summary cards
-                          _buildTopSliderSection(student),
+                      // Points Card
+                      _buildPointsCard(student),
 
-                          const SizedBox(height: 18),
+                      const SizedBox(height: 24),
 
-                          // Daily Challenge
-                          if (student != null)
-                            _buildAnimatedEntrance(
-                              visible: _showChallengeSection,
-                              child: _buildDailyChallengeCard(student),
-                            ),
+                      // Daily Challenge
+                      if (student != null) _buildDailyChallengeCard(student),
 
-                          const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                          // Assigned Tests
-                          _buildAssignedTestsSection(student),
+                      // Assigned Tests
+                      _buildAssignedTestsSection(student),
 
-                          const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                          // Performance
-                          _buildAnimatedEntrance(
-                            visible: _showPerformanceSection,
-                            child: _buildPerformanceSection(student),
-                          ),
+                      // Performance
+                      _buildPerformanceSection(student),
 
-                          const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                          // Attendance
-                          _buildAttendanceSection(student),
+                      // Attendance
+                      _buildAttendanceSection(student),
 
-                          const SizedBox(height: 100),
-                        ]),
-                      ),
-                    ),
-                  ],
+                      const SizedBox(height: 100),
+                    ]),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           floatingActionButton: FloatingActionButton(
             onPressed: () {
-              Navigator.of(
+              Navigator.push(
                 context,
-              ).push(_buildAnimatedRoute(const AiChatPage()));
+                MaterialPageRoute(builder: (context) => const AiChatPage()),
+              );
             },
             backgroundColor: _primary,
             elevation: 4,
@@ -455,101 +344,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildAnimatedEntrance({
-    required bool visible,
-    required Widget child,
-  }) {
-    return AnimatedOpacity(
-      opacity: visible ? 1 : 0,
-      duration: const Duration(milliseconds: 480),
-      curve: Curves.easeOutCubic,
-      child: AnimatedSlide(
-        offset: visible ? Offset.zero : const Offset(0, 0.08),
-        duration: const Duration(milliseconds: 480),
-        curve: Curves.easeOutCubic,
-        child: child,
-      ),
-    );
-  }
-
-  Widget _buildTopSliderSection(StudentModel? student) {
-    final cards = [
-      _buildPointsCard(student),
-      if (student != null)
-        _buildDailyChallengeCard(student)
-      else
-        _buildEmptyPointsCard(),
-      _buildPerformancePreviewCard(student),
-    ];
-
-    return AnimatedCardSlider(
-      cards: cards,
-      autoSlideInterval: DashboardAnimationConfig.cardAutoSlide,
-    );
-  }
-
-  Widget _buildPerformancePreviewCard(StudentModel? student) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _surface(context),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.35),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.trending_up, color: _primary),
-              const SizedBox(width: 8),
-              Text(
-                'Performance Snapshot',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            student == null
-                ? 'Your latest results will appear here.'
-                : 'Keep your streak alive with daily challenge and tests.',
-            style: TextStyle(fontSize: 14, color: _muted(context)),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: _primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              'Tip: Attempt tests regularly to improve your average score.',
-              style: TextStyle(
-                color: Color(0xFFF2800D),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -637,15 +431,9 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         final student = studentProvider.currentStudent;
         final streakDays = student?.streak ?? 0;
 
-        return _StreakPulseBadge(streakDays: streakDays, primary: _primary);
+        return AnimatedStreakIcon(streakCount: streakDays);
       },
     );
-  }
-
-  Future<void> _openStudentProfile() async {
-    await Navigator.of(
-      context,
-    ).push(_buildAnimatedRoute(const StudentProfileScreen()));
   }
 
   Widget _buildProfileIcon() {
@@ -662,7 +450,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
         // Show real avatar if we have a DP, otherwise show icon button
         if (imageUrl != null && imageUrl.isNotEmpty) {
           return GestureDetector(
-            onTap: _openStudentProfile,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const StudentProfileScreen(),
+              ),
+            ),
             child: ProfileAvatarWidget(
               imageUrl: imageUrl,
               name: studentName,
@@ -676,7 +469,12 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
         // Fallback: initials avatar (no photo yet)
         return GestureDetector(
-          onTap: _openStudentProfile,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const StudentProfileScreen(),
+            ),
+          ),
           child: studentName.isNotEmpty
               ? ProfileAvatarWidget(
                   name: studentName,
@@ -1454,68 +1252,85 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
                     final isDark =
                         Theme.of(context).brightness == Brightness.dark;
 
-                    _animatePointsCounter(studentPoints);
+                    return AnimatedPointsCardShell(
+                      builder: (context, cardScale, floatOffset, glowOpacity) {
+                        return Transform.scale(
+                          scale: cardScale,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 22,
+                              horizontal: 20,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _surface(context),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).dividerColor.withOpacity(0.4),
+                                width: 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(
+                                    isDark ? 0.25 : 0.06,
+                                  ),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                                BoxShadow(
+                                  color: _primary.withOpacity(
+                                    isDark ? 0.06 : 0.04 * glowOpacity,
+                                  ),
+                                  blurRadius: 18,
+                                  spreadRadius: 0.5,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                // Circular Comparison Chart
+                                _buildCircularComparison(
+                                  studentPoints,
+                                  topperPoints,
+                                  floatOffset: floatOffset,
+                                ),
+                                const SizedBox(height: 20),
 
-                    return AnimatedScale(
-                      scale: _showPointsPulse ? 1.0 : 0.985,
-                      duration: const Duration(milliseconds: 360),
-                      curve: Curves.easeOutCubic,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 22,
-                          horizontal: 20,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _surface(context),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).dividerColor.withOpacity(0.4),
-                            width: 1,
+                                // Points Info
+                                Transform.translate(
+                                  offset: Offset(0, floatOffset * 0.45),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        'Your Points: $studentPoints',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: isDark
+                                              ? Colors.white
+                                              : Colors.black87,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Topper: $topperPoints pts',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: isDark
+                                              ? const Color(0xFFBBBBBB)
+                                              : Colors.grey.shade600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(
-                                isDark ? 0.25 : 0.06,
-                              ),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            // Circular Comparison Chart
-                            _buildCircularComparison(
-                              studentPoints,
-                              topperPoints,
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Points Info
-                            Text(
-                              'Your Points: $_displayedPoints',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Topper: $topperPoints pts',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: isDark
-                                    ? const Color(0xFFBBBBBB)
-                                    : Colors.grey.shade600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                        );
+                      },
                     );
                   },
                 );
@@ -1562,13 +1377,78 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
     return null;
   }
 
-  Widget _buildCircularComparison(int studentPoints, int topperPoints) {
-    return AnimatedProgressRing(
-      key: ValueKey<int>(studentPoints),
-      value: studentPoints,
-      maxValue: topperPoints <= 0 ? math.max(studentPoints, 1) : topperPoints,
-      label: 'POINTS',
-      duration: const Duration(milliseconds: 1700),
+  Widget _buildCircularComparison(
+    int studentPoints,
+    int topperPoints, {
+    required double floatOffset,
+  }) {
+    // Calculate percentage
+    double percentage = 0.0;
+    if (topperPoints > 0) {
+      percentage = (studentPoints / topperPoints).clamp(0.0, 1.0);
+    } else if (studentPoints > 0) {
+      percentage = 1.0;
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: percentage),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutQuart,
+      builder: (context, animatedValue, child) {
+        return Transform.translate(
+          offset: Offset(0, floatOffset * 0.72),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Background circle
+              SizedBox(
+                width: 140,
+                height: 140,
+                child: CustomPaint(
+                  painter: _CircularComparisonPainter(
+                    progress: animatedValue,
+                    strokeWidth: 14,
+                  ),
+                ),
+              ),
+              // Center content
+              Transform.translate(
+                offset: Offset(0, floatOffset * 0.58),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$studentPoints',
+                      style: TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : Colors.black87,
+                        shadows: isDark
+                            ? [Shadow(color: Colors.white24, blurRadius: 8)]
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'POINTS',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isDark
+                            ? const Color(0xFFBBBBBB)
+                            : Colors.grey.shade600,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1675,8 +1555,8 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   ) async {
     final challengeResult = await Navigator.push<bool>(
       context,
-      _buildAnimatedRoute(
-        DailyChallengeScreen(
+      MaterialPageRoute(
+        builder: (context) => DailyChallengeScreen(
           studentId: student.uid,
           studentEmail: student.email,
         ),
@@ -2433,6 +2313,56 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   }
 }
 
+// Custom Circular Comparison Painter
+class _CircularComparisonPainter extends CustomPainter {
+  final double progress;
+  final double strokeWidth;
+
+  _CircularComparisonPainter({required this.progress, this.strokeWidth = 14});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - strokeWidth) / 2;
+
+    // Background track (dark grey)
+    final bgPaint = Paint()
+      ..color = const Color(0xFF2E2E2E)
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Progress arc (orange)
+    if (progress > 0) {
+      final progressPaint = Paint()
+        ..shader = const LinearGradient(
+          colors: [Color(0xFFFFA726), Color(0xFFF2800D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ).createShader(Rect.fromCircle(center: center, radius: radius))
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+
+      final sweepAngle = 2 * math.pi * progress;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -math.pi / 2,
+        sweepAngle,
+        false,
+        progressPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CircularComparisonPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
 // Custom Circular Progress Painter
 class CircularProgressPainter extends CustomPainter {
   final double progress;
@@ -2481,167 +2411,5 @@ class CircularProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(CircularProgressPainter oldDelegate) {
     return oldDelegate.progress != progress;
-  }
-}
-
-class _StreakPulseBadge extends StatefulWidget {
-  final int streakDays;
-  final Color primary;
-
-  const _StreakPulseBadge({required this.streakDays, required this.primary});
-
-  @override
-  State<_StreakPulseBadge> createState() => _StreakPulseBadgeState();
-}
-
-class _StreakPulseBadgeState extends State<_StreakPulseBadge>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final glow = 0.10 + (_controller.value * 0.08);
-        final scale = 0.98 + (_controller.value * 0.03);
-        return Transform.scale(
-          scale: scale,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: widget.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.primary.withValues(alpha: glow),
-                  blurRadius: 12,
-                  spreadRadius: 0.6,
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Transform.rotate(
-                  angle: (_controller.value - 0.5) * 0.06,
-                  child: const Icon(
-                    Icons.local_fire_department,
-                    color: Color(0xFFF2800D),
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${widget.streakDays}',
-                  style: const TextStyle(
-                    color: Color(0xFFF2800D),
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AnimatedDashboardBackground extends StatefulWidget {
-  const _AnimatedDashboardBackground();
-
-  @override
-  State<_AnimatedDashboardBackground> createState() =>
-      _AnimatedDashboardBackgroundState();
-}
-
-class _AnimatedDashboardBackgroundState
-    extends State<_AnimatedDashboardBackground>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 16),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return IgnorePointer(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, _) {
-          final shift = (_controller.value - 0.5) * 26;
-          return Stack(
-            children: [
-              Positioned(
-                top: 40 + shift,
-                right: -18,
-                child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        const Color(
-                          0xFFF2800D,
-                        ).withValues(alpha: isDark ? 0.08 : 0.10),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 120 - shift,
-                left: -36,
-                child: Container(
-                  width: 210,
-                  height: 210,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        Colors.blue.withValues(alpha: isDark ? 0.05 : 0.07),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
   }
 }
