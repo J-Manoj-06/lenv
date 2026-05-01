@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import '../../constants/app_colors.dart';
 import '../../services/school_storage_service.dart';
 import 'onboarding_page_widget.dart';
@@ -13,12 +14,25 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   late PageController _pageController;
+  late VideoPlayerController _videoController;
   int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+    _videoController = VideoPlayerController.asset('assets/enter_video.mp4')
+      ..setLooping(true)
+      ..setVolume(0);
+    _videoController.initialize().then((_) {
+      if (!mounted) return;
+      setState(() {});
+      _videoController.play();
+    }).catchError((_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
     _pageController.addListener(() {
       setState(() {
         _currentPage = _pageController.page?.round() ?? 0;
@@ -29,6 +43,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _videoController.dispose();
     super.dispose();
   }
 
@@ -75,7 +90,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 title: 'One App for Your Entire School',
                 description:
                     'Bring students, teachers, and parents together in one simple platform.',
-                icon: Icons.people_alt_rounded,
+                videoController: _videoController,
                 backgroundGradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -95,7 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   'Instant announcements',
                   'Easy communication',
                 ],
-                icon: Icons.dashboard_rounded,
+                videoController: _videoController,
                 backgroundGradient: LinearGradient(
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
@@ -111,7 +126,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 title: 'Secure, Reliable, and Ready',
                 description:
                     'Your school data is safe and accessible anytime. Built with security and reliability as our top priorities.',
-                icon: Icons.security_rounded,
+                videoController: _videoController,
                 backgroundGradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -151,7 +166,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             child: SafeArea(
               child: Container(
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkBackground : Colors.white,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      (isDark ? Colors.black : Colors.white).withOpacity(0.08),
+                      (isDark ? Colors.black : Colors.white).withOpacity(0.22),
+                    ],
+                    stops: const [0.0, 0.35, 1.0],
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.08),

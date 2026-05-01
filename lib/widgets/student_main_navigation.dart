@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,15 +37,25 @@ class StudentMainNavigation extends StatefulWidget {
 
 class _StudentMainNavigationState extends State<StudentMainNavigation>
     with ShareHandlerMixin, WidgetsBindingObserver {
+  static const int _tabCount = 5;
+  static const double _swipeDistanceThreshold = 48;
+  static const double _swipeDominanceThreshold = 1.2;
+
+  late final PageController _pageController;
   late int _currentIndex;
   final List<Widget> _screens = [];
   bool _initialized = false;
   bool _permissionPromptInProgress = false;
+  int? _activePointerId;
+  Offset? _swipeStartPosition;
+  Offset? _swipeLastPosition;
+  bool _swipeConsumed = false;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentIndex = widget.initialIndex.clamp(0, _tabCount - 1);
+    _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addObserver(this);
     if (widget.shouldCheckUsagePermissionOnEntry) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -75,7 +86,76 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _goToTab(int index) async {
+    if (index == _currentIndex || !mounted) return;
+
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _resetSwipeTracking() {
+    _activePointerId = null;
+    _swipeStartPosition = null;
+    _swipeLastPosition = null;
+    _swipeConsumed = false;
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (_activePointerId != null) return;
+
+    _activePointerId = event.pointer;
+    _swipeStartPosition = event.position;
+    _swipeLastPosition = event.position;
+    _swipeConsumed = false;
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_activePointerId != event.pointer || _swipeStartPosition == null) {
+      return;
+    }
+
+    _swipeLastPosition = event.position;
+  }
+
+  Future<void> _handlePointerUp(PointerUpEvent event) async {
+    if (_activePointerId != event.pointer || _swipeStartPosition == null) {
+      _resetSwipeTracking();
+      return;
+    }
+
+    _swipeLastPosition = event.position;
+    final delta = _swipeLastPosition!.dx - _swipeStartPosition!.dx;
+    final verticalDelta = (_swipeLastPosition!.dy - _swipeStartPosition!.dy).abs();
+    final horizontalDistance = delta.abs();
+
+    final isSwipe = horizontalDistance >= _swipeDistanceThreshold &&
+        horizontalDistance > verticalDelta * _swipeDominanceThreshold;
+
+    if (!_swipeConsumed && isSwipe) {
+      _swipeConsumed = true;
+      final targetIndex = delta < 0
+          ? (_currentIndex + 1).clamp(0, _tabCount - 1)
+          : (_currentIndex - 1).clamp(0, _tabCount - 1);
+
+      if (targetIndex != _currentIndex) {
+        await _goToTab(targetIndex);
+      }
+    }
+
+    _resetSwipeTracking();
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    if (_activePointerId == event.pointer) {
+      _resetSwipeTracking();
+    }
   }
 
   @override
@@ -113,32 +193,46 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
     return WillPopScope(
       onWillPop: () async {
         if (_currentIndex != 0) {
-          setState(() => _currentIndex = 0);
+          await _goToTab(0);
           return false;
         }
         await SystemNavigator.pop();
         return false;
       },
       child: Scaffold(
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: IndexedStack(index: _currentIndex, children: _screens),
-            ),
-            if (_currentIndex != 0)
-              Positioned(
-                top: MediaQuery.of(context).padding.top + 8,
-                right: 16,
-                child: _buildProfileQuickAccess(),
+        body: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _handlePointerDown,
+          onPointerMove: _handlePointerMove,
+          onPointerUp: _handlePointerUp,
+          onPointerCancel: _handlePointerCancel,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (index) {
+                    if (_currentIndex == index) return;
+                    setState(() => _currentIndex = index);
+                  },
+                  children: _screens
+                      .map((screen) => _KeepAlivePage(child: screen))
+                      .toList(growable: false),
+                ),
               ),
-          ],
+              if (_currentIndex != 0)
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  right: 16,
+                  child: _buildProfileQuickAccess(),
+                ),
+            ],
+          ),
         ),
         bottomNavigationBar: StudentBottomNav(
           currentIndex: _currentIndex,
-          onTabSelected: (index) {
-            if (_currentIndex == index) return;
-            setState(() => _currentIndex = index);
-          },
+          onTabSelected: _goToTab,
         ),
       ),
     );
@@ -188,5 +282,26 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
         );
       },
     );
+  }
+}
+
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAlivePage({required this.child});
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
