@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +8,7 @@ import '../../models/notification_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/notification_service.dart';
+import '../../services/firestore_service.dart';
 import 'test_rules_screen.dart';
 
 class StudentTestsScreen extends StatefulWidget {
@@ -182,144 +182,80 @@ class _AllTestsTab extends StatefulWidget {
 }
 
 class _AllTestsTabState extends State<_AllTestsTab> {
+  late FirestoreService _firestoreService;
+  late Stream<List<TestResultModel>> _resultsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _firestoreService = FirestoreService();
+    _resultsStream = _firestoreService
+        .getTestResultsByStudent(widget.studentId)
+        .asBroadcastStream();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Unified query: get all student assignments, then fetch test details and classify locally.
-    return StreamBuilder<QuerySnapshot>(
-      stream: (() {
-        final email = (widget.studentEmail ?? '').trim();
-        if (email.isNotEmpty) {
-          return FirebaseFirestore.instance
-              .collection('testResults')
-              .where('studentEmail', isEqualTo: email)
-              .where(
-                'status',
-                whereIn: ['assigned', 'started', 'completed', 'submitted'],
-              )
-              .snapshots();
-        }
-        return FirebaseFirestore.instance
-            .collection('testResults')
-            .where('studentId', isEqualTo: widget.studentId)
-            .where(
-              'status',
-              whereIn: ['assigned', 'started', 'completed', 'submitted'],
-            )
-            .snapshots();
-      })(),
-      builder: (context, assignedSnap) {
-        if (assignedSnap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (assignedSnap.hasError) {
-          return _ErrorState(
-            message: 'Failed to load tests: ${assignedSnap.error}',
-            onRetry: () => setState(() {}),
-          );
-        }
-
-        final resultDocs = assignedSnap.data?.docs ?? [];
-        if (resultDocs.isEmpty) {
-          return const _EmptyState(message: 'No tests assigned yet');
-        }
-
-        final testIds = resultDocs
-            .map((d) => (d.data() as Map<String, dynamic>)['testId'] as String?)
-            .where((id) => id != null && id.isNotEmpty)
-            .toSet()
-            .take(10)
-            .toList();
-
-        if (testIds.isEmpty) {
-          return const _EmptyState(message: 'No tests assigned yet');
-        }
-
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('scheduledTests')
-              .where(FieldPath.documentId, whereIn: testIds)
-              .snapshots(),
+    // Get both test results and available tests
+    return StreamBuilder<List<TestResultModel>>(
+      stream: _resultsStream,
+      builder: (context, resultsSnap) {
+        return StreamBuilder<List<TestModel>>(
+          stream: _firestoreService.getAvailableTestsForStudent(
+            widget.studentId,
+            studentEmail: widget.studentEmail,
+          ),
           builder: (context, testsSnap) {
-            if (testsSnap.connectionState == ConnectionState.waiting) {
+            if (resultsSnap.connectionState == ConnectionState.waiting ||
+                testsSnap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
             if (testsSnap.hasError) {
               return _ErrorState(
-                message: 'Failed to load test details: ${testsSnap.error}',
+                message: 'Failed to load tests: ${testsSnap.error}',
                 onRetry: () => setState(() {}),
               );
             }
 
-            final testDocs = testsSnap.data?.docs ?? [];
-            final tests = testDocs
-                .map(
-                  (d) => TestModel.fromScheduledTest(
-                    d.id,
-                    d.data() as Map<String, dynamic>,
-                  ),
-                )
-                .toList();
-
+            final tests = testsSnap.data ?? [];
             if (tests.isEmpty) {
               return const _EmptyState(message: 'No tests assigned yet');
             }
 
+            // Map tests to items with their results
             final items = <_TestListItem>[];
 
-            for (final t in tests) {
-              QueryDocumentSnapshot? matchingDoc;
-              for (final doc in resultDocs) {
-                final raw = doc.data() as Map<String, dynamic>;
-                if (raw['testId'] == t.id) {
-                  matchingDoc = doc;
-                  break;
+            for (final test in tests) {
+              // Find corresponding result for this test
+              TestResultModel? result;
+              if (resultsSnap.hasData) {
+                try {
+                  result = resultsSnap.data!.firstWhere(
+                    (r) => r.testId == test.id,
+                  );
+                } catch (e) {
+                  result = null;
                 }
               }
 
-              if (matchingDoc == null) {
-                items.add(_TestListItem.pending(test: t));
-                continue;
-              }
-
-              final data = matchingDoc.data() as Map<String, dynamic>;
-              final status = (data['status'] ?? '') as String;
-              final submittedAt = data['submittedAt'];
-              final score = data['score'];
-              final isCompleted =
-                  status == 'completed' ||
-                  status == 'submitted' ||
-                  submittedAt != null ||
-                  (score is num && score > 0);
-
-              if (!isCompleted) {
-                items.add(_TestListItem.pending(test: t));
-                continue;
-              }
-
-              try {
-                final result = TestResultModel.fromFirestore(
-                  matchingDoc as DocumentSnapshot<Map<String, dynamic>>,
-                );
-                final canShow = DateTime.now().isAfter(t.endDate);
+              if (result != null) {
+                // Test has been completed
+                final canShow = DateTime.now().isAfter(test.endDate);
                 items.add(
                   _TestListItem.completed(
                     result: result,
                     showResult: canShow,
-                    endDate: t.endDate,
+                    endDate: test.endDate,
                   ),
                 );
-                if (status != 'completed') {
-                  matchingDoc.reference
-                      .update({'status': 'completed'})
-                      .catchError((e) {});
-                }
-              } catch (e) {
-                items.add(_TestListItem.pending(test: t));
+              } else {
+                // Test is pending
+                items.add(_TestListItem.pending(test: test));
               }
             }
 
+            // Sort by date (newest first)
             items.sort((a, b) {
               final aDate = a.isPending
                   ? a.test!.createdAt
@@ -347,96 +283,65 @@ class _AllTestsTabState extends State<_AllTestsTab> {
   }
 }
 
-class _UpcomingTab extends StatelessWidget {
+class _UpcomingTab extends StatefulWidget {
   final String studentId;
   final String? studentEmail;
   const _UpcomingTab({required this.studentId, this.studentEmail});
 
   @override
+  State<_UpcomingTab> createState() => _UpcomingTabState();
+}
+
+class _UpcomingTabState extends State<_UpcomingTab> {
+  late FirestoreService _firestoreService;
+  late Stream<List<TestResultModel>> _resultsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _firestoreService = FirestoreService();
+    _resultsStream = _firestoreService
+        .getTestResultsByStudent(widget.studentId)
+        .asBroadcastStream();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Query assigned tests from student's testResults
-    return StreamBuilder<QuerySnapshot>(
-      stream: (() {
-        final email = (studentEmail ?? '').trim();
-        if (email.isNotEmpty) {
-          return FirebaseFirestore.instance
-              .collection('testResults')
-              .where('studentEmail', isEqualTo: email)
-              .where(
-                'status',
-                whereIn: ['assigned', 'started', 'completed', 'submitted'],
-              )
-              .snapshots();
-        }
-        return FirebaseFirestore.instance
-            .collection('testResults')
-            .where('studentId', isEqualTo: studentId)
-            .where(
-              'status',
-              whereIn: ['assigned', 'started', 'completed', 'submitted'],
-            )
-            .snapshots();
-      })(),
-      builder: (context, assignedSnap) {
-        if (assignedSnap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        // Filter only truly pending (exclude those that have submittedAt or score or status completed/submitted)
-        final allDocs = assignedSnap.data?.docs ?? [];
-        final assignedDocs = allDocs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = (data['status'] ?? '') as String;
-          final submittedAt = data['submittedAt'];
-          final score = data['score'];
-          // Exclude both 'completed' (app) and 'submitted' (website)
-          final isCompleted =
-              status == 'completed' ||
-              status == 'submitted' ||
-              submittedAt != null ||
-              (score is num && score > 0);
-          return !isCompleted; // keep only pending
-        }).toList();
-        if (assignedDocs.isEmpty) {
-          return const _EmptyState(message: 'No upcoming tests');
-        }
-
-        // Fetch test details
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('scheduledTests')
-              .where(
-                FieldPath.documentId,
-                whereIn: assignedDocs
-                    .map((doc) => doc['testId'] as String)
-                    .take(10)
-                    .toList(),
-              )
-              .snapshots(),
+    return StreamBuilder<List<TestResultModel>>(
+      stream: _resultsStream,
+      builder: (context, resultsSnap) {
+        return StreamBuilder<List<TestModel>>(
+          stream: _firestoreService.getAvailableTestsForStudent(
+            widget.studentId,
+            studentEmail: widget.studentEmail,
+          ),
           builder: (context, testsSnap) {
-            if (testsSnap.connectionState == ConnectionState.waiting) {
+            if (resultsSnap.connectionState == ConnectionState.waiting ||
+                testsSnap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final testDocs = testsSnap.data?.docs ?? [];
-            final tests = testDocs
-                .map(
-                  (d) => TestModel.fromScheduledTest(
-                    d.id,
-                    d.data() as Map<String, dynamic>,
-                  ),
-                )
-                .toList();
+            if (testsSnap.hasError) {
+              return _ErrorState(
+                message: 'Failed to load tests: ${testsSnap.error}',
+                onRetry: () => setState(() {}),
+              );
+            }
 
+            final tests = testsSnap.data ?? [];
+            final completedIds = <String>{
+              if (resultsSnap.hasData) ...resultsSnap.data!.map((r) => r.testId),
+            };
             final now = DateTime.now();
 
-            // Upcoming tests: scheduled tests that haven't started yet OR live tests not yet attempted
-            // (status is already 'assigned' meaning not completed)
+            // Filter for upcoming tests (not yet completed and scheduled for future/now)
             final upcoming = tests
-                .where((t) => now.isBefore(t.endDate)) // Not expired
+                .where((t) => 
+                    !completedIds.contains(t.id) &&
+                    now.isBefore(t.endDate))
                 .toList();
 
-            // Sort by start date (upcoming first)
+            // Sort by start date (soonest first)
             upcoming.sort((a, b) => a.startDate.compareTo(b.startDate));
 
             if (upcoming.isEmpty) {
@@ -457,148 +362,62 @@ class _UpcomingTab extends StatelessWidget {
   }
 }
 
-class _CompletedTab extends StatelessWidget {
+class _CompletedTab extends StatefulWidget {
   final String studentId;
   final String? studentEmail;
   const _CompletedTab({required this.studentId, this.studentEmail});
 
   @override
+  State<_CompletedTab> createState() => _CompletedTabState();
+}
+
+class _CompletedTabState extends State<_CompletedTab> {
+  late FirestoreService _firestoreService;
+
+  @override
+  void initState() {
+    super.initState();
+    _firestoreService = FirestoreService();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Query completed assignments from testResults collection
-    return StreamBuilder<QuerySnapshot>(
-      stream: (() {
-        final email = (studentEmail ?? '').trim();
-        if (email.isNotEmpty) {
-          return FirebaseFirestore.instance
-              .collection('testResults')
-              .where('studentEmail', isEqualTo: email)
-              .where(
-                'status',
-                whereIn: ['assigned', 'started', 'completed', 'submitted'],
-              )
-              .snapshots();
-        }
-        return FirebaseFirestore.instance
-            .collection('testResults')
-            .where('studentId', isEqualTo: studentId)
-            .where(
-              'status',
-              whereIn: ['assigned', 'started', 'completed', 'submitted'],
-            )
-            .snapshots();
-      })(),
-      builder: (context, assignmentsSnap) {
-        if (assignmentsSnap.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<List<TestResultModel>>(
+      stream: _firestoreService.getTestResultsByStudent(widget.studentId),
+      builder: (context, resultsSnap) {
+        if (resultsSnap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final allDocs = assignmentsSnap.data?.docs ?? [];
-        // Completed classification: status completed/submitted OR submittedAt/score present
-        final assignmentDocs = allDocs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = (data['status'] ?? '') as String;
-          final submittedAt = data['submittedAt'];
-          final score = data['score'];
-          // Recognize both 'completed' (app) and 'submitted' (website)
-          return status == 'completed' ||
-              status == 'submitted' ||
-              submittedAt != null ||
-              (score is num && score > 0);
-        }).toList();
+        if (resultsSnap.hasError) {
+          return _ErrorState(
+            message: 'Failed to load results: ${resultsSnap.error}',
+            onRetry: () => setState(() {}),
+          );
+        }
 
-        if (assignmentDocs.isEmpty) {
+        final results = resultsSnap.data ?? [];
+        if (results.isEmpty) {
           return const _EmptyState(message: 'No completed tests');
         }
 
-        // Extract test IDs from assignments
-        final testIds = assignmentDocs
-            .map((doc) => doc.data() as Map<String, dynamic>)
-            .map((data) => data['testId'] as String?)
-            .where((id) => id != null && id.isNotEmpty)
-            .toSet()
-            .toList();
+        // Sort by completion date (newest first)
+        final sortedResults = List<TestResultModel>.from(results)
+          ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
 
-        if (testIds.isEmpty) {
-          return const _EmptyState(message: 'No completed tests');
-        }
-
-        // Fetch test details from scheduledTests collection
-        return StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('scheduledTests')
-              .where(FieldPath.documentId, whereIn: testIds)
-              .snapshots(),
-          builder: (context, testsSnap) {
-            if (testsSnap.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final testDocs = testsSnap.data?.docs ?? [];
-
-            // Convert to TestModel using fromScheduledTest
-            final Map<String, TestModel> testById = {};
-            for (final doc in testDocs) {
-              try {
-                final test = TestModel.fromScheduledTest(
-                  doc.id,
-                  doc.data() as Map<String, dynamic>,
-                );
-                testById[test.id] = test;
-              } catch (e) {}
-            }
-
-            // Build items from completed assignments directly
-            final items = <_TestListItem>[];
-            final now = DateTime.now();
-
-            for (final assignmentDoc in assignmentDocs) {
-              final assignmentData =
-                  assignmentDoc.data() as Map<String, dynamic>;
-              final testId = assignmentData['testId'] as String?;
-              if (testId == null) continue;
-
-              TestModel? test = testById[testId];
-              DateTime? endDate = test?.endDate;
-              if (test == null) {
-                // Fallback compute endDate from assignment data
-                try {
-                  final dateStr = assignmentData['date'] as String?;
-                  final startTimeStr =
-                      assignmentData['startTime'] as String? ?? '00:00';
-                  final duration = (assignmentData['duration'] as int?) ?? 60;
-                  if (dateStr != null) {
-                    final startDate = DateTime.parse('$dateStr $startTimeStr');
-                    endDate = startDate.add(Duration(minutes: duration));
-                  }
-                } catch (_) {}
-              }
-
-              try {
-                final result = TestResultModel.fromFirestore(
-                  assignmentDoc as DocumentSnapshot<Map<String, dynamic>>,
-                );
-                final canShow = endDate == null ? true : now.isAfter(endDate);
-                items.add(
-                  _TestListItem.completed(
-                    result: result,
-                    showResult: canShow,
-                    endDate: endDate,
-                  ),
-                );
-              } catch (e) {}
-            }
-
-            if (items.isEmpty) {
-              return const _EmptyState(message: 'No completed tests');
-            }
-
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemBuilder: (ctx, i) => _TestCard(item: items[i]),
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemCount: items.length,
+        return ListView.separated(
+          padding: const EdgeInsets.all(16),
+          itemBuilder: (ctx, i) {
+            final result = sortedResults[i];
+            return _TestCard(
+              item: _TestListItem.completed(
+                result: result,
+                showResult: true,
+              ),
             );
           },
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemCount: sortedResults.length,
         );
       },
     );

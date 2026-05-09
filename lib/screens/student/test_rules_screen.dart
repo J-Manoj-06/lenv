@@ -12,8 +12,9 @@ class TestRulesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F7F5),
+        backgroundColor: isDark ? Colors.black : Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -29,30 +30,30 @@ class TestRulesScreen extends StatelessWidget {
                       width: 48,
                       height: 48,
                       alignment: Alignment.centerLeft,
-                      child: const Icon(
-                        Icons.arrow_back,
-                        size: 28,
-                        color: Color(0xFF1E293B),
-                      ),
+                      child: Icon(
+                            Icons.arrow_back,
+                            size: 28,
+                            color: Theme.of(context).iconTheme.color,
+                          ),
                     ),
                   ),
                   const Spacer(),
                   // Timer Display
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.schedule,
                         size: 20,
-                        color: Color(0xFF64748B),
+                        color: Theme.of(context).iconTheme.color?.withOpacity(0.75),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '${test.duration} Mins',
-                        style: const TextStyle(
-                          color: Color(0xFFFF7B00),
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                       ),
                     ],
                   ),
@@ -67,64 +68,71 @@ class TestRulesScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     // Headline and Body Text
-                    const Text(
-                      'Before You Start the Test',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFF0F172A),
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        height: 1.2,
+                      Text(
+                        'Before You Start the Test',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              height: 1.2,
+                            ),
                       ),
-                    ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Please read the following instructions carefully before beginning your test.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 16,
-                        height: 1.5,
+                      Text(
+                        'Please read the following instructions carefully before beginning your test.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).textTheme.bodySmall?.color,
+                              fontSize: 16,
+                              height: 1.5,
+                            ),
                       ),
-                    ),
                     const SizedBox(height: 16),
 
-                    // Mascot Image
-                    Container(
-                      constraints: const BoxConstraints(maxWidth: 280),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: Image.asset(
-                          'assets/images/mascot.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFF7B00).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(
-                                Icons.school,
-                                size: 120,
-                                color: Color(0xFFFF7B00),
-                              ),
-                            );
-                          },
+                      // Centered GIF inside a rounded card to match design and
+                      // avoid visible black gap. Increased size for better visibility.
+                      Container(
+                        width: double.infinity,
+                        constraints: const BoxConstraints(maxWidth: 360, maxHeight: 300),
+                        padding: const EdgeInsets.all(24),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            color: isDark ? Colors.black : Theme.of(context).cardColor,
+                            alignment: Alignment.center,
+                            child: Image.asset(
+                              'assets/animations/walking_student.gif',
+                              fit: BoxFit.contain,
+                              width: 300,
+                              height: 220,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: isDark ? Colors.black : Theme.of(context).cardColor,
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.all(24),
+                                  child: Icon(
+                                    Icons.school,
+                                    size: 120,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 24),
 
                     // Instruction Card
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.07),
-                            blurRadius: 30,
-                            offset: const Offset(0, 10),
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
                           ),
                         ],
                       ),
@@ -133,6 +141,7 @@ class TestRulesScreen extends StatelessWidget {
                         children: [
                           // Rule 1: No Tab Switching
                           _buildRuleItem(
+                            context: context,
                             icon: Icons.tab_unselected,
                             title: 'No Tab Switching',
                             description:
@@ -140,6 +149,7 @@ class TestRulesScreen extends StatelessWidget {
                           ),
                           // Rule 2: Stable Connection
                           _buildRuleItem(
+                            context: context,
                             icon: Icons.wifi,
                             title: 'Stable Connection',
                             description:
@@ -147,6 +157,7 @@ class TestRulesScreen extends StatelessWidget {
                           ),
                           // Rule 3: Timer Warning
                           _buildRuleItem(
+                            context: context,
                             icon: Icons.timer,
                             title: 'Timer Cannot Be Paused',
                             description:
@@ -154,6 +165,7 @@ class TestRulesScreen extends StatelessWidget {
                           ),
                           // Rule 4: Focus Required
                           _buildRuleItem(
+                            context: context,
                             icon: Icons.visibility,
                             title: 'Stay Focused',
                             description:
@@ -161,6 +173,7 @@ class TestRulesScreen extends StatelessWidget {
                           ),
                           // Rule 5: Honest Attempt
                           _buildRuleItem(
+                            context: context,
                             icon: Icons.verified_user,
                             title: 'Academic Integrity',
                             description:
@@ -176,8 +189,8 @@ class TestRulesScreen extends StatelessWidget {
             ),
 
             // Fixed Action Buttons at Bottom
-            Container(
-              color: const Color(0xFFF8F7F5),
+              Container(
+                color: Theme.of(context).scaffoldBackgroundColor,
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
@@ -440,6 +453,7 @@ class TestRulesScreen extends StatelessWidget {
   }
 
   Widget _buildRuleItem({
+    required BuildContext context,
     required IconData icon,
     required String title,
     required String description,
@@ -453,10 +467,10 @@ class TestRulesScreen extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFFF7B00).withOpacity(0.1),
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: const Color(0xFFFF7B00), size: 24),
+            child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
           ),
           const SizedBox(width: 16),
           // Text Content
@@ -466,23 +480,22 @@ class TestRulesScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Color(0xFF1E293B),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        height: 1.5,
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   description,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

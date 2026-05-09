@@ -119,6 +119,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/animations/
+    - assets/animations/walking_student.gif
     - assets/enter_video.mp4
     - assets/animations/test/strict_mother.gif
     - assets/strict_mother.gif

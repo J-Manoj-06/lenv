@@ -33,6 +33,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
   int _tabSwitchCount = 0;
   // Shuffled question list specific to this student
   List<Question> _questions = [];
+  // Loading flag for question initialization
+  bool _loadingQuestions = true;
   // Per-question shuffled options cached by index in _questions
   final Map<int, List<String>> _shuffledOptions = {};
 
@@ -109,9 +111,10 @@ class _TakeTestScreenState extends State<TakeTestScreen>
   }
 
   Future<void> _initQuestions() async {
-    // Start with original order until loaded
-    _questions = List<Question>.from(widget.test.questions);
-    setState(() {});
+    // Indicate loading while we fetch or prepare per-student order
+    setState(() {
+      _loadingQuestions = true;
+    });
 
     try {
       final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -125,12 +128,13 @@ class _TakeTestScreenState extends State<TakeTestScreen>
           .limit(1)
           .get();
       if (qs.docs.isEmpty) {
-        // No assignment doc yet (unlikely) – generate and abort
-        final order = List<int>.generate(_questions.length, (i) => i)
-          ..shuffle();
+        // No assignment doc yet (unlikely) – generate and continue
+        final order = List<int>.generate(widget.test.questions.length, (i) => i)..shuffle();
         _questions = order.map((i) => widget.test.questions[i]).toList();
         _prepareShuffledOptions();
-        setState(() {});
+        setState(() {
+          _loadingQuestions = false;
+        });
         return;
       }
       final doc = qs.docs.first;
@@ -150,11 +154,16 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         _questions = indices.map((i) => widget.test.questions[i]).toList();
         _prepareShuffledOptions();
       }
-      setState(() {});
+      setState(() {
+        _loadingQuestions = false;
+      });
     } catch (e) {
       // Fallback: keep original order
+      _questions = List<Question>.from(widget.test.questions);
       _prepareShuffledOptions();
-      setState(() {});
+      setState(() {
+        _loadingQuestions = false;
+      });
     }
   }
 
@@ -540,7 +549,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
         return false;
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFFCFAF8),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: Column(
             children: [
@@ -548,7 +557,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFCFAF8).withOpacity(0.8),
+                  color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
                 ),
                 child: Column(
                   children: [
@@ -557,11 +566,10 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                       children: [
                         Text(
                           widget.test.title,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1C140D),
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
                         ),
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -569,24 +577,23 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF4EDE7),
+                            color: Theme.of(context).cardColor,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             children: [
-                              const Icon(
+                              Icon(
                                 Icons.access_time,
                                 size: 20,
-                                color: Color(0xFF1C140D),
+                                color: Theme.of(context).iconTheme.color,
                               ),
                               const SizedBox(width: 4),
                               Text(
                                 _formatDuration(_timeRemaining),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF1C140D),
-                                ),
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                               ),
                             ],
                           ),
@@ -596,7 +603,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
                       value: progress,
-                      backgroundColor: const Color(0xFFE8DBCE),
+                      backgroundColor: Theme.of(context).dividerColor,
                       valueColor: const AlwaysStoppedAnimation<Color>(
                         Color(0xFFF2800D),
                       ),
@@ -606,17 +613,53 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                 ),
               ),
 
-              // Question Card
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
+               // Loading or Question Card
+                          if (_loadingQuestions)
+                            Expanded(
+                              child: Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Image.asset(
+                                          'assets/animations/walking_student.gif',
+                                          width: 200,
+                                          height: 200,
+                                          fit: BoxFit.contain,
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Text(
+                                          'Loading Questions...',
+                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                    const SizedBox(height: 16),
+                                    const SizedBox(
+                                      width: 40,
+                                      height: 40,
+                                      child: CircularProgressIndicator(
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          Color(0xFFF2800D),
+                                        ),
+                                        strokeWidth: 4,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          else
+                            Expanded(
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  children: [
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
@@ -641,7 +684,6 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                       style: TextStyle(
                                         fontSize: 28,
                                         fontWeight: FontWeight.w700,
-                                        color: Color(0xFF1C140D),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
@@ -652,7 +694,6 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                       style: TextStyle(
                                         fontSize: 28,
                                         fontWeight: FontWeight.w700,
-                                        color: Color(0xFF1C140D),
                                       ),
                                     ),
                                   ],
@@ -662,20 +703,13 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                             const SizedBox(height: 16),
                             Text(
                               'Question ${currentQuestionIndex + 1} of $totalQuestions',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 14),
                             ),
                             const SizedBox(height: 12),
                             if (question != null)
                               Text(
                                 question.question,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF1C140D),
-                                ),
+                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.w500),
                               ),
                             const SizedBox(height: 24),
 
@@ -793,7 +827,9 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       filled: true,
-                                      fillColor: Colors.grey[100],
+                                      fillColor: Theme.of(context).brightness == Brightness.dark
+                                          ? Colors.grey[800]
+                                          : Colors.grey[100],
                                     ),
                                     maxLines: 3,
                                     onChanged: (value) {
@@ -860,7 +896,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                                   shape: BoxShape.circle,
                                   color: index == currentQuestionIndex
                                       ? const Color(0xFFF2800D)
-                                      : const Color(0xFFE8DBCE),
+                                      : Theme.of(context).dividerColor,
                                 ),
                               ),
                             ),
@@ -875,9 +911,9 @@ class _TakeTestScreenState extends State<TakeTestScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: const Border(
-                    top: BorderSide(color: Color(0xFFE8DBCE)),
+                  color: Theme.of(context).cardColor,
+                  border: Border(
+                    top: BorderSide(color: Theme.of(context).dividerColor),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -900,9 +936,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                             style: OutlinedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               side: BorderSide(
-                                color: currentQuestionIndex > 0
-                                    ? Colors.grey.shade400
-                                    : Colors.grey.shade300,
+                                color: Theme.of(context).dividerColor,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -913,9 +947,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: currentQuestionIndex > 0
-                                    ? Colors.grey.shade700
-                                    : Colors.grey.shade400,
+                                color: Theme.of(context).textTheme.bodyMedium?.color,
                               ),
                             ),
                           ),

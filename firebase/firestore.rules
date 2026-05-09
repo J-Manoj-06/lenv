@@ -1125,7 +1125,22 @@ service cloud.firestore {
 
     match /violations/{violationId} {
       allow read: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
-      allow create: if isSignedIn() && (isTeacher() || isPrincipal() || isAdmin());
+      // Allow staff to create violations, and allow a student to create a
+      // violation record for themselves (client-side logging) with strict
+      // field validation to reduce abuse. Server-side logging via Cloud
+      // Functions is preferred for production.
+      allow create: if isSignedIn() && (
+        (isTeacher() || isPrincipal() || isAdmin())
+        || (
+          isStudent()
+          && request.resource.data.studentId == request.auth.uid
+          && request.resource.data.testId is string
+          && request.resource.data.violationType is string
+          && request.resource.data.tabSwitchCount is int
+          && request.resource.data.score is number
+          && request.resource.data.timestamp == request.time
+        )
+      );
       allow update, delete: if isAdmin();
     }
 
