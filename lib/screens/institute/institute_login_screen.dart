@@ -8,6 +8,7 @@ import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 import '../../utils/lenv_snackbar.dart';
 import '../../services/announcement_cleanup_service.dart';
+import '../../widgets/entrance_video_background.dart';
 import '../auth/forgot_password_screen.dart';
 
 class InstituteLoginScreen extends StatefulWidget {
@@ -34,7 +35,6 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
   ); // light teal background
   static const Color brandBrownDark = Color(0xFF1C140D);
   static const Color brandBrownLight = Color(0xFF9C7349);
-  static const Color brandOffWhite = Color(0xFFFCFAF8);
   static const Color brandLightGray = Color(0xFFF4EDE7);
 
   @override
@@ -162,39 +162,43 @@ class _InstituteLoginScreenState extends State<InstituteLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF1A1A1A) : brandOffWhite,
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              _buildHeader(),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      _buildWelcomeText(),
-                      const SizedBox(height: 40),
-                      _buildSelectedSchoolInfo(),
-                      const SizedBox(height: 24),
-                      _buildEmailField(),
-                      const SizedBox(height: 24),
-                      _buildPasswordField(),
-                      const SizedBox(height: 16),
-                      _buildForgotPasswordLink(),
-                      const SizedBox(height: 40),
-                      _buildLoginButton(),
-                      const SizedBox(height: 20),
-                    ],
+      backgroundColor: Colors.transparent,
+      body: EntranceVideoBackground(
+        overlayColors: const [Color(0xFF081516), Color(0xFF0A1B1D), Color(0xFF000000)],
+        overlayOpacity: 0.70,
+        videoOpacity: 0.88,
+        child: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
+                        _buildWelcomeText(),
+                        const SizedBox(height: 40),
+                        _buildSelectedSchoolInfo(),
+                        const SizedBox(height: 24),
+                        _buildEmailField(),
+                        const SizedBox(height: 24),
+                        _buildPasswordField(),
+                        const SizedBox(height: 16),
+                        _buildForgotPasswordLink(),
+                        const SizedBox(height: 40),
+                        _buildLoginButton(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              _buildFooter(),
-            ],
+                _buildFooter(),
+              ],
+            ),
           ),
         ),
       ),

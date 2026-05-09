@@ -7,6 +7,7 @@ import '../../services/school_storage_service.dart';
 import '../../utils/session_manager.dart';
 import '../../utils/feedback_handler.dart';
 import '../../utils/lenv_snackbar.dart';
+import '../../widgets/entrance_video_background.dart';
 import '../../widgets/student_main_navigation.dart';
 import '../auth/forgot_password_screen.dart';
 
@@ -31,7 +32,6 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
   static const Color brandOrange = Color(0xFFF2800D);
   static const Color brandBrownDark = Color(0xFF1C140D);
   static const Color brandBrownLight = Color(0xFF9C7349);
-  static const Color brandOffWhite = Color(0xFFFCFAF8);
   static const Color brandLightGray = Color(0xFFF4EDE7);
 
   @override
@@ -168,62 +168,65 @@ class _StudentLoginScreenState extends State<StudentLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF1A1A1A) : brandOffWhite,
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              // Header with Logo
-              _buildHeader(),
+      backgroundColor: Colors.transparent,
+      body: EntranceVideoBackground(
+        overlayColors: const [Color(0xFF1A1205), Color(0xFF120D08), Color(0xFF000000)],
+        overlayOpacity: 0.68,
+        videoOpacity: 0.90,
+        child: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                // Header with Logo
+                _buildHeader(),
 
-              // Main Content (scrollable)
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
+                // Main Content (scrollable)
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
 
-                      // Welcome Text
-                      _buildWelcomeText(),
+                        // Welcome Text
+                        _buildWelcomeText(),
 
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 40),
 
-                      // Selected School (read-only)
-                      _buildSelectedSchoolInfo(),
+                        // Selected School (read-only)
+                        _buildSelectedSchoolInfo(),
 
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      // Email Field
-                      _buildEmailField(),
+                        // Email Field
+                        _buildEmailField(),
 
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
-                      // Password Field
-                      _buildPasswordField(),
+                        // Password Field
+                        _buildPasswordField(),
 
-                      const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                      // Forgot Password Link
-                      _buildForgotPasswordLink(),
+                        // Forgot Password Link
+                        _buildForgotPasswordLink(),
 
-                      const SizedBox(height: 40),
+                        const SizedBox(height: 40),
 
-                      // Login Button
-                      _buildLoginButton(),
+                        // Login Button
+                        _buildLoginButton(),
 
-                      const SizedBox(height: 20),
-                    ],
+                        const SizedBox(height: 20),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-
-              // Footer
-              _buildFooter(),
-            ],
+                // Footer
+                _buildFooter(),
+              ],
+            ),
           ),
         ),
       ),

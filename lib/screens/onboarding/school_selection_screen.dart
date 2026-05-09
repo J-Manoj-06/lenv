@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'package:video_player/video_player.dart';
 import '../../models/school_model.dart';
 import '../../services/school_service.dart';
 import '../../services/school_storage_service.dart';
@@ -17,6 +18,7 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen>
   late TextEditingController _searchController;
   late FocusNode _searchFocusNode;
   late AnimationController _backgroundController;
+  late VideoPlayerController _videoController;
   bool _isLoading = false;
   final SchoolService _schoolService = SchoolService();
   List<SchoolModel> _schools = [];
@@ -40,6 +42,21 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen>
       vsync: this,
       duration: const Duration(seconds: 16),
     )..repeat();
+    _videoController = VideoPlayerController.asset('assets/enter_video.mp4')
+      ..setLooping(true)
+      ..setVolume(0);
+    _videoController
+        .initialize()
+        .then((_) {
+          if (!mounted) return;
+          setState(() {});
+          _videoController.play();
+        })
+        .catchError((_) {
+          if (mounted) {
+            setState(() {});
+          }
+        });
     _loadSchools();
   }
 
@@ -48,6 +65,7 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen>
     _searchController.dispose();
     _searchFocusNode.dispose();
     _backgroundController.dispose();
+    _videoController.dispose();
     super.dispose();
   }
 
@@ -197,19 +215,21 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen>
         return Stack(
           fit: StackFit.expand,
           children: [
+            _buildVideoBackground(),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment(-0.8 + shiftX, -1 + shiftY),
                   end: Alignment(0.9 - shiftX, 1 - shiftY),
-                  colors: const [
-                    Color(0xFF0F0F0F),
-                    Color(0xFF14100A),
-                    Color(0xFF1A1205),
+                  colors: [
+                    const Color(0xFF0F0F0F).withValues(alpha: 0.50),
+                    const Color(0xFF14100A).withValues(alpha: 0.42),
+                    const Color(0xFF1A1205).withValues(alpha: 0.34),
                   ],
                 ),
               ),
             ),
+            Container(color: Colors.black.withValues(alpha: 0.24)),
             CustomPaint(
               painter: _ParticlePainter(progress: t),
               child: const SizedBox.expand(),
@@ -217,6 +237,28 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen>
           ],
         );
       },
+    );
+  }
+
+  Widget _buildVideoBackground() {
+    final controller = _videoController;
+
+    if (!controller.value.isInitialized) {
+      return Container(color: const Color(0xFF0F0F0F));
+    }
+
+    return ClipRect(
+      child: SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: controller.value.size.width,
+            height: controller.value.size.height,
+            child: Opacity(opacity: 0.92, child: VideoPlayer(controller)),
+          ),
+        ),
+      ),
     );
   }
 

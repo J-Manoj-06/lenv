@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
 import '../../providers/role_provider.dart';
 import '../../services/school_storage_service.dart';
+import '../../widgets/entrance_video_background.dart';
 
 class RoleSelectionScreen extends StatelessWidget {
   const RoleSelectionScreen({super.key});
@@ -35,212 +36,221 @@ class RoleSelectionScreen extends StatelessWidget {
         : storedName;
 
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? [
-                    const Color(0xFF1A1A1A), // Dark background
-                    const Color(0xFF2A2A2A), // Slightly lighter
-                    const Color(0xFF3A3A3A), // Medium dark
-                  ]
-                : [
-                    const Color(0xFFFFD4B3), // Lighter peachy orange
-                    const Color(0xFFFFB380), // Light orange
-                    const Color(0xFFF97316), // Main orange #F97316
-                  ],
-          ),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-            child: Column(
-              children: [
-                SizedBox(height: topSpacing),
-                // Title
-                Text(
-                  schoolDisplayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: titleFontSize,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    height: 1.1,
-                    shadows: [
-                      Shadow(
-                        color: Colors.black26,
-                        blurRadius: 10,
-                        offset: Offset(0, 3),
-                      ),
+      backgroundColor: Colors.transparent,
+      body: EntranceVideoBackground(
+        overlayColors: isDark
+            ? const [Color(0xFF0D0D0D), Color(0xFF181818), Color(0xFF23190A)]
+            : const [Color(0xFF1A1205), Color(0xFF221708), Color(0xFF2C1E0B)],
+        overlayOpacity: isDark ? 0.72 : 0.66,
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [
+                      const Color(0xFF1A1A1A).withValues(alpha: 0.42),
+                      const Color(0xFF2A2A2A).withValues(alpha: 0.32),
+                      const Color(0xFF3A3A3A).withValues(alpha: 0.22),
+                    ]
+                  : [
+                      const Color(0xFFFFD4B3).withValues(alpha: 0.24),
+                      const Color(0xFFFFB380).withValues(alpha: 0.18),
+                      const Color(0xFFF97316).withValues(alpha: 0.16),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Welcome to your Portal',
-                  style: TextStyle(
-                    fontSize: subTitleFontSize,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                TextButton.icon(
-                  onPressed: () async {
-                    try {
-                      await schoolStorageService.clearSchoolData();
-                      if (context.mounted) {
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/school-selection',
-                          (route) => false,
-                        );
-                      }
-                    } catch (_) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Unable to change school right now.'),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                  label: const Text('Change School'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white.withValues(alpha: 0.95),
-                  ),
-                ),
-                SizedBox(height: rolePromptTopSpacing),
-                Text(
-                  'Choose your role to login',
-                  style: TextStyle(
-                    fontSize: isCompactHeight ? 16 : 17,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                SizedBox(height: rolePromptBottomSpacing),
-                // Role Cards Grid
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildRoleCard(
-                                context,
-                                role: UserRole.student,
-                                title: 'Student',
-                                icon: Icons.school_rounded,
-                                cardHeight: roleCardHeight,
-                                isCompact: isCompactHeight,
-                                onTap: () {
-                                  roleProvider.setRole(UserRole.student);
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/student-login',
-                                  );
-                                },
-                              ),
-                            ),
-                            SizedBox(width: roleCardGap),
-                            Expanded(
-                              child: _buildRoleCard(
-                                context,
-                                role: UserRole.teacher,
-                                title: 'Teacher',
-                                icon: Icons.menu_book_rounded,
-                                cardHeight: roleCardHeight,
-                                isCompact: isCompactHeight,
-                                onTap: () {
-                                  roleProvider.setRole(UserRole.teacher);
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/teacher-login',
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
+            ),
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: Column(
+                children: [
+                  SizedBox(height: topSpacing),
+                  Text(
+                    schoolDisplayName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      height: 1.1,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black26,
+                          blurRadius: 10,
+                          offset: Offset(0, 3),
                         ),
-                        SizedBox(height: roleCardGap),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildRoleCard(
-                                context,
-                                role: UserRole.parent,
-                                title: 'Parent',
-                                icon: Icons.family_restroom_rounded,
-                                cardHeight: roleCardHeight,
-                                isCompact: isCompactHeight,
-                                onTap: () {
-                                  roleProvider.setRole(UserRole.parent);
-                                  Navigator.pushNamed(context, '/parent-login');
-                                },
-                              ),
-                            ),
-                            SizedBox(width: roleCardGap),
-                            Expanded(
-                              child: _buildRoleCard(
-                                context,
-                                role: UserRole.institute,
-                                title: 'Institute',
-                                icon: Icons.business_rounded,
-                                cardHeight: roleCardHeight,
-                                isCompact: isCompactHeight,
-                                onTap: () {
-                                  roleProvider.setRole(UserRole.institute);
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/institute-login',
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: isCompactHeight ? 12 : 25),
                       ],
                     ),
                   ),
-                ),
-                // Version at bottom
-                Padding(
-                  padding: EdgeInsets.only(bottom: footerBottomPadding),
-                  child: Column(
-                    children: [
-                      Text(
-                        'Educational Ecosystem',
-                        style: TextStyle(
-                          fontSize: isCompactHeight ? 12 : 13,
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontWeight: FontWeight.w300,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Version 1.0.0',
-                        style: TextStyle(
-                          fontSize: isCompactHeight ? 11 : 12,
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontWeight: FontWeight.w300,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Welcome to your Portal',
+                    style: TextStyle(
+                      fontSize: subTitleFontSize,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.5,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  TextButton.icon(
+                    onPressed: () async {
+                      try {
+                        await schoolStorageService.clearSchoolData();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/school-selection',
+                            (route) => false,
+                          );
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Unable to change school right now.',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                    label: const Text('Change School'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white.withValues(alpha: 0.95),
+                    ),
+                  ),
+                  SizedBox(height: rolePromptTopSpacing),
+                  Text(
+                    'Choose your role to login',
+                    style: TextStyle(
+                      fontSize: isCompactHeight ? 16 : 17,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: rolePromptBottomSpacing),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildRoleCard(
+                                  context,
+                                  role: UserRole.student,
+                                  title: 'Student',
+                                  icon: Icons.school_rounded,
+                                  cardHeight: roleCardHeight,
+                                  isCompact: isCompactHeight,
+                                  onTap: () {
+                                    roleProvider.setRole(UserRole.student);
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/student-login',
+                                    );
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: roleCardGap),
+                              Expanded(
+                                child: _buildRoleCard(
+                                  context,
+                                  role: UserRole.teacher,
+                                  title: 'Teacher',
+                                  icon: Icons.menu_book_rounded,
+                                  cardHeight: roleCardHeight,
+                                  isCompact: isCompactHeight,
+                                  onTap: () {
+                                    roleProvider.setRole(UserRole.teacher);
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/teacher-login',
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: roleCardGap),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildRoleCard(
+                                  context,
+                                  role: UserRole.parent,
+                                  title: 'Parent',
+                                  icon: Icons.family_restroom_rounded,
+                                  cardHeight: roleCardHeight,
+                                  isCompact: isCompactHeight,
+                                  onTap: () {
+                                    roleProvider.setRole(UserRole.parent);
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/parent-login',
+                                    );
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: roleCardGap),
+                              Expanded(
+                                child: _buildRoleCard(
+                                  context,
+                                  role: UserRole.institute,
+                                  title: 'Institute',
+                                  icon: Icons.business_rounded,
+                                  cardHeight: roleCardHeight,
+                                  isCompact: isCompactHeight,
+                                  onTap: () {
+                                    roleProvider.setRole(UserRole.institute);
+                                    Navigator.pushNamed(
+                                      context,
+                                      '/institute-login',
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: isCompactHeight ? 12 : 25),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: footerBottomPadding),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Educational Ecosystem',
+                          style: TextStyle(
+                            fontSize: isCompactHeight ? 12 : 13,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Version 1.0.0',
+                          style: TextStyle(
+                            fontSize: isCompactHeight ? 11 : 12,
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontWeight: FontWeight.w300,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
