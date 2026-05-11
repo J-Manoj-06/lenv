@@ -6,6 +6,7 @@ import '../../providers/rewards_providers.dart';
 import '../../services/rewards_repository.dart';
 import '../widgets/request_card.dart';
 import '../widgets/rewards_top_switcher.dart';
+import '../../../../widgets/main_nav_swipe_notification.dart';
 
 class StudentRequestsScreen extends ConsumerStatefulWidget {
   final String studentId;
@@ -18,6 +19,8 @@ class StudentRequestsScreen extends ConsumerStatefulWidget {
 }
 
 class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
+  static const double _swipeVelocityThreshold = 320;
+
   RewardRequestStatus? _selectedStatus;
 
   @override
@@ -48,12 +51,27 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          RewardsTopSwitcher(
-            isCatalogActive: false,
-            studentId: widget.studentId,
-          ),
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity;
+          if (velocity == null || velocity.abs() < _swipeVelocityThreshold) {
+            return;
+          }
+
+          if (velocity > 0) {
+            RewardsModule.navigateToCatalog(context);
+          } else {
+            MainNavSwipeNotification(
+              MainNavSwipeDirection.left,
+            ).dispatch(context);
+          }
+        },
+        child: Column(
+          children: [
+            RewardsTopSwitcher(
+              isCatalogActive: false,
+              studentId: widget.studentId,
+            ),
           // Status Filter
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -238,6 +256,7 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
           ),
         ],
       ),
+    ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           RewardsModule.navigateToCatalog(context);

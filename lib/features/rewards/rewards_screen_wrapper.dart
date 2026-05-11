@@ -85,12 +85,10 @@ class _RewardsScreenWrapperState extends State<RewardsScreenWrapper> {
   @override
   Widget build(BuildContext context) {
     return ProviderScope(
-      child: MaterialApp.router(
-        routerConfig: _rewardsRouter,
-        theme: Theme.of(context),
-        darkTheme: Theme.of(context),
-        themeMode: ThemeMode.system,
-        debugShowCheckedModeBanner: false,
+      child: Router(
+        routerDelegate: _rewardsRouter.routerDelegate,
+        routeInformationParser: _rewardsRouter.routeInformationParser,
+        routeInformationProvider: _rewardsRouter.routeInformationProvider,
       ),
     );
   }

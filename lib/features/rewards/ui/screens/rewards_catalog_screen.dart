@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/product_model.dart';
 import '../../providers/rewards_providers.dart';
+import '../../rewards_module.dart';
 import '../widgets/product_card.dart';
 import '../widgets/rewards_top_switcher.dart';
 import 'reward_details_screen.dart';
 import 'reward_request_screen.dart';
+import '../../../../widgets/main_nav_swipe_notification.dart';
 
 const Color _primaryOrange = Color(0xFFF97316);
 
@@ -21,6 +23,8 @@ class RewardsCatalogScreen extends ConsumerStatefulWidget {
 
 class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
     with SingleTickerProviderStateMixin {
+  static const double _swipeVelocityThreshold = 320;
+
   final _searchController = TextEditingController();
   String _sortBy = 'default';
   late AnimationController _animationController;
@@ -56,8 +60,30 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
 
     return Scaffold(
       backgroundColor: scaffoldBg,
-      body: Column(
-        children: [
+      body: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity;
+          if (velocity == null || velocity.abs() < _swipeVelocityThreshold) {
+            return;
+          }
+
+          if (velocity < 0) {
+            final id = widget.studentId;
+            if (id != null && id.isNotEmpty) {
+              RewardsModule.navigateToStudentRequests(context, studentId: id);
+            } else {
+              MainNavSwipeNotification(
+                MainNavSwipeDirection.left,
+              ).dispatch(context);
+            }
+          } else {
+            MainNavSwipeNotification(
+              MainNavSwipeDirection.right,
+            ).dispatch(context);
+          }
+        },
+        child: Column(
+          children: [
           // Header
           SafeArea(
             bottom: false,
@@ -184,6 +210,7 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
           ),
         ],
       ),
+    ),
     );
   }
 

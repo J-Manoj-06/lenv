@@ -16,6 +16,7 @@ import '../providers/student_provider.dart';
 import '../providers/profile_dp_provider.dart';
 import '../widgets/profile_avatar_widget.dart';
 import '../services/student_usage_service.dart';
+import 'main_nav_swipe_notification.dart';
 
 /// Student Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -37,18 +38,12 @@ class StudentMainNavigation extends StatefulWidget {
 class _StudentMainNavigationState extends State<StudentMainNavigation>
     with ShareHandlerMixin, WidgetsBindingObserver {
   static const int _tabCount = 5;
-  static const double _swipeDistanceThreshold = 48;
-  static const double _swipeDominanceThreshold = 1.2;
 
   late final PageController _pageController;
   late int _currentIndex;
   final List<Widget> _screens = [];
   bool _initialized = false;
   bool _permissionPromptInProgress = false;
-  int? _activePointerId;
-  Offset? _swipeStartPosition;
-  Offset? _swipeLastPosition;
-  bool _swipeConsumed = false;
 
   @override
   void initState() {
@@ -99,64 +94,6 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
     );
   }
 
-  void _resetSwipeTracking() {
-    _activePointerId = null;
-    _swipeStartPosition = null;
-    _swipeLastPosition = null;
-    _swipeConsumed = false;
-  }
-
-  void _handlePointerDown(PointerDownEvent event) {
-    if (_activePointerId != null) return;
-
-    _activePointerId = event.pointer;
-    _swipeStartPosition = event.position;
-    _swipeLastPosition = event.position;
-    _swipeConsumed = false;
-  }
-
-  void _handlePointerMove(PointerMoveEvent event) {
-    if (_activePointerId != event.pointer || _swipeStartPosition == null) {
-      return;
-    }
-
-    _swipeLastPosition = event.position;
-  }
-
-  Future<void> _handlePointerUp(PointerUpEvent event) async {
-    if (_activePointerId != event.pointer || _swipeStartPosition == null) {
-      _resetSwipeTracking();
-      return;
-    }
-
-    _swipeLastPosition = event.position;
-    final delta = _swipeLastPosition!.dx - _swipeStartPosition!.dx;
-    final verticalDelta = (_swipeLastPosition!.dy - _swipeStartPosition!.dy).abs();
-    final horizontalDistance = delta.abs();
-
-    final isSwipe = horizontalDistance >= _swipeDistanceThreshold &&
-        horizontalDistance > verticalDelta * _swipeDominanceThreshold;
-
-    if (!_swipeConsumed && isSwipe) {
-      _swipeConsumed = true;
-      final targetIndex = delta < 0
-          ? (_currentIndex + 1).clamp(0, _tabCount - 1)
-          : (_currentIndex - 1).clamp(0, _tabCount - 1);
-
-      if (targetIndex != _currentIndex) {
-        await _goToTab(targetIndex);
-      }
-    }
-
-    _resetSwipeTracking();
-  }
-
-  void _handlePointerCancel(PointerCancelEvent event) {
-    if (_activePointerId == event.pointer) {
-      _resetSwipeTracking();
-    }
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -199,18 +136,20 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
         return false;
       },
       child: Scaffold(
-        body: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: _handlePointerDown,
-          onPointerMove: _handlePointerMove,
-          onPointerUp: _handlePointerUp,
-          onPointerCancel: _handlePointerCancel,
+        body: NotificationListener<MainNavSwipeNotification>(
+          onNotification: (notification) {
+            final targetIndex = notification.direction == MainNavSwipeDirection.left
+                ? (_currentIndex + 1).clamp(0, _tabCount - 1)
+                : (_currentIndex - 1).clamp(0, _tabCount - 1);
+            _goToTab(targetIndex);
+            return true;
+          },
           child: Stack(
             children: [
               Positioned.fill(
                 child: PageView(
                   controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
+                  physics: const PageScrollPhysics(),
                   onPageChanged: (index) {
                     if (_currentIndex == index) return;
                     setState(() => _currentIndex = index);

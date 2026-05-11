@@ -126,9 +126,7 @@ class TestRulesScreen extends StatelessWidget {
                                 child: Icon(
                                   Icons.school,
                                   size: 120,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.primary,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               );
                             },

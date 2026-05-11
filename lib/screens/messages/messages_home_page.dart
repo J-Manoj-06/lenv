@@ -81,7 +81,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
           Expanded(
             child: TabBarView(
               controller: _tabController,
-              physics: const NeverScrollableScrollPhysics(),
+              physics: const PageScrollPhysics(),
               children: [
                 GroupsListPage(studentId: widget.studentId),
                 const StudentCommunityScreen(),

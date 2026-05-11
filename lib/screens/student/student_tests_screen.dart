@@ -124,7 +124,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
-                    physics: const NeverScrollableScrollPhysics(),
+                    physics: const PageScrollPhysics(),
                     children: [
                       _AllTestsTab(
                         studentId: studentId,
