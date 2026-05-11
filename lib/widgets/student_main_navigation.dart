@@ -38,6 +38,7 @@ class StudentMainNavigation extends StatefulWidget {
 class _StudentMainNavigationState extends State<StudentMainNavigation>
     with ShareHandlerMixin, WidgetsBindingObserver {
   static const int _tabCount = 5;
+  static const double _swipeVelocityThreshold = 320;
 
   late final PageController _pageController;
   late int _currentIndex;
@@ -94,6 +95,17 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
     );
   }
 
+  void _handleMainNavSwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0.0;
+    if (velocity.abs() < _swipeVelocityThreshold) return;
+
+    if (velocity < 0) {
+      _goToTab((_currentIndex + 1).clamp(0, _tabCount - 1));
+    } else {
+      _goToTab((_currentIndex - 1).clamp(0, _tabCount - 1));
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -136,37 +148,41 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
         return false;
       },
       child: Scaffold(
-        body: NotificationListener<MainNavSwipeNotification>(
-          onNotification: (notification) {
-            final targetIndex =
-                notification.direction == MainNavSwipeDirection.left
-                ? (_currentIndex + 1).clamp(0, _tabCount - 1)
-                : (_currentIndex - 1).clamp(0, _tabCount - 1);
-            _goToTab(targetIndex);
-            return true;
-          },
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: PageView(
-                  controller: _pageController,
-                  physics: const PageScrollPhysics(),
-                  onPageChanged: (index) {
-                    if (_currentIndex == index) return;
-                    setState(() => _currentIndex = index);
-                  },
-                  children: _screens
-                      .map((screen) => _KeepAlivePage(child: screen))
-                      .toList(growable: false),
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: _handleMainNavSwipe,
+          child: NotificationListener<MainNavSwipeNotification>(
+            onNotification: (notification) {
+              final targetIndex =
+                  notification.direction == MainNavSwipeDirection.left
+                  ? (_currentIndex + 1).clamp(0, _tabCount - 1)
+                  : (_currentIndex - 1).clamp(0, _tabCount - 1);
+              _goToTab(targetIndex);
+              return true;
+            },
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    onPageChanged: (index) {
+                      if (_currentIndex == index) return;
+                      setState(() => _currentIndex = index);
+                    },
+                    children: _screens
+                        .map((screen) => _KeepAlivePage(child: screen))
+                        .toList(growable: false),
+                  ),
                 ),
-              ),
-              if (_currentIndex != 0)
-                Positioned(
-                  top: MediaQuery.of(context).padding.top + 8,
-                  right: 16,
-                  child: _buildProfileQuickAccess(),
-                ),
-            ],
+                if (_currentIndex != 0)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    right: 16,
+                    child: _buildProfileQuickAccess(),
+                  ),
+              ],
+            ),
           ),
         ),
         bottomNavigationBar: StudentBottomNav(

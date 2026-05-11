@@ -20,6 +20,7 @@ class RewardsModule {
 
   /// Feature flag for enabling/disabling rewards feature
   static bool isEnabled = true;
+  
 
   /// Get all routes for rewards feature
   static List<RouteBase> getRoutes() {
@@ -38,7 +39,7 @@ class RewardsModule {
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
           },
-          transitionDuration: const Duration(milliseconds: 150),
+          transitionDuration: const Duration(milliseconds: 250),
         ),
       ),
       // Product Detail Screen
@@ -67,7 +68,7 @@ class RewardsModule {
                 (context, animation, secondaryAnimation, child) {
                   return FadeTransition(opacity: animation, child: child);
                 },
-            transitionDuration: const Duration(milliseconds: 150),
+            transitionDuration: const Duration(milliseconds: 250),
           );
         },
       ),

@@ -34,8 +34,14 @@ class _RewardsScreenWrapperState extends State<RewardsScreenWrapper> {
         GoRoute(
           path: '/rewards/catalog',
           name: 'rewards-catalog',
-          builder: (context, state) =>
-              RewardsCatalogScreen(studentId: widget.userId),
+          pageBuilder: (context, state) => CustomTransitionPage(
+            key: state.pageKey,
+            child: RewardsCatalogScreen(studentId: widget.userId),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+            transitionDuration: const Duration(milliseconds: 250),
+          ),
         ),
         GoRoute(
           path: '/rewards/product/:productId',
@@ -53,9 +59,17 @@ class _RewardsScreenWrapperState extends State<RewardsScreenWrapper> {
         GoRoute(
           path: '/rewards/requests/student/:studentId',
           name: 'student-requests',
-          builder: (context, state) {
+          pageBuilder: (context, state) {
             final studentId = state.pathParameters['studentId']!;
-            return StudentRequestsScreen(studentId: studentId);
+            return CustomTransitionPage(
+              key: state.pageKey,
+              child: StudentRequestsScreen(studentId: studentId),
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+              transitionDuration: const Duration(milliseconds: 250),
+            );
           },
         ),
         GoRoute(

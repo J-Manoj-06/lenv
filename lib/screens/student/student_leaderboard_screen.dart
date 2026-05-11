@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/test_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/leaderboard_service.dart';
+import '../../widgets/main_nav_swipe_notification.dart';
 import 'per_test_leaderboard_detail.dart';
 
 class KeyedSubtree extends StatelessWidget {
@@ -69,31 +70,14 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(theme),
-            Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onHorizontalDragEnd: (details) {
-                  final velocity = details.primaryVelocity ?? 0.0;
-                  // Swipe right -> show previous (Overall). Positive velocity.
-                  if (velocity > 300) {
-                    if (_isPerTest) {
-                      setState(() {
-                        _isPerTest = false;
-                        _overallStream = _buildOverallStream();
-                      });
-                    }
-                  }
-                  // Swipe left -> show next (Per-Test). Negative velocity.
-                  else if (velocity < -300) {
-                    if (!_isPerTest) {
-                      setState(() => _isPerTest = true);
-                    }
-                  }
-                },
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) => _handleHorizontalSwipe(details),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(theme),
+              Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   switchInCurve: Curves.easeOutCubic,
@@ -131,11 +115,34 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                         ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _handleHorizontalSwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0.0;
+    if (velocity.abs() < 300) return;
+
+    if (velocity > 0) {
+      if (_isPerTest) {
+        setState(() {
+          _isPerTest = false;
+          _overallStream = _buildOverallStream();
+        });
+      } else {
+        MainNavSwipeNotification(
+          MainNavSwipeDirection.right,
+        ).dispatch(context);
+      }
+      return;
+    }
+
+    if (!_isPerTest) {
+      setState(() => _isPerTest = true);
+    }
   }
 
   Widget _buildHeader(ThemeData theme) {
@@ -210,36 +217,26 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
     bool isSelected,
     VoidCallback onTap,
   ) {
+    const primaryColor = Color(0xFFF97316);
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? const LinearGradient(
-                  colors: [Color(0xFFFF8A00), Color(0xFFFF6A00)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                )
-              : null,
-          borderRadius: BorderRadius.circular(6),
-          border: isSelected
-              ? null
-              : Border.all(
-                  color: theme.brightness == Brightness.dark
-                      ? Colors.white.withOpacity(0.2)
-                      : const Color(0xFFFFE0B3),
-                  width: 2,
-                ),
+          color: isSelected ? primaryColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFFF97316).withOpacity(0.25),
-                    blurRadius: 8,
+                    color: primaryColor.withOpacity(0.22),
+                    blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
                 ]
-              : null,
+              : [],
         ),
         child: Text(
           label,
@@ -247,9 +244,10 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           style: TextStyle(
             color: isSelected
                 ? Colors.white
-                : theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+                : theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+            fontSize: 12,
             fontWeight: FontWeight.bold,
-            fontSize: 14,
+            letterSpacing: 0.4,
           ),
         ),
       ),
