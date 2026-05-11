@@ -95,38 +95,41 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
                   }
                 },
                 child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) {
-                  final beginOffset = _isPerTest
-                      ? const Offset(
-                          1.0,
-                          0.0,
-                        ) // slide in from right when going to per-test
-                      : const Offset(
-                          -1.0,
-                          0.0,
-                        ); // slide in from left when returning to overall
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: beginOffset,
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: FadeTransition(opacity: animation, child: child),
-                  );
-                },
-                // Overall: scrollable (list height can exceed viewport)
-                // Per-Test: internal Column manages its own Expanded ListView
-                child: _isPerTest
-                    ? KeyedSubtree(
-                        key: const ValueKey('perTestView'),
-                        child: _buildLeaderboardList(theme),
-                      )
-                    : SingleChildScrollView(
-                        key: const ValueKey('overallView'),
-                        child: Column(children: [_buildLeaderboardList(theme)]),
-                      ),
+                  duration: const Duration(milliseconds: 300),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    final beginOffset = _isPerTest
+                        ? const Offset(
+                            1.0,
+                            0.0,
+                          ) // slide in from right when going to per-test
+                        : const Offset(
+                            -1.0,
+                            0.0,
+                          ); // slide in from left when returning to overall
+                    return SlideTransition(
+                      position: Tween<Offset>(
+                        begin: beginOffset,
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    );
+                  },
+                  // Overall: scrollable (list height can exceed viewport)
+                  // Per-Test: internal Column manages its own Expanded ListView
+                  child: _isPerTest
+                      ? KeyedSubtree(
+                          key: const ValueKey('perTestView'),
+                          child: _buildLeaderboardList(theme),
+                        )
+                      : SingleChildScrollView(
+                          key: const ValueKey('overallView'),
+                          child: Column(
+                            children: [_buildLeaderboardList(theme)],
+                          ),
+                        ),
+                ),
               ),
             ),
           ],
