@@ -94,20 +94,20 @@ class TestRulesScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
 
-                    // Centered animation inside a rounded card.
+                    // Centered animation without a tinted backing in light mode.
                     Container(
                       width: double.infinity,
                       constraints: const BoxConstraints(
                         maxWidth: 440,
                         maxHeight: 380,
                       ),
-                      padding: const EdgeInsets.all(24),
+                      padding: isDark
+                          ? const EdgeInsets.all(24)
+                          : EdgeInsets.zero,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(18),
                         child: Container(
-                          color: isDark
-                              ? Colors.black
-                              : Theme.of(context).cardColor,
+                          color: isDark ? Colors.black : Colors.transparent,
                           alignment: Alignment.center,
                           child: Image.asset(
                             isDark
@@ -120,7 +120,7 @@ class TestRulesScreen extends StatelessWidget {
                               return Container(
                                 color: isDark
                                     ? Colors.black
-                                    : Theme.of(context).cardColor,
+                                    : Colors.transparent,
                                 alignment: Alignment.center,
                                 padding: const EdgeInsets.all(24),
                                 child: Icon(
