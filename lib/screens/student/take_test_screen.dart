@@ -129,7 +129,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
           .get();
       if (qs.docs.isEmpty) {
         // No assignment doc yet (unlikely) – generate and continue
-        final order = List<int>.generate(widget.test.questions.length, (i) => i)..shuffle();
+        final order = List<int>.generate(widget.test.questions.length, (i) => i)
+          ..shuffle();
         _questions = order.map((i) => widget.test.questions[i]).toList();
         _prepareShuffledOptions();
         setState(() {
@@ -512,6 +513,7 @@ class _TakeTestScreenState extends State<TakeTestScreen>
     final question = totalQuestions > 0 && currentQuestionIndex < totalQuestions
         ? _questions[currentQuestionIndex]
         : null;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final progress = totalQuestions == 0
         ? 0.0
         : (currentQuestionIndex + 1) / totalQuestions;
@@ -557,7 +559,9 @@ class _TakeTestScreenState extends State<TakeTestScreen>
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).scaffoldBackgroundColor.withOpacity(0.8),
+                  color: Theme.of(
+                    context,
+                  ).scaffoldBackgroundColor.withOpacity(0.8),
                 ),
                 child: Column(
                   children: [
@@ -566,7 +570,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                       children: [
                         Text(
                           widget.test.title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -590,7 +595,8 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               const SizedBox(width: 4),
                               Text(
                                 _formatDuration(_timeRemaining),
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -613,299 +619,300 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                 ),
               ),
 
-               // Loading or Question Card
-                          if (_loadingQuestions)
-                            Expanded(
-                              child: Center(
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Image.asset(
-                                          'assets/animations/walking_student.gif',
-                                          width: 200,
-                                          height: 200,
-                                          fit: BoxFit.contain,
-                                        ),
-                                        const SizedBox(height: 24),
-                                        Text(
-                                          'Loading Questions...',
-                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                fontSize: 18,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                    const SizedBox(height: 16),
-                                    const SizedBox(
-                                      width: 40,
-                                      height: 40,
-                                      child: CircularProgressIndicator(
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Color(0xFFF2800D),
-                                        ),
-                                        strokeWidth: 4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
-                          else
-                            Expanded(
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+              // Loading or Question Card
+              if (_loadingQuestions)
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.asset(
+                          isDark
+                              ? 'assets/animations/walking_student_dark.gif'
+                              : 'assets/animations/walking_student_light.gif',
+                          width: 200,
+                          height: 200,
+                          fit: BoxFit.contain,
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Center(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    const Text(
-                                      "Don't",
-                                      style: TextStyle(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w700,
+                        const SizedBox(height: 24),
+                        Text(
+                          'Loading Questions...',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                        const SizedBox(height: 16),
+                        const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Color(0xFFF2800D),
+                            ),
+                            strokeWidth: 4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Center(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      const Text(
+                                        "Don't",
+                                        style: TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const StudyWatcherAvatar(size: 90),
-                                    const SizedBox(width: 12),
-                                    const Text(
-                                      'Cheat',
-                                      style: TextStyle(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w700,
+                                      const SizedBox(width: 12),
+                                      const StudyWatcherAvatar(size: 90),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Cheat',
+                                        style: TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Question ${currentQuestionIndex + 1} of $totalQuestions',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 14),
-                            ),
-                            const SizedBox(height: 12),
-                            if (question != null)
+                              const SizedBox(height: 16),
                               Text(
-                                question.question,
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.w500),
+                                'Question ${currentQuestionIndex + 1} of $totalQuestions',
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(fontSize: 14),
                               ),
-                            const SizedBox(height: 24),
+                              const SizedBox(height: 12),
+                              if (question != null)
+                                Text(
+                                  question.question,
+                                  style: Theme.of(context).textTheme.bodyLarge
+                                      ?.copyWith(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                ),
+                              const SizedBox(height: 24),
 
-                                // Options for MCQ
-                                if (question != null &&
-                                    question.type ==
-                                        QuestionType.multipleChoice &&
-                                    question.options != null) ...[
-                                  ...(_shuffledOptions[currentQuestionIndex] ??
-                                          question.options!)
-                                      .map((option) {
-                                        final isSelected =
-                                            answers[currentQuestionIndex] ==
-                                            option;
-                                        return Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 16,
-                                          ),
-                                          child: _buildOptionButton(
-                                            option,
-                                            isSelected,
-                                          ),
-                                        );
-                                      }),
-                                  // Clear Response Button for MCQ
-                                  if (answers.containsKey(currentQuestionIndex))
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: TextButton.icon(
-                                        onPressed: () {
-                                          setState(() {
-                                            answers.remove(
-                                              currentQuestionIndex,
-                                            );
-                                          });
-                                        },
-                                        icon: const Icon(
-                                          Icons.clear,
-                                          size: 18,
-                                          color: Colors.red,
+                              // Options for MCQ
+                              if (question != null &&
+                                  question.type ==
+                                      QuestionType.multipleChoice &&
+                                  question.options != null) ...[
+                                ...(_shuffledOptions[currentQuestionIndex] ??
+                                        question.options!)
+                                    .map((option) {
+                                      final isSelected =
+                                          answers[currentQuestionIndex] ==
+                                          option;
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 16,
                                         ),
-                                        label: const Text(
-                                          'Clear Response',
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
+                                        child: _buildOptionButton(
+                                          option,
+                                          isSelected,
                                         ),
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ] else if (question != null &&
-                                    question.type ==
-                                        QuestionType.trueFalse) ...[
-                                  // True/False options
+                                      );
+                                    }),
+                                // Clear Response Button for MCQ
+                                if (answers.containsKey(currentQuestionIndex))
                                   Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildOptionButton(
-                                      'True',
-                                      answers[currentQuestionIndex] == 'True',
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: TextButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          answers.remove(currentQuestionIndex);
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        size: 18,
+                                        color: Colors.red,
+                                      ),
+                                      label: const Text(
+                                        'Clear Response',
+                                        style: TextStyle(
+                                          color: Colors.red,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
                                     ),
                                   ),
+                              ] else if (question != null &&
+                                  question.type == QuestionType.trueFalse) ...[
+                                // True/False options
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: _buildOptionButton(
+                                    'True',
+                                    answers[currentQuestionIndex] == 'True',
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: _buildOptionButton(
+                                    'False',
+                                    answers[currentQuestionIndex] == 'False',
+                                  ),
+                                ),
+                                // Clear Response Button for True/False
+                                if (answers.containsKey(currentQuestionIndex))
                                   Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildOptionButton(
-                                      'False',
-                                      answers[currentQuestionIndex] == 'False',
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: TextButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          answers.remove(currentQuestionIndex);
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        size: 18,
+                                        color: Colors.red,
+                                      ),
+                                      label: const Text(
+                                        'Clear Response',
+                                        style: TextStyle(
+                                          color: Colors.red,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                  // Clear Response Button for True/False
-                                  if (answers.containsKey(currentQuestionIndex))
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 8),
-                                      child: TextButton.icon(
-                                        onPressed: () {
-                                          setState(() {
-                                            answers.remove(
-                                              currentQuestionIndex,
-                                            );
-                                          });
-                                        },
-                                        icon: const Icon(
-                                          Icons.clear,
-                                          size: 18,
+                              ] else ...[
+                                // Short answer
+                                TextField(
+                                  decoration: InputDecoration(
+                                    hintText: 'Type your answer here...',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    filled: true,
+                                    fillColor:
+                                        Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.grey[800]
+                                        : Colors.grey[100],
+                                  ),
+                                  maxLines: 3,
+                                  onChanged: (value) {
+                                    answers[currentQuestionIndex] = value;
+                                  },
+                                  controller: TextEditingController(
+                                    text: answers[currentQuestionIndex] ?? '',
+                                  ),
+                                ),
+                                // Clear Response Button for Text Field
+                                if (answers.containsKey(currentQuestionIndex) &&
+                                    answers[currentQuestionIndex]!.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 12),
+                                    child: TextButton.icon(
+                                      onPressed: () {
+                                        setState(() {
+                                          answers.remove(currentQuestionIndex);
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.clear,
+                                        size: 18,
+                                        color: Colors.red,
+                                      ),
+                                      label: const Text(
+                                        'Clear Response',
+                                        style: TextStyle(
                                           color: Colors.red,
-                                        ),
-                                        label: const Text(
-                                          'Clear Response',
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                    ),
-                                ] else ...[
-                                  // Short answer
-                                  TextField(
-                                    decoration: InputDecoration(
-                                      hintText: 'Type your answer here...',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
                                       ),
-                                      filled: true,
-                                      fillColor: Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.grey[800]
-                                          : Colors.grey[100],
-                                    ),
-                                    maxLines: 3,
-                                    onChanged: (value) {
-                                      answers[currentQuestionIndex] = value;
-                                    },
-                                    controller: TextEditingController(
-                                      text: answers[currentQuestionIndex] ?? '',
                                     ),
                                   ),
-                                  // Clear Response Button for Text Field
-                                  if (answers.containsKey(
-                                        currentQuestionIndex,
-                                      ) &&
-                                      answers[currentQuestionIndex]!.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 12),
-                                      child: TextButton.icon(
-                                        onPressed: () {
-                                          setState(() {
-                                            answers.remove(
-                                              currentQuestionIndex,
-                                            );
-                                          });
-                                        },
-                                        icon: const Icon(
-                                          Icons.clear,
-                                          size: 18,
-                                          color: Colors.red,
-                                        ),
-                                        label: const Text(
-                                          'Clear Response',
-                                          style: TextStyle(
-                                            color: Colors.red,
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                        style: TextButton.styleFrom(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
                               ],
-                            ),
+                            ],
                           ),
+                        ),
 
-                          // Progress Dots
-                          const SizedBox(height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(
-                              totalQuestions,
-                              (index) => Container(
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: index == currentQuestionIndex
-                                      ? const Color(0xFFF2800D)
-                                      : Theme.of(context).dividerColor,
-                                ),
+                        // Progress Dots
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: List.generate(
+                            totalQuestions,
+                            (index) => Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: index == currentQuestionIndex
+                                    ? const Color(0xFFF2800D)
+                                    : Theme.of(context).dividerColor,
                               ),
                             ),
                           ),
-                      const SizedBox(height: 24),
-                    ],
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
                   ),
                 ),
-              ),
 
               // Footer Navigation - Always visible
               Container(
@@ -947,7 +954,9 @@ class _TakeTestScreenState extends State<TakeTestScreen>
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
-                                color: Theme.of(context).textTheme.bodyMedium?.color,
+                                color: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.color,
                               ),
                             ),
                           ),

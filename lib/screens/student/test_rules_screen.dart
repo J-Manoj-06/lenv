@@ -14,7 +14,9 @@ class TestRulesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-        backgroundColor: isDark ? Colors.black : Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: isDark
+          ? Colors.black
+          : Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -31,10 +33,10 @@ class TestRulesScreen extends StatelessWidget {
                       height: 48,
                       alignment: Alignment.centerLeft,
                       child: Icon(
-                            Icons.arrow_back,
-                            size: 28,
-                            color: Theme.of(context).iconTheme.color,
-                          ),
+                        Icons.arrow_back_ios,
+                        size: 28,
+                        color: Theme.of(context).iconTheme.color,
+                      ),
                     ),
                   ),
                   const Spacer(),
@@ -44,16 +46,18 @@ class TestRulesScreen extends StatelessWidget {
                       Icon(
                         Icons.schedule,
                         size: 20,
-                        color: Theme.of(context).iconTheme.color?.withOpacity(0.75),
+                        color: Theme.of(
+                          context,
+                        ).iconTheme.color?.withOpacity(0.75),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '${test.duration} Mins',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          color: Theme.of(context).colorScheme.primary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -68,59 +72,70 @@ class TestRulesScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     // Headline and Body Text
-                      Text(
-                        'Before You Start the Test',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              height: 1.2,
-                            ),
-                      ),
+                    Text(
+                      'Before You Start the Test',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
+                          ),
+                    ),
                     const SizedBox(height: 12),
-                      Text(
-                        'Please read the following instructions carefully before beginning your test.',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).textTheme.bodySmall?.color,
-                              fontSize: 16,
-                              height: 1.5,
-                            ),
+                    Text(
+                      'Please read the following instructions carefully before beginning your test.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                        fontSize: 16,
+                        height: 1.5,
                       ),
+                    ),
                     const SizedBox(height: 16),
 
-                      // Centered GIF inside a rounded card to match design and
-                      // avoid visible black gap. Increased size for better visibility.
-                      Container(
-                        width: double.infinity,
-                        constraints: const BoxConstraints(maxWidth: 360, maxHeight: 300),
-                        padding: const EdgeInsets.all(24),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: Container(
-                            color: isDark ? Colors.black : Theme.of(context).cardColor,
-                            alignment: Alignment.center,
-                            child: Image.asset(
-                              'assets/animations/walking_student.gif',
-                              fit: BoxFit.contain,
-                              width: 300,
-                              height: 220,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: isDark ? Colors.black : Theme.of(context).cardColor,
-                                  alignment: Alignment.center,
-                                  padding: const EdgeInsets.all(24),
-                                  child: Icon(
-                                    Icons.school,
-                                    size: 120,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
-                                );
-                              },
-                            ),
+                    // Centered animation inside a rounded card.
+                    Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(
+                        maxWidth: 440,
+                        maxHeight: 380,
+                      ),
+                      padding: const EdgeInsets.all(24),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          color: isDark
+                              ? Colors.black
+                              : Theme.of(context).cardColor,
+                          alignment: Alignment.center,
+                          child: Image.asset(
+                            isDark
+                                ? 'assets/animations/walking_student_dark.gif'
+                                : 'assets/animations/walking_student_light.gif',
+                            fit: BoxFit.contain,
+                            width: 360,
+                            height: 280,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                color: isDark
+                                    ? Colors.black
+                                    : Theme.of(context).cardColor,
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.all(24),
+                                child: Icon(
+                                  Icons.school,
+                                  size: 120,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.primary,
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),
+                    ),
                     const SizedBox(height: 24),
 
                     // Instruction Card
@@ -189,8 +204,8 @@ class TestRulesScreen extends StatelessWidget {
             ),
 
             // Fixed Action Buttons at Bottom
-              Container(
-                color: Theme.of(context).scaffoldBackgroundColor,
+            Container(
+              color: Theme.of(context).scaffoldBackgroundColor,
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
@@ -470,7 +485,11 @@ class TestRulesScreen extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
+            child: Icon(
+              icon,
+              color: Theme.of(context).colorScheme.primary,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 16),
           // Text Content
@@ -481,10 +500,10 @@ class TestRulesScreen extends StatelessWidget {
                 Text(
                   title,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        height: 1.5,
-                      ),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -492,10 +511,10 @@ class TestRulesScreen extends StatelessWidget {
                 Text(
                   description,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 14,
-                        height: 1.5,
-                        color: Theme.of(context).textTheme.bodySmall?.color,
-                      ),
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
