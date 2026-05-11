@@ -74,7 +74,27 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           children: [
             _buildHeader(theme),
             Expanded(
-              child: AnimatedSwitcher(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onHorizontalDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0.0;
+                  // Swipe right -> show previous (Overall). Positive velocity.
+                  if (velocity > 300) {
+                    if (_isPerTest) {
+                      setState(() {
+                        _isPerTest = false;
+                        _overallStream = _buildOverallStream();
+                      });
+                    }
+                  }
+                  // Swipe left -> show next (Per-Test). Negative velocity.
+                  else if (velocity < -300) {
+                    if (!_isPerTest) {
+                      setState(() => _isPerTest = true);
+                    }
+                  }
+                },
+                child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,

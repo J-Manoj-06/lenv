@@ -138,7 +138,8 @@ class _StudentMainNavigationState extends State<StudentMainNavigation>
       child: Scaffold(
         body: NotificationListener<MainNavSwipeNotification>(
           onNotification: (notification) {
-            final targetIndex = notification.direction == MainNavSwipeDirection.left
+            final targetIndex =
+                notification.direction == MainNavSwipeDirection.left
                 ? (_currentIndex + 1).clamp(0, _tabCount - 1)
                 : (_currentIndex - 1).clamp(0, _tabCount - 1);
             _goToTab(targetIndex);

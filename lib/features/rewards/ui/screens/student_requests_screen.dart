@@ -72,191 +72,199 @@ class _StudentRequestsScreenState extends ConsumerState<StudentRequestsScreen> {
               isCatalogActive: false,
               studentId: widget.studentId,
             ),
-          // Status Filter
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _StatusFilterChip(
-                    label: 'All',
-                    isSelected: _selectedStatus == null,
-                    onPressed: () {
-                      setState(() => _selectedStatus = null);
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  _StatusFilterChip(
-                    label: 'Pending',
-                    isSelected:
-                        _selectedStatus ==
-                        RewardRequestStatus.pendingParentApproval,
-                    onPressed: () {
-                      setState(
-                        () => _selectedStatus =
-                            RewardRequestStatus.pendingParentApproval,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  _StatusFilterChip(
-                    label: 'In Progress',
-                    isSelected:
-                        _selectedStatus ==
-                        RewardRequestStatus.approvedPurchaseInProgress,
-                    onPressed: () {
-                      setState(
-                        () => _selectedStatus =
-                            RewardRequestStatus.approvedPurchaseInProgress,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  _StatusFilterChip(
-                    label: 'Delivery',
-                    isSelected:
-                        _selectedStatus ==
-                        RewardRequestStatus.awaitingDeliveryConfirmation,
-                    onPressed: () {
-                      setState(
-                        () => _selectedStatus =
-                            RewardRequestStatus.awaitingDeliveryConfirmation,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 10),
-                  _StatusFilterChip(
-                    label: 'Completed',
-                    isSelected:
-                        _selectedStatus == RewardRequestStatus.completed,
-                    onPressed: () {
-                      setState(
-                        () => _selectedStatus = RewardRequestStatus.completed,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Requests List
-          Expanded(
-            child: requestsAsync.when(
-              data: (requests) {
-                // Filter by selected status
-                var filteredRequests = requests;
-                if (_selectedStatus != null) {
-                  filteredRequests = requests
-                      .where((r) => r.status == _selectedStatus)
-                      .toList();
-                }
-
-                if (filteredRequests.isEmpty) {
-                  return RefreshIndicator(
-                    onRefresh: () async {
-                      ref.invalidate(studentRequestsProvider(widget.studentId));
-                      await Future.delayed(const Duration(milliseconds: 500));
-                    },
-                    child: SingleChildScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      child: SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.5,
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.shopping_bag_outlined,
-                                size: 64,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _selectedStatus == null
-                                    ? 'No requests yet'
-                                    : 'No ${_getStatusLabel(_selectedStatus!)} requests',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Start exploring rewards!',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.grey[600]),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Pull down to refresh',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: Colors.grey[500]),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    ref.invalidate(studentRequestsProvider(widget.studentId));
-                    await Future.delayed(const Duration(milliseconds: 500));
-                  },
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
-                    itemCount: filteredRequests.length,
-                    itemBuilder: (context, index) {
-                      final request = filteredRequests[index];
-                      final canDelete =
-                          request.status == RewardRequestStatus.cancelled ||
-                          request.status ==
-                              RewardRequestStatus.expiredOrAutoResolved ||
-                          request.status == RewardRequestStatus.completed;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: RequestCard(
-                          request: request,
-                          onTapped: () {
-                            RewardsModule.navigateToRequestDetail(
-                              context,
-                              requestId: request.requestId,
-                              request: request,
-                            );
-                          },
-                          actionLabel: _getActionLabel(request.status),
-                          onActionPressed: () =>
-                              _handleAction(context, request),
-                          onDeletePressed: canDelete
-                              ? () => _confirmDelete(context, request)
-                              : null,
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, st) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+            // Status Filter
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
                   children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error loading requests',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    _StatusFilterChip(
+                      label: 'All',
+                      isSelected: _selectedStatus == null,
+                      onPressed: () {
+                        setState(() => _selectedStatus = null);
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    _StatusFilterChip(
+                      label: 'Pending',
+                      isSelected:
+                          _selectedStatus ==
+                          RewardRequestStatus.pendingParentApproval,
+                      onPressed: () {
+                        setState(
+                          () => _selectedStatus =
+                              RewardRequestStatus.pendingParentApproval,
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    _StatusFilterChip(
+                      label: 'In Progress',
+                      isSelected:
+                          _selectedStatus ==
+                          RewardRequestStatus.approvedPurchaseInProgress,
+                      onPressed: () {
+                        setState(
+                          () => _selectedStatus =
+                              RewardRequestStatus.approvedPurchaseInProgress,
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    _StatusFilterChip(
+                      label: 'Delivery',
+                      isSelected:
+                          _selectedStatus ==
+                          RewardRequestStatus.awaitingDeliveryConfirmation,
+                      onPressed: () {
+                        setState(
+                          () => _selectedStatus =
+                              RewardRequestStatus.awaitingDeliveryConfirmation,
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    _StatusFilterChip(
+                      label: 'Completed',
+                      isSelected:
+                          _selectedStatus == RewardRequestStatus.completed,
+                      onPressed: () {
+                        setState(
+                          () => _selectedStatus = RewardRequestStatus.completed,
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+            // Requests List
+            Expanded(
+              child: requestsAsync.when(
+                data: (requests) {
+                  // Filter by selected status
+                  var filteredRequests = requests;
+                  if (_selectedStatus != null) {
+                    filteredRequests = requests
+                        .where((r) => r.status == _selectedStatus)
+                        .toList();
+                  }
+
+                  if (filteredRequests.isEmpty) {
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        ref.invalidate(
+                          studentRequestsProvider(widget.studentId),
+                        );
+                        await Future.delayed(const Duration(milliseconds: 500));
+                      },
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        child: SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.shopping_bag_outlined,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _selectedStatus == null
+                                      ? 'No requests yet'
+                                      : 'No ${_getStatusLabel(_selectedStatus!)} requests',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Start exploring rewards!',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Pull down to refresh',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: Colors.grey[500]),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(studentRequestsProvider(widget.studentId));
+                      await Future.delayed(const Duration(milliseconds: 500));
+                    },
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                      itemCount: filteredRequests.length,
+                      itemBuilder: (context, index) {
+                        final request = filteredRequests[index];
+                        final canDelete =
+                            request.status == RewardRequestStatus.cancelled ||
+                            request.status ==
+                                RewardRequestStatus.expiredOrAutoResolved ||
+                            request.status == RewardRequestStatus.completed;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: RequestCard(
+                            request: request,
+                            onTapped: () {
+                              RewardsModule.navigateToRequestDetail(
+                                context,
+                                requestId: request.requestId,
+                                request: request,
+                              );
+                            },
+                            actionLabel: _getActionLabel(request.status),
+                            onActionPressed: () =>
+                                _handleAction(context, request),
+                            onDeletePressed: canDelete
+                                ? () => _confirmDelete(context, request)
+                                : null,
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, st) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 64,
+                        color: Colors.red[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Error loading requests',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           RewardsModule.navigateToCatalog(context);

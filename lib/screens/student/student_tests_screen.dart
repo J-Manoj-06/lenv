@@ -330,15 +330,17 @@ class _UpcomingTabState extends State<_UpcomingTab> {
 
             final tests = testsSnap.data ?? [];
             final completedIds = <String>{
-              if (resultsSnap.hasData) ...resultsSnap.data!.map((r) => r.testId),
+              if (resultsSnap.hasData)
+                ...resultsSnap.data!.map((r) => r.testId),
             };
             final now = DateTime.now();
 
             // Filter for upcoming tests (not yet completed and scheduled for future/now)
             final upcoming = tests
-                .where((t) => 
-                    !completedIds.contains(t.id) &&
-                    now.isBefore(t.endDate))
+                .where(
+                  (t) =>
+                      !completedIds.contains(t.id) && now.isBefore(t.endDate),
+                )
                 .toList();
 
             // Sort by start date (soonest first)
@@ -410,10 +412,7 @@ class _CompletedTabState extends State<_CompletedTab> {
           itemBuilder: (ctx, i) {
             final result = sortedResults[i];
             return _TestCard(
-              item: _TestListItem.completed(
-                result: result,
-                showResult: true,
-              ),
+              item: _TestListItem.completed(result: result, showResult: true),
             );
           },
           separatorBuilder: (_, _) => const SizedBox(height: 12),

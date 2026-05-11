@@ -84,133 +84,134 @@ class _RewardsCatalogScreenState extends ConsumerState<RewardsCatalogScreen>
         },
         child: Column(
           children: [
-          // Header
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-              child: Row(
-                children: [
-                  Text(
-                    'Rewards Store',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.2,
+            // Header
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                child: Row(
+                  children: [
+                    Text(
+                      'Rewards Store',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.2,
+                          ),
                     ),
-                  ),
-                  const Spacer(),
-                  Icon(Icons.card_giftcard_rounded, color: _primaryOrange),
+                    const Spacer(),
+                    Icon(Icons.card_giftcard_rounded, color: _primaryOrange),
+                  ],
+                ),
+              ),
+            ),
+            RewardsTopSwitcher(
+              isCatalogActive: true,
+              studentId: widget.studentId,
+            ),
+            // Search and Filter Bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Column(
+                children: [
+                  _buildModernSearchBar(context, isDark, searchBg),
+                  const SizedBox(height: 12),
+                  _buildFilterChips(context),
                 ],
               ),
             ),
-          ),
-          RewardsTopSwitcher(
-            isCatalogActive: true,
-            studentId: widget.studentId,
-          ),
-          // Search and Filter Bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Column(
-              children: [
-                _buildModernSearchBar(context, isDark, searchBg),
-                const SizedBox(height: 12),
-                _buildFilterChips(context),
-              ],
-            ),
-          ),
-          // Products List
-          Expanded(
-            child: productsAsync.when(
-              data: (products) {
-                if (products.isEmpty) {
-                  return _buildEmptyState(context, isDark);
-                }
+            // Products List
+            Expanded(
+              child: productsAsync.when(
+                data: (products) {
+                  if (products.isEmpty) {
+                    return _buildEmptyState(context, isDark);
+                  }
 
-                // Sort products
-                var sortedProducts = List<ProductModel>.from(products);
-                switch (_sortBy) {
-                  case 'price_asc':
-                    sortedProducts.sort(
-                      (a, b) => a.price.estimatedPrice.compareTo(
-                        b.price.estimatedPrice,
-                      ),
-                    );
-                  case 'price_desc':
-                    sortedProducts.sort(
-                      (a, b) => b.price.estimatedPrice.compareTo(
-                        a.price.estimatedPrice,
-                      ),
-                    );
-                  case 'rating':
-                    sortedProducts.sort(
-                      (a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0),
-                    );
-                }
+                  // Sort products
+                  var sortedProducts = List<ProductModel>.from(products);
+                  switch (_sortBy) {
+                    case 'price_asc':
+                      sortedProducts.sort(
+                        (a, b) => a.price.estimatedPrice.compareTo(
+                          b.price.estimatedPrice,
+                        ),
+                      );
+                    case 'price_desc':
+                      sortedProducts.sort(
+                        (a, b) => b.price.estimatedPrice.compareTo(
+                          a.price.estimatedPrice,
+                        ),
+                      );
+                    case 'rating':
+                      sortedProducts.sort(
+                        (a, b) => (b.rating ?? 0).compareTo(a.rating ?? 0),
+                      );
+                  }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.only(
-                    bottom: 20,
-                    left: 16,
-                    right: 16,
-                  ),
-                  itemCount: sortedProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = sortedProducts[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: ProductCard(
-                        product: product,
-                        onRequestPressed: () {
-                          final container = ProviderScope.containerOf(
-                            context,
-                            listen: false,
-                          );
-                          Navigator.of(context, rootNavigator: true).push(
-                            MaterialPageRoute(
-                              builder: (_) => UncontrolledProviderScope(
-                                container: container,
-                                child: RewardRequestScreen(
-                                  productId: product.productId,
-                                  studentId: widget.studentId,
+                  return ListView.builder(
+                    padding: const EdgeInsets.only(
+                      bottom: 20,
+                      left: 16,
+                      right: 16,
+                    ),
+                    itemCount: sortedProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = sortedProducts[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 14),
+                        child: ProductCard(
+                          product: product,
+                          onRequestPressed: () {
+                            final container = ProviderScope.containerOf(
+                              context,
+                              listen: false,
+                            );
+                            Navigator.of(context, rootNavigator: true).push(
+                              MaterialPageRoute(
+                                builder: (_) => UncontrolledProviderScope(
+                                  container: container,
+                                  child: RewardRequestScreen(
+                                    productId: product.productId,
+                                    studentId: widget.studentId,
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                        onDetailsPressed: () {
-                          final container = ProviderScope.containerOf(
-                            context,
-                            listen: false,
-                          );
-                          Navigator.of(context, rootNavigator: true).push(
-                            MaterialPageRoute(
-                              builder: (_) => UncontrolledProviderScope(
-                                container: container,
-                                child: RewardDetailsScreen(
-                                  productId: product.productId,
-                                  studentId: widget.studentId,
+                            );
+                          },
+                          onDetailsPressed: () {
+                            final container = ProviderScope.containerOf(
+                              context,
+                              listen: false,
+                            );
+                            Navigator.of(context, rootNavigator: true).push(
+                              MaterialPageRoute(
+                                builder: (_) => UncontrolledProviderScope(
+                                  container: container,
+                                  child: RewardDetailsScreen(
+                                    productId: product.productId,
+                                    studentId: widget.studentId,
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                );
-              },
-              loading: () {
-                return _buildLoadingList(isDark);
-              },
-              error: (error, st) {
-                return _buildErrorState(context, error, isDark);
-              },
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  );
+                },
+                loading: () {
+                  return _buildLoadingList(isDark);
+                },
+                error: (error, st) {
+                  return _buildErrorState(context, error, isDark);
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 
