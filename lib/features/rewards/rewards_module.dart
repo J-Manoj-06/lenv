@@ -20,7 +20,6 @@ class RewardsModule {
 
   /// Feature flag for enabling/disabling rewards feature
   static bool isEnabled = true;
-  
 
   /// Get all routes for rewards feature
   static List<RouteBase> getRoutes() {

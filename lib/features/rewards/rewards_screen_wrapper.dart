@@ -37,9 +37,10 @@ class _RewardsScreenWrapperState extends State<RewardsScreenWrapper> {
           pageBuilder: (context, state) => CustomTransitionPage(
             key: state.pageKey,
             child: RewardsCatalogScreen(studentId: widget.userId),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
             transitionDuration: const Duration(milliseconds: 250),
           ),
         ),

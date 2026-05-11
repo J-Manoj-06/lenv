@@ -21,8 +21,9 @@ class RewardsTopSwitcher extends StatelessWidget {
         decoration: BoxDecoration(
           color: isDark
               ? Theme.of(context).colorScheme.surface.withOpacity(0.6)
-              : Theme.of(context).colorScheme.surfaceContainerHighest
-                  .withOpacity(0.5),
+              : Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withOpacity(0.5),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: Theme.of(context).dividerColor.withOpacity(0.3),
@@ -113,8 +114,9 @@ class _SegmentButton extends StatelessWidget {
           style: TextStyle(
             color: selected
                 ? Colors.white
-                : Theme.of(context).textTheme.bodyMedium?.color
-                    ?.withOpacity(0.7),
+                : Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.color?.withOpacity(0.7),
             fontSize: 12,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.4,

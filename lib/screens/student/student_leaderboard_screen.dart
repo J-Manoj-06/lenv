@@ -133,9 +133,7 @@ class _StudentLeaderboardScreenState extends State<StudentLeaderboardScreen> {
           _overallStream = _buildOverallStream();
         });
       } else {
-        MainNavSwipeNotification(
-          MainNavSwipeDirection.right,
-        ).dispatch(context);
+        MainNavSwipeNotification(MainNavSwipeDirection.right).dispatch(context);
       }
       return;
     }
