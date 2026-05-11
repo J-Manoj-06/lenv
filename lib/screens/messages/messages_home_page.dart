@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'groups_list_page.dart';
 import '../student/student_community_screen.dart';
+import '../../widgets/main_nav_swipe_notification.dart';
 
 class MessagesHomePage extends StatefulWidget {
   final String studentId;
@@ -15,6 +16,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _selectedIndex = 0;
+  bool _navSwipeTriggered = false;
 
   @override
   void initState() {
@@ -61,11 +63,13 @@ class _MessagesHomePageState extends State<MessagesHomePage>
             padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
               color: isDark
-                  ? theme.colorScheme.surface.withOpacity(0.6)
-                  : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                  ? theme.colorScheme.surface.withValues(alpha: 0.6)
+                  : theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: theme.dividerColor.withOpacity(0.3),
+                color: theme.dividerColor.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -79,18 +83,50 @@ class _MessagesHomePageState extends State<MessagesHomePage>
 
           // Tab Views
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              physics: const PageScrollPhysics(),
-              children: [
-                GroupsListPage(studentId: widget.studentId),
-                const StudentCommunityScreen(),
-              ],
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleTabScrollNotification,
+              child: TabBarView(
+                controller: _tabController,
+                physics: const PageScrollPhysics(),
+                children: [
+                  GroupsListPage(studentId: widget.studentId),
+                  const StudentCommunityScreen(),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  bool _handleTabScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.horizontal) {
+      return false;
+    }
+
+    if (notification is ScrollEndNotification) {
+      _navSwipeTriggered = false;
+      return false;
+    }
+
+    if (notification is! OverscrollNotification || _navSwipeTriggered) {
+      return false;
+    }
+
+    final isAtFirstTab = _selectedIndex == 0;
+    final isAtLastTab = _selectedIndex == _tabController.length - 1;
+
+    if (notification.overscroll < 0 && isAtFirstTab) {
+      _navSwipeTriggered = true;
+      MainNavSwipeNotification(MainNavSwipeDirection.right).dispatch(context);
+    } else if (notification.overscroll > 0 && isAtLastTab) {
+      _navSwipeTriggered = true;
+      MainNavSwipeNotification(MainNavSwipeDirection.left).dispatch(context);
+    }
+
+    return false;
   }
 
   Widget _buildTabButton(String label, int index) {
@@ -111,7 +147,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: primaryColor.withOpacity(0.22),
+                    color: primaryColor.withValues(alpha: 0.22),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -126,7 +162,7 @@ class _MessagesHomePageState extends State<MessagesHomePage>
                 ? Colors.white
                 : Theme.of(
                     context,
-                  ).textTheme.bodyMedium?.color?.withOpacity(0.7),
+                  ).textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
             fontSize: 12,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.4,

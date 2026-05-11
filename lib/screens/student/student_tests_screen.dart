@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/test_provider.dart';
 import '../../services/notification_service.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/main_nav_swipe_notification.dart';
 import 'test_rules_screen.dart';
 
 class StudentTestsScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final NotificationService _notificationService = NotificationService();
+  bool _navSwipeTriggered = false;
 
   @override
   void initState() {
@@ -122,23 +124,26 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
                   ),
                 ),
                 Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    physics: const PageScrollPhysics(),
-                    children: [
-                      _AllTestsTab(
-                        studentId: studentId,
-                        studentEmail: studentEmail,
-                      ),
-                      _UpcomingTab(
-                        studentId: studentId,
-                        studentEmail: studentEmail,
-                      ),
-                      _CompletedTab(
-                        studentId: studentId,
-                        studentEmail: studentEmail,
-                      ),
-                    ],
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: _handleTabScrollNotification,
+                    child: TabBarView(
+                      controller: _tabController,
+                      physics: const PageScrollPhysics(),
+                      children: [
+                        _AllTestsTab(
+                          studentId: studentId,
+                          studentEmail: studentEmail,
+                        ),
+                        _UpcomingTab(
+                          studentId: studentId,
+                          studentEmail: studentEmail,
+                        ),
+                        _CompletedTab(
+                          studentId: studentId,
+                          studentEmail: studentEmail,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -147,6 +152,35 @@ class _StudentTestsScreenState extends State<StudentTestsScreen>
         ),
       ),
     );
+  }
+
+  bool _handleTabScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.horizontal) {
+      return false;
+    }
+
+    if (notification is ScrollEndNotification) {
+      _navSwipeTriggered = false;
+      return false;
+    }
+
+    if (notification is! OverscrollNotification || _navSwipeTriggered) {
+      return false;
+    }
+
+    final isAtFirstTab = _tabController.index == 0;
+    final isAtLastTab = _tabController.index == _tabController.length - 1;
+
+    if (notification.overscroll < 0 && isAtFirstTab) {
+      _navSwipeTriggered = true;
+      MainNavSwipeNotification(MainNavSwipeDirection.right).dispatch(context);
+    } else if (notification.overscroll > 0 && isAtLastTab) {
+      _navSwipeTriggered = true;
+      MainNavSwipeNotification(MainNavSwipeDirection.left).dispatch(context);
+    }
+
+    return false;
   }
 }
 
