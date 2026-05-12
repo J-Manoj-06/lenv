@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
@@ -13,6 +16,7 @@ import '../../models/student_model.dart';
 import '../../services/firestore_service.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../providers/profile_dp_provider.dart';
+import '../../services/connectivity_service.dart';
 import '../../services/parent_service.dart';
 import '../../services/offline_cache_manager.dart';
 import '../../utils/cache_manager.dart';
@@ -22,12 +26,12 @@ import '../../widgets/notification_bell_button.dart';
 import '../../widgets/animated_streak_icon.dart';
 import '../../widgets/animated_points_card_shell.dart';
 import '../../widgets/animated_button.dart';
+import '../../widgets/no_internet_dialog.dart';
 import '../daily_challenge_result_screen.dart';
 import 'daily_challenge_screen.dart';
 import 'student_profile_screen.dart';
 import '../ai/ai_chat_page.dart';
 import '../common/announcement_pageview_screen.dart';
-import 'dart:math' as math;
 
 class StudentDashboardScreen extends StatefulWidget {
   const StudentDashboardScreen({super.key});
@@ -61,10 +65,14 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
   final Map<String, Stream<List<Map<String, dynamic>>>>
   _announcementStreamCache = {};
   final OfflineCacheManager _offlineCacheManager = OfflineCacheManager();
+  StreamSubscription<bool>? _connectivitySubscription;
+  bool _wasOffline = false;
+  bool _isNoInternetDialogVisible = false;
 
   @override
   void initState() {
     super.initState();
+    _startConnectivityListener();
     _loadDashboardData();
     _preloadViewedStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -74,7 +82,47 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
 
   @override
   void dispose() {
+    _connectivitySubscription?.cancel();
     super.dispose();
+  }
+
+  void _startConnectivityListener() {
+    final connectivityService = ConnectivityService();
+    _wasOffline = connectivityService.isOffline;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_wasOffline) {
+        _showDashboardNoInternetDialog();
+      }
+    });
+
+    _connectivitySubscription = connectivityService.onConnectivityChanged
+        .listen((isOnline) {
+          if (!mounted) return;
+
+          final isOffline = !isOnline;
+          if (isOffline && !_wasOffline) {
+            _showDashboardNoInternetDialog();
+          }
+          _wasOffline = isOffline;
+        });
+  }
+
+  Future<void> _showDashboardNoInternetDialog() async {
+    if (!mounted || _isNoInternetDialogVisible) return;
+
+    _isNoInternetDialogVisible = true;
+    try {
+      await showNoInternetDialog(
+        context,
+        title: 'No internet connection',
+        message:
+            'Dashboard is showing saved data for now. Reconnect to refresh rewards, tests, and announcements.',
+        primaryActionLabel: 'Continue offline',
+      );
+    } finally {
+      _isNoInternetDialogVisible = false;
+    }
   }
 
   /// Preload all viewed statuses at startup for instant display

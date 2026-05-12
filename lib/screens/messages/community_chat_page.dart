@@ -48,6 +48,7 @@ import 'forward_selection_screen.dart';
 import '../../services/active_chat_service.dart';
 import '../../services/message_reaction_service.dart';
 import '../../widgets/message_reaction_picker.dart';
+import '../../widgets/no_internet_dialog.dart';
 import '../../widgets/message_reaction_summary.dart';
 import '../../widgets/whatsapp_emoji_picker.dart';
 
@@ -83,7 +84,6 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   final AudioRecorder _audioRecorder = AudioRecorder();
   bool _isRecording = false;
   bool _isOnline = true;
-  bool _isNoInternetDialogVisible = false;
   StreamSubscription<bool>? _connectivitySub;
   bool _isSendingRecording = false; // Prevent multiple simultaneous sends
   String? _recordingPath;
@@ -1468,28 +1468,14 @@ class _CommunityChatPageState extends State<CommunityChatPage>
   }
 
   Future<void> _showOfflineSnackBar({bool isMedia = false}) async {
-    if (!mounted || _isNoInternetDialogVisible) return;
-    _isNoInternetDialogVisible = true;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('No internet connection'),
-          content: Text(
-            isMedia
-                ? 'Please connect to the internet to open attachments.'
-                : 'Please connect to the internet to send messages.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
+    if (!mounted) return;
+    await showNoInternetDialog(
+      context,
+      title: 'No internet connection',
+      message: isMedia
+          ? 'Please connect to the internet to open attachments.'
+          : 'Please connect to the internet to send messages.',
     );
-    _isNoInternetDialogVisible = false;
   }
 
   Future<void> _sendMessage({String? imageUrl}) async {
