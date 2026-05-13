@@ -1036,9 +1036,16 @@ class _CommunityChatPageState extends State<CommunityChatPage>
       if (mounted) {
         setState(() {
           _uploadingMessageIds.remove(pendingId);
-          _failedMessageIds.add(pendingId);
+          _failedMessageIds.remove(pendingId);
+          _pendingMessages.removeWhere((message) => message.id == pendingId);
         });
       }
+
+      try {
+        await _localRepo.deletePendingMessage(
+          pendingId.replaceFirst('pending:', ''),
+        );
+      } catch (_) {}
     } finally {
       _sendingTextMessageIds.remove(pendingId);
     }

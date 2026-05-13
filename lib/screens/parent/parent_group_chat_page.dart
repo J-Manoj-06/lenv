@@ -638,9 +638,17 @@ class _ParentGroupChatPageState extends State<ParentGroupChatPage>
     } catch (_) {
       if (mounted) {
         setState(() {
-          _failedPendingTextMessageIds.add(pendingId);
+          _failedPendingTextMessageIds.remove(pendingId);
+          _pendingMessages.removeWhere((msg) => msg.messageId == pendingId);
         });
       }
+
+      try {
+        await _localRepo.deletePendingMessage(
+          _cacheMessageIdFromPendingId(pendingId),
+        );
+        await _localRepo.deletePendingMessage(pendingId);
+      } catch (_) {}
     } finally {
       _sendingTextMessageIds.remove(pendingId);
     }

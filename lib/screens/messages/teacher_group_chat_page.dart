@@ -976,7 +976,8 @@ class _TeacherGroupChatPageState extends State<TeacherGroupChatPage>
       if (mounted) {
         setState(() {
           _uploadingMessageIds.remove(pendingId);
-          _failedMessageIds.add(pendingId);
+          _failedMessageIds.remove(pendingId);
+          _pendingMessages.removeWhere((message) => message.id == pendingId);
         });
         _cachePendingMessages();
       }
