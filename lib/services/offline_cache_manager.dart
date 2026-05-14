@@ -6,7 +6,6 @@ import 'dart:async';
 /// Handles:
 /// - Groups (Student, Teacher, Parent, Institute)
 /// - Communities
-/// - Daily content
 /// - Role-specific dashboards
 /// - User profiles and metadata
 class OfflineCacheManager {
@@ -14,7 +13,6 @@ class OfflineCacheManager {
 
   static const String _groupsBoxName = 'offline_groups';
   static const String _communitiesBoxName = 'offline_communities';
-  static const String _dailyContentBoxName = 'offline_daily_content';
   static const String _dashboardBoxName = 'offline_dashboard';
   static const String _profileBoxName = 'offline_profile';
   static const String _leaderboardBoxName = 'offline_leaderboard';
@@ -23,7 +21,6 @@ class OfflineCacheManager {
 
   late Box<Map> _groupsBox;
   late Box<Map> _communitiesBox;
-  late Box<Map> _dailyContentBox;
   late Box<Map> _dashboardBox;
   late Box<Map> _profileBox;
   late Box<Map> _leaderboardBox;
@@ -65,7 +62,6 @@ class OfflineCacheManager {
       await Future.wait([
             Hive.openBox<Map>(_groupsBoxName),
             Hive.openBox<Map>(_communitiesBoxName),
-            Hive.openBox<Map>(_dailyContentBoxName),
             Hive.openBox<Map>(_dashboardBoxName),
             Hive.openBox<Map>(_profileBoxName),
             Hive.openBox<Map>(_leaderboardBoxName),
@@ -80,12 +76,11 @@ class OfflineCacheManager {
           .then((boxes) {
             _groupsBox = boxes[0];
             _communitiesBox = boxes[1];
-            _dailyContentBox = boxes[2];
-            _dashboardBox = boxes[3];
-            _profileBox = boxes[4];
-            _leaderboardBox = boxes[5];
-            _announcementsBox = boxes[6];
-            _userDataBox = boxes[7];
+            _dashboardBox = boxes[2];
+            _profileBox = boxes[3];
+            _leaderboardBox = boxes[4];
+            _announcementsBox = boxes[5];
+            _userDataBox = boxes[6];
           });
 
       _initialized = true;
@@ -202,38 +197,6 @@ class OfflineCacheManager {
           : null;
     } catch (e) {
       debugPrint('Error retrieving cached community messages: $e');
-      return null;
-    }
-  }
-
-  /// ==================== DAILY CONTENT ====================
-
-  /// Cache daily content/challenges
-  Future<void> cacheDailyContent({
-    required String userId,
-    required Map<String, dynamic> content,
-  }) async {
-    try {
-      await _dailyContentBox.put('daily_content_$userId', {
-        'content': content,
-        'userId': userId,
-        'cachedAt': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      debugPrint('Error caching daily content: $e');
-    }
-  }
-
-  /// Get cached daily content
-  Map<String, dynamic>? getCachedDailyContent(String userId) {
-    try {
-      final cached = _dailyContentBox.get('daily_content_$userId');
-      if (cached == null) return null;
-
-      final content = cached['content'] as Map?;
-      return content != null ? Map<String, dynamic>.from(content) : null;
-    } catch (e) {
-      debugPrint('Error retrieving cached daily content: $e');
       return null;
     }
   }
@@ -675,7 +638,6 @@ class OfflineCacheManager {
       await Future.wait([
         _groupsBox.clear(),
         _communitiesBox.clear(),
-        _dailyContentBox.clear(),
         _dashboardBox.clear(),
         _profileBox.clear(),
         _leaderboardBox.clear(),
@@ -712,7 +674,6 @@ class OfflineCacheManager {
     return {
       'groups': _groupsBox.length,
       'communities': _communitiesBox.length,
-      'dailyContent': _dailyContentBox.length,
       'dashboards': _dashboardBox.length,
       'profiles': _profileBox.length,
       'leaderboards': _leaderboardBox.length,
@@ -721,7 +682,6 @@ class OfflineCacheManager {
       'totalKeys':
           _groupsBox.length +
           _communitiesBox.length +
-          _dailyContentBox.length +
           _dashboardBox.length +
           _profileBox.length +
           _leaderboardBox.length +

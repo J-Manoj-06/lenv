@@ -21,6 +21,7 @@ class DailyChallengeScreen extends StatefulWidget {
 class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
   String? selectedAnswer;
   bool isSubmitting = false;
+  static const double _swipeBackVelocityThreshold = 300.0;
 
   // Theme helpers
   Color get _primary => const Color(0xFFF2800D);
@@ -306,152 +307,165 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen> {
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          body: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top App Bar
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.close,
-                          color: _onSurface(context),
-                          size: 28,
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      Expanded(
-                        child: Text(
-                          'Daily Challenge',
-                          style: TextStyle(
+          body: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragEnd: (details) {
+              final v = details.primaryVelocity ?? 0.0;
+              // Left-to-right swipe has positive primaryVelocity
+              if (v > _swipeBackVelocityThreshold) {
+                if (Navigator.canPop(context)) Navigator.pop(context);
+              }
+            },
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top App Bar
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.close,
                             color: _onSurface(context),
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            size: 28,
                           ),
-                          textAlign: TextAlign.center,
+                          onPressed: () => Navigator.pop(context),
                         ),
-                      ),
-                      const SizedBox(width: 48),
-                    ],
-                  ),
-                ),
-
-                // Question
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                  child: Text(
-                    question,
-                    style: TextStyle(
-                      color: _onSurface(context),
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
+                        Expanded(
+                          child: Text(
+                            'Daily Challenge',
+                            style: TextStyle(
+                              color: _onSurface(context),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
                     ),
                   ),
-                ),
 
-                // Options Grid
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 1.2,
-                          ),
-                      itemCount: options.length,
-                      itemBuilder: (context, index) {
-                        final option = options[index];
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              selectedAnswer = option;
-                            });
-                            // Also update provider
-                            provider.setSelectedAnswer(
-                              widget.studentId,
-                              option,
-                            );
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: _getOptionColor(option),
-                              border: _getOptionBorder(option),
-                              borderRadius: BorderRadius.circular(16),
+                  // Question
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                    child: Text(
+                      question,
+                      style: TextStyle(
+                        color: _onSurface(context),
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+
+                  // Options Grid
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: GridView.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                              childAspectRatio: 1.2,
                             ),
-                            child: Center(
-                              child: Text(
+                        itemCount: options.length,
+                        itemBuilder: (context, index) {
+                          final option = options[index];
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                selectedAnswer = option;
+                              });
+                              // Also update provider
+                              provider.setSelectedAnswer(
+                                widget.studentId,
                                 option,
-                                style: TextStyle(
-                                  color: _onSurface(context),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.4,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: _getOptionColor(option),
+                                border: _getOptionBorder(option),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  option,
+                                  style: TextStyle(
+                                    color: _onSurface(context),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.4,
+                                  ),
+                                  textAlign: TextAlign.center,
                                 ),
-                                textAlign: TextAlign.center,
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-
-                // Check Answer Button
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: selectedAnswer == null || isSubmitting
-                          ? null
-                          : () =>
-                                _checkAnswer(context, correctAnswer, provider),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(28),
-                        ),
-                        elevation: 0,
-                        disabledBackgroundColor: _muted(
-                          context,
-                        ).withOpacity(0.2),
-                        disabledForegroundColor: _muted(
-                          context,
-                        ).withOpacity(0.5),
+                          );
+                        },
                       ),
-                      child: isSubmitting
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : const Text(
-                              'Check Answer',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
                     ),
                   ),
-                ),
-              ],
+
+                  // Check Answer Button
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: selectedAnswer == null || isSubmitting
+                            ? null
+                            : () => _checkAnswer(
+                                context,
+                                correctAnswer,
+                                provider,
+                              ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          elevation: 0,
+                          disabledBackgroundColor: _muted(
+                            context,
+                          ).withOpacity(0.2),
+                          disabledForegroundColor: _muted(
+                            context,
+                          ).withOpacity(0.5),
+                        ),
+                        child: isSubmitting
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Text(
+                                'Check Answer',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );

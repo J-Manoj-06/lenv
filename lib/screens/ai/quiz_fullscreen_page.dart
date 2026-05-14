@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/quiz_question.dart';
 
+const double _swipeBackVelocityThreshold = 300.0;
+
 class QuizFullScreenPage extends StatefulWidget {
   final Map<String, dynamic> quizData;
   const QuizFullScreenPage({super.key, required this.quizData});
@@ -66,57 +68,66 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
           ),
         ),
       ),
-      body: Column(
-        children: [
-          if (_submitted)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.green.withOpacity(0.4)),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.emoji_events,
-                    color: Colors.green.withOpacity(0.9),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Score: $_score / ${_questions.length}',
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0.0;
+          if (v > _swipeBackVelocityThreshold) {
+            if (Navigator.canPop(context)) Navigator.pop(context);
+          }
+        },
+        child: Column(
+          children: [
+            if (_submitted)
+              Container(
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.green.withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.emoji_events,
+                      color: Colors.green.withOpacity(0.9),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Score: $_score / ${_questions.length}',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                itemCount: _questions.length,
+                itemBuilder: (context, index) {
+                  final q = _questions[index];
+                  return _QuestionCard(
+                    question: q,
+                    index: index,
+                    selected: _answers[index],
+                    onSelect: (opt) {
+                      if (_submitted) return; // lock after submit
+                      setState(() => _answers[index] = opt);
+                    },
+                    showResult: _submitted,
+                  );
+                },
               ),
             ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-              itemCount: _questions.length,
-              itemBuilder: (context, index) {
-                final q = _questions[index];
-                return _QuestionCard(
-                  question: q,
-                  index: index,
-                  selected: _answers[index],
-                  onSelect: (opt) {
-                    if (_submitted) return; // lock after submit
-                    setState(() => _answers[index] = opt);
-                  },
-                  showResult: _submitted,
-                );
-              },
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: SizedBox(

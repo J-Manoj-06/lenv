@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../widgets/motivation_card_deck.dart';
 import '../../widgets/swipe_card_deck.dart';
 
+const double _swipeBackVelocityThreshold = 300.0;
+
 class MotivationFullScreenPage extends StatelessWidget {
   final List<CardData> cards;
 
@@ -35,11 +37,20 @@ class MotivationFullScreenPage extends StatelessWidget {
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        child: MotivationCardDeck(
-          cards: cards,
-          onDeckComplete: () => Navigator.pop(context),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0.0;
+          if (v > _swipeBackVelocityThreshold) {
+            if (Navigator.canPop(context)) Navigator.pop(context);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: MotivationCardDeck(
+            cards: cards,
+            onDeckComplete: () => Navigator.pop(context),
+          ),
         ),
       ),
     );

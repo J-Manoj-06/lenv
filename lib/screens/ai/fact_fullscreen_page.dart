@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../widgets/fact_card_deck.dart';
 
+const double _swipeBackVelocityThreshold = 300.0;
+
 class FactFullScreenPage extends StatelessWidget {
   final List<String> facts;
   const FactFullScreenPage({super.key, required this.facts});
@@ -33,11 +35,20 @@ class FactFullScreenPage extends StatelessWidget {
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        child: FactCardDeck(
-          facts: facts,
-          onDeckComplete: () => Navigator.pop(context),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0.0;
+          if (v > _swipeBackVelocityThreshold) {
+            if (Navigator.canPop(context)) Navigator.pop(context);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: FactCardDeck(
+            facts: facts,
+            onDeckComplete: () => Navigator.pop(context),
+          ),
         ),
       ),
     );

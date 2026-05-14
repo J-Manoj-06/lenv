@@ -7,19 +7,35 @@ import '../../services/deepseek_service.dart';
 import '../../services/ai_insights_service.dart';
 import '../../services/test_result_service.dart';
 import '../../services/student_profile_service.dart';
-import '../../services/daily_content_service.dart';
 import '../../providers/auth_provider.dart';
-import '../games/brain_games_menu_screen.dart';
-import '../../widgets/swipe_card_deck.dart';
-import 'motivation_fullscreen_page.dart';
-import '../../widgets/history_card_deck.dart';
-import 'history_fullscreen_page.dart';
 // Removed insight widgets import since chat bubbles are no longer used.
-import 'fact_fullscreen_page.dart';
 import 'quiz_fullscreen_page.dart';
 import 'insights_fullscreen_page.dart';
 import 'study_plan_fullscreen_page.dart';
 import 'time_management_fullscreen_page.dart';
+
+// Small wrapper that allows left-to-right swipe to pop the current route.
+class _SwipeToPopWrapper extends StatelessWidget {
+  final Widget child;
+  const _SwipeToPopWrapper({required this.child});
+
+  static const double _swipeBackVelocityThreshold = 300.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) {
+        final v = details.primaryVelocity ?? 0.0;
+        // Left-to-right swipe (positive velocity) -> pop
+        if (v > _swipeBackVelocityThreshold) {
+          if (Navigator.canPop(context)) Navigator.pop(context);
+        }
+      },
+      child: child,
+    );
+  }
+}
 
 class AiChatPage extends StatefulWidget {
   const AiChatPage({super.key});
@@ -34,8 +50,6 @@ class _AiChatPageState extends State<AiChatPage> {
   final AiInsightsService _insightsService = AiInsightsService();
   final TestResultService _testService = TestResultService();
   final StudentProfileService _profileService = StudentProfileService();
-  final DailyContentService _dailyContentService = DailyContentService();
-  final List<ChatMessage> _messages = [];
   bool _isProcessing = false;
   bool _insightsUsedToday = false;
   bool _studyPlanUsedToday = false;
@@ -45,15 +59,9 @@ class _AiChatPageState extends State<AiChatPage> {
   Map<String, double>? _todayInsightsAverages;
   String? _todayStudyPlanText;
 
-  // Daily content loading states
-  bool _isQuoteLoading = true;
-  bool _isFactLoading = true;
-  bool _isHistoryLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _restoreChat();
     _checkDailyUsage();
   }
 
@@ -96,16 +104,22 @@ class _AiChatPageState extends State<AiChatPage> {
         PageRouteBuilder(
           opaque: true,
           pageBuilder: (context, animation, secondaryAnimation) =>
-              InsightsFullScreenPage(
-                insightsText: _todayInsightsText!,
-                subjectAverages: _todayInsightsAverages ?? {},
+              _SwipeToPopWrapper(
+                child: InsightsFullScreenPage(
+                  insightsText: _todayInsightsText!,
+                  subjectAverages: _todayInsightsAverages ?? {},
+                ),
               ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curve = CurvedAnimation(
+            final curved = CurvedAnimation(
               parent: animation,
               curve: Curves.easeOutCubic,
             );
-            return FadeTransition(opacity: curve, child: child);
+            final offset = Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(curved);
+            return SlideTransition(position: offset, child: child);
           },
         ),
       );
@@ -120,17 +134,8 @@ class _AiChatPageState extends State<AiChatPage> {
       final studentId = authProvider.currentUser?.uid;
 
       if (studentId == null) {
-        setState(() {
-          _messages.add(
-            ChatMessage(
-              sender: 'ai',
-              text: 'Please log in to view your performance insights.',
-            ),
-          );
-          _isProcessing = false;
-        });
+        setState(() => _isProcessing = false);
         _scrollToEnd();
-        await _persistChat();
         return;
       }
 
@@ -154,42 +159,33 @@ class _AiChatPageState extends State<AiChatPage> {
         PageRouteBuilder(
           opaque: true,
           pageBuilder: (context, animation, secondaryAnimation) =>
-              InsightsFullScreenPage(
-                insightsText: insightResult.text,
-                subjectAverages: insightResult.subjectAverages,
+              _SwipeToPopWrapper(
+                child: InsightsFullScreenPage(
+                  insightsText: insightResult.text,
+                  subjectAverages: insightResult.subjectAverages,
+                ),
               ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curve = CurvedAnimation(
+            final curved = CurvedAnimation(
               parent: animation,
               curve: Curves.easeOutCubic,
             );
-            return FadeTransition(opacity: curve, child: child);
+            final offset = Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(curved);
+            return SlideTransition(position: offset, child: child);
           },
         ),
       );
       setState(() {
-        _messages.add(
-          ChatMessage(
-            sender: 'ai',
-            text: '📊 Insights viewed',
-            messageType: MessageType.insight,
-            performanceData: insightResult.subjectAverages,
-          ),
-        );
         _isProcessing = false;
       });
       await _markInsightUsed();
       _scrollToEnd();
-      await _persistChat();
     } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Failed to generate insights: $e'),
-        );
-        _isProcessing = false;
-      });
+      setState(() => _isProcessing = false);
       _scrollToEnd();
-      await _persistChat();
     }
   }
 
@@ -200,13 +196,19 @@ class _AiChatPageState extends State<AiChatPage> {
         PageRouteBuilder(
           opaque: true,
           pageBuilder: (context, animation, secondaryAnimation) =>
-              StudyPlanFullScreenPage(planText: _todayStudyPlanText!),
+              _SwipeToPopWrapper(
+                child: StudyPlanFullScreenPage(planText: _todayStudyPlanText!),
+              ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final curve = CurvedAnimation(
+            final curved = CurvedAnimation(
               parent: animation,
               curve: Curves.easeOutCubic,
             );
-            return FadeTransition(opacity: curve, child: child);
+            final offset = Tween<Offset>(
+              begin: const Offset(1.0, 0.0),
+              end: Offset.zero,
+            ).animate(curved);
+            return SlideTransition(position: offset, child: child);
           },
         ),
       );
@@ -221,17 +223,8 @@ class _AiChatPageState extends State<AiChatPage> {
       final studentId = authProvider.currentUser?.uid;
 
       if (studentId == null) {
-        setState(() {
-          _messages.add(
-            ChatMessage(
-              sender: 'ai',
-              text: 'Please log in to get a personalized study plan.',
-            ),
-          );
-          _isProcessing = false;
-        });
+        setState(() => _isProcessing = false);
         _scrollToEnd();
-        await _persistChat();
         return;
       }
 
@@ -265,300 +258,14 @@ class _AiChatPageState extends State<AiChatPage> {
         ),
       );
       setState(() {
-        _messages.add(
-          ChatMessage(
-            sender: 'ai',
-            text: '🗓 Study plan viewed',
-            messageType: MessageType.studyPlan,
-          ),
-        );
         _isProcessing = false;
       });
       await _markStudyPlanUsed();
       _scrollToEnd();
-      await _persistChat();
     } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Failed to generate study plan: $e'),
-        );
-        _isProcessing = false;
-      });
-      _scrollToEnd();
-      await _persistChat();
-    }
-  }
-
-  Future<void> _handleMotivationQuotes() async {
-    try {
-      setState(() => _isQuoteLoading = true);
-
-      // Fetch from Firestore (pre-fetched by Cloudflare Worker)
-      final dailyQuote = await _dailyContentService.getTodayQuote();
-
-      String quote;
-      String author;
-
-      if (dailyQuote != null) {
-        quote = dailyQuote.text;
-        author = dailyQuote.author;
-      } else {
-        // Fallback if Firestore data not available yet
-        final fallback = DailyQuote.randomFallback();
-        quote = fallback.text;
-        author = fallback.author;
-      }
-
-      await _showSwipeableMotivation(
-        quote,
-        author,
-      ); // Call to the updated method
-
-      // Store to history
-      _messages.add(ChatMessage(sender: 'ai', text: '“$quote” — $author'));
-      await _persistChat();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load quote: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _isQuoteLoading = false);
+      setState(() => _isProcessing = false);
       _scrollToEnd();
     }
-  }
-
-  Future<void> _showSwipeableMotivation(String quote, String author) async {
-    final cards = [
-      CardData(category: 'Motivation', text: quote, author: '— $author'),
-    ];
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: true,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            MotivationFullScreenPage(cards: cards),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(opacity: curve, child: child);
-        },
-      ),
-    );
-  }
-
-  Future<void> _handleDailyFact() async {
-    try {
-      setState(() => _isFactLoading = true);
-
-      // Fetch from Firestore (pre-fetched by Cloudflare Worker)
-      final dailyFact = await _dailyContentService.getTodayFact();
-
-      String factText;
-
-      if (dailyFact != null) {
-        factText = dailyFact.text;
-      } else {
-        // Fallback if Firestore data not available yet
-        factText = DailyFact.randomFallback().text;
-      }
-
-      await _showFactFullscreen(factText);
-
-      setState(() {
-        _messages.add(ChatMessage(sender: 'ai', text: factText));
-      });
-      _scrollToEnd();
-      await _persistChat();
-    } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Failed to load daily fact: $e'),
-        );
-      });
-      _scrollToEnd();
-      await _persistChat();
-    } finally {
-      if (mounted) setState(() => _isFactLoading = false);
-    }
-  }
-
-  Future<void> _showFactFullscreen(String fact) async {
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: true,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            FactFullScreenPage(facts: [fact]),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(opacity: curve, child: child);
-        },
-      ),
-    );
-  }
-
-  Future<void> _handleTodayInHistory() async {
-    try {
-      setState(() => _isHistoryLoading = true);
-
-      // Fetch from Firestore (pre-fetched by Cloudflare Worker)
-      final dailyHistory = await _dailyContentService.getTodayHistory();
-
-      List<Map<String, String>> items = [];
-
-      if (dailyHistory != null && dailyHistory.events.isNotEmpty) {
-        items = dailyHistory.events.map((e) => e.toMap()).toList();
-      } else {
-        // Fallback if Firestore data not available yet
-        final fallback = DailyHistory.randomFallback();
-        items = fallback.events.map((e) => e.toMap()).toList();
-      }
-
-      await _showHistorySheet(items);
-
-      // Persist a concise summary to chat history
-      final top = items
-          .take(3)
-          .map((e) {
-            final y = e['year']?.isNotEmpty == true ? '(${e['year']}) ' : '';
-            return '• $y${e['text']}';
-          })
-          .join('\n');
-      _messages.add(
-        ChatMessage(sender: 'ai', text: 'Today in History\n\n$top'),
-      );
-      await _persistChat();
-    } on TimeoutException {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.access_time, color: Colors.white),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Request timeout. Please check your connection and try again.',
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.orange.shade700,
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } on FormatException {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text('Received invalid data. Please try again later.'),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red.shade700,
-            duration: const Duration(seconds: 4),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        final errorMessage = e.toString().replaceFirst('Exception: ', '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    errorMessage.length > 100
-                        ? 'Unable to load history. Please try again.'
-                        : errorMessage,
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red.shade800,
-            duration: const Duration(seconds: 5),
-            behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'RETRY',
-              textColor: Colors.white,
-              onPressed: _handleTodayInHistory,
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isHistoryLoading = false);
-      _scrollToEnd();
-    }
-  }
-
-  Future<void> _showHistorySheet(List<Map<String, String>> items) async {
-    // Convert history items to HistoryCardData with rich details
-    final RegExp htmlTag = RegExp(r'<[^>]+>');
-    final RegExp spanTitle = RegExp(
-      r'<span[^>]*>(.*?)<\/span>',
-      caseSensitive: false,
-    );
-    String cleanTitle(String raw) {
-      // Prefer extracting from <span> if present, else strip all tags
-      final match = spanTitle.firstMatch(raw);
-      if (match != null && match.groupCount > 0) {
-        return match.group(1)!.replaceAll(htmlTag, '').trim();
-      }
-      return raw.replaceAll(htmlTag, '').trim();
-    }
-
-    final cards = items.take(10).map((it) {
-      final year = it['year'] ?? '';
-      final text = it['text'] ?? '';
-      final titleRaw = it['title'] ?? '';
-      final title = cleanTitle(titleRaw);
-      final thumb = it['thumb'] ?? '';
-      final category = it['category'] ?? 'Events';
-
-      return HistoryCardData(
-        title: title.isNotEmpty ? title : text,
-        description: title.isNotEmpty ? text : 'Historical event from $year',
-        year: year.isNotEmpty ? year : 'Unknown',
-        imageUrl: thumb,
-        category: category,
-      );
-    }).toList();
-
-    // Present as a full-screen page for immersive experience
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      PageRouteBuilder(
-        opaque: true,
-        pageBuilder: (context, animation, secondaryAnimation) =>
-            HistoryFullScreenPage(cards: cards),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(opacity: curve, child: child);
-        },
-      ),
-    );
   }
 
   Future<void> _handleStudyTimeManager() async {
@@ -570,13 +277,19 @@ class _AiChatPageState extends State<AiChatPage> {
       PageRouteBuilder(
         opaque: true,
         pageBuilder: (context, animation, secondaryAnimation) =>
-            TimeManagementFullScreenPage(userId: uid),
+            _SwipeToPopWrapper(
+              child: TimeManagementFullScreenPage(userId: uid),
+            ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          final curve = CurvedAnimation(
+          final curved = CurvedAnimation(
             parent: animation,
             curve: Curves.easeOutCubic,
           );
-          return FadeTransition(opacity: curve, child: child);
+          final offset = Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(curved);
+          return SlideTransition(position: offset, child: child);
         },
       ),
     );
@@ -928,13 +641,6 @@ class _AiChatPageState extends State<AiChatPage> {
     required String difficulty,
   }) async {
     setState(() {
-      _messages.add(
-        ChatMessage(
-          sender: 'student',
-          text:
-              'Generate $count-question $difficulty quiz on $subject (Std $standard): $topic',
-        ),
-      );
       _isProcessing = true;
     });
     _scrollToEnd();
@@ -966,28 +672,12 @@ class _AiChatPageState extends State<AiChatPage> {
       await _incrementQuizAttempt();
 
       setState(() {
-        _messages.add(
-          ChatMessage(
-            sender: 'ai',
-            text:
-                '📝 ${quizData['title'] ?? 'Quiz'} (opened) - Attempt $_quizAttemptsToday/2',
-            quiz: quizData,
-            messageType: MessageType.quiz,
-          ),
-        );
         _isProcessing = false;
       });
       _scrollToEnd();
-      await _persistChat();
     } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(sender: 'ai', text: 'Failed to generate quiz: $e'),
-        );
-        _isProcessing = false;
-      });
+      setState(() => _isProcessing = false);
       _scrollToEnd();
-      await _persistChat();
     }
   }
 
@@ -1101,45 +791,11 @@ class _AiChatPageState extends State<AiChatPage> {
             disabled: false,
             onTap: _handleStudyPlanRequest,
           ),
-          _DailyContentLoadingCard(
-            title: 'Motivation Quotes',
-            icon: Icons.format_quote,
-            color: Colors.purpleAccent,
-            onTap: _handleMotivationQuotes,
-            isLoading: _isQuoteLoading,
-          ),
-          _DailyContentLoadingCard(
-            title: 'Daily Fact',
-            icon: Icons.lightbulb_outline,
-            color: Colors.amber,
-            onTap: _handleDailyFact,
-            isLoading: _isFactLoading,
-          ),
-          _DailyContentLoadingCard(
-            title: 'Today in History',
-            icon: Icons.history_edu,
-            color: Colors.deepOrange,
-            onTap: _handleTodayInHistory,
-            isLoading: _isHistoryLoading,
-          ),
           _ActionCard(
             title: 'Study Time Manager',
             icon: Icons.timer,
             color: Colors.cyan,
             onTap: _handleStudyTimeManager,
-          ),
-          _ActionCard(
-            title: 'Games',
-            icon: Icons.videogame_asset,
-            color: Colors.teal,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const BrainGamesMenuScreen(),
-                ),
-              );
-            },
           ),
         ],
       ),
@@ -1148,407 +804,7 @@ class _AiChatPageState extends State<AiChatPage> {
 
   // Mini actions row removed along with chat list to simplify UI.
 
-  Future<void> _restoreChat() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final list = prefs.getStringList('ai_chat_messages') ?? [];
-      // Do not restore or prefill greeting messages; keep UI clean.
-      if (list.isNotEmpty) {
-        setState(() {
-          _messages
-            ..clear()
-            ..addAll(list.map(ChatMessage.fromStorage));
-        });
-      }
-    } catch (_) {
-      // Ignore errors and show only action cards.
-    }
-  }
-
-  Future<void> _persistChat() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
-        'ai_chat_messages',
-        _messages.map((m) => m.toStorage()).toList(),
-      );
-    } catch (_) {}
-  }
-
   // Quick actions now directly call their handlers; free-form prompt removed.
-}
-
-enum MessageType { normal, insight, studyPlan, quiz }
-
-class ChatMessage {
-  final String sender; // 'ai' or 'student'
-  final String text;
-  final Map<String, dynamic>? quiz;
-  final Map<String, dynamic>? performanceData;
-  final DateTime timestamp;
-  final MessageType messageType;
-
-  ChatMessage({
-    required this.sender,
-    required this.text,
-    this.quiz,
-    this.performanceData,
-    DateTime? timestamp,
-    this.messageType = MessageType.normal,
-  }) : timestamp = timestamp ?? DateTime.now();
-
-  String toStorage() {
-    final ts = timestamp.millisecondsSinceEpoch;
-    final quizStr = quiz == null ? '' : quiz.toString();
-    final typeStr = messageType.toString().split('.').last;
-    return '$sender|$ts|$text|$quizStr|$typeStr';
-  }
-
-  static ChatMessage fromStorage(String raw) {
-    final parts = raw.split('|');
-    final sender = parts.isNotEmpty ? parts[0] : 'ai';
-    final ts = parts.length > 1
-        ? int.tryParse(parts[1]) ?? DateTime.now().millisecondsSinceEpoch
-        : DateTime.now().millisecondsSinceEpoch;
-    final text = parts.length > 2 ? parts[2] : '';
-    final typeStr = parts.length > 4 ? parts[4] : 'normal';
-
-    MessageType type = MessageType.normal;
-    if (typeStr == 'insight') {
-      type = MessageType.insight;
-    } else if (typeStr == 'studyPlan') {
-      type = MessageType.studyPlan;
-    } else if (typeStr == 'quiz') {
-      type = MessageType.quiz;
-    }
-
-    return ChatMessage(
-      sender: sender,
-      text: text,
-      quiz: null,
-      performanceData: null,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(ts),
-      messageType: type,
-    );
-  }
-}
-
-// Message bubble removed with chat list.
-
-class _QuizWidget extends StatefulWidget {
-  final Map<String, dynamic> quizData;
-
-  const _QuizWidget({required this.quizData});
-
-  @override
-  State<_QuizWidget> createState() => _QuizWidgetState();
-}
-
-class _QuizWidgetState extends State<_QuizWidget> {
-  final Map<int, int?> _answers = {};
-  final Map<int, bool> _submitted = {};
-
-  @override
-  Widget build(BuildContext context) {
-    final questions = widget.quizData['questions'] as List<dynamic>? ?? [];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFFF8A00).withOpacity(0.3)),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: questions.asMap().entries.map((entry) {
-          final i = entry.key;
-          final q = entry.value;
-          final questionText = q['question'] ?? '';
-          final options = (q['options'] as List<dynamic>?) ?? [];
-          final correctIndex = q['correctIndex'] ?? 0;
-          final selectedIndex = _answers[i];
-          final isSubmitted = _submitted[i] ?? false;
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Q${i + 1}. $questionText',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...options.asMap().entries.map((optEntry) {
-                  final optIndex = optEntry.key;
-                  final optText = optEntry.value.toString();
-                  final isSelected = selectedIndex == optIndex;
-                  final isCorrect = optIndex == correctIndex;
-
-                  Color bgColor = const Color(0xFF2A2A2A);
-                  if (isSubmitted) {
-                    if (isCorrect) {
-                      bgColor = Colors.green.withOpacity(0.3);
-                    } else if (isSelected && !isCorrect) {
-                      bgColor = Colors.red.withOpacity(0.3);
-                    }
-                  } else if (isSelected) {
-                    bgColor = const Color(0xFFFF8A00).withOpacity(0.2);
-                  }
-
-                  return GestureDetector(
-                    onTap: isSubmitted
-                        ? null
-                        : () => setState(() => _answers[i] = optIndex),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isSubmitted && isCorrect
-                              ? Colors.green
-                              : isSubmitted && isSelected
-                              ? Colors.red
-                              : isSelected
-                              ? const Color(0xFFFF8A00)
-                              : Colors.white24,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              optText,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          if (isSubmitted && isCorrect)
-                            const Icon(
-                              Icons.check_circle,
-                              color: Colors.green,
-                              size: 18,
-                            ),
-                          if (isSubmitted && isSelected && !isCorrect)
-                            const Icon(
-                              Icons.cancel,
-                              color: Colors.red,
-                              size: 18,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-                if (!isSubmitted && selectedIndex != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: ElevatedButton(
-                      onPressed: () => setState(() => _submitted[i] = true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF8A00),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                      ),
-                      child: const Text(
-                        'Submit',
-                        style: TextStyle(color: Colors.white, fontSize: 12),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
-
-// Removed ActionBubble since mini actions were removed.
-
-/// Skeleton placeholder for loading state - displays animated placeholder
-class _DailyContentSkeleton extends StatefulWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-
-  const _DailyContentSkeleton({
-    required this.title,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  State<_DailyContentSkeleton> createState() => _DailyContentSkeletonState();
-}
-
-class _DailyContentSkeletonState extends State<_DailyContentSkeleton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _opacityAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    );
-
-    _opacityAnimation = Tween<double>(
-      begin: 0.4,
-      end: 0.8,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  void _startAnimation() {
-    // Respect reduced-motion preference - check in build
-    final mediaQuery = MediaQuery.of(context);
-    final respectReducedMotion =
-        mediaQuery.disableAnimations || mediaQuery.boldText;
-
-    if (!respectReducedMotion && !_controller.isAnimating) {
-      _controller.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Start animation after first build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _startAnimation();
-    });
-
-    final isDarkTheme = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDarkTheme ? const Color(0xFF2A2A2A) : Colors.white;
-    final skeletonColor = isDarkTheme
-        ? Colors.grey[800] ?? Colors.grey
-        : Colors.grey[300] ?? Colors.grey;
-    final textColor = isDarkTheme ? Colors.white : Colors.black87;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: widget.color.withOpacity(0.35)),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(widget.icon, color: widget.color, size: 24),
-          const SizedBox(height: 4),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                widget.title,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Loading indicator dots
-          FadeTransition(
-            opacity: _opacityAnimation,
-            child: Row(
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: skeletonColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: skeletonColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: skeletonColor,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Action card that shows loading skeleton while fetching, then content
-class _DailyContentLoadingCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-  final bool isLoading;
-
-  const _DailyContentLoadingCard({
-    required this.title,
-    required this.icon,
-    required this.color,
-    this.onTap,
-    this.isLoading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return GestureDetector(
-        onTap: onTap,
-        child: _DailyContentSkeleton(title: title, icon: icon, color: color),
-      );
-    }
-
-    return _ActionCard(title: title, icon: icon, color: color, onTap: onTap);
-  }
 }
 
 class _ActionCard extends StatelessWidget {
@@ -1645,5 +901,3 @@ class _ActionCard extends StatelessWidget {
     );
   }
 }
-
-// (duplicate declarations removed)

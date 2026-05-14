@@ -3,6 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+const double _swipeBackVelocityThreshold = 300.0;
+
 class TimeManagementFullScreenPage extends StatefulWidget {
   final String? userId;
   const TimeManagementFullScreenPage({super.key, this.userId});
@@ -171,57 +173,67 @@ class _TimeManagementFullScreenPageState
           style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 42),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SlideTransition(
-              position: _headerSlide,
-              child: FadeTransition(
-                opacity: _headerFade,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.bolt, color: Color(0xFFFFB26B)),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Stay focused. Stay disciplined.',
-                          style: TextStyle(
-                            color: secondaryTextColor,
-                            fontSize: 14,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) {
+          final v = details.primaryVelocity ?? 0.0;
+          if (v > _swipeBackVelocityThreshold) {
+            if (Navigator.canPop(context)) Navigator.pop(context);
+          }
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 42),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SlideTransition(
+                position: _headerSlide,
+                child: FadeTransition(
+                  opacity: _headerFade,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.bolt, color: Color(0xFFFFB26B)),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Stay focused. Stay disciplined.',
+                            style: TextStyle(
+                              color: secondaryTextColor,
+                              fontSize: 14,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _PomodoroCard(
-              remaining: pomodoroRemaining,
-              total: pomodoroTotalSeconds,
-              running: pomodoroRunning,
-              sessionCount: sessionCount,
-              completed: completedPomodoros,
-              onToggle: _togglePomodoro,
-              onReset: _resetPomodoro,
-              formatTime: _formatMinutesSeconds,
-            ),
-            const SizedBox(height: 18),
-            _StudyTimerCard(
-              running: studyRunning,
-              remainingSeconds: studyRemainingSeconds,
-              durationMinutes: studyDurationMinutes,
-              formatTime: _formatMinutesSeconds,
-              onSelectDuration: (m) => setState(() => studyDurationMinutes = m),
-              onStart: _startStudyTimer,
-              onStop: _stopStudyTimer,
-            ),
-          ],
+              _PomodoroCard(
+                remaining: pomodoroRemaining,
+                total: pomodoroTotalSeconds,
+                running: pomodoroRunning,
+                sessionCount: sessionCount,
+                completed: completedPomodoros,
+                onToggle: _togglePomodoro,
+                onReset: _resetPomodoro,
+                formatTime: _formatMinutesSeconds,
+              ),
+              const SizedBox(height: 18),
+              _StudyTimerCard(
+                running: studyRunning,
+                remainingSeconds: studyRemainingSeconds,
+                durationMinutes: studyDurationMinutes,
+                formatTime: _formatMinutesSeconds,
+                onSelectDuration: (m) =>
+                    setState(() => studyDurationMinutes = m),
+                onStart: _startStudyTimer,
+                onStop: _stopStudyTimer,
+              ),
+            ],
+          ),
         ),
       ),
     );

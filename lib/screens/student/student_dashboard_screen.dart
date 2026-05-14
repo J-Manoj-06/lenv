@@ -1624,13 +1624,31 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen> {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.transparent,
-        pageBuilder: (_, _, _) => DailyChallengeResultScreen(
-          isWinner: challengeResult,
-          score: challengeResult ? 100 : 0,
-          passingScore: 50,
-          streakDays: streakDays,
-          onContinue: () {},
+        pageBuilder: (_, _, _) => GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (details) {
+            final v = details.primaryVelocity ?? 0.0;
+            if (v > 300 && Navigator.canPop(context)) Navigator.pop(context);
+          },
+          child: DailyChallengeResultScreen(
+            isWinner: challengeResult,
+            score: challengeResult ? 100 : 0,
+            passingScore: 50,
+            streakDays: streakDays,
+            onContinue: () {},
+          ),
         ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          final offset = Tween<Offset>(
+            begin: const Offset(1.0, 0.0),
+            end: Offset.zero,
+          ).animate(curved);
+          return SlideTransition(position: offset, child: child);
+        },
       ),
     );
 
