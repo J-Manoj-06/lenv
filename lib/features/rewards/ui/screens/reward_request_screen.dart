@@ -8,6 +8,7 @@ import '../../models/reward_request_model.dart';
 import '../../providers/rewards_providers.dart';
 import '../../utils/points_calculator.dart';
 import 'dart:ui';
+import '../../../../widgets/page_swipe_back_wrapper.dart';
 
 const Color _primaryOrange = Color(0xFFF97316);
 
@@ -85,156 +86,167 @@ class _RewardRequestScreenState extends ConsumerState<RewardRequestScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0F0F14)
-          : const Color(0xFFF5F6F7),
-      appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => Navigator.pop(context),
+    return PageSwipeBackWrapper(
+      child: Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F14)
+            : const Color(0xFFF5F6F7),
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'Request Reward',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+          centerTitle: true,
         ),
-        title: const Text(
-          'Request Reward',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-        centerTitle: true,
-      ),
-      body: FutureBuilder<DocumentSnapshot>(
-        future: _catalogFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        body: FutureBuilder<DocumentSnapshot>(
+          future: _catalogFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {}
+            if (snapshot.hasError) {}
 
-          if (snapshot.hasError ||
-              !snapshot.hasData ||
-              !snapshot.data!.exists) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Product not found',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Go Back'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-
-          final product = ProductModel.fromMap(data);
-
-          // Calculate points required
-          final pointsRequired = PointsCalculator.calculatePointsRequired(
-            price: product.price.estimatedPrice,
-            pointsPerRupee: product.pointsRule.pointsPerRupee,
-            maxPoints: product.pointsRule.maxPoints,
-          );
-
-          // Watch total earned points for display
-          final totalPointsAsync =
-              widget.studentId != null && widget.studentId!.isNotEmpty
-              ? ref.watch(studentPointsProvider(widget.studentId!))
-              : const AsyncValue.data(0.0);
-
-          // Watch available points for backend validation
-          final availablePointsAsync =
-              widget.studentId != null && widget.studentId!.isNotEmpty
-              ? ref.watch(studentAvailablePointsProvider(widget.studentId!))
-              : const AsyncValue.data(0.0);
-
-          return totalPointsAsync.when(
-            data: (totalPoints) {
-              return availablePointsAsync.when(
-                data: (availablePoints) {
-                  final userTotalPoints = totalPoints.toInt();
-                  // Eligibility is based on TOTAL earned points (what user actually earned)
-                  final isEligible = userTotalPoints >= pointsRequired;
-                  // Remaining is based on total points needed vs total earned
-                  final remainingPoints = isEligible
-                      ? 0
-                      : (pointsRequired - userTotalPoints);
-
-                  return SafeArea(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildProductPreview(context, data, isDark),
-                          const SizedBox(height: 24),
-                          _buildEligibilityCard(
-                            context,
-                            pointsRequired,
-                            userTotalPoints,
-                            remainingPoints,
-                            isEligible,
-                            isDark,
-                          ),
-                          const SizedBox(height: 24),
-                          _buildConfirmButton(
-                            context,
-                            product,
-                            pointsRequired,
-                            isEligible,
-                            remainingPoints,
-                            isDark,
-                          ),
-                        ],
-                      ),
+            if (snapshot.hasError ||
+                !snapshot.hasData ||
+                !snapshot.data!.exists) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.grey[400],
                     ),
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, st) => Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Unable to load your points',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ],
-                  ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Product not found',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Go Back'),
+                    ),
+                  ],
                 ),
               );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, st) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Unable to load points',
-                    style: Theme.of(context).textTheme.titleMedium,
+            }
+
+            final data = snapshot.data!.data() as Map<String, dynamic>;
+
+            final product = ProductModel.fromMap(data);
+
+            // Calculate points required
+            final pointsRequired = PointsCalculator.calculatePointsRequired(
+              price: product.price.estimatedPrice,
+              pointsPerRupee: product.pointsRule.pointsPerRupee,
+              maxPoints: product.pointsRule.maxPoints,
+            );
+
+            // Watch total earned points for display
+            final totalPointsAsync =
+                widget.studentId != null && widget.studentId!.isNotEmpty
+                ? ref.watch(studentPointsProvider(widget.studentId!))
+                : const AsyncValue.data(0.0);
+
+            // Watch available points for backend validation
+            final availablePointsAsync =
+                widget.studentId != null && widget.studentId!.isNotEmpty
+                ? ref.watch(studentAvailablePointsProvider(widget.studentId!))
+                : const AsyncValue.data(0.0);
+
+            return totalPointsAsync.when(
+              data: (totalPoints) {
+                return availablePointsAsync.when(
+                  data: (availablePoints) {
+                    final userTotalPoints = totalPoints.toInt();
+                    // Eligibility is based on TOTAL earned points (what user actually earned)
+                    final isEligible = userTotalPoints >= pointsRequired;
+                    // Remaining is based on total points needed vs total earned
+                    final remainingPoints = isEligible
+                        ? 0
+                        : (pointsRequired - userTotalPoints);
+
+                    return SafeArea(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildProductPreview(context, data, isDark),
+                            const SizedBox(height: 24),
+                            _buildEligibilityCard(
+                              context,
+                              pointsRequired,
+                              userTotalPoints,
+                              remainingPoints,
+                              isEligible,
+                              isDark,
+                            ),
+                            const SizedBox(height: 24),
+                            _buildConfirmButton(
+                              context,
+                              product,
+                              pointsRequired,
+                              isEligible,
+                              remainingPoints,
+                              isDark,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, st) => Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Unable to load your points',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, st) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.grey[400],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Unable to load points',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

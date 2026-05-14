@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/test_result_model.dart';
 import '../../services/firestore_service.dart';
 import '../../services/student_service.dart';
-import '../../widgets/page_swipe_back_wrapper.dart';
 
 class StudentTestResultScreen extends StatefulWidget {
   final String resultId;
@@ -163,155 +162,152 @@ class _StudentTestResultScreenState extends State<StudentTestResultScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return PageSwipeBackWrapper(
-      child: Scaffold(
-        backgroundColor: isDark
-            ? const Color(0xFF111827)
-            : const Color(0xFFF7F3EF),
-        body: FutureBuilder<TestResultModel?>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (!snapshot.hasData || snapshot.data == null) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Result not found'),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Result ID: ${widget.resultId}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              );
-            }
-            final result = snapshot.data!;
-            // Compute percentage safely with fallbacks to new fields
-            final derivedTotal = result.totalQuestions > 0
-                ? result.totalQuestions
-                : (result.answers.isNotEmpty ? result.answers.length : 0);
-            final derivedCorrect =
-                (result.correctAnswers > 0 || result.answers.isEmpty)
-                ? result.correctAnswers
-                : result.answers
-                      .where((a) => (a['isCorrect'] ?? false) == true)
-                      .length;
+    return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF111827)
+          : const Color(0xFFF7F3EF),
+      body: FutureBuilder<TestResultModel?>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data == null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Result not found'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Result ID: ${widget.resultId}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+          }
+          final result = snapshot.data!;
+          // Compute percentage safely with fallbacks to new fields
+          final derivedTotal = result.totalQuestions > 0
+              ? result.totalQuestions
+              : (result.answers.isNotEmpty ? result.answers.length : 0);
+          final derivedCorrect =
+              (result.correctAnswers > 0 || result.answers.isEmpty)
+              ? result.correctAnswers
+              : result.answers
+                    .where((a) => (a['isCorrect'] ?? false) == true)
+                    .length;
 
-            final double pct = (() {
-              if (result.percentage != null) {
-                final p = result.percentage!;
-                return p.clamp(0, 100).toDouble();
-              }
-              // Fallback: compute from correct/total if available
-              final totalQ = derivedTotal;
-              final correct = derivedCorrect;
-              if (totalQ > 0) {
-                final computed = ((correct / totalQ) * 100).clamp(0.0, 100.0);
-                return computed;
-              }
-              // Last fallback: use score field (already a percentage in new model)
-              return (result.score).clamp(0.0, 100.0);
-            })();
+          final double pct = (() {
+            if (result.percentage != null) {
+              final p = result.percentage!;
+              return p.clamp(0, 100).toDouble();
+            }
+            // Fallback: compute from correct/total if available
+            final totalQ = derivedTotal;
+            final correct = derivedCorrect;
+            if (totalQ > 0) {
+              final computed = ((correct / totalQ) * 100).clamp(0.0, 100.0);
+              return computed;
+            }
+            // Last fallback: use score field (already a percentage in new model)
+            return (result.score).clamp(0.0, 100.0);
+          })();
 
-            return Column(
-              children: [
-                // Header
-                SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            Icons.arrow_back_ios_new,
-                            color: Theme.of(context).iconTheme.color,
-                          ),
-                          onPressed: () => Navigator.pop(context),
+          return Column(
+            children: [
+              // Header
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.arrow_back_ios_new,
+                          color: Theme.of(context).iconTheme.color,
                         ),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      Text(
+                        'Test Results',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+              ),
+              // Scrollable content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 16),
+                      _buildScoreRing(pct),
+                      const SizedBox(height: 16),
+                      _buildStudentInfo(),
+                      const SizedBox(height: 24),
+                      if (pct >= 75) _buildTrophyBanner(),
+                      const SizedBox(height: 24),
+                      // Gate detailed answers until results are published or after due time
+                      FutureBuilder<_PublishGate>(
+                        future: _fetchPublishGate(result.testId),
+                        builder: (context, gateSnap) {
+                          final gate = gateSnap.data;
+                          final canShow = gate?.canShow ?? true;
+                          if (!canShow) {
+                            return _lockedUntilCard(gate!.endDate, isDark);
+                          }
+
+                          if ((result.questions != null &&
+                                  result.questions!.isNotEmpty) ||
+                              result.answers.isNotEmpty) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Question Breakdown',
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 12),
+                                ..._buildQuestionResults(
+                                  result,
+                                ).map((q) => _buildQuestionTile(q)),
+                              ],
+                            );
+                          }
+
+                          return _noDetailsCard(isDark);
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      // SWOT (optional)
+                      if (result.swot != null) ...[
                         Text(
-                          'Test Results',
+                          'SWOT Summary',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                        const SizedBox(width: 48),
+                        const SizedBox(height: 12),
+                        _buildSwotGrid(result.swot!),
                       ],
-                    ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
                 ),
-                // Scrollable content
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 16),
-                        _buildScoreRing(pct),
-                        const SizedBox(height: 16),
-                        _buildStudentInfo(),
-                        const SizedBox(height: 24),
-                        if (pct >= 75) _buildTrophyBanner(),
-                        const SizedBox(height: 24),
-                        // Gate detailed answers until results are published or after due time
-                        FutureBuilder<_PublishGate>(
-                          future: _fetchPublishGate(result.testId),
-                          builder: (context, gateSnap) {
-                            final gate = gateSnap.data;
-                            final canShow = gate?.canShow ?? true;
-                            if (!canShow) {
-                              return _lockedUntilCard(gate!.endDate, isDark);
-                            }
-
-                            if ((result.questions != null &&
-                                    result.questions!.isNotEmpty) ||
-                                result.answers.isNotEmpty) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Question Breakdown',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  ..._buildQuestionResults(
-                                    result,
-                                  ).map((q) => _buildQuestionTile(q)),
-                                ],
-                              );
-                            }
-
-                            return _noDetailsCard(isDark);
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        // SWOT (optional)
-                        if (result.swot != null) ...[
-                          Text(
-                            'SWOT Summary',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildSwotGrid(result.swot!),
-                        ],
-                        const SizedBox(height: 16),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

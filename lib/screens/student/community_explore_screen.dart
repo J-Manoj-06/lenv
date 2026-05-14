@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/community_model.dart';
 import '../../providers/student_provider.dart';
 import '../../services/community_service.dart';
+import '../../widgets/page_swipe_back_wrapper.dart';
 
 class CommunityExploreScreen extends StatefulWidget {
   const CommunityExploreScreen({super.key});
@@ -187,11 +188,7 @@ class _CommunityExploreScreenState extends State<CommunityExploreScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return WillPopScope(
-      onWillPop: () async {
-        _popWithResult();
-        return false;
-      },
+    return PageSwipeBackWrapper(
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(

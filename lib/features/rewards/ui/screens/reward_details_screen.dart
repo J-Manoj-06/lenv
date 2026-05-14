@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../widgets/page_swipe_back_wrapper.dart';
 
 const Color _primaryOrange = Color(0xFFF97316);
 const Color _darkBg = Color(0xFF0F0F14);
@@ -47,62 +48,65 @@ class _RewardDetailsScreenState extends ConsumerState<RewardDetailsScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark ? _darkBg : const Color(0xFFF5F6F7),
-      body: FutureBuilder<DocumentSnapshot>(
-        future: _catalogFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoadingState(isDark);
-          }
+    return PageSwipeBackWrapper(
+      child: Scaffold(
+        backgroundColor: isDark ? _darkBg : const Color(0xFFF5F6F7),
+        body: FutureBuilder<DocumentSnapshot>(
+          future: _catalogFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildLoadingState(isDark);
+            }
 
-          if (snapshot.hasError ||
-              !snapshot.hasData ||
-              !snapshot.data!.exists) {
-            return _buildErrorState(context, isDark);
-          }
+            if (snapshot.hasError ||
+                !snapshot.hasData ||
+                !snapshot.data!.exists) {
+              return _buildErrorState(context, isDark);
+            }
 
-          final data = snapshot.data!.data() as Map<String, dynamic>;
+            final data = snapshot.data!.data() as Map<String, dynamic>;
 
-          return SafeArea(
-            child: CustomScrollView(
-              slivers: [
-                _buildAppBar(context, data, isDark),
-                SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 20),
-                      _buildProductHeader(context, data, isDark),
-                      const SizedBox(height: 24),
-                      _buildPriceRedeemCard(context, data, isDark),
-                      const SizedBox(height: 20),
-                      if (data['availability'] != null)
-                        _buildAvailabilityPill(context, data, isDark),
-                      if (data['availability'] != null)
-                        const SizedBox(height: 16),
-                      _buildDescriptionSection(context, data, isDark),
-                      const SizedBox(height: 20),
-                      _buildMetaInfoCards(context, data, isDark),
-                      const SizedBox(height: 20),
-                      if (data['learning_type'] != null)
-                        _buildLearningTypeSection(context, data, isDark),
-                      if (data['learning_type'] != null)
+            return SafeArea(
+              child: CustomScrollView(
+                slivers: [
+                  _buildAppBar(context, data, isDark),
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         const SizedBox(height: 20),
-                      if (data['features'] != null)
-                        _buildFeaturesSection(context, data, isDark),
-                      if (data['features'] != null) const SizedBox(height: 20),
-                      _buildDeliverySellerSection(context, data, isDark),
-                      const SizedBox(height: 100),
-                    ],
+                        _buildProductHeader(context, data, isDark),
+                        const SizedBox(height: 24),
+                        _buildPriceRedeemCard(context, data, isDark),
+                        const SizedBox(height: 20),
+                        if (data['availability'] != null)
+                          _buildAvailabilityPill(context, data, isDark),
+                        if (data['availability'] != null)
+                          const SizedBox(height: 16),
+                        _buildDescriptionSection(context, data, isDark),
+                        const SizedBox(height: 20),
+                        _buildMetaInfoCards(context, data, isDark),
+                        const SizedBox(height: 20),
+                        if (data['learning_type'] != null)
+                          _buildLearningTypeSection(context, data, isDark),
+                        if (data['learning_type'] != null)
+                          const SizedBox(height: 20),
+                        if (data['features'] != null)
+                          _buildFeaturesSection(context, data, isDark),
+                        if (data['features'] != null)
+                          const SizedBox(height: 20),
+                        _buildDeliverySellerSection(context, data, isDark),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
+        bottomNavigationBar: _buildBottomRequestCTA(context),
       ),
-      bottomNavigationBar: _buildBottomRequestCTA(context),
     );
   }
 
