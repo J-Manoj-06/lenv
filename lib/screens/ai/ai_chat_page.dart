@@ -13,27 +13,16 @@ import 'quiz_fullscreen_page.dart';
 import 'insights_fullscreen_page.dart';
 import 'study_plan_fullscreen_page.dart';
 import 'time_management_fullscreen_page.dart';
+import '../../widgets/page_swipe_back_wrapper.dart';
 
 // Small wrapper that allows left-to-right swipe to pop the current route.
 class _SwipeToPopWrapper extends StatelessWidget {
   final Widget child;
   const _SwipeToPopWrapper({required this.child});
 
-  static const double _swipeBackVelocityThreshold = 300.0;
-
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragEnd: (details) {
-        final v = details.primaryVelocity ?? 0.0;
-        // Left-to-right swipe (positive velocity) -> pop
-        if (v > _swipeBackVelocityThreshold) {
-          if (Navigator.canPop(context)) Navigator.pop(context);
-        }
-      },
-      child: child,
-    );
+    return PageSwipeBackWrapper(child: child);
   }
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../services/mindmap_service.dart';
 import 'mindmap_review_page.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 
 class MindmapCreatePage extends StatefulWidget {
   final String classId;
@@ -109,161 +110,166 @@ class _MindmapCreatePageState extends State<MindmapCreatePage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
         backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        toolbarHeight: 70,
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: const Text(
-            'Create Learning Mindmap',
-            style: TextStyle(fontWeight: FontWeight.w600),
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          toolbarHeight: 70,
+          leading: IconButton(
+            icon: const Icon(CupertinoIcons.back),
+            onPressed: () => Navigator.of(context).pop(),
           ),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _sectionCard(
-            child: TextField(
-              controller: _topicController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Topic',
-                hintText: 'Enter the concept or chapter',
-              ),
+          title: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: const Text(
+              'Create Learning Mindmap',
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
-          const SizedBox(height: 12),
-          _sectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Number of Main Branches',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _sectionCard(
+              child: TextField(
+                controller: _topicController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Topic',
+                  hintText: 'Enter the concept or chapter',
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: _topicCount > 3
-                          ? () => setState(() => _topicCount--)
-                          : null,
-                      icon: const Icon(Icons.remove_circle_outline),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _sectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Number of Main Branches',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
                     ),
-                    Text(
-                      '$_topicCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: _topicCount > 3
+                            ? () => setState(() => _topicCount--)
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: _topicCount < 8
-                          ? () => setState(() => _topicCount++)
-                          : null,
-                      icon: const Icon(Icons.add_circle_outline),
-                    ),
-                    const Spacer(),
-                    const Text(
-                      'Range: 3-8',
-                      style: TextStyle(color: Colors.white60),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _sectionCard(
-            child: DropdownButtonFormField<String>(
-              initialValue: _depthLevel,
-              dropdownColor: const Color(0xFF1F1F24),
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(labelText: 'Depth Level'),
-              items: const [
-                DropdownMenuItem(value: 'Basic', child: Text('Basic')),
-                DropdownMenuItem(value: 'Medium', child: Text('Medium')),
-                DropdownMenuItem(value: 'Advanced', child: Text('Advanced')),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _depthLevel = value);
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 12),
-          _sectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Learning Style',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                      Text(
+                        '$_topicCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _topicCount < 8
+                            ? () => setState(() => _topicCount++)
+                            : null,
+                        icon: const Icon(Icons.add_circle_outline),
+                      ),
+                      const Spacer(),
+                      const Text(
+                        'Range: 3-8',
+                        style: TextStyle(color: Colors.white60),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: ['Concept Based', 'Question Based', 'Example Based']
-                      .map((style) {
-                        return ChoiceChip(
-                          selected: _learningStyle == style,
-                          label: Text(style),
-                          onSelected: (_) =>
-                              setState(() => _learningStyle = style),
-                        );
-                      })
-                      .toList(),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 52,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF355872), Color(0xFF2A4559)],
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                onPressed: _isGenerating ? null : _generate,
-                child: _isGenerating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Generate Mindmap'),
+                ],
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            _sectionCard(
+              child: DropdownButtonFormField<String>(
+                initialValue: _depthLevel,
+                dropdownColor: const Color(0xFF1F1F24),
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(labelText: 'Depth Level'),
+                items: const [
+                  DropdownMenuItem(value: 'Basic', child: Text('Basic')),
+                  DropdownMenuItem(value: 'Medium', child: Text('Medium')),
+                  DropdownMenuItem(value: 'Advanced', child: Text('Advanced')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _depthLevel = value);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            _sectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Learning Style',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        [
+                          'Concept Based',
+                          'Question Based',
+                          'Example Based',
+                        ].map((style) {
+                          return ChoiceChip(
+                            selected: _learningStyle == style,
+                            label: Text(style),
+                            onSelected: (_) =>
+                                setState(() => _learningStyle = style),
+                          );
+                        }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 52,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF355872), Color(0xFF2A4559)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: _isGenerating ? null : _generate,
+                  child: _isGenerating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Generate Mindmap'),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

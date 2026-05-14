@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../../models/local_message.dart';
 import '../../repositories/local_message_repository.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 
 /// Offline-first Message Search Page
 /// WHY: Search works completely offline using local database
@@ -74,11 +75,7 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
           .where((m) => m.attachmentUrl != null && m.attachmentUrl!.isNotEmpty)
           .toList();
 
-      if (messagesWithFiles.isNotEmpty) {
-        for (var i = 0; i < messagesWithFiles.take(3).length; i++) {
-          final msg = messagesWithFiles[i];
-        }
-      }
+      if (messagesWithFiles.isNotEmpty) {}
 
       // Search for messages and files in parallel
       final messagesFuture = _localRepo.searchMessages(
@@ -104,12 +101,6 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
       });
 
       // Debug: Show detailed info about search results
-
-      if (files.isNotEmpty) {
-        for (var i = 0; i < files.take(3).length; i++) {
-          final file = files[i];
-        }
-      } else {}
     } catch (e) {
       setState(() {
         _isSearching = false;
@@ -122,87 +113,91 @@ class _OfflineMessageSearchPageState extends State<OfflineMessageSearchPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF111B21)
-          : const Color(0xFFF0F2F5),
-      appBar: AppBar(
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
         backgroundColor: isDark
-            ? const Color(0xFF1F2C34)
-            : const Color(0xFF008069),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.white,
-            size: 20,
+            ? const Color(0xFF111B21)
+            : const Color(0xFFF0F2F5),
+        appBar: AppBar(
+          backgroundColor: isDark
+              ? const Color(0xFF1F2C34)
+              : const Color(0xFF008069),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: Colors.white,
+              size: 20,
+            ),
+            onPressed: () => Navigator.pop(context),
           ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Search',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
+          title: const Text(
+            'Search',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-      ),
-      body: Column(
-        children: [
-          // Search input container
-          Container(
-            color: isDark ? const Color(0xFF1F2C34) : const Color(0xFF008069),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF111B21) : Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isDark
-                      ? const Color(0xFF8696A0)
-                      : const Color(0xFF008069),
-                  width: 2,
+        body: Column(
+          children: [
+            // Search input container
+            Container(
+              color: isDark ? const Color(0xFF1F2C34) : const Color(0xFF008069),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF111B21) : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF8696A0)
+                        : const Color(0xFF008069),
+                    width: 2,
+                  ),
                 ),
-              ),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87,
-                  fontSize: 16,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Messages, files, audio...',
-                  hintStyle: TextStyle(
-                    color: isDark ? const Color(0xFF8696A0) : Colors.grey[600],
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
                     fontSize: 16,
                   ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                  decoration: InputDecoration(
+                    hintText: 'Messages, files, audio...',
+                    hintStyle: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF8696A0)
+                          : Colors.grey[600],
+                      fontSize: 16,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(
+                              Icons.close,
+                              color: isDark
+                                  ? const Color(0xFF8696A0)
+                                  : Colors.grey[600],
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                            },
+                          )
+                        : null,
                   ),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(
-                            Icons.close,
-                            color: isDark
-                                ? const Color(0xFF8696A0)
-                                : Colors.grey[600],
-                          ),
-                          onPressed: () {
-                            _searchController.clear();
-                          },
-                        )
-                      : null,
                 ),
               ),
             ),
-          ),
-          // Search results
-          Expanded(child: _buildBody(theme)),
-        ],
+            // Search results
+            Expanded(child: _buildBody(theme)),
+          ],
+        ),
       ),
     );
   }
@@ -653,38 +648,40 @@ class _OfflineInAppImageViewerState extends State<_OfflineInAppImageViewer>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
         backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      ),
-      body: GestureDetector(
-        onDoubleTapDown: _onDoubleTapDown,
-        onDoubleTap: _onDoubleTap,
-        child: InteractiveViewer(
-          transformationController: _transformController,
-          minScale: 0.5,
-          maxScale: 5.0,
-          child: SizedBox(
-            width: size.width,
-            height: size.height,
-            child: Image.network(
-              widget.imageUrl,
-              fit: BoxFit.contain,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+          elevation: 0,
+        ),
+        body: GestureDetector(
+          onDoubleTapDown: _onDoubleTapDown,
+          onDoubleTap: _onDoubleTap,
+          child: InteractiveViewer(
+            transformationController: _transformController,
+            minScale: 0.5,
+            maxScale: 5.0,
+            child: SizedBox(
               width: size.width,
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                );
-              },
-              errorBuilder: (_, _, _) => const Center(
-                child: Icon(
-                  Icons.broken_image,
-                  color: Colors.white54,
-                  size: 64,
+              height: size.height,
+              child: Image.network(
+                widget.imageUrl,
+                fit: BoxFit.contain,
+                width: size.width,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  );
+                },
+                errorBuilder: (_, _, _) => const Center(
+                  child: Icon(
+                    Icons.broken_image,
+                    color: Colors.white54,
+                    size: 64,
+                  ),
                 ),
               ),
             ),

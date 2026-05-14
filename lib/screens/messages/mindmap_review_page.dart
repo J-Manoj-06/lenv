@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/mindmap_service.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 
 class MindmapReviewPage extends StatefulWidget {
   final String classId;
@@ -648,261 +649,266 @@ class _MindmapReviewPageState extends State<MindmapReviewPage> {
     if (visibleNodes.isEmpty && nodes.isNotEmpty) {}
 
     final byPath = {for (final n in nodes) n.path: n};
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
         backgroundColor: Colors.black,
-        title: Text((_structure['title'] ?? widget.topic).toString()),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          title: Text((_structure['title'] ?? widget.topic).toString()),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          actions: [],
         ),
-        actions: [],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SizedBox.expand(
-              key: _viewerKey,
-              child: Stack(
-                children: [
-                  Listener(
-                    onPointerSignal: (event) {
-                      if (event is PointerScrollEvent) {
-                        final zoomFactor = event.scrollDelta.dy > 0
-                            ? 0.92
-                            : 1.08;
-                        _zoomAt(event.localPosition, zoomFactor);
-                      }
-                    },
-                    child: InteractiveViewer(
-                      transformationController: _transformController,
-                      minScale: _minScale,
-                      maxScale: _maxScale,
-                      constrained: false,
-                      panEnabled: _draggingPath == null,
-                      scaleEnabled: _draggingPath == null,
-                      child: RepaintBoundary(
-                        child: Container(
-                          width: _canvasSize,
-                          height: _canvasSize,
-                          color: const Color(0xFF0D0D12),
-                          child: Stack(
-                            children: [
-                              Positioned.fill(
-                                child: RepaintBoundary(
-                                  child: CustomPaint(
-                                    painter: _ConnPainter(
-                                      nodes: visibleNodes,
-                                      byPath: byPath,
+        body: Column(
+          children: [
+            Expanded(
+              child: SizedBox.expand(
+                key: _viewerKey,
+                child: Stack(
+                  children: [
+                    Listener(
+                      onPointerSignal: (event) {
+                        if (event is PointerScrollEvent) {
+                          final zoomFactor = event.scrollDelta.dy > 0
+                              ? 0.92
+                              : 1.08;
+                          _zoomAt(event.localPosition, zoomFactor);
+                        }
+                      },
+                      child: InteractiveViewer(
+                        transformationController: _transformController,
+                        minScale: _minScale,
+                        maxScale: _maxScale,
+                        constrained: false,
+                        panEnabled: _draggingPath == null,
+                        scaleEnabled: _draggingPath == null,
+                        child: RepaintBoundary(
+                          child: Container(
+                            width: _canvasSize,
+                            height: _canvasSize,
+                            color: const Color(0xFF0D0D12),
+                            child: Stack(
+                              children: [
+                                Positioned.fill(
+                                  child: RepaintBoundary(
+                                    child: CustomPaint(
+                                      painter: _ConnPainter(
+                                        nodes: visibleNodes,
+                                        byPath: byPath,
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              ...visibleNodes.map((n) {
-                                final hasChildren =
-                                    ((n.node['children'] as List?) ?? [])
-                                        .isNotEmpty;
-                                final isExpanded = _expanded.contains(n.path);
-                                final nodeTitle = (n.node['title'] ?? 'Node')
-                                    .toString();
-                                final isDragging = _draggingPath == n.path;
+                                ...visibleNodes.map((n) {
+                                  final hasChildren =
+                                      ((n.node['children'] as List?) ?? [])
+                                          .isNotEmpty;
+                                  final isExpanded = _expanded.contains(n.path);
+                                  final nodeTitle = (n.node['title'] ?? 'Node')
+                                      .toString();
+                                  final isDragging = _draggingPath == n.path;
 
-                                final color = n.level == 0
-                                    ? const Color(0xFF4775FF)
-                                    : n.level == 1
-                                    ? const Color(0xFF2DBF73)
-                                    : const Color(0xFF8E5BFF);
+                                  final color = n.level == 0
+                                      ? const Color(0xFF4775FF)
+                                      : n.level == 1
+                                      ? const Color(0xFF2DBF73)
+                                      : const Color(0xFF8E5BFF);
 
-                                return AnimatedPositioned(
-                                  duration: isDragging
-                                      ? Duration.zero
-                                      : const Duration(milliseconds: 90),
-                                  curve: Curves.easeOut,
-                                  left: n.center.dx - (_nodeW / 2),
-                                  top: n.center.dy - (_nodeH / 2),
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        if (hasChildren) {
-                                          if (isExpanded) {
-                                            _expanded.remove(n.path);
-                                          } else {
-                                            _expanded.add(n.path);
+                                  return AnimatedPositioned(
+                                    duration: isDragging
+                                        ? Duration.zero
+                                        : const Duration(milliseconds: 90),
+                                    curve: Curves.easeOut,
+                                    left: n.center.dx - (_nodeW / 2),
+                                    top: n.center.dy - (_nodeH / 2),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          if (hasChildren) {
+                                            if (isExpanded) {
+                                              _expanded.remove(n.path);
+                                            } else {
+                                              _expanded.add(n.path);
+                                            }
                                           }
-                                        }
-                                      });
-                                    },
-                                    onDoubleTap: () => _editNode(n),
-                                    onPanStart: (_) {
-                                      setState(() => _draggingPath = n.path);
-                                    },
-                                    onPanUpdate: (details) =>
-                                        _dragNode(n, details),
-                                    onPanEnd: (_) {
-                                      setState(() => _draggingPath = null);
-                                    },
-                                    onPanCancel: () {
-                                      setState(() => _draggingPath = null);
-                                    },
-                                    child: AnimatedScale(
-                                      duration: const Duration(
-                                        milliseconds: 120,
-                                      ),
-                                      scale: isDragging ? 1.05 : 1,
-                                      child: AnimatedContainer(
+                                        });
+                                      },
+                                      onDoubleTap: () => _editNode(n),
+                                      onPanStart: (_) {
+                                        setState(() => _draggingPath = n.path);
+                                      },
+                                      onPanUpdate: (details) =>
+                                          _dragNode(n, details),
+                                      onPanEnd: (_) {
+                                        setState(() => _draggingPath = null);
+                                      },
+                                      onPanCancel: () {
+                                        setState(() => _draggingPath = null);
+                                      },
+                                      child: AnimatedScale(
                                         duration: const Duration(
                                           milliseconds: 120,
                                         ),
-                                        width: _nodeW,
-                                        height: _nodeH,
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: color,
-                                          borderRadius: BorderRadius.circular(
-                                            16,
+                                        scale: isDragging ? 1.05 : 1,
+                                        child: AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 120,
                                           ),
-                                          border: isDragging
-                                              ? Border.all(
-                                                  color: Colors.white
-                                                      .withValues(alpha: 0.8),
-                                                  width: 1.2,
-                                                )
-                                              : null,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withValues(
-                                                alpha: isDragging ? 0.45 : 0.2,
-                                              ),
-                                              blurRadius: isDragging ? 16 : 8,
-                                              offset: Offset(
-                                                0,
-                                                isDragging ? 9 : 4,
-                                              ),
+                                          width: _nodeW,
+                                          height: _nodeH,
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: color,
+                                            borderRadius: BorderRadius.circular(
+                                              16,
                                             ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                nodeTitle,
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w700,
+                                            border: isDragging
+                                                ? Border.all(
+                                                    color: Colors.white
+                                                        .withValues(alpha: 0.8),
+                                                    width: 1.2,
+                                                  )
+                                                : null,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withValues(
+                                                  alpha: isDragging
+                                                      ? 0.45
+                                                      : 0.2,
+                                                ),
+                                                blurRadius: isDragging ? 16 : 8,
+                                                offset: Offset(
+                                                  0,
+                                                  isDragging ? 9 : 4,
                                                 ),
                                               ),
-                                            ),
-                                            if (hasChildren)
-                                              Icon(
-                                                isExpanded
-                                                    ? Icons.expand_more
-                                                    : Icons.chevron_right,
-                                                color: Colors.white,
-                                                size: 18,
+                                            ],
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  nodeTitle,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
                                               ),
-                                          ],
+                                              if (hasChildren)
+                                                Icon(
+                                                  isExpanded
+                                                      ? Icons.expand_more
+                                                      : Icons.chevron_right,
+                                                  color: Colors.white,
+                                                  size: 18,
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                );
-                              }),
-                            ],
+                                  );
+                                }),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    right: 16,
-                    top: 16,
-                    child: _FloatingControls(
-                      onZoomIn: () => _zoomBy(0.12),
-                      onZoomOut: () => _zoomBy(-0.12),
-                      onReset: _center,
+                    Positioned(
+                      right: 16,
+                      top: 16,
+                      child: _FloatingControls(
+                        onZoomIn: () => _zoomBy(0.12),
+                        onZoomOut: () => _zoomBy(-0.12),
+                        onReset: _center,
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: AnimatedBuilder(
-                      animation: _transformController,
-                      builder: (_, _) {
-                        final miniTx = _miniMapTransform();
-                        return _MiniMapPanel(
-                          size: _miniMapSize,
-                          nodes: nodes,
-                          viewportRect: _miniViewportRect(miniTx),
-                          mapTransform: miniTx,
-                          onNavigate: (miniPoint) {
-                            final scene = _miniToScene(miniPoint, miniTx);
-                            _moveViewportCenterToScene(_clampCenter(scene));
-                          },
-                        );
-                      },
+                    Positioned(
+                      right: 16,
+                      bottom: 16,
+                      child: AnimatedBuilder(
+                        animation: _transformController,
+                        builder: (_, _) {
+                          final miniTx = _miniMapTransform();
+                          return _MiniMapPanel(
+                            size: _miniMapSize,
+                            nodes: nodes,
+                            viewportRect: _miniViewportRect(miniTx),
+                            mapTransform: miniTx,
+                            onNavigate: (miniPoint) {
+                              final scene = _miniToScene(miniPoint, miniTx);
+                              _moveViewportCenterToScene(_clampCenter(scene));
+                            },
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              color: const Color(0xFF12121A),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _teacherThemeColor,
-                        side: const BorderSide(color: _teacherThemeColor),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                color: const Color(0xFF12121A),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _teacherThemeColor,
+                          side: const BorderSide(color: _teacherThemeColor),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
+                        onPressed: _isWorking ? null : _regenerate,
+                        child: const Text('Regenerate'),
                       ),
-                      onPressed: _isWorking ? null : _regenerate,
-                      child: const Text('Regenerate'),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _teacherThemeColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _teacherThemeColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ),
-                      onPressed: _isWorking ? null : _send,
-                      child: _isWorking
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                        onPressed: _isWorking ? null : _send,
+                        child: _isWorking
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
                                 ),
-                              ),
-                            )
-                          : const Text('Send to Students'),
+                              )
+                            : const Text('Send to Students'),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

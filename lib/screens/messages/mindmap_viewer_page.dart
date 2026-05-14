@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/mindmap_model.dart';
 import '../../services/mindmap_service.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 
 class MindmapViewerPage extends StatefulWidget {
   final String mindmapId;
@@ -304,27 +305,29 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   Widget build(BuildContext context) {
     final topic = _mindmap?.topic ?? widget.fallbackTopic;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
-      appBar: AppBar(
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
         backgroundColor: const Color(0xFF1A1A1A),
-        elevation: 1,
-        title: Text(topic, style: const TextStyle(color: Colors.white)),
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            size: 20,
-            color: Colors.white,
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF1A1A1A),
+          elevation: 1,
+          title: Text(topic, style: const TextStyle(color: Colors.white)),
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              size: 20,
+              color: Colors.white,
+            ),
+            onPressed: () => Navigator.of(context).pop(),
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          actions: [],
         ),
-        actions: [],
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _mindmap == null
+            ? const Center(child: Text('Mindmap not found'))
+            : _buildCanvas(_mindmap!.root),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _mindmap == null
-          ? const Center(child: Text('Mindmap not found'))
-          : _buildCanvas(_mindmap!.root),
     );
   }
 
@@ -985,23 +988,25 @@ class _MindmapViewerPageState extends State<MindmapViewerPage> {
   Widget build(BuildContext context) {
     final topic = _mindmap?.topic ?? widget.fallbackTopic;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F8FC),
-      appBar: AppBar(
-        title: Text(topic),
-        actions: [
-          IconButton(
-            tooltip: 'Center Mindmap',
-            icon: const Icon(Icons.center_focus_strong),
-            onPressed: _centerMindmap,
-          ),
-        ],
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F8FC),
+        appBar: AppBar(
+          title: Text(topic),
+          actions: [
+            IconButton(
+              tooltip: 'Center Mindmap',
+              icon: const Icon(Icons.center_focus_strong),
+              onPressed: _centerMindmap,
+            ),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _mindmap == null
+            ? const Center(child: Text('Mindmap not found'))
+            : _buildCanvas(_mindmap!.root),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _mindmap == null
-          ? const Center(child: Text('Mindmap not found'))
-          : _buildCanvas(_mindmap!.root),
     );
   }
 

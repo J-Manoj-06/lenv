@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 
 /// Generic Message Search Page
 /// Works with any chat collection structure
@@ -219,39 +220,41 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
     final subtitleColor = isDark ? Colors.white60 : const Color(0xFF64748B);
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF141414) : Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: TextField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          style: TextStyle(color: textColor, fontSize: 16),
-          decoration: InputDecoration(
-            hintText: widget.searchHint,
-            hintStyle: TextStyle(color: subtitleColor),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.zero,
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
+        backgroundColor: bgColor,
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF141414) : Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new, color: textColor),
+            onPressed: () => Navigator.pop(context),
           ),
-          textInputAction: TextInputAction.search,
-        ),
-        actions: [
-          if (_searchController.text.isNotEmpty)
-            IconButton(
-              icon: Icon(Icons.clear, color: subtitleColor),
-              onPressed: () {
-                _searchController.clear();
-                _searchFocusNode.requestFocus();
-              },
+          title: TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            style: TextStyle(color: textColor, fontSize: 16),
+            decoration: InputDecoration(
+              hintText: widget.searchHint,
+              hintStyle: TextStyle(color: subtitleColor),
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
             ),
-        ],
+            textInputAction: TextInputAction.search,
+          ),
+          actions: [
+            if (_searchController.text.isNotEmpty)
+              IconButton(
+                icon: Icon(Icons.clear, color: subtitleColor),
+                onPressed: () {
+                  _searchController.clear();
+                  _searchFocusNode.requestFocus();
+                },
+              ),
+          ],
+        ),
+        body: _buildBody(theme, isDark, textColor, subtitleColor, cardColor),
       ),
-      body: _buildBody(theme, isDark, textColor, subtitleColor, cardColor),
     );
   }
 
@@ -666,38 +669,40 @@ class _InAppImageViewerState extends State<_InAppImageViewer>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
         backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
-        elevation: 0,
-      ),
-      body: GestureDetector(
-        onDoubleTapDown: _onDoubleTapDown,
-        onDoubleTap: _onDoubleTap,
-        child: InteractiveViewer(
-          transformationController: _transformController,
-          minScale: 0.5,
-          maxScale: 5.0,
-          child: SizedBox(
-            width: size.width,
-            height: size.height,
-            child: Image.network(
-              widget.imageUrl,
-              fit: BoxFit.contain,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          iconTheme: const IconThemeData(color: Colors.white),
+          elevation: 0,
+        ),
+        body: GestureDetector(
+          onDoubleTapDown: _onDoubleTapDown,
+          onDoubleTap: _onDoubleTap,
+          child: InteractiveViewer(
+            transformationController: _transformController,
+            minScale: 0.5,
+            maxScale: 5.0,
+            child: SizedBox(
               width: size.width,
-              loadingBuilder: (_, child, progress) {
-                if (progress == null) return child;
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                );
-              },
-              errorBuilder: (_, _, _) => const Center(
-                child: Icon(
-                  Icons.broken_image,
-                  color: Colors.white54,
-                  size: 64,
+              height: size.height,
+              child: Image.network(
+                widget.imageUrl,
+                fit: BoxFit.contain,
+                width: size.width,
+                loadingBuilder: (_, child, progress) {
+                  if (progress == null) return child;
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  );
+                },
+                errorBuilder: (_, _, _) => const Center(
+                  child: Icon(
+                    Icons.broken_image,
+                    color: Colors.white54,
+                    size: 64,
+                  ),
                 ),
               ),
             ),

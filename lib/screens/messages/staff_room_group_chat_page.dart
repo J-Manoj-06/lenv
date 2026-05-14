@@ -11,6 +11,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:uuid/uuid.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/profile_dp_provider.dart';
 import '../../services/cloudflare_r2_service.dart';
@@ -22,33 +24,32 @@ import '../../widgets/multi_image_message_bubble.dart';
 import '../../widgets/staff_room_avatar_widget.dart';
 import '../../widgets/dp_options_bottom_sheet.dart';
 import '../common/full_screen_dp_viewer.dart';
+import '../../services/connectivity_service.dart';
+import '../../services/image_viewer_action_service.dart';
+import '../../services/media_availability_service.dart';
+import '../../services/media_storage_helper.dart';
 import '../create_poll_screen.dart';
 import '../../widgets/poll_message_widget.dart';
-import '../../core/constants/app_colors.dart';
-import '../../services/connectivity_service.dart';
 import '../../models/poll_model.dart';
-import 'message_search_page.dart';
+import '../../core/constants/app_colors.dart';
 import '../../utils/message_scroll_highlight_mixin.dart';
 // OFFLINE-FIRST IMPORTS
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
 import '../../models/local_message.dart';
+import 'message_search_page.dart';
 import 'offline_message_search_page.dart';
 import '../../services/background_upload_service.dart';
 import '../../services/cloudflare_notification_service.dart';
-import '../../services/image_viewer_action_service.dart';
-import '../../services/media_availability_service.dart';
-import '../../services/media_storage_helper.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:uuid/uuid.dart';
+import '../../services/active_chat_service.dart';
 import '../../models/forward_message_data.dart';
 import 'forward_selection_screen.dart';
-import '../../services/active_chat_service.dart';
 import '../../services/message_reaction_service.dart';
 import '../../widgets/message_reaction_picker.dart';
 import '../../widgets/no_internet_dialog.dart';
 import '../../widgets/message_reaction_summary.dart';
 import '../../widgets/whatsapp_emoji_picker.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 
 /// Staff Room - Group chat for all principals and teachers in the institute
 class StaffRoomGroupChatPage extends StatefulWidget {
@@ -2542,215 +2543,122 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
     final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
     final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
 
-    return WillPopScope(
-      onWillPop: () async {
-        if (_isReactionPickerOpen) {
-          _isReactionPickerOpen = false;
-          dismissMessageReactionPicker();
-          return false;
-        }
-        if (_isSelectionMode.value) {
-          _isSelectionMode.value = false;
-          _selectedMessages.value = {};
-          _invalidateShareEligibilityCache();
-          return false;
-        }
+    return MessagesSwipeToPopWrapper(
+      child: WillPopScope(
+        onWillPop: () async {
+          if (_isReactionPickerOpen) {
+            _isReactionPickerOpen = false;
+            dismissMessageReactionPicker();
+            return false;
+          }
+          if (_isSelectionMode.value) {
+            _isSelectionMode.value = false;
+            _selectedMessages.value = {};
+            _invalidateShareEligibilityCache();
+            return false;
+          }
 
-        if (_showEmojiPicker) {
-          setState(() => _showEmojiPicker = false);
-          _messageFocusNode.unfocus();
-          return false;
-        }
+          if (_showEmojiPicker) {
+            setState(() => _showEmojiPicker = false);
+            _messageFocusNode.unfocus();
+            return false;
+          }
 
-        return true;
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: bgColor,
-          elevation: 0,
-          leading: ValueListenableBuilder<bool>(
-            valueListenable: _isSelectionMode,
-            builder: (context, isSelectionMode, _) {
-              return IconButton(
-                icon: Icon(
-                  isSelectionMode ? Icons.close : Icons.chevron_left,
-                  color: textColor,
-                  size: isSelectionMode ? 24 : 32,
-                ),
-                onPressed: () {
-                  if (_isReactionPickerOpen) {
-                    _isReactionPickerOpen = false;
-                    dismissMessageReactionPicker();
-                    return;
-                  }
-                  if (isSelectionMode) {
-                    _isSelectionMode.value = false;
-                    _selectedMessages.value = {};
-                    _invalidateShareEligibilityCache();
-                  } else if (_showEmojiPicker) {
-                    setState(() => _showEmojiPicker = false);
-                    _messageFocusNode.unfocus();
-                  } else {
-                    Navigator.pop(context);
-                  }
-                },
-              );
-            },
-          ),
-          title: ValueListenableBuilder<bool>(
-            valueListenable: _isSelectionMode,
-            builder: (context, isSelectionMode, _) {
-              return ValueListenableBuilder<Set<String>>(
-                valueListenable: _selectedMessages,
-                builder: (context, selectedMessages, _) {
-                  return isSelectionMode
-                      ? Text(
-                          '${selectedMessages.length} selected',
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        )
-                      : Row(
-                          children: [
-                            StaffRoomAvatarWidget(
-                              roomId: widget.instituteId,
-                              roomName: 'Staff Room',
-                              size: 34,
-                              canEdit: !widget.isTeacher,
-                              onTap: () {
-                                final dpProvider = context
-                                    .read<ProfileDPProvider>();
-                                final currentImageUrl = dpProvider
-                                    .getStaffRoomDP(widget.instituteId);
-
-                                if (widget.isTeacher) {
-                                  if (currentImageUrl != null &&
-                                      currentImageUrl.isNotEmpty) {
-                                    Navigator.of(context).push(
-                                      FullScreenDPViewer.route(
-                                        imageUrl: currentImageUrl,
-                                        userName: 'Staff Room',
-                                      ),
-                                    );
-                                  }
-                                  return;
-                                }
-
-                                DPOptionsBottomSheet.show(
-                                  context: context,
-                                  userId: widget.instituteId,
-                                  userName: 'Staff Room',
-                                  currentImageUrl: currentImageUrl,
-                                  isStaffRoomDP: true,
-                                  staffRoomId: widget.instituteId,
-                                );
-                              },
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Staff Room',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        );
-                },
-              );
-            },
-          ),
-          actions: [
-            ValueListenableBuilder<bool>(
+          return true;
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            backgroundColor: bgColor,
+            elevation: 0,
+            leading: ValueListenableBuilder<bool>(
+              valueListenable: _isSelectionMode,
+              builder: (context, isSelectionMode, _) {
+                return IconButton(
+                  icon: Icon(
+                    isSelectionMode ? Icons.close : Icons.chevron_left,
+                    color: textColor,
+                    size: isSelectionMode ? 24 : 32,
+                  ),
+                  onPressed: () {
+                    if (_isReactionPickerOpen) {
+                      _isReactionPickerOpen = false;
+                      dismissMessageReactionPicker();
+                      return;
+                    }
+                    if (isSelectionMode) {
+                      _isSelectionMode.value = false;
+                      _selectedMessages.value = {};
+                      _invalidateShareEligibilityCache();
+                    } else if (_showEmojiPicker) {
+                      setState(() => _showEmojiPicker = false);
+                      _messageFocusNode.unfocus();
+                    } else {
+                      Navigator.pop(context);
+                    }
+                  },
+                );
+              },
+            ),
+            title: ValueListenableBuilder<bool>(
               valueListenable: _isSelectionMode,
               builder: (context, isSelectionMode, _) {
                 return ValueListenableBuilder<Set<String>>(
                   valueListenable: _selectedMessages,
                   builder: (context, selectedMessages, _) {
                     return isSelectionMode
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              FutureBuilder<bool>(
-                                future: _getForwardEligibilityFuture(
-                                  selectedMessages,
-                                ),
-                                builder: (context, snapshot) {
-                                  final canForward = snapshot.data == true;
-                                  if (!canForward || selectedMessages.isEmpty) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return IconButton(
-                                    icon: Icon(
-                                      Icons.reply_all_rounded,
-                                      color: Colors.blueAccent,
-                                      size: 24,
-                                    ),
-                                    tooltip: 'Forward',
-                                    onPressed: _forwardSelectedMessages,
-                                  );
-                                },
-                              ),
-                              FutureBuilder<bool>(
-                                future: _getShareEligibilityFuture(
-                                  selectedMessages,
-                                ),
-                                builder: (context, snapshot) {
-                                  final canShare = snapshot.data == true;
-                                  if (!canShare || selectedMessages.isEmpty) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return IconButton(
-                                    icon: Icon(
-                                      Icons.share_rounded,
-                                      color: isDark
-                                          ? Colors.white70
-                                          : const Color(0xFF475569),
-                                      size: 24,
-                                    ),
-                                    tooltip: 'Share',
-                                    onPressed: _shareSelectedMessages,
-                                  );
-                                },
-                              ),
-                              FutureBuilder<bool>(
-                                future: _getDeleteEligibilityFuture(
-                                  selectedMessages,
-                                ),
-                                builder: (context, snapshot) {
-                                  final canDelete = snapshot.data == true;
-                                  if (!canDelete) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.redAccent,
-                                      size: 24,
-                                    ),
-                                    tooltip: 'Delete',
-                                    onPressed: selectedMessages.isEmpty
-                                        ? null
-                                        : _showDeleteDialog,
-                                  );
-                                },
-                              ),
-                            ],
+                        ? Text(
+                            '${selectedMessages.length} selected',
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           )
                         : Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
-                                icon: Icon(Icons.search, color: textColor),
-                                onPressed: () => _openOfflineSearch(
-                                  context,
-                                  theme,
-                                  primaryColor,
+                              StaffRoomAvatarWidget(
+                                roomId: widget.instituteId,
+                                roomName: 'Staff Room',
+                                size: 34,
+                                canEdit: !widget.isTeacher,
+                                onTap: () {
+                                  final dpProvider = context
+                                      .read<ProfileDPProvider>();
+                                  final currentImageUrl = dpProvider
+                                      .getStaffRoomDP(widget.instituteId);
+
+                                  if (widget.isTeacher) {
+                                    if (currentImageUrl != null &&
+                                        currentImageUrl.isNotEmpty) {
+                                      Navigator.of(context).push(
+                                        FullScreenDPViewer.route(
+                                          imageUrl: currentImageUrl,
+                                          userName: 'Staff Room',
+                                        ),
+                                      );
+                                    }
+                                    return;
+                                  }
+
+                                  DPOptionsBottomSheet.show(
+                                    context: context,
+                                    userId: widget.instituteId,
+                                    userName: 'Staff Room',
+                                    currentImageUrl: currentImageUrl,
+                                    isStaffRoomDP: true,
+                                    staffRoomId: widget.instituteId,
+                                  );
+                                },
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Staff Room',
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
@@ -2759,20 +2667,116 @@ class _StaffRoomGroupChatPageState extends State<StaffRoomGroupChatPage>
                 );
               },
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            Expanded(child: _buildNormalMessages(theme, primaryColor)),
-            _buildMessageInput(theme, primaryColor),
-            if (_showEmojiPicker)
-              WhatsAppEmojiPicker(
-                accentColor: primaryColor,
-                backgroundColor: theme.cardColor,
-                onEmojiSelected: _onEmojiSelected,
-                onBackspacePressed: _onBackspacePressed,
+            actions: [
+              ValueListenableBuilder<bool>(
+                valueListenable: _isSelectionMode,
+                builder: (context, isSelectionMode, _) {
+                  return ValueListenableBuilder<Set<String>>(
+                    valueListenable: _selectedMessages,
+                    builder: (context, selectedMessages, _) {
+                      return isSelectionMode
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                FutureBuilder<bool>(
+                                  future: _getForwardEligibilityFuture(
+                                    selectedMessages,
+                                  ),
+                                  builder: (context, snapshot) {
+                                    final canForward = snapshot.data == true;
+                                    if (!canForward ||
+                                        selectedMessages.isEmpty) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return IconButton(
+                                      icon: Icon(
+                                        Icons.reply_all_rounded,
+                                        color: Colors.blueAccent,
+                                        size: 24,
+                                      ),
+                                      tooltip: 'Forward',
+                                      onPressed: _forwardSelectedMessages,
+                                    );
+                                  },
+                                ),
+                                FutureBuilder<bool>(
+                                  future: _getShareEligibilityFuture(
+                                    selectedMessages,
+                                  ),
+                                  builder: (context, snapshot) {
+                                    final canShare = snapshot.data == true;
+                                    if (!canShare || selectedMessages.isEmpty) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return IconButton(
+                                      icon: Icon(
+                                        Icons.share_rounded,
+                                        color: isDark
+                                            ? Colors.white70
+                                            : const Color(0xFF475569),
+                                        size: 24,
+                                      ),
+                                      tooltip: 'Share',
+                                      onPressed: _shareSelectedMessages,
+                                    );
+                                  },
+                                ),
+                                FutureBuilder<bool>(
+                                  future: _getDeleteEligibilityFuture(
+                                    selectedMessages,
+                                  ),
+                                  builder: (context, snapshot) {
+                                    final canDelete = snapshot.data == true;
+                                    if (!canDelete) {
+                                      return const SizedBox.shrink();
+                                    }
+                                    return IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        color: Colors.redAccent,
+                                        size: 24,
+                                      ),
+                                      tooltip: 'Delete',
+                                      onPressed: selectedMessages.isEmpty
+                                          ? null
+                                          : _showDeleteDialog,
+                                    );
+                                  },
+                                ),
+                              ],
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.search, color: textColor),
+                                  onPressed: () => _openOfflineSearch(
+                                    context,
+                                    theme,
+                                    primaryColor,
+                                  ),
+                                ),
+                              ],
+                            );
+                    },
+                  );
+                },
               ),
-          ],
+            ],
+          ),
+          body: Column(
+            children: [
+              Expanded(child: _buildNormalMessages(theme, primaryColor)),
+              _buildMessageInput(theme, primaryColor),
+              if (_showEmojiPicker)
+                WhatsAppEmojiPicker(
+                  accentColor: primaryColor,
+                  backgroundColor: theme.cardColor,
+                  onEmojiSelected: _onEmojiSelected,
+                  onBackspacePressed: _onBackspacePressed,
+                ),
+            ],
+          ),
         ),
       ),
     );

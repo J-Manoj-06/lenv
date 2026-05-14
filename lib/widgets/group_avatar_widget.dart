@@ -5,6 +5,7 @@ import '../providers/profile_dp_provider.dart';
 import '../services/profile_dp_service.dart';
 import '../widgets/dp_options_bottom_sheet.dart';
 import '../screens/common/full_screen_dp_viewer.dart';
+import '../screens/messages/messages_swipe_to_pop_wrapper.dart';
 
 /// Circular avatar for a group chat — shows group image or icon fallback.
 ///
@@ -256,26 +257,28 @@ class GroupInfoScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.of(context).maybePop(),
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          title: const Text('Group Info'),
+          backgroundColor: isDark ? Colors.black : const Color(0xFF355872),
+          foregroundColor: Colors.white,
+          elevation: 0,
         ),
-        title: const Text('Group Info'),
-        backgroundColor: isDark ? Colors.black : const Color(0xFF355872),
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Group header with DP
-            _buildGroupHeader(context, isDark),
-            const SizedBox(height: 16),
-            // Members section
-            if (members.isNotEmpty) _buildMembersList(context, isDark),
-          ],
+        body: SingleChildScrollView(
+          child: Column(
+            children: [
+              // Group header with DP
+              _buildGroupHeader(context, isDark),
+              const SizedBox(height: 16),
+              // Members section
+              if (members.isNotEmpty) _buildMembersList(context, isDark),
+            ],
+          ),
         ),
       ),
     );

@@ -16,6 +16,7 @@ import '../../utils/message_scroll_highlight_mixin.dart';
 import '../../repositories/local_message_repository.dart';
 import '../../services/firebase_message_sync_service.dart';
 import 'offline_message_search_page.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/connectivity_service.dart';
 import '../../widgets/whatsapp_emoji_picker.dart';
@@ -535,15 +536,17 @@ class _BaseGroupChatPageState extends State<BaseGroupChatPage>
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? Colors.black : theme.scaffoldBackgroundColor;
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: _buildAppBar(theme),
-      body: Column(
-        children: [
-          Expanded(child: _buildMessageList()),
-          _buildInputArea(theme, isDark),
-          if (_showEmojiPicker) _buildEmojiPicker(),
-        ],
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
+        backgroundColor: bgColor,
+        appBar: _buildAppBar(theme),
+        body: Column(
+          children: [
+            Expanded(child: _buildMessageList()),
+            _buildInputArea(theme, isDark),
+            if (_showEmojiPicker) _buildEmojiPicker(),
+          ],
+        ),
       ),
     );
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-const double _swipeBackVelocityThreshold = 300.0;
+import '../../widgets/page_swipe_back_wrapper.dart';
 
 class InsightsFullScreenPage extends StatelessWidget {
   final String insightsText;
@@ -31,33 +30,26 @@ class InsightsFullScreenPage extends StatelessWidget {
         : Colors.grey.shade100;
     final secondaryTextColor = isDarkTheme ? Colors.white70 : Colors.black54;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: appBarColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close_rounded, color: textColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          'My Insights',
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
+    return PageSwipeBackWrapper(
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.close_rounded, color: textColor),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'My Insights',
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
           ),
         ),
-      ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragEnd: (details) {
-          final v = details.primaryVelocity ?? 0.0;
-          if (v > _swipeBackVelocityThreshold) {
-            if (Navigator.canPop(context)) Navigator.pop(context);
-          }
-        },
-        child: ListView(
+        body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
             if (subjectAverages.isNotEmpty)

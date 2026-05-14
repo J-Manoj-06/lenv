@@ -2,8 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-const double _swipeBackVelocityThreshold = 300.0;
+import '../../widgets/page_swipe_back_wrapper.dart';
 
 class TimeManagementFullScreenPage extends StatefulWidget {
   final String? userId;
@@ -159,29 +158,22 @@ class _TimeManagementFullScreenPageState
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final secondaryTextColor = isDarkTheme ? Colors.white54 : Colors.black54;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: appBarColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: textColor),
-          onPressed: () => Navigator.pop(context),
+    return PageSwipeBackWrapper(
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new, color: textColor),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Time Management',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+          ),
         ),
-        title: Text(
-          'Time Management',
-          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
-        ),
-      ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragEnd: (details) {
-          final v = details.primaryVelocity ?? 0.0;
-          if (v > _swipeBackVelocityThreshold) {
-            if (Navigator.canPop(context)) Navigator.pop(context);
-          }
-        },
-        child: SingleChildScrollView(
+        body: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(18, 8, 18, 42),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

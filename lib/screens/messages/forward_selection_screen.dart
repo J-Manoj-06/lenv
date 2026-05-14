@@ -10,6 +10,7 @@ import '../../services/group_messaging_service.dart';
 import '../../services/teacher_groups_service.dart';
 import 'teacher_group_chat_page.dart';
 import 'community_chat_page.dart';
+import 'messages_swipe_to_pop_wrapper.dart';
 
 /// Screen for selecting forward destinations.
 /// Accepts a list of [ForwardMessageData] (the messages to forward),
@@ -407,44 +408,46 @@ class _ForwardSelectionScreenState extends State<ForwardSelectionScreen> {
         : const Color(0xFF64748B);
     final accentColor = theme.colorScheme.primary;
 
-    return Scaffold(
-      backgroundColor: bg,
-      appBar: AppBar(
+    return MessagesSwipeToPopWrapper(
+      child: Scaffold(
         backgroundColor: bg,
-        elevation: 0,
-        title: Text(
-          'Forward to…',
-          style: TextStyle(
-            color: textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        leading: IconButton(
-          icon: Icon(Icons.close, color: textPrimary),
-          onPressed: () => Navigator.of(context).pop(false),
-        ),
-      ),
-      body: Column(
-        children: [
-          // ── Message preview strip ──────────────────────────────────────────
-          _buildPreviewStrip(cardBg, textPrimary, textSecondary),
-
-          // ── Destination list ───────────────────────────────────────────────
-          Expanded(
-            child: _buildDestinationList(
-              theme,
-              isDark,
-              textPrimary,
-              textSecondary,
-              accentColor,
-              cardBg,
+        appBar: AppBar(
+          backgroundColor: bg,
+          elevation: 0,
+          title: Text(
+            'Forward to…',
+            style: TextStyle(
+              color: textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
             ),
           ),
+          leading: IconButton(
+            icon: Icon(Icons.close, color: textPrimary),
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
+        ),
+        body: Column(
+          children: [
+            // ── Message preview strip ──────────────────────────────────────────
+            _buildPreviewStrip(cardBg, textPrimary, textSecondary),
 
-          // ── Forward button ─────────────────────────────────────────────────
-          _buildForwardButton(accentColor),
-        ],
+            // ── Destination list ───────────────────────────────────────────────
+            Expanded(
+              child: _buildDestinationList(
+                theme,
+                isDark,
+                textPrimary,
+                textSecondary,
+                accentColor,
+                cardBg,
+              ),
+            ),
+
+            // ── Forward button ─────────────────────────────────────────────────
+            _buildForwardButton(accentColor),
+          ],
+        ),
       ),
     );
   }

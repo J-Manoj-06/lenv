@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../models/quiz_question.dart';
 
-const double _swipeBackVelocityThreshold = 300.0;
+import '../../models/quiz_question.dart';
+import '../../widgets/page_swipe_back_wrapper.dart';
 
 class QuizFullScreenPage extends StatefulWidget {
   final Map<String, dynamic> quizData;
+
   const QuizFullScreenPage({super.key, required this.quizData});
 
   @override
@@ -13,7 +14,7 @@ class QuizFullScreenPage extends StatefulWidget {
 
 class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
   late List<QuizQuestion> _questions;
-  late List<int?> _answers; // selected index per question
+  late List<int?> _answers;
   bool _submitted = false;
   int _score = 0;
 
@@ -22,21 +23,21 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
     super.initState();
     final raw = widget.quizData['questions'] as List<dynamic>? ?? [];
     _questions = raw
-        .map((e) => QuizQuestion.fromMap(e as Map<String, dynamic>))
+        .map((entry) => QuizQuestion.fromMap(entry as Map<String, dynamic>))
         .toList();
     _answers = List<int?>.filled(_questions.length, null);
   }
 
   void _submit() {
-    int s = 0;
-    for (int i = 0; i < _questions.length; i++) {
+    var score = 0;
+    for (var i = 0; i < _questions.length; i++) {
       if (_answers[i] != null && _answers[i] == _questions[i].correctIndex) {
-        s++;
+        score++;
       }
     }
     setState(() {
       _submitted = true;
-      _score = s;
+      _score = score;
     });
   }
 
@@ -50,33 +51,26 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
     final appBarColor = isDarkTheme ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: appBarColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close_rounded, color: textColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
+    return PageSwipeBackWrapper(
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.close_rounded, color: textColor),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
           ),
         ),
-      ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragEnd: (details) {
-          final v = details.primaryVelocity ?? 0.0;
-          if (v > _swipeBackVelocityThreshold) {
-            if (Navigator.canPop(context)) Navigator.pop(context);
-          }
-        },
-        child: Column(
+        body: Column(
           children: [
             if (_submitted)
               Container(
@@ -97,7 +91,7 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
                     Expanded(
                       child: Text(
                         'Score: $_score / ${_questions.length}',
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.black87,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -112,14 +106,14 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
                 itemCount: _questions.length,
                 itemBuilder: (context, index) {
-                  final q = _questions[index];
+                  final question = _questions[index];
                   return _QuestionCard(
-                    question: q,
+                    question: question,
                     index: index,
                     selected: _answers[index],
-                    onSelect: (opt) {
-                      if (_submitted) return; // lock after submit
-                      setState(() => _answers[index] = opt);
+                    onSelect: (option) {
+                      if (_submitted) return;
+                      setState(() => _answers[index] = option);
                     },
                     showResult: _submitted,
                   );
@@ -128,27 +122,27 @@ class _QuizFullScreenPageState extends State<QuizFullScreenPage> {
             ),
           ],
         ),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: SizedBox(
-        width: MediaQuery.of(context).size.width - 32,
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: _submitted
-                ? Colors.grey.shade300
-                : const Color(0xFFFF8A00),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        floatingActionButton: SizedBox(
+          width: MediaQuery.of(context).size.width - 32,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _submitted
+                  ? Colors.grey.shade300
+                  : const Color(0xFFFF8A00),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
-          ),
-          onPressed: _submitted ? null : _submit,
-          child: Text(
-            _submitted ? 'Submitted' : 'Submit Quiz',
-            style: TextStyle(
-              color: _submitted ? Colors.black54 : Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+            onPressed: _submitted ? null : _submit,
+            child: Text(
+              _submitted ? 'Submitted' : 'Submit Quiz',
+              style: TextStyle(
+                color: _submitted ? Colors.black54 : Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
@@ -195,10 +189,10 @@ class _QuestionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            ...List.generate(question.options.length, (optIndex) {
-              final optText = question.options[optIndex];
-              final isSelected = selected == optIndex;
-              final isCorrect = question.correctIndex == optIndex;
+            ...List.generate(question.options.length, (optionIndex) {
+              final optionText = question.options[optionIndex];
+              final isSelected = selected == optionIndex;
+              final isCorrect = question.correctIndex == optionIndex;
               Color borderColor = Colors.white.withOpacity(0.12);
               Color? fillColor;
               IconData? icon;
@@ -219,7 +213,7 @@ class _QuestionCard extends StatelessWidget {
               }
 
               return InkWell(
-                onTap: () => onSelect(optIndex),
+                onTap: () => onSelect(optionIndex),
                 borderRadius: BorderRadius.circular(14),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
@@ -238,7 +232,7 @@ class _QuestionCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          optText,
+                          optionText,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.9),
                             fontSize: 14,
