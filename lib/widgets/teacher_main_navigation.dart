@@ -8,6 +8,7 @@ import '../screens/teacher/tests_screen.dart';
 import '../screens/teacher/messages/teacher_messages_home_page.dart';
 import '../screens/teacher/leaderboard_screen.dart';
 import '../utils/share_handler_mixin.dart';
+import 'main_nav_swipe_notification.dart';
 
 /// Teacher Main Navigation Wrapper
 /// Uses IndexedStack to preserve state when switching tabs
@@ -23,6 +24,10 @@ class TeacherMainNavigation extends StatefulWidget {
 
 class _TeacherMainNavigationState extends State<TeacherMainNavigation>
     with ShareHandlerMixin, WidgetsBindingObserver {
+  static const int _tabCount = 5;
+  static const double _swipeVelocityThreshold = 320;
+
+  late final PageController _pageController;
   late int _currentIndex;
   final List<Widget> _screens = [];
   bool _initialized = false;
@@ -30,13 +35,15 @@ class _TeacherMainNavigationState extends State<TeacherMainNavigation>
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentIndex = widget.initialIndex.clamp(0, _tabCount - 1);
+    _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -67,11 +74,24 @@ class _TeacherMainNavigationState extends State<TeacherMainNavigation>
     }
   }
 
-  void _onTap(int index) {
-    if (index != _currentIndex) {
-      setState(() {
-        _currentIndex = index;
-      });
+  Future<void> _goToTab(int index) async {
+    if (index == _currentIndex || !mounted) return;
+
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _handleMainNavSwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0.0;
+    if (velocity.abs() < _swipeVelocityThreshold) return;
+
+    if (velocity < 0) {
+      _goToTab((_currentIndex + 1).clamp(0, _tabCount - 1));
+    } else {
+      _goToTab((_currentIndex - 1).clamp(0, _tabCount - 1));
     }
   }
 
@@ -81,25 +101,71 @@ class _TeacherMainNavigationState extends State<TeacherMainNavigation>
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return WillPopScope(
-      onWillPop: () async {
-        // If not on Home tab, switch to Home and consume back press
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+
         if (_currentIndex != 0) {
-          setState(() => _currentIndex = 0);
-          return false;
+          _goToTab(0);
+          return;
         }
-        // On Home tab: exit the app
-        await SystemNavigator.pop();
-        return false;
+
+        SystemNavigator.pop();
       },
       child: Scaffold(
-        body: IndexedStack(index: _currentIndex, children: _screens),
+        body: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: _handleMainNavSwipe,
+          child: NotificationListener<MainNavSwipeNotification>(
+            onNotification: (notification) {
+              final targetIndex =
+                  notification.direction == MainNavSwipeDirection.left
+                  ? (_currentIndex + 1).clamp(0, _tabCount - 1)
+                  : (_currentIndex - 1).clamp(0, _tabCount - 1);
+              _goToTab(targetIndex);
+              return true;
+            },
+            child: PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              onPageChanged: (index) {
+                if (_currentIndex == index) return;
+                setState(() => _currentIndex = index);
+              },
+              children: _screens
+                  .map((screen) => _KeepAlivePage(child: screen))
+                  .toList(growable: false),
+            ),
+          ),
+        ),
         bottomNavigationBar: _GlassyBottomBar(
           currentIndex: _currentIndex,
-          onTap: _onTap,
+          onTap: _goToTab,
         ),
       ),
     );
+  }
+}
+
+class _KeepAlivePage extends StatefulWidget {
+  final Widget child;
+
+  const _KeepAlivePage({required this.child});
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 
@@ -174,7 +240,7 @@ class _GlassyBottomBar extends StatelessWidget {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E).withOpacity(0.70),
+            color: const Color(0xFF1C1C1E).withValues(alpha: 0.70),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x4D000000),

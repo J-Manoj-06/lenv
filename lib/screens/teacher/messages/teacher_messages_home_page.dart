@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../widgets/main_nav_swipe_notification.dart';
 import 'teacher_message_groups_screen.dart';
 import '../teacher_community_screen.dart';
 
@@ -14,6 +15,7 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _selectedIndex = 0;
+  bool _navSwipeTriggered = false;
 
   @override
   void initState() {
@@ -73,7 +75,9 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
             decoration: BoxDecoration(
               color: isDark
                   ? theme.colorScheme.surface
-                  : theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
+                  : theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.6,
+                    ),
               borderRadius: BorderRadius.circular(50),
               border: Border.all(color: theme.dividerColor, width: 1),
             ),
@@ -87,17 +91,50 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
 
           // Tab Views
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: const [
-                TeacherMessageGroupsScreen(),
-                TeacherCommunityScreen(),
-              ],
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleTabScrollNotification,
+              child: TabBarView(
+                controller: _tabController,
+                physics: const PageScrollPhysics(),
+                children: const [
+                  TeacherMessageGroupsScreen(),
+                  TeacherCommunityScreen(),
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  bool _handleTabScrollNotification(ScrollNotification notification) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.horizontal) {
+      return false;
+    }
+
+    if (notification is ScrollEndNotification) {
+      _navSwipeTriggered = false;
+      return false;
+    }
+
+    if (notification is! OverscrollNotification || _navSwipeTriggered) {
+      return false;
+    }
+
+    final isAtFirstTab = _selectedIndex == 0;
+    final isAtLastTab = _selectedIndex == _tabController.length - 1;
+
+    if (notification.overscroll < 0 && isAtFirstTab) {
+      _navSwipeTriggered = true;
+      MainNavSwipeNotification(MainNavSwipeDirection.right).dispatch(context);
+    } else if (notification.overscroll > 0 && isAtLastTab) {
+      _navSwipeTriggered = true;
+      MainNavSwipeNotification(MainNavSwipeDirection.left).dispatch(context);
+    }
+
+    return false;
   }
 
   Widget _buildTabButton(String label, int index, bool isDark) {
@@ -121,7 +158,7 @@ class _TeacherMessagesHomePageState extends State<TeacherMessagesHomePage>
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: const Color(0xFF355872).withOpacity(0.25),
+                    color: const Color(0xFF355872).withValues(alpha: 0.25),
                     blurRadius: 15,
                     spreadRadius: 0,
                   ),

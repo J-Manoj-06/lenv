@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -34,6 +36,8 @@ class TeacherDashboardScreen extends StatefulWidget {
 }
 
 class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
+  static const String _allGroupsFilterValue = '__all_groups__';
+
   String? selectedClass;
   int selectedNavIndex = 0;
 
@@ -45,10 +49,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   // Maps "<Grade> - <Section>" to list of subjects handled
   Map<String, List<String>> _classSubjectMap = <String, List<String>>{};
   final ParentTeacherGroupService _ptGroupService = ParentTeacherGroupService();
-  ParentTeacherGroup? _sectionGroup;
-  bool _isLoadingSectionGroup = false;
-  String? _sectionGroupError;
-  int _sectionGroupUnreadCount = 0;
+  List<ParentTeacherGroup> _sectionGroups = <ParentTeacherGroup>[];
+  bool _isLoadingSectionGroups = false;
+  String? _sectionGroupsError;
+  Map<String, int> _sectionGroupUnreadCounts = <String, int>{};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _sectionGroupsSubscription;
   bool _isLoading = true;
   String? _error;
   // Cache viewed principal announcement ids to avoid re-marking and stale badges
@@ -273,6 +279,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   @override
   void dispose() {
+    _sectionGroupsSubscription?.cancel();
     super.dispose();
   }
 
@@ -328,14 +335,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
             // ✅ Set selectedClass so the Connect-with-Parents card is tappable offline
             if (safeTeacherData != null && safeClasses.isNotEmpty) {
               _buildSubjectMapping(safeTeacherData, safeClasses);
-              final firstClass = safeClasses.first;
-              final subjects = _classSubjectMap[firstClass] ?? const <String>[];
               setState(() {
-                selectedClass = subjects.isNotEmpty
-                    ? '$firstClass::${subjects.first}'
-                    : firstClass;
+                selectedClass = _allGroupsFilterValue;
               });
-              await _loadSectionGroupForSelection();
+              await _loadSectionGroupsForTeacher();
             }
             return;
           }
@@ -407,15 +410,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           // Build subject mapping from cached teacherData
           if (_teacherData != null && _classes.isNotEmpty) {
             _buildSubjectMapping(_teacherData!, _classes);
-            // ✅ Set selectedClass so the Connect-with-Parents card is tappable offline
-            final firstClass = _classes.first;
-            final subjects = _classSubjectMap[firstClass] ?? const <String>[];
             setState(() {
-              selectedClass = subjects.isNotEmpty
-                  ? '$firstClass::${subjects.first}'
-                  : firstClass;
+              selectedClass = _allGroupsFilterValue;
             });
-            await _loadSectionGroupForSelection();
+            await _loadSectionGroupsForTeacher();
           }
 
           return;
@@ -454,17 +452,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _buildSubjectMapping(safeTeacherData, classes);
 
         // Set initial selected class
-        if (classes.isNotEmpty) {
-          final firstClass = classes.first;
-          final subjects = _classSubjectMap[firstClass] ?? const <String>[];
-          selectedClass = subjects.isNotEmpty
-              ? '$firstClass::${subjects.first}'
-              : firstClass;
-        }
+        selectedClass = _allGroupsFilterValue;
       });
 
-      // Load section group for initial selection
-      await _loadSectionGroupForSelection();
+      // Load parent-teacher groups for the teacher's handled classes
+      await _loadSectionGroupsForTeacher();
 
       // Preload viewed status for instant orange border updates
       await _preloadViewedStatus();
@@ -507,14 +499,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         // ✅ Set selectedClass so the Connect-with-Parents card is tappable offline
         if (safeTeacherData != null && safeClasses.isNotEmpty) {
           _buildSubjectMapping(safeTeacherData, safeClasses);
-          final firstClass = safeClasses.first;
-          final subjects = _classSubjectMap[firstClass] ?? const <String>[];
           setState(() {
-            selectedClass = subjects.isNotEmpty
-                ? '$firstClass::${subjects.first}'
-                : firstClass;
+            selectedClass = _allGroupsFilterValue;
           });
-          await _loadSectionGroupForSelection();
+          await _loadSectionGroupsForTeacher();
         }
       } else {
         setState(() {
@@ -960,7 +948,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         const SizedBox(height: 24),
                         _buildGradientStatsBanner(),
                         const SizedBox(height: 24),
-                        _buildSectionGroupCard(),
+                        _buildSectionGroupsSection(),
                         const SizedBox(height: 24),
                         _buildClassSummary(),
                         const SizedBox(height: 24),
@@ -1050,13 +1038,12 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       vertical: 12,
                     ),
                   ),
-                  items: _buildClassSubjectItems(),
+                  items: _buildClassFilterItems(),
                   onChanged: (String? newValue) {
                     if (newValue != null) {
                       setState(() {
                         selectedClass = newValue;
                       });
-                      _loadSectionGroupForSelection();
                     }
                   },
                 ),
@@ -1109,235 +1096,32 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     );
   }
 
-  // Build dropdown items: for each class, emit one item per subject as
-  // value = '<class>::<subject>' and label '<class> - <subject>'.
-  List<DropdownMenuItem<String>> _buildClassSubjectItems() {
-    final items = <DropdownMenuItem<String>>[];
-    for (final className in _classes) {
-      final subjects = _classSubjectMap[className] ?? const <String>[];
-      if (subjects.isEmpty) {
-        items.add(
-          DropdownMenuItem<String>(value: className, child: Text(className)),
-        );
-      } else {
-        for (final subj in subjects) {
-          final value = '$className::$subj';
-          final label = '$className - $subj';
-          items.add(DropdownMenuItem<String>(value: value, child: Text(label)));
-        }
-      }
+  List<DropdownMenuItem<String>> _buildClassFilterItems() {
+    final uniqueClasses = <String>{
+      for (final className in _classes)
+        if (className.trim().isNotEmpty) className.trim(),
+    }.toList();
+
+    final items = <DropdownMenuItem<String>>[
+      const DropdownMenuItem<String>(
+        value: _allGroupsFilterValue,
+        child: Text('All Groups'),
+      ),
+    ];
+
+    for (final className in uniqueClasses) {
+      items.add(
+        DropdownMenuItem<String>(value: className, child: Text(className)),
+      );
     }
+
     return items;
   }
 
-  Widget _buildSectionGroupCard() {
-    final parsed = _parseClassSection(selectedClass);
-    final classLabel = parsed != null
-        ? '${parsed['className'] ?? ''}${(parsed['section'] ?? '').isNotEmpty ? ' - ${parsed['section']}' : ''}'
-        : 'Class - Section';
-
-    return InkWell(
-      onTap:
-          _sectionGroup == null ||
-              _isLoadingSectionGroup ||
-              _sectionGroupError != null
-          ? null
-          : () async {
-              await Navigator.pushNamed(
-                context,
-                '/parent/section-group-chat',
-                arguments: {
-                  'groupId': _sectionGroup!.id,
-                  'groupName': _sectionGroup!.name,
-                  'className': _sectionGroup!.className,
-                  'section': _sectionGroup!.section,
-                  'schoolCode': _sectionGroup!.schoolCode,
-                  'childName': '',
-                  'childId': '',
-                  'senderRole': 'teacher',
-                },
-              );
-              // Refresh unread count after returning from chat
-              _loadSectionGroupUnreadCount();
-            },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [const Color(0xFF355872), const Color(0xFF4A7A99)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF355872).withOpacity(0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.groups_rounded,
-                    color: Colors.white,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _sectionGroup?.name.isNotEmpty == true
-                            ? _sectionGroup!.name
-                            : '$classLabel Parents & Teachers',
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.people_outline,
-                            color: Colors.white70,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Connect with parents',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.white70,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                if (_sectionGroupUnreadCount > 0)
-                  Container(
-                    margin: const EdgeInsets.only(right: 12),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _sectionGroupUnreadCount > 99
-                          ? '99+'
-                          : _sectionGroupUnreadCount.toString(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                const Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white,
-                  size: 18,
-                ),
-                const SizedBox(width: 4),
-              ],
-            ),
-            if (_isLoadingSectionGroup)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Row(
-                  children: const [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Text(
-                      'Preparing group…',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ],
-                ),
-              )
-            else if (_sectionGroupError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Unable to load group',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: _loadSectionGroupForSelection,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                      ),
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Map<String, String>? _parseClassSection(String? value) {
-    if (value == null || value.isEmpty) return null;
+    if (value == null || value.isEmpty || value == _allGroupsFilterValue) {
+      return null;
+    }
     final base = value.split('::').first;
     final parts = base.split(' - ');
     if (parts.isEmpty) return null;
@@ -1354,13 +1138,138 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     String schoolCode,
   ) => 'section_group_${schoolCode}_${className}_$section';
 
+  String _normalizeGroupClassName(String className) {
+    final trimmed = className.trim();
+    if (trimmed.isEmpty) return '';
+
+    final digitMatch = RegExp(r'\d+').firstMatch(trimmed);
+    if (digitMatch != null) {
+      return digitMatch.group(0)!.toLowerCase();
+    }
+
+    return trimmed
+        .replaceAll(RegExp(r'grade\s+', caseSensitive: false), '')
+        .replaceAll(RegExp(r'class\s+', caseSensitive: false), '')
+        .trim()
+        .toLowerCase();
+  }
+
+  String _sectionGroupMatchKey(String className, String section) {
+    final normalizedClass = _normalizeGroupClassName(className);
+    final normalizedSection = section.trim().toLowerCase();
+    return '$normalizedClass::$normalizedSection';
+  }
+
+  List<Map<String, String>> _handledClassSections() {
+    final uniqueKeys = <String>{};
+    final handled = <Map<String, String>>[];
+
+    for (final className in _classes) {
+      final parsed = _parseClassSection(className);
+      if (parsed == null) continue;
+
+      final classValue = (parsed['className'] ?? '').trim();
+      final sectionValue = (parsed['section'] ?? '').trim();
+      if (classValue.isEmpty || sectionValue.isEmpty) continue;
+
+      final key = _sectionGroupMatchKey(classValue, sectionValue);
+      if (!uniqueKeys.add(key)) continue;
+
+      handled.add({'className': classValue, 'section': sectionValue});
+    }
+
+    return handled;
+  }
+
+  ParentTeacherGroup _parentTeacherGroupFromDoc(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final data = doc.data();
+    final rawTimestamp = data['lastMessageAt'];
+
+    return ParentTeacherGroup(
+      id: doc.id,
+      name: (data['name'] as String?) ?? 'Parents & Teachers',
+      className: (data['className'] as String?) ?? '',
+      section: (data['section'] as String?) ?? '',
+      schoolCode: (data['schoolCode'] as String?) ?? '',
+      lastMessage: (data['lastMessage'] as String?) ?? '',
+      lastMessageAt: rawTimestamp is Timestamp ? rawTimestamp.toDate() : null,
+      memberCount: (data['memberCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  int _compareSectionGroups(ParentTeacherGroup a, ParentTeacherGroup b) {
+    final aTime = a.lastMessageAt;
+    final bTime = b.lastMessageAt;
+
+    if (aTime == null && bTime == null) {
+      final classCmp = _normalizeGroupClassName(
+        a.className,
+      ).compareTo(_normalizeGroupClassName(b.className));
+      if (classCmp != 0) return classCmp;
+
+      final sectionCmp = a.section.toLowerCase().compareTo(
+        b.section.toLowerCase(),
+      );
+      if (sectionCmp != 0) return sectionCmp;
+
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    }
+
+    if (aTime == null) return 1;
+    if (bTime == null) return -1;
+
+    final timeCmp = bTime.compareTo(aTime);
+    if (timeCmp != 0) return timeCmp;
+
+    final classCmp = _normalizeGroupClassName(
+      a.className,
+    ).compareTo(_normalizeGroupClassName(b.className));
+    if (classCmp != 0) return classCmp;
+
+    final sectionCmp = a.section.toLowerCase().compareTo(
+      b.section.toLowerCase(),
+    );
+    if (sectionCmp != 0) return sectionCmp;
+
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+
+  List<ParentTeacherGroup> _sortSectionGroups(List<ParentTeacherGroup> groups) {
+    final sorted = List<ParentTeacherGroup>.from(groups);
+    sorted.sort(_compareSectionGroups);
+    return sorted;
+  }
+
+  Future<String> _resolveTeacherSchoolCode() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final directCode =
+        authProvider.currentUser?.instituteId ??
+        _teacherData?['schoolCode'] ??
+        '';
+    if (directCode.isNotEmpty) return directCode;
+
+    final session = await SessionManager.getLoginSession();
+    return session['schoolId'] as String? ?? '';
+  }
+
   /// Save section group to SharedPreferences for offline use
   Future<void> _cacheSectionGroup(ParentTeacherGroup group) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         _sectionGroupCacheKey(group.className, group.section, group.schoolCode),
-        '${group.id}|${group.name}|${group.className}|${group.section}|${group.schoolCode}',
+        jsonEncode({
+          'id': group.id,
+          'name': group.name,
+          'className': group.className,
+          'section': group.section,
+          'schoolCode': group.schoolCode,
+          'lastMessage': group.lastMessage,
+          'lastMessageAt': group.lastMessageAt?.millisecondsSinceEpoch,
+          'memberCount': group.memberCount,
+        }),
       );
     } catch (_) {}
   }
@@ -1377,139 +1286,542 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         _sectionGroupCacheKey(className, section, schoolCode),
       );
       if (raw == null) return null;
-      final parts = raw.split('|');
-      if (parts.length < 5) return null;
-      return ParentTeacherGroup.empty(
-        id: parts[0],
-        name: parts[1],
-        className: parts[2],
-        section: parts[3],
-        schoolCode: parts[4],
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final data = Map<String, dynamic>.from(decoded);
+
+      DateTime? lastMessageAt;
+      final rawLastMessageAt = data['lastMessageAt'];
+      if (rawLastMessageAt is num && rawLastMessageAt > 0) {
+        lastMessageAt = DateTime.fromMillisecondsSinceEpoch(
+          rawLastMessageAt.toInt(),
+        );
+      }
+
+      return ParentTeacherGroup(
+        id: data['id']?.toString() ?? '',
+        name: data['name']?.toString() ?? '',
+        className: data['className']?.toString() ?? '',
+        section: data['section']?.toString() ?? '',
+        schoolCode: data['schoolCode']?.toString() ?? '',
+        lastMessage: data['lastMessage']?.toString() ?? '',
+        lastMessageAt: lastMessageAt,
+        memberCount: (data['memberCount'] as num?)?.toInt() ?? 0,
       );
     } catch (_) {
       return null;
     }
   }
 
-  Future<void> _loadSectionGroupForSelection() async {
-    final parsed = _parseClassSection(selectedClass);
-    if (parsed == null) return;
+  Future<List<ParentTeacherGroup>> _loadCachedSectionGroups({
+    required List<Map<String, String>> handledGroups,
+    required String schoolCode,
+  }) async {
+    final groups = <ParentTeacherGroup>[];
 
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final schoolCode =
-        authProvider.currentUser?.instituteId ??
-        _teacherData?['schoolCode'] ??
-        '';
-    if (schoolCode.isEmpty) {
-      // ✅ OFFLINE FALLBACK: try loading from cached session
-      final session = await SessionManager.getLoginSession();
-      final cachedSchoolCode = session['schoolId'] as String? ?? '';
-      if (cachedSchoolCode.isNotEmpty) {
-        final cached = await _loadCachedSectionGroup(
-          parsed['className'] ?? '',
-          parsed['section'] ?? '',
-          cachedSchoolCode,
-        );
-        if (cached != null && mounted) {
-          debugPrint(
-            '🔄 Section group loaded from cache (offline): ${cached.id}',
-          );
-          setState(() {
-            _sectionGroup = cached;
-            _isLoadingSectionGroup = false;
-          });
-          return;
-        }
+    for (final handledGroup in handledGroups) {
+      final cached = await _loadCachedSectionGroup(
+        handledGroup['className'] ?? '',
+        handledGroup['section'] ?? '',
+        schoolCode,
+      );
+      if (cached != null) {
+        groups.add(cached);
       }
+    }
+
+    return _sortSectionGroups(groups);
+  }
+
+  Future<void> _loadSectionGroupUnreadCounts([
+    List<ParentTeacherGroup>? groups,
+  ]) async {
+    final targetGroups = groups ?? _sectionGroups;
+    if (targetGroups.isEmpty) {
+      if (!mounted) return;
+      setState(() => _sectionGroupUnreadCounts = <String, int>{});
+      return;
+    }
+
+    final unreadProvider = Provider.of<UnreadCountProvider>(
+      context,
+      listen: false,
+    );
+    final counts = <String, int>{};
+
+    for (final group in targetGroups) {
+      try {
+        await unreadProvider.loadUnreadCount(
+          chatId: group.id,
+          chatType: ChatTypeConfig.ptGroupChat,
+        );
+        counts[group.id] = unreadProvider.getUnreadCount(group.id);
+      } catch (_) {
+        counts[group.id] = 0;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _sectionGroupUnreadCounts = counts;
+    });
+  }
+
+  void _startSectionGroupsListener(String schoolCode) {
+    _sectionGroupsSubscription?.cancel();
+
+    final handledKeys = <String>{
+      for (final handledGroup in _handledClassSections())
+        _sectionGroupMatchKey(
+          handledGroup['className'] ?? '',
+          handledGroup['section'] ?? '',
+        ),
+    };
+    if (schoolCode.isEmpty || handledKeys.isEmpty) return;
+
+    _sectionGroupsSubscription = FirebaseFirestore.instance
+        .collection('parent_teacher_groups')
+        .where('schoolCode', isEqualTo: schoolCode)
+        .snapshots()
+        .listen(
+          (snapshot) async {
+            final liveGroups = snapshot.docs
+                .map(_parentTeacherGroupFromDoc)
+                .where(
+                  (group) => handledKeys.contains(
+                    _sectionGroupMatchKey(group.className, group.section),
+                  ),
+                )
+                .toList();
+
+            for (final group in liveGroups) {
+              await _cacheSectionGroup(group);
+            }
+
+            if (!mounted) return;
+            setState(() {
+              _sectionGroups = _sortSectionGroups(liveGroups);
+              _sectionGroupsError = null;
+              _isLoadingSectionGroups = false;
+            });
+
+            await _loadSectionGroupUnreadCounts(liveGroups);
+          },
+          onError: (_) {
+            if (!mounted) return;
+            setState(() {
+              if (_sectionGroups.isEmpty) {
+                _sectionGroupsError =
+                    'Unable to load groups right now. Please try again.';
+              }
+              _isLoadingSectionGroups = false;
+            });
+          },
+        );
+  }
+
+  Future<void> _loadSectionGroupsForTeacher() async {
+    final handledGroups = _handledClassSections();
+    if (handledGroups.isEmpty) {
+      if (!mounted) return;
       setState(() {
-        _sectionGroup = null;
-        _sectionGroupError = 'Missing school code';
+        _sectionGroups = <ParentTeacherGroup>[];
+        _sectionGroupUnreadCounts = <String, int>{};
+        _isLoadingSectionGroups = false;
+        _sectionGroupsError = null;
       });
       return;
     }
 
-    // ✅ Try loading from cache immediately for offline-first UX
-    final cachedGroup = await _loadCachedSectionGroup(
-      parsed['className'] ?? '',
-      parsed['section'] ?? '',
-      schoolCode,
-    );
-    if (cachedGroup != null && mounted) {
-      debugPrint('🔄 Section group pre-loaded from cache: ${cachedGroup.id}');
+    final schoolCode = await _resolveTeacherSchoolCode();
+    if (schoolCode.isEmpty) {
+      if (!mounted) return;
       setState(() {
-        _sectionGroup = cachedGroup;
-        _isLoadingSectionGroup = false;
+        _sectionGroups = <ParentTeacherGroup>[];
+        _sectionGroupUnreadCounts = <String, int>{};
+        _isLoadingSectionGroups = false;
+        _sectionGroupsError = 'Missing school code';
       });
-    } else {
+      return;
+    }
+
+    if (mounted) {
       setState(() {
-        _isLoadingSectionGroup = true;
-        _sectionGroupError = null;
+        _isLoadingSectionGroups = true;
+        _sectionGroupsError = null;
       });
     }
 
-    try {
-      debugPrint(
-        '🔍 Loading section group for ${parsed['className']}-${parsed['section']}',
-      );
-      final group = await _ptGroupService.ensureGroupForClassSection(
-        schoolCode: schoolCode,
-        className: parsed['className'] ?? '',
-        section: parsed['section'] ?? '',
-      );
-      if (!mounted) return;
-      debugPrint('✅ Section group loaded: ${group.id}');
-      // ✅ Cache for offline use
-      await _cacheSectionGroup(group);
+    final cachedGroups = await _loadCachedSectionGroups(
+      handledGroups: handledGroups,
+      schoolCode: schoolCode,
+    );
+
+    if (cachedGroups.isNotEmpty && mounted) {
       setState(() {
-        _sectionGroup = group;
+        _sectionGroups = cachedGroups;
+      });
+      await _loadSectionGroupUnreadCounts(cachedGroups);
+    }
+
+    _startSectionGroupsListener(schoolCode);
+
+    try {
+      final liveGroups = await Future.wait(
+        handledGroups.map(
+          (handledGroup) => _ptGroupService.ensureGroupForClassSection(
+            schoolCode: schoolCode,
+            className: handledGroup['className'] ?? '',
+            section: handledGroup['section'] ?? '',
+          ),
+        ),
+      );
+
+      for (final group in liveGroups) {
+        await _cacheSectionGroup(group);
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _sectionGroups = _sortSectionGroups(liveGroups);
+        _sectionGroupsError = null;
+        _isLoadingSectionGroups = false;
       });
 
-      // Load unread count for this group
-      _loadSectionGroupUnreadCount();
+      await _loadSectionGroupUnreadCounts(liveGroups);
     } catch (e) {
-      debugPrint('❌ Failed to load section group: $e');
       if (!mounted) return;
-      // Only show error if we have no cached group
-      if (_sectionGroup == null) {
-        setState(() {
-          _sectionGroupError = 'Failed to load section group: $e';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingSectionGroup = false;
-        });
-      }
+      setState(() {
+        if (_sectionGroups.isEmpty) {
+          _sectionGroupsError =
+              'Unable to load groups right now. Please try again.';
+        }
+        _isLoadingSectionGroups = false;
+      });
     }
   }
 
-  /// Load unread count for the parent-teacher section group
-  Future<void> _loadSectionGroupUnreadCount() async {
-    if (_sectionGroup == null) {
-      setState(() => _sectionGroupUnreadCount = 0);
-      return;
+  List<ParentTeacherGroup> _filteredSectionGroups() {
+    if (selectedClass == null ||
+        selectedClass == _allGroupsFilterValue ||
+        selectedClass!.trim().isEmpty) {
+      return _sectionGroups;
     }
 
-    try {
-      final unreadProvider = Provider.of<UnreadCountProvider>(
-        context,
-        listen: false,
-      );
-      await unreadProvider.loadUnreadCount(
-        chatId: _sectionGroup!.id,
-        chatType: ChatTypeConfig.ptGroupChat,
-      );
+    final selected = _parseClassSection(selectedClass);
+    if (selected == null) return _sectionGroups;
 
-      if (!mounted) return;
-      setState(() {
-        _sectionGroupUnreadCount = unreadProvider.getUnreadCount(
-          _sectionGroup!.id,
+    final selectedKey = _sectionGroupMatchKey(
+      selected['className'] ?? '',
+      selected['section'] ?? '',
+    );
+
+    return _sectionGroups.where((group) {
+      return _sectionGroupMatchKey(group.className, group.section) ==
+          selectedKey;
+    }).toList();
+  }
+
+  String _formatSectionGroupTime(DateTime? timestamp) {
+    if (timestamp == null) return '';
+
+    final localTime = timestamp.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final groupDay = DateTime(localTime.year, localTime.month, localTime.day);
+
+    if (groupDay == today) {
+      final hour = localTime.hour % 12 == 0 ? 12 : localTime.hour % 12;
+      final minute = localTime.minute.toString().padLeft(2, '0');
+      final suffix = localTime.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:$minute $suffix';
+    }
+
+    if (groupDay == today.subtract(const Duration(days: 1))) {
+      return 'Yesterday';
+    }
+
+    if (localTime.year == now.year) {
+      return '${localTime.day}/${localTime.month}';
+    }
+
+    return '${localTime.day}/${localTime.month}/${localTime.year}';
+  }
+
+  Widget _buildSectionGroupsSection() {
+    final visibleGroups = _filteredSectionGroups();
+    final title = selectedClass == _allGroupsFilterValue
+        ? 'Class Groups'
+        : 'Class Group';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(context).dividerColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${visibleGroups.length}',
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_isLoadingSectionGroups && visibleGroups.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Loading parent groups...',
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyMedium?.color,
+                  ),
+                ),
+              ],
+            ),
+          )
+        else if (_sectionGroupsError != null && visibleGroups.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _sectionGroupsError!,
+                  style: TextStyle(
+                    color: Theme.of(context).textTheme.bodyLarge?.color,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: _loadSectionGroupsForTeacher,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          )
+        else if (visibleGroups.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              selectedClass == _allGroupsFilterValue
+                  ? 'No class groups available yet.'
+                  : 'No group found for the selected class.',
+              style: TextStyle(
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+            ),
+          )
+        else
+          ...List.generate(visibleGroups.length, (index) {
+            final group = visibleGroups[index];
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == visibleGroups.length - 1 ? 0 : 16,
+              ),
+              child: _buildSectionGroupCard(group),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildSectionGroupCard(ParentTeacherGroup group) {
+    final unreadCount = _sectionGroupUnreadCounts[group.id] ?? 0;
+    final lastMessage = group.lastMessage.trim();
+    final subtitle = lastMessage.isNotEmpty
+        ? lastMessage
+        : 'No messages yet. Start the conversation with parents.';
+    final timeLabel = _formatSectionGroupTime(group.lastMessageAt);
+
+    return InkWell(
+      onTap: () async {
+        await Navigator.pushNamed(
+          context,
+          '/parent/section-group-chat',
+          arguments: {
+            'groupId': group.id,
+            'groupName': group.name,
+            'className': group.className,
+            'section': group.section,
+            'schoolCode': group.schoolCode,
+            'childName': '',
+            'childId': '',
+            'senderRole': 'teacher',
+          },
         );
-      });
-    } catch (e) {
-      setState(() => _sectionGroupUnreadCount = 0);
-    }
+        await _loadSectionGroupUnreadCounts();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF355872), Color(0xFF4A7A99)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF355872).withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.groups_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    group.name.isNotEmpty
+                        ? group.name
+                        : '${group.className} - ${group.section} Parents & Teachers',
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (timeLabel.isNotEmpty)
+                  Text(
+                    timeLabel,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                if (timeLabel.isNotEmpty) const SizedBox(height: 8),
+                if (unreadCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : unreadCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // (Announcements removed) — merged into Classroom Highlights as 24h status

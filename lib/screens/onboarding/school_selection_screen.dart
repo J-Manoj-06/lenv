@@ -27,6 +27,20 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen>
   bool _schoolLoadIsWarning = false;
   bool _isSearchFocused = false;
 
+  String get _redirectRoute {
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is String && args.isNotEmpty) {
+      return args;
+    }
+    if (args is Map) {
+      final redirectRoute = args['redirectRoute'];
+      if (redirectRoute is String && redirectRoute.isNotEmpty) {
+        return redirectRoute;
+      }
+    }
+    return '/role-selection';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -135,7 +149,13 @@ class _SchoolSelectionScreenState extends State<SchoolSelectionScreen>
       );
 
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/role-selection');
+        if (_redirectRoute == '/role-selection') {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil(_redirectRoute, (route) => false);
+        } else {
+          Navigator.of(context).pushReplacementNamed(_redirectRoute);
+        }
       }
     } catch (e) {
       if (mounted) {

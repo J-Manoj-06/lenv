@@ -32,6 +32,7 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
   static const Color brandBrownDark = Color(0xFF1C140D);
   static const Color brandBrownLight = Color(0xFF9C7349);
   static const Color brandLightGray = Color(0xFFF4EDE7);
+  static const String _schoolSelectionRedirect = '/teacher-login';
 
   @override
   void dispose() {
@@ -69,7 +70,11 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
         'No school selected. Please choose your school first.',
       );
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/school-selection');
+        Navigator.pushReplacementNamed(
+          context,
+          '/school-selection',
+          arguments: const {'redirectRoute': _schoolSelectionRedirect},
+        );
       }
       return;
     }
@@ -99,7 +104,11 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
             );
             await authProvider.signOut();
             if (mounted) {
-              Navigator.pushReplacementNamed(context, '/school-selection');
+              Navigator.pushReplacementNamed(
+                context,
+                '/school-selection',
+                arguments: const {'redirectRoute': _schoolSelectionRedirect},
+              );
             }
           } else {
             // Save session
@@ -142,6 +151,38 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
     }
   }
 
+  Future<void> _promptSchoolChange() async {
+    final shouldChange = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Change school?'),
+          content: const Text(
+            'This will open the school selection screen so you can choose a different school.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Change'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldChange == true && mounted) {
+      Navigator.pushReplacementNamed(
+        context,
+        '/school-selection',
+        arguments: const {'redirectRoute': _schoolSelectionRedirect},
+      );
+    }
+  }
+
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
     showLenvLoginError(context, message);
@@ -160,7 +201,11 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: EntranceVideoBackground(
-        overlayColors: const [Color(0xFF09151D), Color(0xFF0D1E29), Color(0xFF000000)],
+        overlayColors: const [
+          Color(0xFF09151D),
+          Color(0xFF0D1E29),
+          Color(0xFF000000),
+        ],
         overlayOpacity: 0.70,
         videoOpacity: 0.88,
         child: SafeArea(
@@ -297,30 +342,48 @@ class _TeacherLoginScreenState extends State<TeacherLoginScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
+        Material(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: _promptSchoolChange,
             borderRadius: BorderRadius.circular(12),
-            color: bgColor,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                Icon(Icons.school_rounded, color: subTextColor),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _selectedSchoolName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                children: [
+                  Icon(Icons.school_rounded, color: subTextColor),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _selectedSchoolName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Tap to change school',
+                          style: TextStyle(
+                            color: subTextColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Icon(Icons.swap_horiz_rounded, color: subTextColor),
+                ],
+              ),
             ),
           ),
         ),

@@ -108,9 +108,320 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
     });
   }
 
+  List<String> _stringList(dynamic raw) {
+    if (raw is List) {
+      return raw
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    if (raw is String) {
+      return raw
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    return const <String>[];
+  }
+
+  String _normalizeGradeLabel(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+    if (trimmed.toLowerCase().startsWith('grade ')) return trimmed;
+    return 'Grade $trimmed';
+  }
+
+  String _displayClassLabel(String className, String section) {
+    final normalizedClass = _normalizeGradeLabel(className);
+    final normalizedSection = section.trim();
+    if (normalizedClass.isEmpty) return '';
+    if (normalizedSection.isEmpty) return normalizedClass;
+    return '$normalizedClass - $normalizedSection';
+  }
+
+  Map<String, List<String>> _extractAssignments(Map<String, dynamic> data) {
+    final classAssignments = _stringList(data['classAssignments']);
+    final classesHandled = _stringList(data['classesHandled']);
+    final sections = _stringList(data['sections'] ?? data['section']);
+    final subjectsHandled = _stringList(
+      data['subjectsHandled'] ?? data['subject'] ?? data['subjects'],
+    );
+
+    final classLabels = <String>{};
+    final subjectLabels = <String>{};
+
+    for (final assignment in classAssignments) {
+      final parts = assignment.split(':');
+      if (parts.isEmpty) continue;
+
+      final className = parts.first.trim();
+      final rhs = parts.length > 1 ? parts[1] : '';
+      final rhsParts = rhs.split(',').map((e) => e.trim()).toList();
+      final section = rhsParts.isNotEmpty ? rhsParts.first : '';
+      final subject = rhsParts.length > 1 ? rhsParts.sublist(1).join(', ') : '';
+
+      final classLabel = _displayClassLabel(className, section);
+      if (classLabel.isNotEmpty) {
+        classLabels.add(classLabel);
+      }
+      if (subject.isNotEmpty) {
+        subjectLabels.add(subject);
+      }
+    }
+
+    if (classLabels.isEmpty && classesHandled.isNotEmpty) {
+      if (sections.isNotEmpty) {
+        for (final className in classesHandled) {
+          for (final section in sections) {
+            final label = _displayClassLabel(className, section);
+            if (label.isNotEmpty) {
+              classLabels.add(label);
+            }
+          }
+        }
+      } else {
+        for (final className in classesHandled) {
+          final label = _normalizeGradeLabel(className);
+          if (label.isNotEmpty) {
+            classLabels.add(label);
+          }
+        }
+      }
+    }
+
+    for (final subject in subjectsHandled) {
+      if (subject.isNotEmpty) {
+        subjectLabels.add(subject);
+      }
+    }
+
+    return {
+      'classes': classLabels.isEmpty
+          ? const <String>['Not assigned']
+          : (classLabels.toList()..sort()),
+      'subjects': subjectLabels.isEmpty
+          ? const <String>['Not assigned']
+          : (subjectLabels.toList()..sort()),
+    };
+  }
+
+  String _staffKeyFor(Map<String, dynamic> data, String docId) {
+    final uid = (data['uid'] ?? data['teacherId'] ?? data['userId'] ?? '')
+        .toString()
+        .trim();
+    if (uid.isNotEmpty) return 'uid:$uid';
+
+    final email = (data['email'] ?? '').toString().trim().toLowerCase();
+    if (email.isNotEmpty) return 'email:$email';
+
+    return 'doc:$docId';
+  }
+
+  bool _sameSchool(Map<String, dynamic> data, String schoolCode) {
+    final normalizedSchool = schoolCode.trim().toLowerCase();
+    if (normalizedSchool.isEmpty) return false;
+
+    final values = <String>{
+      (data['schoolCode'] ?? '').toString().trim().toLowerCase(),
+      (data['instituteId'] ?? '').toString().trim().toLowerCase(),
+      (data['schoolId'] ?? '').toString().trim().toLowerCase(),
+    }..removeWhere((e) => e.isEmpty);
+
+    return values.contains(normalizedSchool);
+  }
+
+  Map<String, dynamic> _mergeStaffData(
+    Map<String, dynamic> base,
+    Map<String, dynamic> incoming,
+  ) {
+    final merged = Map<String, dynamic>.from(base);
+
+    for (final entry in incoming.entries) {
+      final value = entry.value;
+      if (value == null) continue;
+
+      if (value is List) {
+        final existing = _stringList(merged[entry.key]);
+        final next = value.map((e) => e.toString().trim()).toList();
+        final combined = <String>{...existing, ...next}
+          ..removeWhere((e) => e.isEmpty);
+        if (combined.isNotEmpty) {
+          merged[entry.key] = combined.toList();
+        }
+        continue;
+      }
+
+      final stringValue = value.toString().trim();
+      final existingValue = (merged[entry.key] ?? '').toString().trim();
+      if (existingValue.isEmpty && stringValue.isNotEmpty) {
+        merged[entry.key] = value;
+      }
+    }
+
+    return merged;
+  }
+
+  _StaffMember? _staffFromData(String fallbackId, Map<String, dynamic> data) {
+    final assignments = _extractAssignments(data);
+    final nameCandidates = [
+      data['name'],
+      data['teacherName'],
+    ].map((e) => e?.toString().trim() ?? '').where((e) => e.isNotEmpty);
+    final name = nameCandidates.isEmpty ? '' : nameCandidates.first;
+
+    if (name.isEmpty) return null;
+
+    final email = (data['email'] ?? '').toString().trim();
+    final phone = (data['phone'] ?? data['mobile'] ?? '').toString().trim();
+    final imageUrl =
+        (data['profileImageUrl'] ??
+                data['profileImage'] ??
+                data['photoUrl'] ??
+                '')
+            .toString()
+            .trim();
+
+    return _StaffMember(
+      id: fallbackId,
+      name: name,
+      email: email,
+      phone: phone,
+      status: (data['status'] ?? 'Active').toString(),
+      role: (data['designation'] ?? data['roleLabel'] ?? 'Teacher').toString(),
+      roleKey: (data['role'] ?? 'teacher').toString(),
+      imageUrl: imageUrl,
+      subjects: assignments['subjects'] ?? const <String>['Not assigned'],
+      classes: assignments['classes'] ?? const <String>['Not assigned'],
+      tests: const <_TestInfo>[],
+      stats: const _StaffStats(totalTests: 0, avgScore: 0, studentsImpacted: 0),
+    );
+  }
+
+  Future<String?> _resolveSchoolCode({
+    required app_auth.AuthProvider authProvider,
+    required User? firebaseUser,
+    required String? fallbackSchoolCode,
+  }) async {
+    final directCode = authProvider.currentUser?.instituteId?.trim();
+    if (directCode != null && directCode.isNotEmpty) {
+      return directCode;
+    }
+
+    if (firebaseUser != null) {
+      try {
+        final principalDoc = await FirebaseFirestore.instance
+            .collection('principals')
+            .doc(firebaseUser.uid)
+            .get();
+        final code = principalDoc.data()?['schoolCode']?.toString().trim();
+        if (code != null && code.isNotEmpty) {
+          return code;
+        }
+      } catch (_) {}
+
+      if (firebaseUser.email != null && firebaseUser.email!.isNotEmpty) {
+        try {
+          final principalQuery = await FirebaseFirestore.instance
+              .collection('principals')
+              .where('email', isEqualTo: firebaseUser.email)
+              .limit(1)
+              .get();
+          final code = principalQuery.docs.isNotEmpty
+              ? principalQuery.docs.first
+                    .data()['schoolCode']
+                    ?.toString()
+                    .trim()
+              : null;
+          if (code != null && code.isNotEmpty) {
+            return code;
+          }
+        } catch (_) {}
+      }
+
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .get();
+        final data = userDoc.data();
+        final code = (data?['schoolCode'] ?? data?['instituteId'] ?? '')
+            .toString()
+            .trim();
+        if (code.isNotEmpty) {
+          return code;
+        }
+      } catch (_) {}
+    }
+
+    final fallback = fallbackSchoolCode?.trim();
+    if (fallback != null && fallback.isNotEmpty) {
+      return fallback;
+    }
+
+    return null;
+  }
+
+  Future<List<_StaffMember>> _fetchStaffForSchool(String schoolCode) async {
+    final firestore = FirebaseFirestore.instance;
+    final usersBySchoolCode = firestore
+        .collection('users')
+        .where('role', isEqualTo: 'teacher')
+        .where('schoolCode', isEqualTo: schoolCode)
+        .get();
+    final usersByInstituteId = firestore
+        .collection('users')
+        .where('role', isEqualTo: 'teacher')
+        .where('instituteId', isEqualTo: schoolCode)
+        .get();
+    final teachersBySchoolCode = firestore
+        .collection('teachers')
+        .where('schoolCode', isEqualTo: schoolCode)
+        .get();
+    final teachersByInstituteId = firestore
+        .collection('teachers')
+        .where('instituteId', isEqualTo: schoolCode)
+        .get();
+
+    final results = await Future.wait([
+      usersBySchoolCode,
+      usersByInstituteId,
+      teachersBySchoolCode,
+      teachersByInstituteId,
+    ]);
+
+    final merged = <String, Map<String, dynamic>>{};
+
+    for (final result in results) {
+      for (final doc in result.docs) {
+        final data = Map<String, dynamic>.from(doc.data());
+        if (!_sameSchool(data, schoolCode)) continue;
+
+        final key = _staffKeyFor(data, doc.id);
+        final current = merged[key];
+        data['uid'] = (data['uid'] ?? doc.id).toString();
+        merged[key] = current == null ? data : _mergeStaffData(current, data);
+      }
+    }
+
+    final staff = merged.entries
+        .map(
+          (entry) => _staffFromData(
+            entry.value['uid']?.toString() ?? entry.key,
+            entry.value,
+          ),
+        )
+        .whereType<_StaffMember>()
+        .toList();
+
+    staff.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return staff;
+  }
+
   Future<void> _loadStaff() async {
     await _cacheManager.initialize();
     _isOnline = await _networkService.isConnected();
+    if (!mounted) return;
 
     final authProvider = Provider.of<app_auth.AuthProvider>(
       context,
@@ -141,97 +452,18 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
     }
 
     try {
-      // Get the principal's schoolCode from principals collection using Firebase UID
-      String? schoolCode;
-
-      final principalDoc = await FirebaseFirestore.instance
-          .collection('principals')
-          .doc(firebaseUser.uid)
-          .get();
-
-      if (principalDoc.exists) {
-        schoolCode = principalDoc.data()?['schoolCode']?.toString();
-      }
-
-      // If not found by UID, try by email
-      if ((schoolCode == null || schoolCode.isEmpty) &&
-          firebaseUser.email != null) {
-        final principalQuery = await FirebaseFirestore.instance
-            .collection('principals')
-            .where('email', isEqualTo: firebaseUser.email)
-            .limit(1)
-            .get();
-
-        if (principalQuery.docs.isNotEmpty) {
-          schoolCode = principalQuery.docs.first
-              .data()['schoolCode']
-              ?.toString();
-        }
-      }
-
-      if (schoolCode == null || schoolCode.isEmpty) {
-        schoolCode = fallbackSchoolCode;
-      }
+      final schoolCode = await _resolveSchoolCode(
+        authProvider: authProvider,
+        firebaseUser: firebaseUser,
+        fallbackSchoolCode: fallbackSchoolCode,
+      );
 
       if (schoolCode == null || schoolCode.isEmpty) {
         setState(() => _isLoading = false);
         return;
       }
 
-      // Now query the users collection for teachers with matching schoolCode
-      final teachersSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'teacher')
-          .where('schoolCode', isEqualTo: schoolCode)
-          .get();
-
-      final staffList = <_StaffMember>[];
-
-      for (final doc in teachersSnap.docs) {
-        final data = doc.data();
-        final name =
-            data['name']?.toString() ??
-            data['teacherName']?.toString() ??
-            'Unknown';
-        final email = data['email']?.toString() ?? '';
-        final phone = data['phone']?.toString() ?? '';
-        final photoUrl =
-            data['photoUrl']?.toString() ??
-            data['profileImage']?.toString() ??
-            '';
-
-        // Get class assignments from the users collection format
-        final classAssignments =
-            (data['classAssignments'] as List?)
-                ?.map((e) => e.toString())
-                .toList() ??
-            [];
-
-        staffList.add(
-          _StaffMember(
-            id: doc.id,
-            name: name,
-            email: email,
-            phone: phone,
-            status: 'Active',
-            role: 'Teaching',
-            roleKey: 'teaching',
-            imageUrl: photoUrl,
-            subjects: classAssignments.isNotEmpty
-                ? classAssignments
-                : ['Not assigned'],
-            classes: classAssignments.isNotEmpty
-                ? classAssignments
-                : ['Not assigned'],
-            tests: [],
-            stats: const _StaffStats(
-              totalTests: 0,
-              avgScore: 0,
-              studentsImpacted: 0,
-            ),
-          ),
-        );
-      }
+      final staffList = await _fetchStaffForSchool(schoolCode);
 
       await _cacheManager.cacheUserData(
         userId: schoolCode,
@@ -287,11 +519,7 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
     for (var staff in _staff) {
       for (var classInfo in staff.classes) {
         if (classInfo != 'Not assigned') {
-          // Extract just the grade part (e.g., "Grade 10" from "Grade 10: A, Math")
-          final parts = classInfo.split(':');
-          if (parts.isNotEmpty) {
-            allClasses.add(parts[0].trim());
-          }
+          allClasses.add(classInfo.trim());
         }
       }
     }
@@ -363,9 +591,40 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
                     )
                   : _staff.isEmpty
                   ? Center(
-                      child: Text(
-                        'No staff found in this school',
-                        style: TextStyle(color: subtitleColor),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.manage_accounts_outlined,
+                              size: 54,
+                              color: subtitleColor.withOpacity(0.7),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No staff found for this school yet',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _isOnline
+                                  ? 'We could not find teacher records linked to this institute. Once staff profiles are available, they will appear here.'
+                                  : 'You are offline and no cached staff list is available for this school yet.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: subtitleColor,
+                                fontSize: 14,
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     )
                   : SingleChildScrollView(
@@ -386,10 +645,29 @@ class _InstituteStaffScreenState extends State<InstituteStaffScreen> {
                           ),
                           if (filtered.isEmpty && !_isLoading)
                             Padding(
-                              padding: const EdgeInsets.only(top: 40),
-                              child: Text(
-                                'No staff match your search.',
-                                style: TextStyle(color: subtitleColor),
+                              padding: const EdgeInsets.only(top: 56),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    Icons.search_off_rounded,
+                                    size: 40,
+                                    color: subtitleColor.withOpacity(0.7),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No staff match your search.',
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Try a different name, subject, or class filter.',
+                                    style: TextStyle(color: subtitleColor),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
@@ -802,6 +1080,8 @@ class _StaffCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = const Color(0xFF146D7A);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -812,8 +1092,14 @@ class _StaffCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: panel,
             borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.06)
+                  : const Color(0xFFE2E8F0),
+            ),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(999),
@@ -851,24 +1137,100 @@ class _StaffCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            staff.name,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: primaryColor.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            staff.role,
+                            style: const TextStyle(
+                              color: Color(0xFF38BDF8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      staff.name,
+                      staff.subjects.first,
                       style: TextStyle(
-                        color: textColor,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        color: subtitleColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      staff.subjects.join(', '),
-                      style: TextStyle(color: subtitleColor, fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
+                    if (staff.classes.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: staff.classes.take(3).map((className) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.06)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              className,
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                    if (staff.email.isNotEmpty || staff.phone.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        staff.email.isNotEmpty ? staff.email : staff.phone,
+                        style: TextStyle(color: subtitleColor, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ],
                   ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  color: slate,
+                  size: 22,
                 ),
               ),
             ],
