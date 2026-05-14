@@ -45,6 +45,8 @@ class AiChatPage extends StatefulWidget {
 }
 
 class _AiChatPageState extends State<AiChatPage> {
+  static const double _swipeBackVelocityThreshold = 300.0;
+
   final ScrollController _scrollController = ScrollController();
   final DeepSeekService _aiService = DeepSeekService();
   final AiInsightsService _insightsService = AiInsightsService();
@@ -691,68 +693,78 @@ class _AiChatPageState extends State<AiChatPage> {
     final textColor = isDarkTheme ? Colors.white : Colors.black87;
     final iconColor = isDarkTheme ? Colors.white70 : Colors.black87;
 
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        backgroundColor: appBarColor,
-        elevation: 2,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_new, color: iconColor),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFF8A00).withOpacity(0.4),
-                    blurRadius: 10,
-                    spreadRadius: 2,
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0.0;
+        if (velocity > _swipeBackVelocityThreshold &&
+            Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: backgroundColor,
+        appBar: AppBar(
+          backgroundColor: appBarColor,
+          elevation: 2,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back_ios_new, color: iconColor),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF8A00).withOpacity(0.4),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const CircleAvatar(
+                  backgroundImage: NetworkImage(
+                    'https://lh3.googleusercontent.com/aida-public/AB6AXuDulQ-roKdSREmCPaSWq2QcOcr8XXXgHWBCekXFS9cITawaQ3Guu-9ynd45OzE4LCsZFGB4XapNfiu_8aRyzdlkw3niFsjAzy4Vts8INkkbK0AI7KFB01N881QNGoEFHRiowph5WvsbZJ0UKQUlW7Q1weyAR7kaW6D01ILaA7DaIoXB2kPLX8TImYQb79pqEGBjOUNR8Pc1BBgsGiJG0QhpaVsCHKhdC6Qx24ePPLRRaJVHlYAvz5flu3bV2RvJxjU6h-WMjd3uTBY',
                   ),
-                ],
-              ),
-              child: const CircleAvatar(
-                backgroundImage: NetworkImage(
-                  'https://lh3.googleusercontent.com/aida-public/AB6AXuDulQ-roKdSREmCPaSWq2QcOcr8XXXgHWBCekXFS9cITawaQ3Guu-9ynd45OzE4LCsZFGB4XapNfiu_8aRyzdlkw3niFsjAzy4Vts8INkkbK0AI7KFB01N881QNGoEFHRiowph5WvsbZJ0UKQUlW7Q1weyAR7kaW6D01ILaA7DaIoXB2kPLX8TImYQb79pqEGBjOUNR8Pc1BBgsGiJG0QhpaVsCHKhdC6Qx24ePPLRRaJVHlYAvz5flu3bV2RvJxjU6h-WMjd3uTBY',
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Personal Assistant',
-              style: TextStyle(
-                color: textColor,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+              const SizedBox(width: 12),
+              Text(
+                'Personal Assistant',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      body: Stack(
-        children: [
-          SingleChildScrollView(child: _buildActionCards()),
-          if (_isProcessing)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black38,
-                child: const Center(
-                  child: SizedBox(
-                    width: 60,
-                    height: 60,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 4,
-                      color: Color(0xFFFF8A00),
+        body: Stack(
+          children: [
+            SingleChildScrollView(child: _buildActionCards()),
+            if (_isProcessing)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black38,
+                  child: const Center(
+                    child: SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 4,
+                        color: Color(0xFFFF8A00),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
