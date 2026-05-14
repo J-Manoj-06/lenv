@@ -139,51 +139,51 @@ class _RequestDetailContent extends StatelessWidget {
     final pointsNeeded = _computePointsNeeded();
 
     return Scaffold(
-        backgroundColor: theme.brightness == Brightness.dark
-            ? const Color(0xFF18181b)
-            : Colors.grey[50],
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _TopBar(
-                  requestIdShort: requestIdShort,
-                  onBack: () {
-                    debugPrint(
-                      '[Rewards][RequestDetail] appbar back tapped: requestId=${request.requestId}',
-                    );
-                    context.pop();
-                  },
-                ),
-                const SizedBox(height: 16),
+      backgroundColor: theme.brightness == Brightness.dark
+          ? const Color(0xFF18181b)
+          : Colors.grey[50],
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _TopBar(
+                requestIdShort: requestIdShort,
+                onBack: () {
+                  debugPrint(
+                    '[Rewards][RequestDetail] appbar back tapped: requestId=${request.requestId}',
+                  );
+                  context.pop();
+                },
+              ),
+              const SizedBox(height: 16),
 
-                _SummaryCard(
-                  request: request,
-                  productName: productName,
-                  pointsNeeded: pointsNeeded,
-                  remainingDays: remainingDays,
-                ),
+              _SummaryCard(
+                request: request,
+                productName: productName,
+                pointsNeeded: pointsNeeded,
+                remainingDays: remainingDays,
+              ),
 
-                const SizedBox(height: 20),
-                _ProgressTimeline(request: request),
+              const SizedBox(height: 20),
+              _ProgressTimeline(request: request),
 
-                const SizedBox(height: 20),
-                _RequestDetailsCard(request: request),
+              const SizedBox(height: 20),
+              _RequestDetailsCard(request: request),
 
-                const SizedBox(height: 20),
-                _ActionButtons(
-                  request: request,
-                  isLoading: isLoading,
-                  onStatusChanged: onStatusChanged,
-                ),
-                const SizedBox(height: 12),
-              ],
-            ),
+              const SizedBox(height: 20),
+              _ActionButtons(
+                request: request,
+                isLoading: isLoading,
+                onStatusChanged: onStatusChanged,
+              ),
+              const SizedBox(height: 12),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 
   String _getProductName() {
