@@ -9,6 +9,7 @@ import '../screens/parent/parent_attendance_screen.dart';
 import '../utils/share_handler_mixin.dart';
 import '../providers/parent_provider.dart';
 import '../providers/auth_provider.dart';
+import 'main_nav_swipe_notification.dart';
 
 /// Parent Main Navigation Wrapper
 /// Provides 5 tabs: Dashboard, Rewards, Messages, Tests, Attendance
@@ -24,6 +25,10 @@ class ParentMainNavigation extends StatefulWidget {
 class _ParentMainNavigationState extends State<ParentMainNavigation>
     with ShareHandlerMixin, WidgetsBindingObserver {
   static const Color parentGreen = Color(0xFF14A670);
+  static const int _tabCount = 5;
+  static const double _swipeVelocityThreshold = 320;
+
+  late final PageController _pageController;
   late int _currentIndex;
   bool _initialized = false;
 
@@ -34,10 +39,11 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
+    _currentIndex = widget.initialIndex.clamp(0, _tabCount - 1);
+    _pageController = PageController(initialPage: _currentIndex);
     WidgetsBinding.instance.addObserver(this);
     _screens = [
-      ParentDashboardScreen(onSwitchToRewards: () => _onTap(1)),
+      ParentDashboardScreen(onSwitchToRewards: () => _goToTab(1)),
       const ParentRewardsScreen(),
       const ParentMessagesScreen(),
       const ParentTestsScreen(),
@@ -48,6 +54,7 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -66,9 +73,24 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
     }
   }
 
-  void _onTap(int index) {
-    if (index != _currentIndex) {
-      setState(() => _currentIndex = index);
+  Future<void> _goToTab(int index) async {
+    if (index == _currentIndex || !mounted) return;
+
+    await _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _handleMainNavSwipe(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0.0;
+    if (velocity.abs() < _swipeVelocityThreshold) return;
+
+    if (velocity < 0) {
+      _goToTab((_currentIndex + 1).clamp(0, _tabCount - 1));
+    } else {
+      _goToTab((_currentIndex - 1).clamp(0, _tabCount - 1));
     }
   }
 
@@ -82,17 +104,44 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
             _currentIndex == 0 &&
             (!authProvider.isInitialized || parentProvider.isLoadingChildren);
 
-        return WillPopScope(
-          onWillPop: () async {
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+
             if (_currentIndex != 0) {
-              setState(() => _currentIndex = 0);
-              return false;
+              _goToTab(0);
+              return;
             }
-            await SystemNavigator.pop();
-            return false;
+
+            SystemNavigator.pop();
           },
           child: Scaffold(
-            body: IndexedStack(index: _currentIndex, children: _screens),
+            body: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: _handleMainNavSwipe,
+              child: NotificationListener<MainNavSwipeNotification>(
+                onNotification: (notification) {
+                  final targetIndex =
+                      notification.direction == MainNavSwipeDirection.left
+                      ? (_currentIndex + 1).clamp(0, _tabCount - 1)
+                      : (_currentIndex - 1).clamp(0, _tabCount - 1);
+                  _goToTab(targetIndex);
+                  return true;
+                },
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (index) {
+                    if (_currentIndex == index) return;
+                    setState(() => _currentIndex = index);
+                  },
+                  children: _screens
+                      .map((screen) => _KeepAlivePage(child: screen))
+                      .toList(growable: false),
+                ),
+              ),
+            ),
             bottomNavigationBar: IgnorePointer(
               ignoring: isLoading,
               child: Opacity(
@@ -116,7 +165,7 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
                             selectedIcon: Icons.dashboard,
                             label: 'Dashboard',
                             isSelected: _currentIndex == 0,
-                            onTap: () => _onTap(0),
+                            onTap: () => _goToTab(0),
                             color: parentGreen,
                           ),
                           _NavItem(
@@ -124,7 +173,7 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
                             selectedIcon: Icons.card_giftcard,
                             label: 'Rewards',
                             isSelected: _currentIndex == 1,
-                            onTap: () => _onTap(1),
+                            onTap: () => _goToTab(1),
                             color: parentGreen,
                           ),
                           _NavItem(
@@ -132,7 +181,7 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
                             selectedIcon: Icons.message,
                             label: 'Messages',
                             isSelected: _currentIndex == 2,
-                            onTap: () => _onTap(2),
+                            onTap: () => _goToTab(2),
                             color: parentGreen,
                           ),
                           _NavItem(
@@ -140,7 +189,7 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
                             selectedIcon: Icons.quiz,
                             label: 'Tests',
                             isSelected: _currentIndex == 3,
-                            onTap: () => _onTap(3),
+                            onTap: () => _goToTab(3),
                             color: parentGreen,
                           ),
                           _NavItem(
@@ -148,7 +197,7 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
                             selectedIcon: Icons.calendar_today,
                             label: 'Attendance',
                             isSelected: _currentIndex == 4,
-                            onTap: () => _onTap(4),
+                            onTap: () => _goToTab(4),
                             color: parentGreen,
                           ),
                         ],
@@ -162,6 +211,27 @@ class _ParentMainNavigationState extends State<ParentMainNavigation>
         );
       },
     );
+  }
+}
+
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
 
