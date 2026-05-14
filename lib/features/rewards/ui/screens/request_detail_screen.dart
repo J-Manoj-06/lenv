@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/reward_request_model.dart';
 import '../../providers/rewards_providers.dart';
 import '../../utils/points_calculator.dart';
 import '../../utils/date_utils.dart' as reward_date_utils;
 import '../widgets/modals.dart';
-import '../../rewards_module.dart';
 
 class RequestDetailScreen extends ConsumerStatefulWidget {
   final String requestId;
@@ -138,18 +138,7 @@ class _RequestDetailContent extends StatelessWidget {
 
     final pointsNeeded = _computePointsNeeded();
 
-    return WillPopScope(
-      onWillPop: () async {
-        debugPrint(
-          '[Rewards][RequestDetail] system back tapped: requestId=${request.requestId}, redirecting to student requests',
-        );
-        RewardsModule.navigateToStudentRequests(
-          context,
-          studentId: request.studentId,
-        );
-        return false;
-      },
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: theme.brightness == Brightness.dark
             ? const Color(0xFF18181b)
             : Colors.grey[50],
@@ -163,12 +152,9 @@ class _RequestDetailContent extends StatelessWidget {
                   requestIdShort: requestIdShort,
                   onBack: () {
                     debugPrint(
-                      '[Rewards][RequestDetail] appbar back tapped: requestId=${request.requestId}, redirecting to student requests',
+                      '[Rewards][RequestDetail] appbar back tapped: requestId=${request.requestId}',
                     );
-                    RewardsModule.navigateToStudentRequests(
-                      context,
-                      studentId: request.studentId,
-                    );
+                    context.pop();
                   },
                 ),
                 const SizedBox(height: 16),
@@ -197,8 +183,7 @@ class _RequestDetailContent extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   String _getProductName() {
